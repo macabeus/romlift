@@ -3,7 +3,6 @@
 // naming the first member a malformed document gets wrong.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-
 import * as romlift from 'romlift';
 
 import { decodeAnalysis, encodeAnalysis } from '../../../src/core/analysis/codec.ts';
@@ -16,7 +15,10 @@ const fact: FunctionFact = {
   mode: 'thumb',
   extent: { start: A, end: A + 0x40 },
   codeEnd: A + 0x38,
-  code: [{ start: A, end: A + 0x30 }, { start: A + 0x34, end: A + 0x38 }],
+  code: [
+    { start: A, end: A + 0x30 },
+    { start: A + 0x34, end: A + 0x38 },
+  ],
   dead: [{ start: A + 0x30, end: A + 0x34 }],
   pools: [A + 0x38, A + 0x3c],
   farPools: [0x0800_1000],
@@ -75,8 +77,28 @@ const discover: AnalysisResult = {
   ],
   startup: { span: { start: 0x0800_0000, end: 0x0800_00c0 }, entries: [0x0800_0000] },
   codeEnd: A + 0x40,
-  rejections: [{ at: 0x0800_0300, mode: 'thumb', rule: 'valid.dense', reason: 'not-dense', intrinsic: true, round: 3, detail: 'holes', count: 2 }],
-  diagnostics: [{ code: 'W_SETTLE_LIMIT', severity: 'warning', addr: A, message: 'did not settle', cites: [A], rule: 'bl.near-is-call' }],
+  rejections: [
+    {
+      at: 0x0800_0300,
+      mode: 'thumb',
+      rule: 'valid.dense',
+      reason: 'not-dense',
+      intrinsic: true,
+      round: 3,
+      detail: 'holes',
+      count: 2,
+    },
+  ],
+  diagnostics: [
+    {
+      code: 'W_SETTLE_LIMIT',
+      severity: 'warning',
+      addr: A,
+      message: 'did not settle',
+      cites: [A],
+      rule: 'bl.near-is-call',
+    },
+  ],
 };
 
 const confirm: AnalysisResult = {
@@ -92,11 +114,22 @@ const confirm: AnalysisResult = {
     trail: 'decisions',
     trailFilter: { start: A, end: A + 2 },
   },
-  unlisted: [{ entry: 0x0800_0400, mode: 'thumb', origin: 'call', provenance: { rule: 'seed.call', round: 0, cites: [A + 4] } }],
+  unlisted: [
+    { entry: 0x0800_0400, mode: 'thumb', origin: 'call', provenance: { rule: 'seed.call', round: 0, cites: [A + 4] } },
+  ],
   listedInvalid: [
     {
       entry: A,
-      rejection: { at: A, mode: 'thumb', rule: 'valid.calls-code', reason: 'calls-non-code', intrinsic: false, round: 1, detail: 'calls 8000401', count: 1 },
+      rejection: {
+        at: A,
+        mode: 'thumb',
+        rule: 'valid.calls-code',
+        reason: 'calls-non-code',
+        intrinsic: false,
+        round: 1,
+        detail: 'calls 8000401',
+        count: 1,
+      },
     },
   ],
 };
@@ -127,7 +160,14 @@ test('a discover and a confirm result round-trip losslessly', () => {
 });
 
 test('an empty result round-trips, and optional members stay absent', () => {
-  const empty: AnalysisResult = { ...discover, functions: [], claims: [], rejections: [], diagnostics: [], startup: { span: { start: 0x0800_0000, end: 0x0800_0000 }, entries: [] } };
+  const empty: AnalysisResult = {
+    ...discover,
+    functions: [],
+    claims: [],
+    rejections: [],
+    diagnostics: [],
+    startup: { span: { start: 0x0800_0000, end: 0x0800_0000 }, entries: [] },
+  };
   const back = decoded(textOf(empty));
   assert.deepStrictEqual(back, empty);
   assert.equal(Object.hasOwn(back.options, 'trailFilter'), false);
@@ -151,8 +191,17 @@ test('a malformed document is a diagnostic naming its first wrong member, never 
     [JSON.stringify({ ...json, mode: 'guess' }), '$.mode'],
     [JSON.stringify({ ...json, codeEnd: 134218304 }), '$.codeEnd'],
     [JSON.stringify({ ...json, extra: 1 }), '$.extra'],
-    [JSON.stringify({ ...json, functions: [{ ...(json['functions'] as unknown[])[0] as object, origin: 'gap scan' }] }), '$.functions[0].origin'],
-    [JSON.stringify({ ...json, rejections: [{ ...(json['rejections'] as unknown[])[0] as object, count: -1 }] }), '$.rejections[0].count'],
+    [
+      JSON.stringify({
+        ...json,
+        functions: [{ ...((json['functions'] as unknown[])[0] as object), origin: 'gap scan' }],
+      }),
+      '$.functions[0].origin',
+    ],
+    [
+      JSON.stringify({ ...json, rejections: [{ ...((json['rejections'] as unknown[])[0] as object), count: -1 }] }),
+      '$.rejections[0].count',
+    ],
     [JSON.stringify((({ startup: _s, ...rest }) => rest)(json)), '$.startup'],
   ];
   for (const [source, where] of cases) {
@@ -166,28 +215,44 @@ test('a malformed document is a diagnostic naming its first wrong member, never 
   }
 });
 
-test('a seed\'s validate flag round-trips, stays absent when not set, and is only ever true', () => {
+test("a seed's validate flag round-trips, stays absent when not set, and is only ever true", () => {
   if (confirm.mode !== 'confirm') assert.fail('the confirm fixture');
   const back = decoded(textOf(confirm));
-  assert.deepEqual(back.options.seeds.map((s) => [s.name, s.validate]), [
-    ['Main', undefined],
-    ['Legacy', true],
-  ]);
-  assert.equal(Object.hasOwn(back.options.seeds[0] ?? {}, 'validate'), false, 'a seed without validate decodes without the member');
+  assert.deepEqual(
+    back.options.seeds.map((s) => [s.name, s.validate]),
+    [
+      ['Main', undefined],
+      ['Legacy', true],
+    ],
+  );
+  assert.equal(
+    Object.hasOwn(back.options.seeds[0] ?? {}, 'validate'),
+    false,
+    'a seed without validate decodes without the member',
+  );
   const text = textOf(confirm);
   assert.equal(text.split('"validate":true').length - 1, 1, 'only the validated seed carries the member');
   // A result written before the member existed (no seed carries it) still decodes: the schema id is unchanged.
   const json = JSON.parse(text) as { options: { seeds: Record<string, unknown>[] } };
-  const old = { ...json, options: { ...json.options, seeds: json.options.seeds.map(({ validate: _v, ...seed }) => seed) } };
+  const old = {
+    ...json,
+    options: { ...json.options, seeds: json.options.seeds.map(({ validate: _v, ...seed }) => seed) },
+  };
   assert.equal(decodeAnalysis(JSON.stringify(old)).ok, true);
-  const wrong = { ...json, options: { ...json.options, seeds: json.options.seeds.map((seed) => ({ ...seed, validate: false })) } };
+  const wrong = {
+    ...json,
+    options: { ...json.options, seeds: json.options.seeds.map((seed) => ({ ...seed, validate: false })) },
+  };
   const d = decodeAnalysis(JSON.stringify(wrong));
   assert.equal(d.ok, false);
   if (!d.ok) assert.ok(d.diagnostics[0]?.message.includes('$.options.seeds[0].validate'), d.diagnostics[0]?.message);
 });
 
 test('the encoding streams in chunks whose concatenation is the whole text', () => {
-  const many: AnalysisResult = { ...discover, functions: Array.from({ length: 2000 }, (_, i) => ({ ...fact, entry: A + 0x100 * i })) };
+  const many: AnalysisResult = {
+    ...discover,
+    functions: Array.from({ length: 2000 }, (_, i) => ({ ...fact, entry: A + 0x100 * i })),
+  };
   const parts = [...encodeAnalysis(many)];
   assert.ok(parts.length > 1, 'a large result is more than one chunk');
   assert.deepStrictEqual(decoded(parts.join('')), many);

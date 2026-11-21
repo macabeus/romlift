@@ -2,7 +2,6 @@
 // gate calls it and test/unit/gates/held-out-verdict.test.ts tests it, so the code the unit tests cover is
 // the code that decides the gate. Gates import only romlift's entry points, node:* and test/gates/**
 // (architecture §2), so it lives here rather than in bench/src.
-
 import { byCodeUnit } from './order.ts';
 
 /** One sealed dataset's judged run: its family (empty when the dataset names none) and its per-ROM verdict. */
@@ -59,8 +58,16 @@ export const FAMILY_WAIVER: FamilyWaiver = {
   by: 'the owner, Bruno Macabeus (architecture section 12 item 4)',
   decision: 'D60, D61',
   sealed: [
-    { name: 'pokefirered', sha1: '41cb23d8dccc8ebd7c649cd8fbb58eeace6e2fdc', elfSha256: 'bbe723fd5723f311f45b1d5db7a71e9f0284dd54f57ab0f700162d7a88346b5e' },
-    { name: 'pokeruby', sha1: 'f28b6ffc97847e94a6c21a63cacf633ee5c8df1e', elfSha256: '51cfc8cf2654880e0cd6e20f3801e8c816624dc202c67d0cce8cdc6915128dde' },
+    {
+      name: 'pokefirered',
+      sha1: '41cb23d8dccc8ebd7c649cd8fbb58eeace6e2fdc',
+      elfSha256: 'bbe723fd5723f311f45b1d5db7a71e9f0284dd54f57ab0f700162d7a88346b5e',
+    },
+    {
+      name: 'pokeruby',
+      sha1: 'f28b6ffc97847e94a6c21a63cacf633ee5c8df1e',
+      elfSha256: '51cfc8cf2654880e0cd6e20f3801e8c816624dc202c67d0cce8cdc6915128dde',
+    },
   ],
   tuningFamilies: ['fe-gba', 'kleod', 'pret-gen3', 'sat-r', 'zeldaret-tmc'],
   grounds: {
@@ -69,7 +76,11 @@ export const FAMILY_WAIVER: FamilyWaiver = {
       decided: '2026-10-17',
       decision: 'D60',
     },
-    twoFamilies: { text: 'the owner\'s answer to Q4 of phase-2.md, the option chosen: "Waive both"', decided: '2026-10-18', decision: 'D61 b' },
+    twoFamilies: {
+      text: 'the owner\'s answer to Q4 of phase-2.md, the option chosen: "Waive both"',
+      decided: '2026-10-18',
+      decision: 'D61 b',
+    },
   },
 };
 
@@ -93,19 +104,28 @@ function bindingKey(b: SealedBinding): string {
 }
 
 /** Why `waiver` does not cover the run of `sealed` with these tuning families, or undefined when it does. */
-export function waiverMismatch(waiver: FamilyWaiver, sealed: readonly SealedBinding[], tuningFamilies: readonly string[]): string | undefined {
+export function waiverMismatch(
+  waiver: FamilyWaiver,
+  sealed: readonly SealedBinding[],
+  tuningFamilies: readonly string[],
+): string | undefined {
   const want = waiver.sealed.map(bindingKey).sort(byCodeUnit);
   const got = sealed.map(bindingKey).sort(byCodeUnit);
   const problems: string[] = [];
   if (want.join('\n') !== got.join('\n')) {
     const missing = want.filter((k) => !got.includes(k)).map((k) => k.split(' ')[0]);
     const extra = got.filter((k) => !want.includes(k)).map((k) => k.split(' ')[0]);
-    problems.push(`the sealed datasets differ from those it was decided on (missing or changed: ${missing.join(', ') || 'none'}; new or changed: ${extra.join(', ') || 'none'})`);
+    problems.push(
+      `the sealed datasets differ from those it was decided on (missing or changed: ${missing.join(', ') || 'none'}; new or changed: ${extra.join(', ') || 'none'})`,
+    );
   }
   const wantFamilies = [...new Set(waiver.tuningFamilies)].sort(byCodeUnit);
   const gotFamilies = [...new Set(tuningFamilies)].filter((f) => f !== '').sort(byCodeUnit);
-  if (wantFamilies.join(',') !== gotFamilies.join(',')) problems.push(`the tuning families are ${gotFamilies.join(', ')}, it was decided on ${wantFamilies.join(', ')}`);
-  return problems.length === 0 ? undefined : `the ${waiver.decision} waiver does not apply: ${problems.join('; ')}; a new owner decision is needed`;
+  if (wantFamilies.join(',') !== gotFamilies.join(','))
+    problems.push(`the tuning families are ${gotFamilies.join(', ')}, it was decided on ${wantFamilies.join(', ')}`);
+  return problems.length === 0
+    ? undefined
+    : `the ${waiver.decision} waiver does not apply: ${problems.join('; ')}; a new owner decision is needed`;
 }
 
 /**
@@ -127,9 +147,17 @@ export function heldOutVerdict(
   const problems: string[] = [];
   const familyProblems: { readonly text: string; readonly ground: FamilyCondition }[] = [];
   if (passed.length < 2) problems.push(`${passed.length} of ${results.length} sealed ROMs pass, at least two must`);
-  if (families.length < 2) familyProblems.push({ text: `the passing ROMs span ${families.length} codebase families, at least two must`, ground: 'twoFamilies' });
-  if (freshFamilies.length === 0) familyProblems.push({ text: 'no passing ROM is from a family absent from the tuning set', ground: 'freshFamily' });
-  const refused = waiver === undefined || familyProblems.length === 0 ? undefined : waiverMismatch(waiver.waiver, waiver.sealed, tuningFamilies);
+  if (families.length < 2)
+    familyProblems.push({
+      text: `the passing ROMs span ${families.length} codebase families, at least two must`,
+      ground: 'twoFamilies',
+    });
+  if (freshFamilies.length === 0)
+    familyProblems.push({ text: 'no passing ROM is from a family absent from the tuning set', ground: 'freshFamily' });
+  const refused =
+    waiver === undefined || familyProblems.length === 0
+      ? undefined
+      : waiverMismatch(waiver.waiver, waiver.sealed, tuningFamilies);
   const w = waiver !== undefined && refused === undefined ? waiver.waiver : undefined;
   const waived: string[] = [];
   for (const p of familyProblems) {

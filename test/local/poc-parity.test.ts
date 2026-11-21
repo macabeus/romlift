@@ -22,15 +22,29 @@ interface RomEvidence {
 }
 
 interface EvidenceModule {
-  parseParityEvidence(value: unknown, where: string): { readonly worklist: string; readonly pocSourceDigest: string; readonly roms: Readonly<Record<string, RomEvidence>> };
+  parseParityEvidence(
+    value: unknown,
+    where: string,
+  ): {
+    readonly worklist: string;
+    readonly pocSourceDigest: string;
+    readonly roms: Readonly<Record<string, RomEvidence>>;
+  };
 }
 
-const digests = JSON.parse(readFileSync(path.join(REPO, 'bench', 'baseline', 'poc-digests.json'), 'utf8')) as { readonly pocSourceDigest: string; readonly roms: Readonly<Record<string, string>> };
-const results = JSON.parse(readFileSync(path.join(REPO, 'bench', 'results.json'), 'utf8')) as { readonly parity?: unknown };
+const digests = JSON.parse(readFileSync(path.join(REPO, 'bench', 'baseline', 'poc-digests.json'), 'utf8')) as {
+  readonly pocSourceDigest: string;
+  readonly roms: Readonly<Record<string, string>>;
+};
+const results = JSON.parse(readFileSync(path.join(REPO, 'bench', 'results.json'), 'utf8')) as {
+  readonly parity?: unknown;
+};
 
 for (const rom of Object.keys(digests.roms).sort(byCodeUnit)) {
   test(`the committed parity evidence has the PoC's parity digest: ${rom}`, async (t) => {
-    const module = (await import(pathToFileURL(path.join(REPO, 'bench', 'src', 'parity-evidence.ts')).href)) as EvidenceModule;
+    const module = (await import(
+      pathToFileURL(path.join(REPO, 'bench', 'src', 'parity-evidence.ts')).href
+    )) as EvidenceModule;
     assert.notEqual(results.parity, undefined, 'bench/results.json holds the parity evidence');
     const evidence = module.parseParityEvidence(results.parity, 'bench/results.json: parity');
     assert.equal(evidence.worklist, 'poc-lifo');
@@ -38,7 +52,11 @@ for (const rom of Object.keys(digests.roms).sort(byCodeUnit)) {
     const r = evidence.roms[rom];
     assert.ok(r !== undefined, `${rom} has evidence`);
     t.diagnostic(`${rom}: digest ${r.digest}`);
-    assert.equal(r.digest, digests.roms[rom], 'the parity digest equals the PoC digest in bench/baseline/poc-digests.json');
+    assert.equal(
+      r.digest,
+      digests.roms[rom],
+      'the parity digest equals the PoC digest in bench/baseline/poc-digests.json',
+    );
     assert.equal(r.expected, digests.roms[rom]);
     assert.equal(r.rowDiffs, 0, 'the rows equalled the PoC baseline');
   });

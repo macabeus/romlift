@@ -43,6 +43,11 @@ export function anchoredAtEnd(r: Reading, v: AnalysisView): boolean {
 
 /** What the far-jump idiom reads of a caller. */
 export function readingSummary(r: Reading, rom: Rom, profile: CompilerProfile): ReadingSummary {
-  return { entry: r.entry, mode: r.mode, codeEnd: r.codeEnd, end: r.end, prologue: profile.idioms.isPrologue(rom, r.entry, r.mode) };
+  return {
+    entry: r.entry,
+    mode: r.mode,
+    codeEnd: r.codeEnd,
+    end: r.end,
+    prologue: profile.idioms.isPrologue(rom, r.entry, r.mode),
+  };
 }
-

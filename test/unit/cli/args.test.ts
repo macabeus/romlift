@@ -34,7 +34,20 @@ test('a bare command gets every declared option at its default', () => {
 
 test('boolean flags, string options in both spellings, repeats in order, positionals', () => {
   assert.deepEqual(
-    parsed(['scan', 'a.gba', '--json', '--rom', 'r.gba', '--disable', 'b', 'b.gba', '--disable=a', '--out=o', '--disable', 'b']),
+    parsed([
+      'scan',
+      'a.gba',
+      '--json',
+      '--rom',
+      'r.gba',
+      '--disable',
+      'b',
+      'b.gba',
+      '--disable=a',
+      '--out=o',
+      '--disable',
+      'b',
+    ]),
     {
       command: 'scan',
       positionals: ['a.gba', 'b.gba'],
@@ -103,7 +116,14 @@ test('parsing does not mutate argv', () => {
 test('positionals are checked against the declared ones: an extra or a missing one is a usage error', () => {
   assert.equal(message(['zeta', 'extra']), "unexpected argument 'extra' for command 'zeta'");
   assert.equal(message(['scan', 'a', 'b', 'c', 'd', 'e']), "unexpected argument 'e' for command 'scan'");
-  const needsRom: CommandSpec = { name: 'needs', summary: 'Needs a ROM', usage: 'needs <rom> [<dir>]', positionals: [{ name: '<rom>' }, { name: '<dir>', optional: true }], options: [], run: async () => ExitCode.ok };
+  const needsRom: CommandSpec = {
+    name: 'needs',
+    summary: 'Needs a ROM',
+    usage: 'needs <rom> [<dir>]',
+    positionals: [{ name: '<rom>' }, { name: '<dir>', optional: true }],
+    options: [],
+    run: async () => ExitCode.ok,
+  };
   const outcome = parseArgs(['needs'], [needsRom]);
   assert.ok(!outcome.ok);
   assert.equal(outcome.message, "command 'needs' needs <rom>");

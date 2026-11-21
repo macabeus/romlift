@@ -10,7 +10,7 @@
 // the file's text; a writer that yields nothing on a fixture holds the line `(no files)`. UPDATE_GOLDEN=1
 // rewrites the goldens and removes a file no fixture produces; the diff is the review.
 import assert from 'node:assert/strict';
-import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -30,7 +30,20 @@ const DIR = fileURLToPath(new URL('./', import.meta.url));
 const UPDATE = process.env['UPDATE_GOLDEN'] === '1';
 const FIXTURES = listSyntheticFixtures();
 /** The writers g3.golden-writers requires a golden of, in the order of the writers table of §6.3. */
-const GATED: readonly WriterId[] = ['header', 'crt0', 'function', 'orphan', 'module', 'data', 'ldscript', 'symbols', 'modules-mk', 'c-stub', 'expected', 'objdiff'];
+const GATED: readonly WriterId[] = [
+  'header',
+  'crt0',
+  'function',
+  'orphan',
+  'module',
+  'data',
+  'ldscript',
+  'symbols',
+  'modules-mk',
+  'c-stub',
+  'expected',
+  'objdiff',
+];
 const RAW_SET = 'raw-printer';
 
 const READABLE: EmitContext = { decomp: { defined: [] } };

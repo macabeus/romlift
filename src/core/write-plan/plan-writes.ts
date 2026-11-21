@@ -26,7 +26,7 @@
 // A plan with an error diagnostic must not be applied: applyWrites (shell/project/apply-writes.ts) refuses
 // it and touches nothing, and a caller sees it as `planHasErrors(plan)`. The plan still lists every op it
 // could decide, so `--dry-run --json` shows the whole picture.
-import { diagnostic, RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
+import { RomliftInvariantError, diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { foldPath } from '../../foundation/util/fold.ts';
 import { compareCodeUnits, compareNumbers, sortedKeys } from '../../foundation/util/sorted.ts';
@@ -62,10 +62,21 @@ export function applyTextEdits(text: string, edits: readonly TextEdit[]): string
   let out = '';
   let at = 0;
   for (const { edit } of order) {
-    if (!(Number.isInteger(edit.start) && Number.isInteger(edit.end) && edit.start >= 0 && edit.start <= edit.end && edit.end <= text.length)) {
+    if (
+      !(
+        Number.isInteger(edit.start) &&
+        Number.isInteger(edit.end) &&
+        edit.start >= 0 &&
+        edit.start <= edit.end &&
+        edit.end <= text.length
+      )
+    ) {
       throw new RomliftInvariantError(`text edit [${edit.start}, ${edit.end}) lies outside a ${text.length}-unit text`);
     }
-    if (edit.start < at) throw new RomliftInvariantError(`text edit [${edit.start}, ${edit.end}) overlaps the previous edit, which ends at ${at}`);
+    if (edit.start < at)
+      throw new RomliftInvariantError(
+        `text edit [${edit.start}, ${edit.end}) overlaps the previous edit, which ends at ${at}`,
+      );
     out += text.slice(at, edit.start) + edit.text;
     at = edit.end;
   }
@@ -122,13 +133,15 @@ class Planner {
   /** What the disk holds at a tree path; the snapshot must hold every tree path. */
   diskOf(path: string): DiskFileState {
     const state = this.inputs.disk.get(path);
-    if (state === undefined) throw new RomliftInvariantError(`the disk snapshot has no entry for the tree path ${path}`);
+    if (state === undefined)
+      throw new RomliftInvariantError(`the disk snapshot has no entry for the tree path ${path}`);
     return state;
   }
 
   entry(entry: FileEntry): void {
     const path = entry.path;
-    if (!isProjectPath(path)) throw new RomliftInvariantError(`the tree path ${JSON.stringify(path)} is not a project path`);
+    if (!isProjectPath(path))
+      throw new RomliftInvariantError(`the tree path ${JSON.stringify(path)} is not a project path`);
     if (this.seen.has(path)) throw new RomliftInvariantError(`the tree holds ${path} twice`);
     this.seen.add(path);
     if (underRetained(path, this.inputs.retained)) return;
@@ -159,7 +172,11 @@ class Planner {
     } else if (disk.kind === 'absent' || this.owned(path) || underGeneratedRoot(path)) {
       this.ops.push({ op: 'write', path, text, sha1, writer });
     } else {
-      this.raise('E_PATH_NOT_OWNED', path, `${path} exists with other content and is not romlift's: it lies outside the generated roots and the manifest does not list it`);
+      this.raise(
+        'E_PATH_NOT_OWNED',
+        path,
+        `${path} exists with other content and is not romlift's: it lies outside the generated roots and the manifest does not list it`,
+      );
       return;
     }
     this.files.set(path, { sha1, writer });
@@ -167,8 +184,17 @@ class Planner {
 
   scaffold(path: string, text: string, writer: WriterId, executable: boolean): void {
     const disk = this.diskOf(path);
-    if (disk.kind === 'absent') this.ops.push({ op: 'write', path, text, sha1: this.inputs.hash(text), writer, ...(executable ? { executable: true as const } : {}) });
-    else if (executable && !(this.inputs.executables?.has(path) ?? false)) this.ops.push({ op: 'mode', path, executable: true });
+    if (disk.kind === 'absent')
+      this.ops.push({
+        op: 'write',
+        path,
+        text,
+        sha1: this.inputs.hash(text),
+        writer,
+        ...(executable ? { executable: true as const } : {}),
+      });
+    else if (executable && !(this.inputs.executables?.has(path) ?? false))
+      this.ops.push({ op: 'mode', path, executable: true });
     else this.ops.push({ op: 'keep', path, sha1: disk.sha1 });
   }
 
@@ -181,7 +207,12 @@ class Planner {
     }
     const text = this.inputs.reconciledTexts.get(path);
     // The disk first: an absent file is absent whether or not its text was read.
-    const now: EditedFileState = disk.kind === 'absent' ? { kind: 'absent' } : text === undefined || this.inputs.hash(text) !== baseSha1 ? { kind: 'unread' } : { kind: 'sha1', sha1: disk.sha1 };
+    const now: EditedFileState =
+      disk.kind === 'absent'
+        ? { kind: 'absent' }
+        : text === undefined || this.inputs.hash(text) !== baseSha1
+          ? { kind: 'unread' }
+          : { kind: 'sha1', sha1: disk.sha1 };
     const stale = staleEdit({ path, baseSha1 }, now, 'planned');
     if (stale !== undefined || text === undefined) {
       if (stale !== undefined) this.diagnostics.push(stale);
@@ -208,10 +239,15 @@ class Planner {
       else this.caseRenamed.delete(path);
     }
     for (const path of sortedKeys(disk)) {
-      if (disk.get(path)?.kind === 'absent' || !underGeneratedRoot(path) || this.seen.has(path) || deletable.has(path)) continue;
+      if (disk.get(path)?.kind === 'absent' || !underGeneratedRoot(path) || this.seen.has(path) || deletable.has(path))
+        continue;
       if (underRetained(path, retained) || this.owned(path)) continue;
       const why = manifest === null ? 'there is no manifest, so nothing is deleted' : 'the manifest does not list it';
-      this.raise('W_UNOWNED_FILE', path, `${path} lies under a generated root but is not in the tree; ${why}, and it is left in place`);
+      this.raise(
+        'W_UNOWNED_FILE',
+        path,
+        `${path} lies under a generated root but is not in the tree; ${why}, and it is left in place`,
+      );
     }
   }
 
@@ -221,8 +257,14 @@ class Planner {
    */
   editsPlan(): WritePlan {
     const ops = [...this.ops].sort((a, b) => compareCodeUnits(a.path, b.path));
-    const manifest = this.inputs.manifest ?? { schema: 1, romlift: this.inputs.romlift ?? UNKNOWN_ROMLIFT_VERSION, files: {} };
-    const diagnostics = [...this.diagnostics].sort((a, b) => compareCodeUnits(a.path ?? '', b.path ?? '') || compareCodeUnits(a.code, b.code));
+    const manifest = this.inputs.manifest ?? {
+      schema: 1,
+      romlift: this.inputs.romlift ?? UNKNOWN_ROMLIFT_VERSION,
+      files: {},
+    };
+    const diagnostics = [...this.diagnostics].sort(
+      (a, b) => compareCodeUnits(a.path ?? '', b.path ?? '') || compareCodeUnits(a.code, b.code),
+    );
     return { ops, manifest, diagnostics };
   }
 
@@ -231,7 +273,8 @@ class Planner {
     // correctness-b2-2): it records romlift.toml's SHA-1, the stamp the scaffold's Makefile and setup.sh trust as "the
     // tree is current", so a run that stops part-way (E_IO_WRITE, the write-time E_STALE_EDIT, a kill) leaves the old
     // stamp and make still asks for `romlift generate`.
-    const rank = (op: WriteOp): number => (op.op === 'delete' && this.caseRenamed.has(op.path) ? 0 : op.op === 'write' && op.writer === STAMP_WRITER ? 2 : 1);
+    const rank = (op: WriteOp): number =>
+      op.op === 'delete' && this.caseRenamed.has(op.path) ? 0 : op.op === 'write' && op.writer === STAMP_WRITER ? 2 : 1;
     const ops = [...this.ops].sort((a, b) => compareNumbers(rank(a), rank(b)) || compareCodeUnits(a.path, b.path));
     const files: Record<string, ManifestFile> = {};
     for (const path of sortedKeys(this.files)) {
@@ -250,7 +293,10 @@ class Planner {
  * What an edited file is now, as the staleness rule reads it: its sha1, absent, or unread (the text the plan holds
  * is not the one the edits were planned on).
  */
-export type EditedFileState = { readonly kind: 'sha1'; readonly sha1: string } | { readonly kind: 'absent' } | { readonly kind: 'unread' };
+export type EditedFileState =
+  | { readonly kind: 'sha1'; readonly sha1: string }
+  | { readonly kind: 'absent' }
+  | { readonly kind: 'unread' };
 
 /**
  * The one staleness rule of an edit (architecture §6.4, D80 b; fix round 5, architecture-b0-1): an edit is applied
@@ -258,9 +304,18 @@ export type EditedFileState = { readonly kind: 'sha1'; readonly sha1: string } |
  * planWrites asks it at plan time (`when` 'planned'), and the shell's applyWrites again right before the write, over
  * the sha1 it has just read ('written'), so a save that landed since the plan is never overwritten.
  */
-export function staleEdit(op: { readonly path: string; readonly baseSha1: string }, now: EditedFileState, when: 'planned' | 'written'): Diagnostic<WritePlanCode> | undefined {
+export function staleEdit(
+  op: { readonly path: string; readonly baseSha1: string },
+  now: EditedFileState,
+  when: 'planned' | 'written',
+): Diagnostic<WritePlanCode> | undefined {
   if (now.kind === 'sha1' && now.sha1 === op.baseSha1) return undefined;
-  const state = now.kind === 'absent' ? 'is absent' : now.kind === 'unread' ? 'is not the text its edits were planned on' : `has sha1 ${now.sha1}`;
+  const state =
+    now.kind === 'absent'
+      ? 'is absent'
+      : now.kind === 'unread'
+        ? 'is not the text its edits were planned on'
+        : `has sha1 ${now.sha1}`;
   const message =
     when === 'planned'
       ? `${op.path} changed since its edits were planned: it ${state}, the edits expect ${op.baseSha1}`
@@ -283,7 +338,10 @@ export function planWrites(inputs: WritePlanInputs): WritePlan {
 }
 
 /** What planEdits reads: reconciled entries and what planWrites reads of the directory they edit. */
-export interface EditPlanInputs extends Pick<WritePlanInputs, 'manifest' | 'disk' | 'reconciledTexts' | 'hash' | 'journal' | 'romlift'> {
+export interface EditPlanInputs extends Pick<
+  WritePlanInputs,
+  'manifest' | 'disk' | 'reconciledTexts' | 'hash' | 'journal' | 'romlift'
+> {
   readonly entries: Iterable<Extract<FileEntry, { readonly ownership: 'reconciled' }>>;
 }
 

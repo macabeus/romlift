@@ -59,7 +59,17 @@ export function scaffoldVars(input: {
 // Placeholders: `@@<placeholder>@@` in a template's text and in a manifest target. `@@` does not occur in
 // a Makefile, a POSIX shell script, YAML (GitHub's `${{ … }}` is another spelling) or Markdown romlift ships.
 
-export const SCAFFOLD_PLACEHOLDERS = ['name', 'romFile', 'builtRom', 'sha1', 'sha1File', 'romliftVersion', 'title', 'agbccUrl', 'agbccCommit'] as const;
+export const SCAFFOLD_PLACEHOLDERS = [
+  'name',
+  'romFile',
+  'builtRom',
+  'sha1',
+  'sha1File',
+  'romliftVersion',
+  'title',
+  'agbccUrl',
+  'agbccCommit',
+] as const;
 export type ScaffoldPlaceholder = (typeof SCAFFOLD_PLACEHOLDERS)[number];
 
 /** A placeholder as it is written in a template or a manifest target. */
@@ -172,7 +182,12 @@ function decodeTemplate(value: unknown, at: string): Decoded<ScaffoldTemplate> {
   if (typeof executable !== 'boolean') return { ok: false, message: `${at}.executable is not a boolean` };
   const rendered = ROMLIFT_RENDERED_TARGETS.includes(target);
   if (rendered !== (source === null)) {
-    return { ok: false, message: rendered ? `${at}: ${target} is rendered by romlift, its source must be null` : `${at}: ${target} has no template (source null)` };
+    return {
+      ok: false,
+      message: rendered
+        ? `${at}: ${target} is rendered by romlift, its source must be null`
+        : `${at}: ${target} has no template (source null)`,
+    };
   }
   return { ok: true, value: { target, source, executable } };
 }
@@ -194,7 +209,8 @@ export function decodeScaffoldManifest(json: string): Decoded<ScaffoldManifest> 
   for (let i = 0; i < list.length; i++) {
     const file = decodeTemplate(list[i], `files[${i}]`);
     if (!file.ok) return file;
-    if (seen.has(file.value.target)) return { ok: false, message: `files[${i}].target ${JSON.stringify(file.value.target)} is listed twice` };
+    if (seen.has(file.value.target))
+      return { ok: false, message: `files[${i}].target ${JSON.stringify(file.value.target)} is listed twice` };
     seen.add(file.value.target);
     files.push(file.value);
   }
@@ -215,6 +231,7 @@ export function decodeAgbccPin(json: string): Decoded<AgbccPin> {
   if (extra !== undefined) return { ok: false, message: `unknown member ${JSON.stringify(extra)}` };
   const { url, commit } = value;
   if (typeof url !== 'string' || url.length === 0) return { ok: false, message: 'url is not a string' };
-  if (typeof commit !== 'string' || !COMMIT.test(commit)) return { ok: false, message: 'commit is not forty lower-case hex digits' };
+  if (typeof commit !== 'string' || !COMMIT.test(commit))
+    return { ok: false, message: 'commit is not forty lower-case hex digits' };
   return { ok: true, value: { url, commit } };
 }

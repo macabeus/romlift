@@ -12,9 +12,12 @@ const STARTUP_ORIGINS: ReadonlySet<Origin> = new Set<Origin>(['rom-entry', 'adr'
 export default defineRule({
   meta: {
     id: 'region.startup',
-    summary: 'functions of origin rom-entry, adr or veneer tiling the ROM from its start form the startup region, its end rounded up to 4',
-    restsOn: 'crt0 is hand-written and linked first: the entry branch, the code after the header and the interrupt entry it names with adr',
-    recovers: 'per-project label conventions inside crt0 (kleod types three, Emerald none) counted as false entries or misses',
+    summary:
+      'functions of origin rom-entry, adr or veneer tiling the ROM from its start form the startup region, its end rounded up to 4',
+    restsOn:
+      'crt0 is hand-written and linked first: the entry branch, the code after the header and the interrupt entry it names with adr',
+    recovers:
+      'per-project label conventions inside crt0 (kleod types three, Emerald none) counted as false entries or misses',
     reads: ['function-set', 'readings'],
     adds: ['regions'],
   },

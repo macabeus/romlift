@@ -2,7 +2,24 @@
 // register lists, shifts and status-register fields. Every printer and parser of operand text uses
 // these, so the grammar the formatter writes is exactly the grammar the parser reads (D14).
 
-const REGISTERS: readonly string[] = ['r0', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'sp', 'lr', 'pc'];
+const REGISTERS: readonly string[] = [
+  'r0',
+  'r1',
+  'r2',
+  'r3',
+  'r4',
+  'r5',
+  'r6',
+  'r7',
+  'r8',
+  'r9',
+  'r10',
+  'r11',
+  'r12',
+  'sp',
+  'lr',
+  'pc',
+];
 
 /** Extra register spellings the parser accepts (the formatter writes only REGISTERS). */
 const REGISTER_ALIASES: Readonly<Record<string, number>> = { r13: 13, r14: 14, r15: 15, ip: 12, fp: 11 };
@@ -19,7 +36,23 @@ export function regNumber(name: string): number | undefined {
 }
 
 /** Condition suffixes by condition code; 14 (always) prints as no suffix, 15 never prints. */
-export const CONDITIONS: readonly string[] = ['eq', 'ne', 'cs', 'cc', 'mi', 'pl', 'vs', 'vc', 'hi', 'ls', 'ge', 'lt', 'gt', 'le', ''];
+export const CONDITIONS: readonly string[] = [
+  'eq',
+  'ne',
+  'cs',
+  'cc',
+  'mi',
+  'pl',
+  'vs',
+  'vc',
+  'hi',
+  'ls',
+  'ge',
+  'lt',
+  'gt',
+  'le',
+  '',
+];
 
 /** An unsigned immediate: decimal below 10, otherwise lower-case 0x hex. */
 export function num(v: number): string {

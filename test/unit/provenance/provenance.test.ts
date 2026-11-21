@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { capCites, compareRejections, MAX_CITES, provenance } from '../../../src/core/provenance/provenance.ts';
+import { MAX_CITES, capCites, compareRejections, provenance } from '../../../src/core/provenance/provenance.ts';
 import type { Rejection } from '../../../src/core/provenance/provenance.ts';
 import { FAMILIES, familyOf, isRuleId } from '../../../src/core/provenance/rule-id.ts';
 import { trailKeeps } from '../../../src/core/provenance/trail.ts';
@@ -27,13 +27,31 @@ test('rule ids name a known family before the dot', () => {
 });
 
 test('rejections order by address, then Thumb before ARM', () => {
-  const r = (at: number, mode: 'thumb' | 'arm'): Rejection => ({ at, mode, rule: 'valid.dense', reason: 'not-dense', intrinsic: true, round: 0, detail: '', count: 1 });
+  const r = (at: number, mode: 'thumb' | 'arm'): Rejection => ({
+    at,
+    mode,
+    rule: 'valid.dense',
+    reason: 'not-dense',
+    intrinsic: true,
+    round: 0,
+    detail: '',
+    count: 1,
+  });
   const sorted = [r(8, 'arm'), r(8, 'thumb'), r(4, 'arm')].sort(compareRejections);
-  assert.deepEqual(sorted.map((x) => `${x.at}${x.mode}`), ['4arm', '8thumb', '8arm']);
+  assert.deepEqual(
+    sorted.map((x) => `${x.at}${x.mode}`),
+    ['4arm', '8thumb', '8arm'],
+  );
 });
 
 test('the trail keeps decisions at "decisions", everything at "full", nothing at "off", inside the filter only', () => {
-  const e = (kind: TrailEvent['kind'], at: number, cites: number[] = []): TrailEvent => ({ kind, at, rule: 'seed.call', round: 0, cites });
+  const e = (kind: TrailEvent['kind'], at: number, cites: number[] = []): TrailEvent => ({
+    kind,
+    at,
+    rule: 'seed.call',
+    round: 0,
+    cites,
+  });
   assert.equal(trailKeeps('off', undefined, e('accept', 0)), false);
   assert.equal(trailKeeps('decisions', undefined, e('accept', 0)), true);
   assert.equal(trailKeeps('decisions', undefined, e('propose', 0)), false);

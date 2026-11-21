@@ -2,7 +2,6 @@
 // gates import. The wave-2 exports (buildModel, emitTree, verifyModel, planWrites, ...) are their owners'.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-
 import * as romlift from 'romlift';
 
 test('romlift exports the frozen phase-3 values', () => {

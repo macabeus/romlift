@@ -9,7 +9,8 @@ export default defineRule({
   meta: {
     id: 'walk.swi-before-noncode',
     summary: 'a swi followed by non-code ends the path as a return (a BIOS call that never returns)',
-    restsOn: 'the BIOS calls SoftReset and HardReset never return, and the library stubs that make them have nothing after the swi',
+    restsOn:
+      'the BIOS calls SoftReset and HardReset never return, and the library stubs that make them have nothing after the swi',
     recovers: 'BIOS stubs that end in a swi, which would otherwise read as not code',
     reads: ['rom'],
     adds: ['exits'],

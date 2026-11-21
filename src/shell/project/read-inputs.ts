@@ -9,30 +9,45 @@ import { lstat, readFile, realpath, stat } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { headerCandidates, includesOf } from '../../core/reconcile/c-scan.ts';
-import { compareCodeUnits } from '../../foundation/util/sorted.ts';
-import { chunkFileOf, C_SOURCE_DIR, cSourceOf, INCLUDE_DIR, isChunkFile, isCSource, isHeaderPath, matchingDir, MATCHINGS_ROOT, nonmatchingDir, NONMATCHINGS_ROOT, stubNameOf } from '../../foundation/util/project-files.ts';
-import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { AgbccPin, ScaffoldTemplates } from '../../core/scaffold/vars.ts';
+import type { InitDirListing } from '../../core/workflow/init.ts';
+import type { RenameSkipped } from '../../core/workflow/rename.ts';
 import type { ProjectInputs } from '../../core/workflow/types.ts';
 import type { ProjectWriteState } from '../../core/write-plan/project-plan.ts';
 import type { DiskFileState } from '../../core/write-plan/types.ts';
-import type { InitDirListing } from '../../core/workflow/init.ts';
-import type { RenameSkipped } from '../../core/workflow/rename.ts';
+import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
+import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
+import {
+  C_SOURCE_DIR,
+  INCLUDE_DIR,
+  MATCHINGS_ROOT,
+  NONMATCHINGS_ROOT,
+  cSourceOf,
+  chunkFileOf,
+  isCSource,
+  isChunkFile,
+  isHeaderPath,
+  matchingDir,
+  nonmatchingDir,
+  stubNameOf,
+} from '../../foundation/util/project-files.ts';
+import { compareCodeUnits } from '../../foundation/util/sorted.ts';
 import { ShellCodes } from '../codes.ts';
 import { loadConfig } from '../config/load.ts';
 import type { ProjectConfig } from '../config/load.ts';
 import { errnoOf, errorReason, isAbsentError, isDirectory, isRegularFile, listDir, readBytes } from '../fs.ts';
 import type { IoResult } from '../fs.ts';
+import { sha1Of } from '../hash.ts';
 import { readRom } from '../rom.ts';
 import { filesUnder, readDiskState, readJournal, readManifest, readReconciledTexts } from './disk-state.ts';
-import { sha1Of } from '../hash.ts';
 import { locateProject } from './locate.ts';
 import { readAgbccPin, readTemplates } from './templates.ts';
 
 /** A refusal: every diagnostic that stopped the read. */
-export type ReadResult<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
+export type ReadResult<T> =
+  | { readonly ok: true; readonly value: T }
+  | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
 
 function fromIo<T>(read: IoResult<T>): ReadResult<T> {
   return read.ok ? read : { ok: false, diagnostics: [read.diagnostic] };
@@ -67,7 +82,10 @@ export async function packageVersion(root: string = packageRoot()): Promise<IoRe
     if (typeof version === 'string' && version !== '') return { ok: true, value: version };
     return { ok: false, diagnostic: diagnostic(ShellCodes, 'E_IO_READ', `${file} has no version`, { path: file }) };
   } catch (error) {
-    return { ok: false, diagnostic: diagnostic(ShellCodes, 'E_IO_READ', `cannot read ${file}: ${errorReason(error)}`, { path: file }) };
+    return {
+      ok: false,
+      diagnostic: diagnostic(ShellCodes, 'E_IO_READ', `cannot read ${file}: ${errorReason(error)}`, { path: file }),
+    };
   }
 }
 
@@ -114,7 +132,10 @@ export async function readCTexts(dir: string): Promise<ReadResult<ReadonlyMap<st
     if (!(await stat(src)).isDirectory()) return { ok: true, value: new Map() };
   } catch (error) {
     if (isAbsentError(error)) return { ok: true, value: new Map() };
-    return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot examine ${src}: ${errorReason(error)}`, { path: src })] };
+    return {
+      ok: false,
+      diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot examine ${src}: ${errorReason(error)}`, { path: src })],
+    };
   }
   const names = await listDir(src);
   if (!names.ok) return fromIo(names);
@@ -150,19 +171,28 @@ export interface HeaderInputs {
  * Empty when neither directory exists and no `#include` names a file; any other failure to list or read a header the
  * walk lists or an `#include` names is E_IO_READ.
  */
-export async function readHeaderTexts(dir: string, cTexts: ReadonlyMap<string, string> = new Map()): Promise<ReadResult<HeaderInputs>> {
+export async function readHeaderTexts(
+  dir: string,
+  cTexts: ReadonlyMap<string, string> = new Map(),
+): Promise<ReadResult<HeaderInputs>> {
   const headers: string[] = [];
   const listedHeaders = await filesUnder(dir, INCLUDE_DIR, headers, { followLinks: true });
   if (!listedHeaders.ok) return fromIo(listedHeaders);
   const sources: string[] = [];
   const listedSources = await filesUnder(dir, C_SOURCE_DIR, sources, { followLinks: true });
   if (!listedSources.ok) return fromIo(listedSources);
-  const paths = [...headers.filter((p) => p.startsWith(`${INCLUDE_DIR}/`)), ...sources.filter((p) => p.startsWith(`${C_SOURCE_DIR}/`) && isHeaderPath(p))];
+  const paths = [
+    ...headers.filter((p) => p.startsWith(`${INCLUDE_DIR}/`)),
+    ...sources.filter((p) => p.startsWith(`${C_SOURCE_DIR}/`) && isHeaderPath(p)),
+  ];
   let root: string;
   try {
     root = await realpath(dir);
   } catch (error) {
-    return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot resolve ${dir}: ${errorReason(error)}`, { path: dir })] };
+    return {
+      ok: false,
+      diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot resolve ${dir}: ${errorReason(error)}`, { path: dir })],
+    };
   }
   const texts = new Map<string, string>();
   const realPaths = new Map<string, string>();
@@ -179,7 +209,10 @@ export async function readHeaderTexts(dir: string, cTexts: ReadonlyMap<string, s
       texts.set(path, await readFile(file, 'utf8'));
     } catch (error) {
       if (isAbsentError(error) || errnoOf(error) === 'EISDIR') continue;
-      return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot read ${file}: ${errorReason(error)}`, { path })] };
+      return {
+        ok: false,
+        diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot read ${file}: ${errorReason(error)}`, { path })],
+      };
     }
     const placed = await place(path);
     if (!placed.ok) return placed;
@@ -195,7 +228,9 @@ export async function readHeaderTexts(dir: string, cTexts: ReadonlyMap<string, s
     for (const include of includesOf(texts.get(from) ?? cTexts.get(from) ?? '')) {
       for (const candidate of headerCandidates(from, include.spelled, include.angle, realPaths)) {
         if (texts.has(candidate)) break;
-        const read = cTexts.has(candidate) ? { ok: true as const, value: cTexts.get(candidate) } : await readNamed(keyOnDisk(dir, root, candidate), candidate);
+        const read = cTexts.has(candidate)
+          ? { ok: true as const, value: cTexts.get(candidate) }
+          : await readNamed(keyOnDisk(dir, root, candidate), candidate);
         if (!read.ok) return fromIo(read);
         if (read.value === undefined) continue;
         texts.set(candidate, read.value);
@@ -207,7 +242,10 @@ export async function readHeaderTexts(dir: string, cTexts: ReadonlyMap<string, s
     }
   }
   const sorted = new Map([...texts].sort(([a], [b]) => compareCodeUnits(a, b)));
-  return { ok: true, value: { texts: sorted, realPaths: new Map([...realPaths].sort(([a], [b]) => compareCodeUnits(a, b))) } };
+  return {
+    ok: true,
+    value: { texts: sorted, realPaths: new Map([...realPaths].sort(([a], [b]) => compareCodeUnits(a, b))) },
+  };
 }
 
 /**
@@ -231,7 +269,10 @@ async function readNamed(file: string, key: string): Promise<IoResult<string | u
     return { ok: true, value: await readFile(file, 'utf8') };
   } catch (error) {
     if (isAbsentError(error) || errnoOf(error) === 'ENAMETOOLONG') return { ok: true, value: undefined };
-    return { ok: false, diagnostic: diagnostic(ShellCodes, 'E_IO_READ', `cannot read ${file}: ${errorReason(error)}`, { path: key }) };
+    return {
+      ok: false,
+      diagnostic: diagnostic(ShellCodes, 'E_IO_READ', `cannot read ${file}: ${errorReason(error)}`, { path: key }),
+    };
   }
 }
 
@@ -240,7 +281,12 @@ async function readNamed(file: string, key: string): Promise<IoResult<string | u
  * path (realpath, cached in `dirs` by directory) with its own name, relative to the project's real path `root` inside
  * it, absolute outside; the key itself when its directory is gone (a C file removed since it was read).
  */
-async function realPathOf(file: string, key: string, root: string, dirs: Map<string, string>): Promise<IoResult<string>> {
+async function realPathOf(
+  file: string,
+  key: string,
+  root: string,
+  dirs: Map<string, string>,
+): Promise<IoResult<string>> {
   const parent = dirname(file);
   let real = dirs.get(parent);
   if (real === undefined) {
@@ -248,14 +294,20 @@ async function realPathOf(file: string, key: string, root: string, dirs: Map<str
       real = await realpath(parent);
     } catch (error) {
       if (isAbsentError(error)) return { ok: true, value: key };
-      return { ok: false, diagnostic: diagnostic(ShellCodes, 'E_IO_READ', `cannot resolve ${parent}: ${errorReason(error)}`, { path: key }) };
+      return {
+        ok: false,
+        diagnostic: diagnostic(ShellCodes, 'E_IO_READ', `cannot resolve ${parent}: ${errorReason(error)}`, {
+          path: key,
+        }),
+      };
     }
     dirs.set(parent, real);
   }
   const name = basename(file);
   const down = relative(root, real);
   if (down === '') return { ok: true, value: name };
-  if (isAbsolute(down) || down.split(sep)[0] === '..') return { ok: true, value: `${real.split(sep).join('/')}/${name}` };
+  if (isAbsolute(down) || down.split(sep)[0] === '..')
+    return { ok: true, value: `${real.split(sep).join('/')}/${name}` };
   return { ok: true, value: `${down.split(sep).join('/')}/${name}` };
 }
 
@@ -326,11 +378,17 @@ async function linkedFileBytes(file: string): Promise<IoResult<Uint8Array | unde
  * bytes, unless its real path is one of `edited` (a file rename edits through its own path); the link alone, without
  * bytes, for a link to nothing or a directory with no such file (one filesUnder does not enter, above the project).
  */
-async function skippedAtLink(dir: string, path: string, edited: ReadonlySet<string>, asmSources: ReadonlySet<string>): Promise<IoResult<readonly RenameSkipped[]>> {
+async function skippedAtLink(
+  dir: string,
+  path: string,
+  edited: ReadonlySet<string>,
+  asmSources: ReadonlySet<string>,
+): Promise<IoResult<readonly RenameSkipped[]>> {
   const file = join(dir, ...path.split('/'));
   const linked = await linkedFileBytes(file);
   if (!linked.ok) return { ok: false, diagnostic: { ...linked.diagnostic, path } };
-  if (linked.value !== undefined) return { ok: true, value: isRenameText(path, asmSources) ? [{ path, reason: 'link', bytes: linked.value }] : [] };
+  if (linked.value !== undefined)
+    return { ok: true, value: isRenameText(path, asmSources) ? [{ path, reason: 'link', bytes: linked.value }] : [] };
   const isDir = await isDirectory(file);
   if (!isDir.ok) return { ok: false, diagnostic: { ...isDir.diagnostic, path } };
   const below: string[] = [];
@@ -346,7 +404,12 @@ async function skippedAtLink(dir: string, path: string, edited: ReadonlySet<stri
       real = await realpath(innerFile);
     } catch (error) {
       if (isAbsentError(error)) continue;
-      return { ok: false, diagnostic: diagnostic(ShellCodes, 'E_IO_READ', `cannot resolve ${innerFile}: ${errorReason(error)}`, { path: inner }) };
+      return {
+        ok: false,
+        diagnostic: diagnostic(ShellCodes, 'E_IO_READ', `cannot resolve ${innerFile}: ${errorReason(error)}`, {
+          path: inner,
+        }),
+      };
     }
     if (!isRenameText(inner, asmSources) || edited.has(real)) continue;
     const bytes = await readBytes(innerFile);
@@ -384,7 +447,10 @@ export async function readRenameTexts(dir: string, sources: readonly string[] = 
   try {
     root = await realpath(dir);
   } catch (error) {
-    return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot resolve ${dir}: ${errorReason(error)}`, { path: '.' })] };
+    return {
+      ok: false,
+      diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot resolve ${dir}: ${errorReason(error)}`, { path: '.' })],
+    };
   }
   for (const path of [...listed].sort(compareCodeUnits)) {
     const file = join(dir, ...path.split('/'));
@@ -398,7 +464,10 @@ export async function readRenameTexts(dir: string, sources: readonly string[] = 
       bytes = await readFile(file);
     } catch (error) {
       if (isAbsentError(error)) continue;
-      return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot read ${file}: ${errorReason(error)}`, { path })] };
+      return {
+        ok: false,
+        diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot read ${file}: ${errorReason(error)}`, { path })],
+      };
     }
     edited.add(join(root, ...path.split('/')));
     let text: string;
@@ -436,14 +505,20 @@ export async function readProject(from: string, options: ReadProjectOptions = {}
   const loaded = await loadConfig(located.value.dir);
   if (!loaded.ok) return loaded;
   const dir = loaded.value.dir;
-  const romPath = options.rom === undefined ? join(dir, ...loaded.value.value.rom.path.split('/')) : resolve(from, options.rom);
+  const romPath =
+    options.rom === undefined ? join(dir, ...loaded.value.value.rom.path.split('/')) : resolve(from, options.rom);
   if (options.rom === undefined) {
     // A project without its ROM (a fresh clone or worktree): say how to get one, not only ENOENT.
     const present = await isRegularFile(romPath);
     if (present.ok && !present.value) {
       return fromIo({
         ok: false,
-        diagnostic: diagnostic(ShellCodes, 'E_IO_READ', `${romPath} is missing: put your own copy of the ROM there (it is never committed), run ./setup.sh in a git worktree to copy it from the main one, or pass --rom <path>`, { path: romPath }),
+        diagnostic: diagnostic(
+          ShellCodes,
+          'E_IO_READ',
+          `${romPath} is missing: put your own copy of the ROM there (it is never committed), run ./setup.sh in a git worktree to copy it from the main one, or pass --rom <path>`,
+          { path: romPath },
+        ),
       });
     }
   }
@@ -454,7 +529,14 @@ export async function readProject(from: string, options: ReadProjectOptions = {}
     const own = join(dir, ...loaded.value.value.rom.path.split('/'));
     const present = await isRegularFile(own);
     if (present.ok && !present.value) {
-      notes.push(diagnostic(ShellCodes, 'W_PROJECT_ROM_ABSENT', `${own} is missing: the tree reads the ROM's bytes from it (.incbin), so make fails until you copy the ROM there (or run ./setup.sh in a git worktree)`, { path: own }));
+      notes.push(
+        diagnostic(
+          ShellCodes,
+          'W_PROJECT_ROM_ABSENT',
+          `${own} is missing: the tree reads the ROM's bytes from it (.incbin), so make fails until you copy the ROM there (or run ./setup.sh in a git worktree)`,
+          { path: own },
+        ),
+      );
     }
   }
   let cTexts: ReadonlyMap<string, string> = new Map();
@@ -473,7 +555,16 @@ export async function readProject(from: string, options: ReadProjectOptions = {}
     headerTexts = headers.value.texts;
     headerRealPaths = headers.value.realPaths;
   }
-  const inputs: ProjectInputs = { rom: rom.value, configText: loaded.value.text, config: loaded.value.value, configSha1: loaded.value.sha1, cTexts, ...(previousChunkFiles === undefined ? {} : { previousChunkFiles }), ...(headerTexts === undefined ? {} : { headerTexts }), ...(headerRealPaths === undefined ? {} : { headerRealPaths }) };
+  const inputs: ProjectInputs = {
+    rom: rom.value,
+    configText: loaded.value.text,
+    config: loaded.value.value,
+    configSha1: loaded.value.sha1,
+    cTexts,
+    ...(previousChunkFiles === undefined ? {} : { previousChunkFiles }),
+    ...(headerTexts === undefined ? {} : { headerTexts }),
+    ...(headerRealPaths === undefined ? {} : { headerRealPaths }),
+  };
   return { ok: true, value: { dir, config: loaded.value, romPath, inputs, notes } };
 }
 
@@ -492,11 +583,17 @@ export async function readWriteState(dir: string, paths: Iterable<string>): Prom
   for (const op of journal.value?.ops ?? []) wanted.add(op.path);
   const disk = await readDiskState(dir, wanted);
   if (!disk.ok) return fromIo(disk);
-  return { ok: true, value: { manifest: manifest.value, journal: journal.value, disk: disk.value, reconciledTexts: new Map() } };
+  return {
+    ok: true,
+    value: { manifest: manifest.value, journal: journal.value, disk: disk.value, reconciledTexts: new Map() },
+  };
 }
 
 /** The current text of each project path of `paths` under `dir` that exists (`update` and `rename` re-read the config through it). */
-export async function readProjectTexts(dir: string, paths: Iterable<string>): Promise<ReadResult<ReadonlyMap<string, string>>> {
+export async function readProjectTexts(
+  dir: string,
+  paths: Iterable<string>,
+): Promise<ReadResult<ReadonlyMap<string, string>>> {
   return fromIo(await readReconciledTexts(dir, paths));
 }
 
@@ -516,7 +613,10 @@ export async function readInitDir(dir: string, romPath: string): Promise<ReadRes
     if (!(await stat(at)).isDirectory()) return { ok: true, value: { ...base, state: 'not-directory', names: [] } };
   } catch (error) {
     if (isAbsentError(error)) return { ok: true, value: { ...base, state: 'absent', names: [] } };
-    return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot examine ${at}: ${errorReason(error)}`, { path: at })] };
+    return {
+      ok: false,
+      diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot examine ${at}: ${errorReason(error)}`, { path: at })],
+    };
   }
   const names = await listDir(at);
   if (!names.ok) return fromIo(names);
@@ -524,13 +624,22 @@ export async function readInitDir(dir: string, romPath: string): Promise<ReadRes
 }
 
 /** What is at each project path of `paths` under `dir`: a file and its sha1, or absent (replacedProblems compares them). */
-export async function readDigests(dir: string, paths: Iterable<string>): Promise<ReadResult<ReadonlyMap<string, DiskFileState>>> {
+export async function readDigests(
+  dir: string,
+  paths: Iterable<string>,
+): Promise<ReadResult<ReadonlyMap<string, DiskFileState>>> {
   const out = new Map<string, DiskFileState>();
   for (const path of paths) {
     try {
       out.set(path, { kind: 'present', sha1: sha1Of(await readFile(join(dir, ...path.split('/')))) });
     } catch (error) {
-      if (!isAbsentError(error)) return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot read ${join(dir, path)}: ${errorReason(error)}`, { path })] };
+      if (!isAbsentError(error))
+        return {
+          ok: false,
+          diagnostics: [
+            diagnostic(ShellCodes, 'E_IO_READ', `cannot read ${join(dir, path)}: ${errorReason(error)}`, { path }),
+          ],
+        };
       out.set(path, { kind: 'absent' });
     }
   }

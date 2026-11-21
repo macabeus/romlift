@@ -6,19 +6,19 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-
-import { configFromDiscover, discover, type Rom, type RomliftConfig } from 'romlift';
+import { type Rom, type RomliftConfig, configFromDiscover, discover } from 'romlift';
 import { sha1Of } from 'romlift/node';
 
-import { generateInto, ROMLIFT_EMISSION, type EmissionRunner } from '../../../bench/src/emission-run.ts';
+import { type EmissionRunner, ROMLIFT_EMISSION, generateInto } from '../../../bench/src/emission-run.ts';
 import {
-  bothReported,
   CHILD_NODE_ARGS,
-  decodeConfig,
   DEFAULT_LARGE_ROM_DEPS,
-  encodeConfig,
   LARGE_ROM_MAX_OLD_SPACE_MIB,
   LARGE_ROM_SCHEMA,
+  type LargeRomDeps,
+  bothReported,
+  decodeConfig,
+  encodeConfig,
   largeRom,
   largeRomText,
   maxOldSpaceOf,
@@ -28,7 +28,6 @@ import {
   romFileDeps,
   runChild,
   runOf,
-  type LargeRomDeps,
 } from '../../../bench/src/large-rom.ts';
 import { peakLiveHeapOf } from '../../../bench/src/live-heap.ts';
 import { listSyntheticFixtures, readFixtureRom } from '../../helpers/fixtures.ts';
@@ -48,7 +47,9 @@ test('the parent: the image is written once, init then generate each in a child,
     spawn: async (args) => {
       calls.push(args);
       const command = args[1];
-      return ok(`progress\n${JSON.stringify({ command, exitCode: 0, maxRssKiB: 300 * 1024 + 512, maxOldSpaceSizeMiB: 384, peakLiveHeapMiB: 250.25, files: 9, detail: 'written', treeDigest: 'ab' })}\n`);
+      return ok(
+        `progress\n${JSON.stringify({ command, exitCode: 0, maxRssKiB: 300 * 1024 + 512, maxOldSpaceSizeMiB: 384, peakLiveHeapMiB: 250.25, files: 9, detail: 'written', treeDigest: 'ab' })}\n`,
+      );
     },
     log: () => {},
   };
@@ -73,14 +74,28 @@ test('the parent: the image is written once, init then generate each in a child,
   );
   assert.equal(calls[0]?.at(-1), calls[1]?.at(-1), 'generate reads the config init wrote');
   assert.ok(bothReported(report));
-  assert.match(largeRomText(report), /\ninit {5}exit 0 {2}peak RSS 300\.5 MiB \(under \d+ MiB\) {2}peak live heap 250\.3 MiB {2}heap cap 384 MiB {2}tree ab\n/);
+  assert.match(
+    largeRomText(report),
+    /\ninit {5}exit 0 {2}peak RSS 300\.5 MiB \(under \d+ MiB\) {2}peak live heap 250\.3 MiB {2}heap cap 384 MiB {2}tree ab\n/,
+  );
 });
 
 test('a child that printed no report: its exit code (1 when it exited 0), no RSS, and the tail of its output', async () => {
   const run = runOf('generate', { code: 134, stdout: '', stderr: 'FATAL ERROR: Reached heap limit\n' });
-  assert.deepEqual(run, { command: 'generate', exitCode: 134, maxRssMiB: 0, maxOldSpaceSizeMiB: null, detail: 'no report: FATAL ERROR: Reached heap limit' });
+  assert.deepEqual(run, {
+    command: 'generate',
+    exitCode: 134,
+    maxRssMiB: 0,
+    maxOldSpaceSizeMiB: null,
+    detail: 'no report: FATAL ERROR: Reached heap limit',
+  });
   assert.equal(runOf('init', ok('not json')).exitCode, 1);
-  const oom = runOf('init', { code: 134, stdout: '', stderr: '<--- Last few GCs --->\nFATAL ERROR: Ineffective mark-compacts near heap limit\n 1: 0x1 node::OOMErrorHandler\n 2: 0x2 start\n' });
+  const oom = runOf('init', {
+    code: 134,
+    stdout: '',
+    stderr:
+      '<--- Last few GCs --->\nFATAL ERROR: Ineffective mark-compacts near heap limit\n 1: 0x1 node::OOMErrorHandler\n 2: 0x2 start\n',
+  });
   assert.equal(oom.detail, 'no report: FATAL ERROR: Ineffective mark-compacts near heap limit');
   const deps: LargeRomDeps = { image: async () => new Uint8Array(8), spawn: async () => ok(''), log: () => {} };
   assert.ok(!bothReported(await largeRom(deps)));
@@ -89,7 +104,10 @@ test('a child that printed no report: its exit code (1 when it exited 0), no RSS
 test('parseChildReport reads the last line only, and only a child report', () => {
   assert.equal(parseChildReport('{"command":"init","exitCode":0,"maxRssKiB":1}\nx'), undefined);
   assert.equal(parseChildReport('{"command":"other","exitCode":0,"maxRssKiB":1}'), undefined);
-  assert.deepEqual(parseChildReport('noise\n{"command":"init","exitCode":3,"maxRssKiB":2048,"files":1,"detail":"d"}\n')?.exitCode, 3);
+  assert.deepEqual(
+    parseChildReport('noise\n{"command":"init","exitCode":3,"maxRssKiB":2048,"files":1,"detail":"d"}\n')?.exitCode,
+    3,
+  );
   assert.equal(mib(1536), 1.5);
   assert.equal(mib(1000), 0.98);
 });
@@ -102,7 +120,11 @@ test('the heap cap: the children run under the one the romlift bin passes, and r
   assert.equal(maxOldSpaceOf(['--conditions=source', '--max-semi-space-size=16']), null);
   assert.equal(maxOldSpaceOf(CHILD_NODE_ARGS), LARGE_ROM_MAX_OLD_SPACE_MIB);
   let spawned: readonly string[] = [];
-  const deps: LargeRomDeps = { ...DEFAULT_LARGE_ROM_DEPS, spawn: async (args) => ((spawned = args), ok('')), log: () => {} };
+  const deps: LargeRomDeps = {
+    ...DEFAULT_LARGE_ROM_DEPS,
+    spawn: async (args) => ((spawned = args), ok('')),
+    log: () => {},
+  };
   const dir = await mkdtemp(join(tmpdir(), 'romlift-large-rom-file-'));
   try {
     const file = join(dir, 'rom.gba');
@@ -141,14 +163,23 @@ test('the child, in process: init writes the tree and the config, generate over 
   const dir = await mkdtemp(join(tmpdir(), 'romlift-large-rom-test-'));
   try {
     const config = join(dir, 'config.json');
-    const init = await runChild(['--child', 'init', '--rom', FAR_JUMP.rom, '--out', join(dir, 'a'), '--config-out', config], runner);
+    const init = await runChild(
+      ['--child', 'init', '--rom', FAR_JUMP.rom, '--out', join(dir, 'a'), '--config-out', config],
+      runner,
+    );
     assert.equal(init.exitCode, 0, init.detail);
     assert.ok(init.maxRssKiB > 0);
     assert.ok(init.treeDigest !== undefined && init.files > 0);
-    const generate = await runChild(['--child', 'generate', '--rom', FAR_JUMP.rom, '--out', join(dir, 'b'), '--config', config], runner);
+    const generate = await runChild(
+      ['--child', 'generate', '--rom', FAR_JUMP.rom, '--out', join(dir, 'b'), '--config', config],
+      runner,
+    );
     assert.equal(generate.exitCode, 0, generate.detail);
     assert.equal(generate.treeDigest, init.treeDigest);
-    await assert.rejects(runChild(['--child', 'other', '--rom', FAR_JUMP.rom, '--out', dir]), /--child is init or generate/);
+    await assert.rejects(
+      runChild(['--child', 'other', '--rom', FAR_JUMP.rom, '--out', dir]),
+      /--child is init or generate/,
+    );
     await assert.rejects(runChild(['--child', 'init', '--out', dir]), /needs --rom/);
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -157,7 +188,16 @@ test('the child, in process: init writes the tree and the config, generate over 
 
 test('peakLiveHeapOf: the largest used heap after a full mark-compact, null when none ran', () => {
   const entry = (gcType: string, used: number) => ({ gcType, afterGC: { heapStatistics: { usedHeapSize: used } } });
-  assert.equal(peakLiveHeapOf({ statistics: [entry('Scavenge', 900 * 1024 * 1024), entry('MarkSweepCompact', 300 * 1024 * 1024), entry('MarkSweepCompact', 326.2 * 1024 * 1024)] }), 326.2);
+  assert.equal(
+    peakLiveHeapOf({
+      statistics: [
+        entry('Scavenge', 900 * 1024 * 1024),
+        entry('MarkSweepCompact', 300 * 1024 * 1024),
+        entry('MarkSweepCompact', 326.2 * 1024 * 1024),
+      ],
+    }),
+    326.2,
+  );
   assert.equal(peakLiveHeapOf({ statistics: [entry('Scavenge', 1)] }), null);
   assert.equal(peakLiveHeapOf(undefined), null);
 });

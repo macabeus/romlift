@@ -10,7 +10,8 @@ export default defineRule({
   meta: {
     id: 'seed.rom-entry',
     summary: 'the ARM b at 0x08000000 and its target are ARM functions',
-    restsOn: 'the BIOS enters the cartridge at 0x08000000 in ARM state, and the header opens with a b over itself to the startup code',
+    restsOn:
+      'the BIOS enters the cartridge at 0x08000000 in ARM state, and the header opens with a b over itself to the startup code',
     recovers: 'the startup code, from which every other function is reached',
     reads: ['rom'],
     adds: ['candidates'],

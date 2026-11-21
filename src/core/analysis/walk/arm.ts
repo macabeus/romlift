@@ -28,7 +28,14 @@ export function decodeArmAt(env: WalkEnv, pc: Addr): Insn {
 }
 
 /** Counts an exit; true when the path ends here (an unconditional instruction). */
-function exitHere(rec: WalkRecord, insn: Insn, conditional: boolean, kind: 'return' | 'tail' | 'reg-jump', rule: RuleId, isFunction: (a: Addr) => boolean): boolean {
+function exitHere(
+  rec: WalkRecord,
+  insn: Insn,
+  conditional: boolean,
+  kind: 'return' | 'tail' | 'reg-jump',
+  rule: RuleId,
+  isFunction: (a: Addr) => boolean,
+): boolean {
   if (kind === 'tail' && insn.flow.kind === 'branch' && isFunction(insn.flow.target)) {
     rec.calls.push({ site: insn.addr, target: insn.flow.target, mode: 'arm' });
   }
@@ -45,7 +52,14 @@ export function walkArm(env: WalkEnv, entry: Addr): Reading {
   const work: Addr[] = [entry];
   const isFunction = (a: Addr): boolean => view.isFunction(a);
   const runs = { current: [] as Addr[] };
-  const cursor = walkCursor(view, entry, 'arm', (a) => rec.insns.has(a), () => runs.current, (a) => decodeArmAt(env, a));
+  const cursor = walkCursor(
+    view,
+    entry,
+    'arm',
+    (a) => rec.insns.has(a),
+    () => runs.current,
+    (a) => decodeArmAt(env, a),
+  );
   for (let next = work.pop(); next !== undefined; next = work.pop()) {
     let pc = next;
     let zeros = 0;
@@ -91,7 +105,10 @@ export function walkArm(env: WalkEnv, entry: Addr): Reading {
         cursor.at = pc;
         cursor.conditional = conditional;
         const answer = askWalk(env, insn, cursor);
-        ends = answer === undefined ? follow(rec, insn, conditional, work, isFunction, env) : apply(rec, insn, conditional, answer.id, answer.step, work, isFunction, env);
+        ends =
+          answer === undefined
+            ? follow(rec, insn, conditional, work, isFunction, env)
+            : apply(rec, insn, conditional, answer.id, answer.step, work, isFunction, env);
       }
       if (ends) break;
       pc += 4;
@@ -100,7 +117,16 @@ export function walkArm(env: WalkEnv, entry: Addr): Reading {
   return rec.finish(env);
 }
 
-function apply(rec: WalkRecord, insn: Insn, conditional: boolean, id: RuleId, step: WalkStep, work: Addr[], isFunction: (a: Addr) => boolean, env: WalkEnv): boolean {
+function apply(
+  rec: WalkRecord,
+  insn: Insn,
+  conditional: boolean,
+  id: RuleId,
+  step: WalkStep,
+  work: Addr[],
+  isFunction: (a: Addr) => boolean,
+  env: WalkEnv,
+): boolean {
   rec.step(insn.addr, id, step);
   switch (step.step) {
     case 'pool':
@@ -118,16 +144,31 @@ function apply(rec: WalkRecord, insn: Insn, conditional: boolean, id: RuleId, st
     case 'arm-tail':
       return false;
     case 'end-path':
-      return exitHere(rec, insn, conditional, step.exit === 'tail' || step.exit === 'reg-jump' ? step.exit : 'return', id, isFunction);
+      return exitHere(
+        rec,
+        insn,
+        conditional,
+        step.exit === 'tail' || step.exit === 'reg-jump' ? step.exit : 'return',
+        id,
+        isFunction,
+      );
   }
 }
 
-function follow(rec: WalkRecord, insn: Insn, conditional: boolean, work: Addr[], isFunction: (a: Addr) => boolean, env: WalkEnv): boolean {
+function follow(
+  rec: WalkRecord,
+  insn: Insn,
+  conditional: boolean,
+  work: Addr[],
+  isFunction: (a: Addr) => boolean,
+  env: WalkEnv,
+): boolean {
   const flow = insn.flow;
   switch (flow.kind) {
     case 'branch':
       // A branch from a runs_at range to RAM outside every range leaves the function (§6.7).
-      if (externalTarget(env.view, insn.addr, flow.target)) return exitHere(rec, insn, conditional, 'tail', DECODER_FLOW, isFunction);
+      if (externalTarget(env.view, insn.addr, flow.target))
+        return exitHere(rec, insn, conditional, 'tail', DECODER_FLOW, isFunction);
       rec.branchTargets.push(flow.target);
       work.push(flow.target);
       return !conditional;

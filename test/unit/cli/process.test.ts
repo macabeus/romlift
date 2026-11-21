@@ -3,14 +3,18 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import { exitQuietlyOnEpipe } from '../../../src/cli/main.ts';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 
-function run(args: readonly string[]): { readonly status: number | null; readonly stdout: string; readonly stderr: string } {
+function run(args: readonly string[]): {
+  readonly status: number | null;
+  readonly stdout: string;
+  readonly stderr: string;
+} {
   const result = spawnSync(process.execPath, ['--conditions=source', 'src/cli/main.ts', ...args], {
     cwd: ROOT,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -55,15 +59,26 @@ test('a reader that closes the pipe early is no error: generate --dry-run | head
   const targets = Array.from({ length: 4096 }, (_, i) => 0x0801_0000 + 4 * i + 1);
   const stubs = new Uint8Array(4 * 4096);
   for (let i = 0; i < 4096; i++) stubs.set([0x70, 0x47, 0xc0, 0x46], 4 * i);
-  const rom = romWith([{ at: 0x0800_1000, bytes: words(...targets) }, { at: 0x0801_0000, bytes: stubs }]);
+  const rom = romWith([
+    { at: 0x0800_1000, bytes: words(...targets) },
+    { at: 0x0801_0000, bytes: stubs },
+  ]);
   const dir = mkdtempSync(join(tmpdir(), 'romlift-epipe-'));
   try {
     writeFileSync(join(dir, 'baserom.gba'), rom.bytes);
     // ROMLIFT_CLI set: init skips the npm lock step, as a romlift checkout runs it.
     const env = { ...process.env, ROMLIFT_CLI: 'romlift' };
-    const init = spawnSync(process.execPath, ['--conditions=source', join(ROOT, 'src/cli/main.ts'), 'init', 'baserom.gba', '--json'], { cwd: dir, env, encoding: 'utf8' });
+    const init = spawnSync(
+      process.execPath,
+      ['--conditions=source', join(ROOT, 'src/cli/main.ts'), 'init', 'baserom.gba', '--json'],
+      { cwd: dir, env, encoding: 'utf8' },
+    );
     assert.equal(init.status, 0, init.stdout + init.stderr);
-    const child = spawn(process.execPath, ['--conditions=source', join(ROOT, 'src/cli/main.ts'), 'generate', '--dry-run', '--json'], { cwd: dir, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(
+      process.execPath,
+      ['--conditions=source', join(ROOT, 'src/cli/main.ts'), 'generate', '--dry-run', '--json'],
+      { cwd: dir, env, stdio: ['ignore', 'pipe', 'pipe'] },
+    );
     let stderr = '';
     child.stderr.on('data', (d: Buffer) => (stderr += d.toString('utf8')));
     child.stdout.once('data', () => child.stdout.destroy());
@@ -98,7 +113,8 @@ test('any other write error is thrown, and the process does not exit quietly', (
   exitQuietlyOnEpipe(stream, () => {
     exits++;
   });
-  for (const code of ['EIO', 'ENOSPC']) assert.throws(() => stream.emit('error', writeError(code)), new RegExp(`write ${code}`));
+  for (const code of ['EIO', 'ENOSPC'])
+    assert.throws(() => stream.emit('error', writeError(code)), new RegExp(`write ${code}`));
   assert.throws(() => stream.emit('error', new Error('no code')), /no code/);
   assert.equal(exits, 0);
 });

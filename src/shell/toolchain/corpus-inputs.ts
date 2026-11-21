@@ -41,7 +41,10 @@ async function readText(path: string): Promise<string | undefined> {
 }
 
 /** The repository-relative files the corpus depends on, sorted by code unit; roots that do not exist are left out. */
-export async function corpusInputFiles(repoRoot: string, roots: readonly string[] = CORPUS_INPUT_ROOTS): Promise<readonly string[]> {
+export async function corpusInputFiles(
+  repoRoot: string,
+  roots: readonly string[] = CORPUS_INPUT_ROOTS,
+): Promise<readonly string[]> {
   const seen = new Set<string>();
   const queue = [...roots];
   for (let next = queue.shift(); next !== undefined; next = queue.shift()) {

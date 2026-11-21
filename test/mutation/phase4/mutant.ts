@@ -48,7 +48,10 @@ export function underMutation(): boolean {
 /** `text` with every relative import specifier made an absolute file URL against `file`. */
 function absoluteImports(text: string, file: string): string {
   const base = pathToFileURL(file);
-  return text.replace(/(\bfrom\s+|\bimport\s+)'(\.\.?\/[^']+)'/g, (_, lead: string, spec: string) => `${lead}'${new URL(spec, base).href}'`);
+  return text.replace(
+    /(\bfrom\s+|\bimport\s+)'(\.\.?\/[^']+)'/g,
+    (_, lead: string, spec: string) => `${lead}'${new URL(spec, base).href}'`,
+  );
 }
 
 function occurrences(text: string, part: string): number {
@@ -87,7 +90,11 @@ export async function runUnderMutant(testFile: string, mutant: Mutant): Promise<
       const original = join(REPO, file);
       let text = await readFile(original, 'utf8');
       for (const m of mutant.mutations.filter((x) => x.file === file)) {
-        assert.equal(occurrences(text, m.from), 1, `${mutant.name}: ${JSON.stringify(m.from)} must occur exactly once in ${file}`);
+        assert.equal(
+          occurrences(text, m.from),
+          1,
+          `${mutant.name}: ${JSON.stringify(m.from)} must occur exactly once in ${file}`,
+        );
         text = text.replace(m.from, () => m.to);
       }
       const copy = join(dir, `${i}-${basename(file)}`);
@@ -120,6 +127,10 @@ export async function assertCaught(testFile: string, mutant: Mutant): Promise<re
   const run = await runUnderMutant(testFile, mutant);
   const tail = run.output.split('\n').slice(-60).join('\n');
   assert.notEqual(run.code, 0, `${mutant.name}: the tests pass under the mutant, so it is not caught\n${tail}`);
-  for (const name of mutant.caughtBy) assert.ok(run.failed.includes(name), `${mutant.name}: '${name}' does not fail under the mutant (failed: ${JSON.stringify(run.failed)})\n${tail}`);
+  for (const name of mutant.caughtBy)
+    assert.ok(
+      run.failed.includes(name),
+      `${mutant.name}: '${name}' does not fail under the mutant (failed: ${JSON.stringify(run.failed)})\n${tail}`,
+    );
   return run.failed;
 }

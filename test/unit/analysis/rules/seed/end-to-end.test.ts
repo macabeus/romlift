@@ -37,9 +37,31 @@ test('discover finds the startup code, main, its callee, a loaded handler and a 
     { entry: START, size: 0x800 },
   );
   const p = AGBCC.pipeline;
-  const profile = testProfile({ seed: p.seed, harvest: p.harvest, queue: p.queue, validity: p.validity, accept: p.accept, claim: ['claim.adjacent-pools'], walk: walk.map((w) => w.meta.id), bl: ['bl.self-or-accepted'] });
-  const reg = registry(...Object.values(SEED_RULES), ...Object.values(VALID_RULES), ...Object.values(ACCEPT_RULES), extent, selfOrAccepted, ...walk);
-  const result = runAnalysis(rom, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' }, tuningFor(profile, reg), reg);
+  const profile = testProfile({
+    seed: p.seed,
+    harvest: p.harvest,
+    queue: p.queue,
+    validity: p.validity,
+    accept: p.accept,
+    claim: ['claim.adjacent-pools'],
+    walk: walk.map((w) => w.meta.id),
+    bl: ['bl.self-or-accepted'],
+  });
+  const reg = registry(
+    ...Object.values(SEED_RULES),
+    ...Object.values(VALID_RULES),
+    ...Object.values(ACCEPT_RULES),
+    extent,
+    selfOrAccepted,
+    ...walk,
+  );
+  const result = runAnalysis(
+    rom,
+    profile,
+    { mode: 'discover', seeds: [], overrides: [], trail: 'off' },
+    tuningFor(profile, reg),
+    reg,
+  );
   const found = result.functions.map((f) => [f.entry, f.mode, f.origin, f.accepted.note ?? '']);
   assert.deepEqual(found, [
     [rom.base, 'arm', 'rom-entry', ''],

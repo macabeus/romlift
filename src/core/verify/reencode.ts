@@ -10,29 +10,36 @@
 // rawReason). Only an instruction that names no address goes through a cache, addressFreeReasons, whose key is
 // its mode and exact word, so the cache can change no answer. The decode of each item is not cached: the check
 // still compares every item's recorded row with what its bytes decode to.
-import type { SymbolResolver } from '../../foundation/isa/types.ts';
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { rawReason } from '../../foundation/isa/roundtrip.ts';
+import type { SymbolResolver } from '../../foundation/isa/types.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
 import { decodeItemAt } from '../model/item-table.ts';
+import { runOffsetOf } from '../model/modules.ts';
 import { addressFreeReasons, namesNoAddress } from '../model/printing-cache.ts';
 import type { AddressFreeReasons } from '../model/printing-cache.ts';
 import { resolverFor } from '../model/resolver.ts';
 import { ItemKind } from '../model/types.ts';
-import { runOffsetOf } from '../model/modules.ts';
 import type { Model } from '../model/types.ts';
+import { VerifyCodes } from './codes.ts';
 import { checkResult } from './report.ts';
 import type { CheckResult } from './report.ts';
-import { VerifyCodes } from './codes.ts';
 
 /** How many failures one result lists; the rest are counted in its detail. */
 const MAX_REPORTED = 64;
 
 /** Why item `i` would not print as a mnemonic that assembles back, or undefined when it would. */
-function failure(rom: Rom, model: Model, i: number, runOffset: number, resolver: SymbolResolver, cache: AddressFreeReasons): string | undefined {
+function failure(
+  rom: Rom,
+  model: Model,
+  i: number,
+  runOffset: number,
+  resolver: SymbolResolver,
+  cache: AddressFreeReasons,
+): string | undefined {
   const insn = decodeItemAt(rom, model.items, i, runOffset);
   if (typeof insn === 'string') return insn;
   const reason = namesNoAddress(insn) ? cache.reasonOf(insn, resolver) : rawReason(insn, resolver);
@@ -57,12 +64,24 @@ export function checkReencode(rom: Rom, model: Model): CheckResult {
         failed++;
         const addr: Addr = model.items.start[i] ?? 0;
         if (diagnostics.length < MAX_REPORTED) {
-          diagnostics.push(diagnostic(VerifyCodes, 'E_SELF_CHECK_REENCODE', `the instruction at ${hexAddr(addr)} in ${chunk.name} (module ${module.name}) does not re-encode: ${why}`, { addr }));
+          diagnostics.push(
+            diagnostic(
+              VerifyCodes,
+              'E_SELF_CHECK_REENCODE',
+              `the instruction at ${hexAddr(addr)} in ${chunk.name} (module ${module.name}) does not re-encode: ${why}`,
+              { addr },
+            ),
+          );
         }
       }
     }
   }
   const first = diagnostics[0]?.message;
-  const detail = first === undefined ? `${checked} instructions re-encode` : failed > 1 ? `${first} (${failed} instructions in all)` : first;
+  const detail =
+    first === undefined
+      ? `${checked} instructions re-encode`
+      : failed > 1
+        ? `${first} (${failed} instructions in all)`
+        : first;
   return checkResult('reencode', diagnostics, detail);
 }

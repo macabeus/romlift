@@ -5,9 +5,16 @@
 // driver), pools (its pool words, in the extent or far), tables ([base, count]), far and noreturn (the
 // sites of its 'far' and 'noreturn' bl verdicts) and origin. Claims are the maximal runs of kinds 1 to 4
 // in ROM order: padding (5) and data (6) are left out, since the PoC claims neither.
-import { compareNumbers, type AnalysisResult, type FunctionFact, type Span } from 'romlift';
+import { type AnalysisResult, type FunctionFact, type Span, compareNumbers } from 'romlift';
 
-import { parityDigest, PARITY_SCHEMA, type AddrSpan, type ClaimKindCode, type ParityFunction, type ParityView } from './parity-view.ts';
+import {
+  type AddrSpan,
+  type ClaimKindCode,
+  PARITY_SCHEMA,
+  type ParityFunction,
+  type ParityView,
+  parityDigest,
+} from './parity-view.ts';
 
 /** Maximal [start, end) runs of `spans`, ascending; touching or overlapping spans merge. */
 function runs(spans: readonly Span[]): AddrSpan[] {
@@ -26,7 +33,8 @@ function sortedUnique(addrs: readonly number[]): number[] {
 }
 
 function parityFunction(f: FunctionFact): ParityFunction {
-  const sites = (verdict: 'far' | 'noreturn'): number[] => sortedUnique(f.blVerdicts.filter((v) => v.verdict === verdict).map((v) => v.site));
+  const sites = (verdict: 'far' | 'noreturn'): number[] =>
+    sortedUnique(f.blVerdicts.filter((v) => v.verdict === verdict).map((v) => v.site));
   return {
     entry: f.entry,
     mode: f.mode,

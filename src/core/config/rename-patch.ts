@@ -33,9 +33,15 @@ export type RenamePatchResult =
   | { readonly ok: false; readonly diagnostics: readonly Diagnostic<ConfigCode>[] };
 
 /** Every [functions], [entry_points] and [symbols] entry whose name or one of whose aliases is `name`, in that order, by address. */
-export function entriesNamed(config: Pick<RomliftConfig, 'functions' | 'entryPoints' | 'symbols'>, name: string): readonly RenamedEntry[] {
+export function entriesNamed(
+  config: Pick<RomliftConfig, 'functions' | 'entryPoints' | 'symbols'>,
+  name: string,
+): readonly RenamedEntry[] {
   const out: RenamedEntry[] = [];
-  const scan = (table: AddressTable, entries: ReadonlyMap<Addr, FunctionConfig | EntryPointConfig | SymbolConfig>): void => {
+  const scan = (
+    table: AddressTable,
+    entries: ReadonlyMap<Addr, FunctionConfig | EntryPointConfig | SymbolConfig>,
+  ): void => {
     for (const [addr, entry] of sortedEntries(entries)) {
       if (entry.name === name) out.push({ table, addr, role: 'name' });
       else if (entry.aliases.includes(name)) out.push({ table, addr, role: 'alias' });
@@ -70,7 +76,11 @@ function renamedEntryPoint(e: EntryPointConfig, from: string, to: string): Entry
 /** `symbol` with `from` (its name or an alias) spelled `to`, and no `from` key; every other key kept as it is. */
 function renamedSymbol(symbol: SymbolConfig, from: string, to: string): SymbolConfig {
   const { from: _source, ...rest } = symbol;
-  return { ...rest, name: respelled(symbol.name, from, to), aliases: symbol.aliases.map((a) => respelled(a, from, to)) };
+  return {
+    ...rest,
+    name: respelled(symbol.name, from, to),
+    aliases: symbol.aliases.map((a) => respelled(a, from, to)),
+  };
 }
 
 function refused(message: string, addr?: Addr): Diagnostic<ConfigCode> {
@@ -78,23 +88,37 @@ function refused(message: string, addr?: Addr): Diagnostic<ConfigCode> {
 }
 
 /** `config` with its entry at `entry` renamed, and that entry's canonical line. */
-function intendedOf(config: RomliftConfig, entry: RenamedEntry, from: string, to: string): { readonly config: RomliftConfig; readonly line: string } | undefined {
+function intendedOf(
+  config: RomliftConfig,
+  entry: RenamedEntry,
+  from: string,
+  to: string,
+): { readonly config: RomliftConfig; readonly line: string } | undefined {
   if (entry.table === 'functions') {
     const was = config.functions.get(entry.addr);
     if (was === undefined) return undefined;
     const now = renamedFunction(was, from, to);
-    return { config: { ...config, functions: new Map([...config.functions, [entry.addr, now]]) }, line: functionLine(entry.addr, now) };
+    return {
+      config: { ...config, functions: new Map([...config.functions, [entry.addr, now]]) },
+      line: functionLine(entry.addr, now),
+    };
   }
   if (entry.table === 'entry_points') {
     const was = config.entryPoints.get(entry.addr);
     if (was === undefined) return undefined;
     const now = renamedEntryPoint(was, from, to);
-    return { config: { ...config, entryPoints: new Map([...config.entryPoints, [entry.addr, now]]) }, line: entryPointLine(entry.addr, now) };
+    return {
+      config: { ...config, entryPoints: new Map([...config.entryPoints, [entry.addr, now]]) },
+      line: entryPointLine(entry.addr, now),
+    };
   }
   const was = config.symbols.get(entry.addr);
   if (was === undefined) return undefined;
   const now = renamedSymbol(was, from, to);
-  return { config: { ...config, symbols: new Map([...config.symbols, [entry.addr, now]]) }, line: symbolLine(entry.addr, now) };
+  return {
+    config: { ...config, symbols: new Map([...config.symbols, [entry.addr, now]]) },
+    line: symbolLine(entry.addr, now),
+  };
 }
 
 /**
@@ -106,27 +130,62 @@ function intendedOf(config: RomliftConfig, entry: RenamedEntry, from: string, to
 export function planRenamePatch(text: string, config: RomliftConfig, from: string, to: string): RenamePatchResult {
   const named = entriesNamed(config, from);
   const entry = named[0];
-  if (entry === undefined) return { ok: false, diagnostics: [refused(`no [functions], [entry_points] or [symbols] entry of romlift.toml is named ${from} or has it as an alias`)] };
+  if (entry === undefined)
+    return {
+      ok: false,
+      diagnostics: [
+        refused(
+          `no [functions], [entry_points] or [symbols] entry of romlift.toml is named ${from} or has it as an alias`,
+        ),
+      ],
+    };
   if (named.length > 1) {
     const where = named.map((e) => `[${e.table}] ${addressKey(e.addr)}`).join(', ');
-    return { ok: false, diagnostics: [refused(`${from} names more than one entry of romlift.toml (${where}); give each its own name first`, entry.addr)] };
+    return {
+      ok: false,
+      diagnostics: [
+        refused(
+          `${from} names more than one entry of romlift.toml (${where}); give each its own name first`,
+          entry.addr,
+        ),
+      ],
+    };
   }
   const intended = intendedOf(config, entry, from, to);
-  if (intended === undefined) return { ok: false, diagnostics: [refused(`the config has no [${entry.table}] entry at ${addressKey(entry.addr)}`, entry.addr)] };
+  if (intended === undefined)
+    return {
+      ok: false,
+      diagnostics: [refused(`the config has no [${entry.table}] entry at ${addressKey(entry.addr)}`, entry.addr)],
+    };
   const uses = addressKeyUses(outlineToml(text));
   const places = addressDefinitions(uses).filter((d) => d.table === entry.table && d.addr === entry.addr);
   const statement = places.length === 1 ? places[0]?.use.statement : undefined;
-  const own = statement !== undefined && places[0]?.use.shape === 'line' && statement.endLine === statement.line && statement.table.length === 1 && statement.table[0] === entry.table && statement.key.length === 1;
+  const own =
+    statement !== undefined &&
+    places[0]?.use.shape === 'line' &&
+    statement.endLine === statement.line &&
+    statement.table.length === 1 &&
+    statement.table[0] === entry.table &&
+    statement.key.length === 1;
   if (!own) {
     const lines = places.map((p) => p.line).join(', ');
     return {
       ok: false,
-      diagnostics: [refused(`${addressKey(entry.addr)} in [${entry.table}] is not one single-line entry (line ${lines || '?'}): it was restructured by hand, so rename does not edit it; replace it with this line under [${entry.table}]: ${intended.line}`, entry.addr)],
+      diagnostics: [
+        refused(
+          `${addressKey(entry.addr)} in [${entry.table}] is not one single-line entry (line ${lines || '?'}): it was restructured by hand, so rename does not edit it; replace it with this line under [${entry.table}]: ${intended.line}`,
+          entry.addr,
+        ),
+      ],
     };
   }
   // The line is written from `config`, so `config` must be what `text` says, or the line would carry what it does not.
   const read = verifyPatched(text, config, config);
-  if (read !== undefined) return { ok: false, diagnostics: [refused(`the config rename was given is not what romlift.toml says (${read.message})`, entry.addr)] };
+  if (read !== undefined)
+    return {
+      ok: false,
+      diagnostics: [refused(`the config rename was given is not what romlift.toml says (${read.message})`, entry.addr)],
+    };
   const patched = `${text.slice(0, statement.start)}${intended.line}${text.slice(statement.valueEnd)}`;
   const mismatch = verifyPatched(patched, config, intended.config);
   if (mismatch !== undefined) return { ok: false, diagnostics: [mismatch] };

@@ -8,9 +8,9 @@ import dataPointer from './data-pointer.ts';
 import listed from './listed.ts';
 import override from './override.ts';
 import poolPointer from './pool-pointer.ts';
+import ramCopy from './ram-copy.ts';
 import romEntry from './rom-entry.ts';
 import startupPointer from './startup-pointer.ts';
-import ramCopy from './ram-copy.ts';
 import veneer from './veneer.ts';
 
 export const SEED_RULES = {

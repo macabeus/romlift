@@ -29,7 +29,11 @@ test('the contract checks its members at compile time', () => {
     defineRule({ meta: { ...meta, id: 'walk.example' }, kind: 'walk', check: () => undefined }),
     // @ts-expect-error a seed rule returns candidates
     defineRule({ meta: { ...meta, id: 'seed.example', origin: 'call' }, kind: 'seed', seeds: () => [1] }),
-    defineRule({ meta: { ...meta, id: 'seed.example', origin: 'call' }, kind: 'harvest', harvest: (v, earlier) => (earlier.has(v.rom.base) ? [] : [v.rom.base]) }),
+    defineRule({
+      meta: { ...meta, id: 'seed.example', origin: 'call' },
+      kind: 'harvest',
+      harvest: (v, earlier) => (earlier.has(v.rom.base) ? [] : [v.rom.base]),
+    }),
   ];
   assert.equal(rules.length, 4);
 });

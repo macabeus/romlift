@@ -20,16 +20,15 @@
 // Every command runs with stdin closed (g4.cli-contract) through a CommandRunner, which the unit tests replace.
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmod, copyFile, cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, cp, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { constants, tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-
 import type { AgbccPin } from 'romlift';
 import { readAgbccPin } from 'romlift/node';
 
 import { agbccPinProblem, sourceCliScript } from '../../bench/src/scaffold.ts';
-import { listSyntheticFixtures, type SyntheticFixture } from './fixtures.ts';
+import { type SyntheticFixture, listSyntheticFixtures } from './fixtures.ts';
 
 export { shellQuote } from '../../bench/src/scaffold.ts';
 
@@ -56,7 +55,11 @@ export interface CommandOptions {
 }
 
 /** How the harness runs a process; runCommand is the real one, and a unit test passes its own. */
-export type CommandRunner = (command: string, args: readonly string[], options?: CommandOptions) => Promise<CommandResult>;
+export type CommandRunner = (
+  command: string,
+  args: readonly string[],
+  options?: CommandOptions,
+) => Promise<CommandResult>;
 
 export const TIMED_OUT_CODE = 124;
 export const NOT_STARTED_CODE = 127;
@@ -72,7 +75,12 @@ export const runCommand: CommandRunner = (command, args, options = {}) =>
     if (options.env?.['NODE_TEST_CONTEXT'] === undefined) delete env['NODE_TEST_CONTEXT'];
     // Its own process group, so the time limit kills what it started too (make's recipes, setup.sh's build), whose
     // inherited pipes would otherwise keep the result waiting.
-    const child = spawn(command, [...args], { cwd: options.cwd, env, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
+    const child = spawn(command, [...args], {
+      cwd: options.cwd,
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: true,
+    });
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
     let timedOut = false;
@@ -92,7 +100,12 @@ export const runCommand: CommandRunner = (command, args, options = {}) =>
       if (settled) return;
       settled = true;
       if (timer !== undefined) clearTimeout(timer);
-      resolve({ code, stdout: Buffer.concat(stdout).toString('utf8'), stderr: Buffer.concat(stderr).toString('utf8') + extra, timedOut });
+      resolve({
+        code,
+        stdout: Buffer.concat(stdout).toString('utf8'),
+        stderr: Buffer.concat(stderr).toString('utf8') + extra,
+        timedOut,
+      });
     };
     child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk));
     child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk));
@@ -111,7 +124,6 @@ export function outputTail(result: Pick<CommandResult, 'stdout' | 'stderr'>, lin
 
 // ---------------------------------------------------------------------------------------------------
 // The source CLI.
-
 
 export interface SourceCliOptions {
   /** Default this checkout. */
@@ -170,7 +182,8 @@ export async function tempProject(rom: string | Uint8Array, options: TempProject
   await mkdir(parent, { recursive: true });
   const dir = await mkdtemp(path.join(parent, options.prefix ?? 'romlift-e2e-'));
   const romFile = options.romFile ?? (typeof rom === 'string' ? path.basename(rom) : 'baserom.gba');
-  if (romFile === '' || romFile.includes('/') || romFile.startsWith('.')) throw new Error(`'${romFile}' is not a plain ROM file name`);
+  if (romFile === '' || romFile.includes('/') || romFile.startsWith('.'))
+    throw new Error(`'${romFile}' is not a plain ROM file name`);
   const target = path.join(dir, romFile);
   if (typeof rom === 'string') await copyFile(rom, target);
   else await writeFile(target, rom);
@@ -192,7 +205,9 @@ export interface CliLine {
   readonly sha1?: string;
 }
 
-export type NdjsonParse = { readonly ok: true; readonly lines: readonly CliLine[] } | { readonly ok: false; readonly error: string };
+export type NdjsonParse =
+  | { readonly ok: true; readonly lines: readonly CliLine[] }
+  | { readonly ok: false; readonly error: string };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -209,9 +224,13 @@ export function parseNdjson(stdout: string): NdjsonParse {
     try {
       value = JSON.parse(text);
     } catch (error) {
-      return { ok: false, error: `line ${i + 1} is not JSON (${error instanceof Error ? error.message : String(error)}): ${text.slice(0, 200)}` };
+      return {
+        ok: false,
+        error: `line ${i + 1} is not JSON (${error instanceof Error ? error.message : String(error)}): ${text.slice(0, 200)}`,
+      };
     }
-    if (!isRecord(value) || typeof value['type'] !== 'string') return { ok: false, error: `line ${i + 1} is not an object with a string type: ${text.slice(0, 200)}` };
+    if (!isRecord(value) || typeof value['type'] !== 'string')
+      return { ok: false, error: `line ${i + 1} is not an object with a string type: ${text.slice(0, 200)}` };
     lines.push(value as unknown as CliLine);
   }
   return { ok: true, lines };
@@ -222,8 +241,10 @@ export function summaryProblem(lines: readonly CliLine[], exitCode: number): str
   const last = lines[lines.length - 1];
   if (last === undefined) return 'no output line, so no summary';
   if (last.type !== 'summary') return `the last line is of type '${last.type}', not the summary`;
-  if (last.exitCode !== exitCode) return `the summary says exitCode ${String(last.exitCode)}, the process exited ${exitCode}`;
-  if (last.ok !== undefined && last.ok !== (exitCode === 0)) return `the summary says ok ${String(last.ok)} with exit ${exitCode}`;
+  if (last.exitCode !== exitCode)
+    return `the summary says exitCode ${String(last.exitCode)}, the process exited ${exitCode}`;
+  if (last.ok !== undefined && last.ok !== (exitCode === 0))
+    return `the summary says ok ${String(last.ok)} with exit ${exitCode}`;
   return undefined;
 }
 
@@ -243,11 +264,22 @@ export interface RomliftOptions extends CommandOptions {
 }
 
 /** Runs `<cli> <args> --json` and checks its NDJSON and summary. */
-export async function runRomlift(cli: string, args: readonly string[], options: RomliftOptions = {}): Promise<RomliftRun> {
+export async function runRomlift(
+  cli: string,
+  args: readonly string[],
+  options: RomliftOptions = {},
+): Promise<RomliftRun> {
   const { runner = runCommand, ...command } = options;
   const result = await runner(cli, [...args, '--json'], command);
   const parsed = parseNdjson(result.stdout);
-  if (!parsed.ok) return { result, lines: [], summary: undefined, codes: [], problem: `romlift ${args.join(' ')} --json printed bad NDJSON: ${parsed.error}` };
+  if (!parsed.ok)
+    return {
+      result,
+      lines: [],
+      summary: undefined,
+      codes: [],
+      problem: `romlift ${args.join(' ')} --json printed bad NDJSON: ${parsed.error}`,
+    };
   const problem = summaryProblem(parsed.lines, result.code);
   return {
     result,
@@ -275,7 +307,9 @@ export function parseSha1Text(text: string): Sha1Record | undefined {
   return match?.[1] === undefined || match[2] === undefined ? undefined : { sha1: match[1], file: match[2] };
 }
 
-export type Sha1FileRead = ({ readonly ok: true; readonly path: string } & Sha1Record) | { readonly ok: false; readonly problem: string };
+export type Sha1FileRead =
+  | ({ readonly ok: true; readonly path: string } & Sha1Record)
+  | { readonly ok: false; readonly problem: string };
 
 function byCodeUnit(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
@@ -285,7 +319,8 @@ function byCodeUnit(a: string, b: string): number {
 export async function readSha1File(dir: string): Promise<Sha1FileRead> {
   const names = (await readdir(dir)).filter((name) => name.endsWith('.sha1')).sort(byCodeUnit);
   const name = names[0];
-  if (names.length !== 1 || name === undefined) return { ok: false, problem: `${names.length} .sha1 files in the project, the scaffold writes one` };
+  if (names.length !== 1 || name === undefined)
+    return { ok: false, problem: `${names.length} .sha1 files in the project, the scaffold writes one` };
   const record = parseSha1Text(await readFile(path.join(dir, name), 'utf8'));
   if (record === undefined) return { ok: false, problem: `${name} is not in sha1sum format` };
   return { ok: true, path: path.join(dir, name), ...record };
@@ -313,7 +348,9 @@ export async function snapshotTree(dir: string, options: SnapshotOptions = {}): 
   const exclude = new Set(options.exclude ?? ['.git']);
   const out: [string, TreeEntry][] = [];
   const walk = async (prefix: string): Promise<void> => {
-    const entries = (await readdir(path.join(dir, prefix), { withFileTypes: true })).sort((a, b) => byCodeUnit(a.name, b.name));
+    const entries = (await readdir(path.join(dir, prefix), { withFileTypes: true })).sort((a, b) =>
+      byCodeUnit(a.name, b.name),
+    );
     for (const entry of entries) {
       const relative = prefix === '' ? entry.name : `${prefix}/${entry.name}`;
       if (exclude.has(relative)) continue;
@@ -321,7 +358,10 @@ export async function snapshotTree(dir: string, options: SnapshotOptions = {}): 
       else if (entry.isFile()) {
         const file = path.join(dir, relative);
         const info = await stat(file);
-        out.push([relative, { sha1: sha1Hex(new Uint8Array(await readFile(file))), size: info.size, mtimeMs: info.mtimeMs }]);
+        out.push([
+          relative,
+          { sha1: sha1Hex(new Uint8Array(await readFile(file))), size: info.size, mtimeMs: info.mtimeMs },
+        ]);
       }
     }
   };
@@ -419,7 +459,8 @@ export async function agbccCache(dir: string, prebuilt?: string, pin?: AgbccPin)
   await mkdir(dir, { recursive: true });
   const filled = (): Promise<boolean> => isFile(path.join(dir, AGBCC_BIN));
   if (prebuilt !== undefined && !(await filled())) {
-    if (!(await isFile(path.join(prebuilt, AGBCC_BIN)))) throw new Error(`no ${AGBCC_BIN} under the prebuilt agbcc ${prebuilt}`);
+    if (!(await isFile(path.join(prebuilt, AGBCC_BIN))))
+      throw new Error(`no ${AGBCC_BIN} under the prebuilt agbcc ${prebuilt}`);
     // A prebuilt agbcc without a pin stamp is taken as built at the pin (bench/src/scaffold.ts UnstampedAgbcc).
     const stale = await agbccPinProblem(prebuilt, pin ?? (await templatePin()), 'accept');
     if (stale !== undefined) throw new Error(stale);
@@ -483,19 +524,44 @@ export async function buildProject(dir: string, options: BuildOptions, expected?
   const env = { ...options.env, ROMLIFT_CLI: options.cli };
   const none = { setup: undefined, make: undefined, recorded: undefined, built: undefined };
   await options.agbcc?.provide(dir);
-  const setup = await runner('./setup.sh', [], { cwd: dir, env, timeoutMs: options.setupTimeoutMs ?? SETUP_TIMEOUT_MS });
+  const setup = await runner('./setup.sh', [], {
+    cwd: dir,
+    env,
+    timeoutMs: options.setupTimeoutMs ?? SETUP_TIMEOUT_MS,
+  });
   await options.agbcc?.remember(dir);
-  if (setup.code !== 0) return { ...none, setup, failure: `./setup.sh ${setup.timedOut ? 'timed out' : `exited ${setup.code}`}:\n${outputTail(setup)}` };
+  if (setup.code !== 0)
+    return {
+      ...none,
+      setup,
+      failure: `./setup.sh ${setup.timedOut ? 'timed out' : `exited ${setup.code}`}:\n${outputTail(setup)}`,
+    };
   const make = await runner('make', [], { cwd: dir, env, timeoutMs: options.makeTimeoutMs ?? MAKE_TIMEOUT_MS });
-  if (make.code !== 0) return { ...none, setup, make, failure: `make ${make.timedOut ? 'timed out' : `exited ${make.code}`}:\n${outputTail(make)}` };
+  if (make.code !== 0)
+    return {
+      ...none,
+      setup,
+      make,
+      failure: `make ${make.timedOut ? 'timed out' : `exited ${make.code}`}:\n${outputTail(make)}`,
+    };
   const read = await readSha1File(dir);
   if (!read.ok) return { ...none, setup, make, failure: read.problem };
   const recorded = { sha1: read.sha1, file: read.file };
-  if (expected !== undefined && read.sha1 !== expected) return { ...none, setup, make, recorded, failure: `${path.basename(read.path)} records ${read.sha1}, the ROM is ${expected}` };
+  if (expected !== undefined && read.sha1 !== expected)
+    return {
+      ...none,
+      setup,
+      make,
+      recorded,
+      failure: `${path.basename(read.path)} records ${read.sha1}, the ROM is ${expected}`,
+    };
   const romPath = path.join(dir, read.file);
   if (!(await isFile(romPath))) return { ...none, setup, make, recorded, failure: `make did not build ${read.file}` };
   const built = sha1Hex(new Uint8Array(await readFile(romPath)));
-  const failure = built === read.sha1 ? undefined : `make built ${read.file} with SHA-1 ${built}, ${path.basename(read.path)} records ${read.sha1}`;
+  const failure =
+    built === read.sha1
+      ? undefined
+      : `make built ${read.file} with SHA-1 ${built}, ${path.basename(read.path)} records ${read.sha1}`;
   return { setup, make, recorded, built, failure };
 }
 
@@ -522,7 +588,10 @@ const BUILD_OUTPUTS = ['.git', 'build', 'tools'];
  * The loop of a user's first build, in a project that holds only its ROM: `romlift init <rom> --json`, then
  * `./setup.sh` and `make` (buildProject), which must end at the ROM's SHA-1 and leave romlift.toml as init wrote it.
  */
-export async function runEndToEnd(project: Pick<TempProject, 'dir' | 'romFile' | 'sha1'>, options: EndToEndOptions): Promise<EndToEndOutcome> {
+export async function runEndToEnd(
+  project: Pick<TempProject, 'dir' | 'romFile' | 'sha1'>,
+  options: EndToEndOptions,
+): Promise<EndToEndOutcome> {
   const runner = options.runner ?? runCommand;
   const init = await runRomlift(options.cli, ['init', project.romFile, ...(options.initArgs ?? [])], {
     cwd: project.dir,
@@ -531,7 +600,12 @@ export async function runEndToEnd(project: Pick<TempProject, 'dir' | 'romFile' |
   });
   const none = { build: undefined, afterInit: undefined, diff: undefined };
   if (init.problem !== undefined) return { ...none, init, failure: `${init.problem}\n${outputTail(init.result)}` };
-  if (init.result.code !== 0) return { ...none, init, failure: `init exited ${init.result.code} with [${init.codes.join(', ')}]:\n${outputTail(init.result)}` };
+  if (init.result.code !== 0)
+    return {
+      ...none,
+      init,
+      failure: `init exited ${init.result.code} with [${init.codes.join(', ')}]:\n${outputTail(init.result)}`,
+    };
   const afterInit = await snapshotTree(project.dir, { exclude: BUILD_OUTPUTS });
   const build = await buildProject(project.dir, options, project.sha1);
   const after = await snapshotTree(project.dir, { exclude: BUILD_OUTPUTS });
@@ -545,7 +619,9 @@ export async function runEndToEnd(project: Pick<TempProject, 'dir' | 'romFile' |
 // The fixtures the end-to-end runs build.
 
 /** Fixtures no end-to-end build runs, each with where it is proven instead (as g4.e2e-fixtures and g4.packed-e2e skip them). */
-export const NOT_BUILT: Readonly<Record<string, string>> = { 'c-data': 'its C array must fail the link (g4.c-data-fails-loud)' };
+export const NOT_BUILT: Readonly<Record<string, string>> = {
+  'c-data': 'its C array must fail the link (g4.c-data-fails-loud)',
+};
 
 /** `init`'s extra arguments from a fixture's expect.json (`{"init": {"args": [string]}}`), none when absent. */
 export function initArgsOf(expectText: string, where: string): readonly string[] {
@@ -556,7 +632,8 @@ export function initArgsOf(expectText: string, where: string): readonly string[]
   if (!isRecord(init)) throw new Error(`${where}: init is not an object`);
   const args = init['args'];
   if (args === undefined) return [];
-  if (!Array.isArray(args) || !args.every((a): a is string => typeof a === 'string')) throw new Error(`${where}: init.args is not an array of strings`);
+  if (!Array.isArray(args) || !args.every((a): a is string => typeof a === 'string'))
+    throw new Error(`${where}: init.args is not an array of strings`);
   return args;
 }
 
@@ -566,11 +643,15 @@ export interface EndToEndFixture {
 }
 
 /** The committed fixtures an end-to-end run builds (all but NOT_BUILT), with their init arguments, by name. */
-export async function endToEndFixtures(fixtures: readonly SyntheticFixture[] = listSyntheticFixtures()): Promise<readonly EndToEndFixture[]> {
+export async function endToEndFixtures(
+  fixtures: readonly SyntheticFixture[] = listSyntheticFixtures(),
+): Promise<readonly EndToEndFixture[]> {
   const out: EndToEndFixture[] = [];
   for (const fixture of fixtures) {
     if (NOT_BUILT[fixture.name] !== undefined) continue;
-    const initArgs = (await isFile(fixture.expect)) ? initArgsOf(await readFile(fixture.expect, 'utf8'), `${fixture.name}/expect.json`) : [];
+    const initArgs = (await isFile(fixture.expect))
+      ? initArgsOf(await readFile(fixture.expect, 'utf8'), `${fixture.name}/expect.json`)
+      : [];
     out.push({ fixture, initArgs });
   }
   return out;

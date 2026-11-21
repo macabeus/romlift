@@ -12,7 +12,8 @@
 // with no differing function or claim run fail too.
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { judgeDifferences, viewDifferences, type ParityView } from './confirm-differences.ts';
+
+import { type ParityView, judgeDifferences, viewDifferences } from './confirm-differences.ts';
 import { gate } from './gate.ts';
 
 type Mode = 'thumb' | 'arm';
@@ -62,7 +63,6 @@ type Analyze = (rom: Rom, profile: object, options: AnalysisOptions) => Analysis
 type CanonicalJson = (value: unknown) => Iterable<string>;
 type Sha256Stream = (chunks: Iterable<string>) => string;
 
-
 /** The listed set: every found entry and mode; `label` when it lies strictly inside another found extent. */
 function listedSeeds(functions: readonly FunctionFact[]): readonly Seed[] {
   const byStart = [...functions].sort((a, b) => a.extent.start - b.extent.start || a.entry - b.entry);
@@ -87,7 +87,11 @@ function listedSeeds(functions: readonly FunctionFact[]): readonly Seed[] {
     }
     const enclosingEnd = best.entry !== f.entry ? best.end : second.end;
     const label = enclosingEnd > f.entry;
-    seeds.push(label ? { entry: f.entry, mode: f.mode, rule: 'seed.listed', label: true } : { entry: f.entry, mode: f.mode, rule: 'seed.listed' });
+    seeds.push(
+      label
+        ? { entry: f.entry, mode: f.mode, rule: 'seed.listed', label: true }
+        : { entry: f.entry, mode: f.mode, rule: 'seed.listed' },
+    );
   }
   return seeds;
 }
@@ -100,7 +104,11 @@ function parityView(result: AnalysisResult): ParityView {
       extent: { start: f.extent.start, end: f.extent.end },
       far: f.blVerdicts.filter((v) => v.verdict === 'far').map((v) => ({ site: v.site, target: v.target })),
     })),
-    claims: result.claims.map((c) => ({ span: { start: c.span.start, end: c.span.end }, kind: c.kind, owner: c.owner })),
+    claims: result.claims.map((c) => ({
+      span: { start: c.span.start, end: c.span.end },
+      kind: c.kind,
+      owner: c.owner,
+    })),
   };
 }
 
@@ -133,9 +141,12 @@ gate({
       const labels = seeds.filter((s) => s.label === true).length;
       // Judged on every ROM, equal digests included.
       const differences = viewDifferences(views.discover, views.confirm);
-      if (a !== b && differences.functions.length === 0 && differences.claims.length === 0) problems.push(`${dataset.name}: the views' digests differ but no function or claim run does (their order)`);
+      if (a !== b && differences.functions.length === 0 && differences.claims.length === 0)
+        problems.push(`${dataset.name}: the views' digests differ but no function or claim run does (their order)`);
       problems.push(...judgeDifferences(dataset.name, differences).problems);
-      counts.push(`${dataset.name} ${seeds.length} listed (${labels} labels), ${confirm.unlisted?.length ?? 0} unlisted, ${confirm.listedInvalid?.length ?? 0} listed-invalid, ${differences.functions.length} functions and ${differences.claims.length} claim runs differ`);
+      counts.push(
+        `${dataset.name} ${seeds.length} listed (${labels} labels), ${confirm.unlisted?.length ?? 0} unlisted, ${confirm.listedInvalid?.length ?? 0} listed-invalid, ${differences.functions.length} functions and ${differences.claims.length} claim runs differ`,
+      );
     }
     // Noted before any failure, so the failure detail keeps the per-ROM measurements (D59 q).
     cx.note(counts.join('; '));

@@ -37,6 +37,7 @@ export const DUMMY_PROFILE: CompilerProfile = {
   },
   idioms: {
     ...AGBCC.idioms,
-    matchFarJump: (site, caller) => Math.abs(site.target - site.site) >= FAR_JUMP.minDistance && (!FAR_JUMP.requiresPushedLr || caller.prologue),
+    matchFarJump: (site, caller) =>
+      Math.abs(site.target - site.site) >= FAR_JUMP.minDistance && (!FAR_JUMP.requiresPushedLr || caller.prologue),
   },
 };

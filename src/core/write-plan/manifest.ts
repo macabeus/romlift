@@ -8,7 +8,9 @@ import { WRITER_IDS } from '../emit/tree.ts';
 import type { WriterId } from '../emit/tree.ts';
 import type { Manifest } from './types.ts';
 
-export type DecodedManifest = { readonly ok: true; readonly manifest: Manifest } | { readonly ok: false; readonly error: string };
+export type DecodedManifest =
+  | { readonly ok: true; readonly manifest: Manifest }
+  | { readonly ok: false; readonly error: string };
 
 const SHA1 = /^[0-9a-f]{40}$/;
 
@@ -52,7 +54,8 @@ export function decodeManifest(text: string): DecodedManifest {
   if (extra.length > 0) return { ok: false, error: `unknown member ${JSON.stringify(extra[0])}` };
   if (json['schema'] !== 1) return { ok: false, error: `schema ${JSON.stringify(json['schema'])}, expected 1` };
   const romlift = json['romlift'];
-  if (typeof romlift !== 'string' || romlift.length === 0) return { ok: false, error: 'romlift is not a version string' };
+  if (typeof romlift !== 'string' || romlift.length === 0)
+    return { ok: false, error: 'romlift is not a version string' };
   const files = json['files'];
   if (!isRecord(files)) return { ok: false, error: 'files is not an object' };
   // Object.fromEntries defines every key as an own member, '__proto__' included.
@@ -62,11 +65,13 @@ export function decodeManifest(text: string): DecodedManifest {
     if (!isProjectPath(path)) return { ok: false, error: `files: ${JSON.stringify(path)} is not a project path` };
     if (!isRecord(entry)) return { ok: false, error: `files[${JSON.stringify(path)}] is not an object` };
     const unknown = extraKeys(entry, ['sha1', 'writer']);
-    if (unknown.length > 0) return { ok: false, error: `files[${JSON.stringify(path)}]: unknown member ${JSON.stringify(unknown[0])}` };
+    if (unknown.length > 0)
+      return { ok: false, error: `files[${JSON.stringify(path)}]: unknown member ${JSON.stringify(unknown[0])}` };
     const sha1 = entry['sha1'];
     const writer = entry['writer'];
     if (!isSha1(sha1)) return { ok: false, error: `files[${JSON.stringify(path)}].sha1 is not a lower-case hex SHA-1` };
-    if (!isWriterId(writer)) return { ok: false, error: `files[${JSON.stringify(path)}].writer ${JSON.stringify(writer)} is not a writer id` };
+    if (!isWriterId(writer))
+      return { ok: false, error: `files[${JSON.stringify(path)}].writer ${JSON.stringify(writer)} is not a writer id` };
     out.push([path, { sha1, writer }]);
   }
   return { ok: true, manifest: { schema: 1, romlift, files: Object.fromEntries(out) } };

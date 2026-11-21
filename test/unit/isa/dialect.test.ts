@@ -14,7 +14,8 @@ test('the preamble selects unified syntax, includes the macros and sets the mode
 test('the macro file has one path, the one the preamble includes and core/model/paths.ts names (architecture-r1-7)', () => {
   assert.equal(DIALECT.macrosPath, 'include/macros.inc');
   assert.equal(DIALECT.macrosInclude, `.include "${DIALECT.macrosPath}"`);
-  for (const mode of ['thumb', 'arm'] as const) assert.equal(DIALECT.preamble(mode).split('\n')[1], DIALECT.macrosInclude);
+  for (const mode of ['thumb', 'arm'] as const)
+    assert.equal(DIALECT.preamble(mode).split('\n')[1], DIALECT.macrosInclude);
   assert.equal(MACROS_PATH, DIALECT.macrosPath);
 });
 
@@ -38,7 +39,10 @@ test('a start macro aligns, exports, sets the mode and types the symbol; the loc
     const start = DIALECT.macrosInc.indexOf(`.macro ${name} name\n`);
     return DIALECT.macrosInc.slice(start, DIALECT.macrosInc.indexOf('.endm', start));
   };
-  assert.match(body('thumb_func_start'), /\.align 2, 0\n\t\.global \\name\n\t\.thumb\n\t\.thumb_func\n\t\.type \\name, %function/);
+  assert.match(
+    body('thumb_func_start'),
+    /\.align 2, 0\n\t\.global \\name\n\t\.thumb\n\t\.thumb_func\n\t\.type \\name, %function/,
+  );
   assert.doesNotMatch(body('thumb_func_start_local'), /\.global/);
   assert.doesNotMatch(body('non_word_aligned_thumb_func_start'), /\.align/);
   assert.match(body('arm_func_start'), /\.align 2, 0\n\t\.global \\name\n\t\.arm\n\t\.type \\name, %function/);

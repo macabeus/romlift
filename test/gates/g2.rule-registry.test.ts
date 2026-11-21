@@ -9,6 +9,7 @@
 // driver/ may import that index) and `PROFILES` (romlift), whose pipelines follow architecture §4.3.
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
+
 import { byCodeUnit, gate } from './gate.ts';
 
 interface RuleMeta {
@@ -30,7 +31,6 @@ type Rules = Readonly<Record<string, RegisteredRule>>;
 type Profiles = Readonly<Record<string, { readonly id: string; readonly pipeline: Readonly<Record<string, unknown>> }>>;
 
 const ORIGIN_FAMILIES: ReadonlySet<string> = new Set(['seed', 'gap']);
-
 
 /** Every rule id named by a pipeline, in slot order; `passes` names passes, not rules. */
 function pipelineIds(pipeline: Readonly<Record<string, unknown>>): readonly string[] {
@@ -84,8 +84,10 @@ gate({
         continue;
       }
       if (meta.id !== id) problems.push(`${id}: registered under another id than its meta.id '${String(meta.id)}'`);
-      for (const field of ['summary', 'restsOn', 'recovers'] as const) if (!text(meta[field])) problems.push(`${id}: empty ${field}`);
-      for (const field of ['reads', 'adds'] as const) if (!Array.isArray(meta[field])) problems.push(`${id}: ${field} is not a list`);
+      for (const field of ['summary', 'restsOn', 'recovers'] as const)
+        if (!text(meta[field])) problems.push(`${id}: empty ${field}`);
+      for (const field of ['reads', 'adds'] as const)
+        if (!Array.isArray(meta[field])) problems.push(`${id}: ${field} is not a list`);
       const family = id.split('.')[0] ?? '';
       if (ORIGIN_FAMILIES.has(family) && !text(meta.origin)) problems.push(`${id}: a ${family} rule without origin`);
     }
@@ -97,7 +99,8 @@ gate({
       const count = new Map<string, number>();
       for (const slotId of slots) count.set(slotId, (count.get(slotId) ?? 0) + 1);
       for (const slotId of [...new Set(slots)].sort(byCodeUnit)) {
-        if (rules[slotId] === undefined) problems.push(`profile ${profileId}: pipeline id ${slotId} has no implementation`);
+        if (rules[slotId] === undefined)
+          problems.push(`profile ${profileId}: pipeline id ${slotId} has no implementation`);
       }
       for (const id of ids) {
         const n = count.get(id) ?? 0;
@@ -109,12 +112,16 @@ gate({
       const family = id.split('.')[0] ?? '';
       const name = id.slice(family.length + 1);
       const files = await testFiles(path.join(cx.repoRoot, 'test', 'unit', 'analysis', 'rules', family));
-      if (!files.some((file) => file === `${name}.test.ts` || (file.startsWith(`${name}.`) && file.endsWith('.test.ts')))) {
+      if (
+        !files.some((file) => file === `${name}.test.ts` || (file.startsWith(`${name}.`) && file.endsWith('.test.ts')))
+      ) {
         problems.push(`${id}: no unit test test/unit/analysis/rules/${family}/${name}.test.ts`);
       }
     }
 
     if (problems.length > 0) throw new Error(`rule registry: ${problems.join('; ')}`);
-    cx.note(`${ids.length} rules with complete metadata, each in one slot of ${profileIds.join(', ')}, each with a unit test`);
+    cx.note(
+      `${ids.length} rules with complete metadata, each in one slot of ${profileIds.join(', ')}, each with a unit test`,
+    );
   },
 });

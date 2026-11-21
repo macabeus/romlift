@@ -12,20 +12,28 @@ import { test } from 'node:test';
 import { RULES } from '../../../src/core/analysis/driver/rules.ts';
 import { explainAnalysis, explainBucket, explainFilter } from '../../../src/core/analysis/explain.ts';
 import { Claim } from '../../../src/core/analysis/types.ts';
-import type { TrailEvent } from '../../../src/core/provenance/trail.ts';
-import { discover } from '../../../src/core/workflow/discover.ts';
-import { buildModel } from '../../../src/core/model/model.ts';
 import { findItem, itemAt } from '../../../src/core/model/item-table.ts';
-import { configFromDiscover } from '../../../src/core/workflow/config-from-discover.ts';
-import { explain, explainOutcome, explainProject, modelPart, namePart, signatureFromConfig, signatureOfKey } from '../../../src/core/workflow/explain.ts';
-import { initConfigOf } from '../../../src/core/workflow/init-config.ts';
+import { buildModel } from '../../../src/core/model/model.ts';
+import type { TrailEvent } from '../../../src/core/provenance/trail.ts';
 import { parseSignatureFile } from '../../../src/core/signatures/schema.ts';
 import type { SignatureFile } from '../../../src/core/signatures/schema.ts';
+import { configFromDiscover } from '../../../src/core/workflow/config-from-discover.ts';
+import { discover } from '../../../src/core/workflow/discover.ts';
+import {
+  explain,
+  explainOutcome,
+  explainProject,
+  modelPart,
+  namePart,
+  signatureFromConfig,
+  signatureOfKey,
+} from '../../../src/core/workflow/explain.ts';
+import { initConfigOf } from '../../../src/core/workflow/init-config.ts';
 import type { Rom } from '../../../src/foundation/rom/rom.ts';
 import { romFromBytes } from '../../../src/foundation/rom/rom.ts';
 import { sha1Of } from '../../../src/shell/hash.ts';
 import { DUMMY_PROFILE } from '../../helpers/dummy-profile.ts';
-import { listSyntheticFixtures, SYNTHETIC_ROOT } from '../../helpers/fixtures.ts';
+import { SYNTHETIC_ROOT, listSyntheticFixtures } from '../../helpers/fixtures.ts';
 
 function fixtureRom(name: string): Rom {
   const fixture = listSyntheticFixtures().find((f) => f.name === name);
@@ -40,7 +48,12 @@ test('explain equals explainAnalysis over the filtered full-trail rerun of disco
   const filter = explainFilter(addr, discover(rom));
   const events: TrailEvent[] = [];
   const result = discover(rom, { trail: 'full', trailFilter: filter }, { event: (e) => events.push(e) });
-  const expected = explainAnalysis(result, events, addr, Object.values(RULES).map((r) => r.meta));
+  const expected = explainAnalysis(
+    result,
+    events,
+    addr,
+    Object.values(RULES).map((r) => r.meta),
+  );
   const { item, chunk, name, ...analysisPart } = explain(rom, addr);
   assert.deepEqual(analysisPart, expected);
   const model = buildModel(rom, result, configFromDiscover(rom, result));
@@ -74,7 +87,10 @@ test('an address outside the ROM has no item and no chunk', () => {
   const report = explain(rom, 0x0300_0000);
   assert.equal(report.item, undefined);
   assert.equal(report.chunk, undefined);
-  assert.deepEqual(modelPart(rom, buildModel(rom, discover(rom), configFromDiscover(rom, discover(rom))), rom.end + 4), {});
+  assert.deepEqual(
+    modelPart(rom, buildModel(rom, discover(rom), configFromDiscover(rom, discover(rom))), rom.end + 4),
+    {},
+  );
 });
 
 test('the trail filter keeps only events touching the bucket and the extents covering the address', () => {
@@ -88,7 +104,11 @@ test('the trail filter keeps only events touching the bucket and the extents cov
       const inside = (a: number): boolean => a >= filter.start && a < filter.end;
       const report = explain(rom, f.entry);
       assert.ok(report.events.length > 0, `${fixture.name} ${f.entry.toString(16)} has events`);
-      for (const e of report.events) assert.ok(inside(e.at) || e.cites.some(inside), `${fixture.name}: ${e.kind} at ${e.at.toString(16)} outside the filter`);
+      for (const e of report.events)
+        assert.ok(
+          inside(e.at) || e.cites.some(inside),
+          `${fixture.name}: ${e.kind} at ${e.at.toString(16)} outside the filter`,
+        );
     }
   }
 });
@@ -101,7 +121,11 @@ test('the filtered trail is exactly the unfiltered full trail restricted to the 
     for (const addr of [0x0800_0104, 0x0800_0120, 0x0800_0300]) {
       const filter = explainFilter(addr, first);
       const inside = (a: number): boolean => a >= filter.start && a < filter.end;
-      assert.deepEqual(explain(rom, addr).events, all.filter((e) => inside(e.at) || e.cites.some(inside)), `${name} ${addr.toString(16)}`);
+      assert.deepEqual(
+        explain(rom, addr).events,
+        all.filter((e) => inside(e.at) || e.cites.some(inside)),
+        `${name} ${addr.toString(16)}`,
+      );
     }
   }
 });
@@ -162,7 +186,10 @@ test('an extent that reaches past the window is explained by a second run filter
   const addr = F + 0x1_1000;
   const { report } = explainOutcome(rom, addr);
   assert.equal(report.owner?.entry, F);
-  assert.ok(report.events.some((e) => e.kind === 'accept' && e.at === F), 'the acceptance at the entry, 68 KiB below the address, is kept');
+  assert.ok(
+    report.events.some((e) => e.kind === 'accept' && e.at === F),
+    'the acceptance at the entry, 68 KiB below the address, is kept',
+  );
   assert.deepEqual(report, explain(rom, addr));
 });
 
@@ -197,7 +224,10 @@ test('phase 4: inside a project, the name and its source come from the TOML, and
 test('phase 4: inside a project, another ROM than [rom] sha1 records is E_ROM_SHA1_MISMATCH and nothing is explained', () => {
   const rom = fixtureRom('far-jump');
   const config = configFromDiscover(rom, discover(rom));
-  const refused = explainProject({ rom, config: { ...config, rom: { ...config.rom, sha1: '0'.repeat(40) } } }, 0x0800_0104);
+  const refused = explainProject(
+    { rom, config: { ...config, rom: { ...config.rom, sha1: '0'.repeat(40) } } },
+    0x0800_0104,
+  );
   assert.equal(refused.ok, false);
   assert.deepEqual(refused.ok ? [] : refused.diagnostics.map((d) => d.code), ['E_ROM_SHA1_MISMATCH']);
 });
@@ -206,24 +236,40 @@ test('phase 4: inside a project, another ROM than [rom] sha1 records is E_ROM_SH
 // The signature part (phase 6, D35): from a placement on a bare ROM, from the TOML's `from` key in a project.
 
 const LIBFIX = ((): SignatureFile => {
-  const parsed = parseSignatureFile(JSON.parse(readFileSync(join(SYNTHETIC_ROOT, 'library', 'signatures.golden.json'), 'utf8')));
+  const parsed = parseSignatureFile(
+    JSON.parse(readFileSync(join(SYNTHETIC_ROOT, 'library', 'signatures.golden.json'), 'utf8')),
+  );
   assert.ok(parsed.ok);
   return parsed.value;
 })();
 
 test('signatureOfKey reads sig:<library>@<version> and nothing else', () => {
   assert.deepEqual(signatureOfKey('sig:m4a@2001', 'SoundMain'), { library: 'm4a', version: '2001', name: 'SoundMain' });
-  assert.deepEqual(signatureOfKey('sig:libgcc@agbcc', '__divsi3'), { library: 'libgcc', version: 'agbcc', name: '__divsi3' });
-  for (const bad of [undefined, 'legacy', 'sig:', 'sig:m4a', 'sig:@1', 'sig:m4a@']) assert.equal(signatureOfKey(bad, 'X'), undefined, String(bad));
+  assert.deepEqual(signatureOfKey('sig:libgcc@agbcc', '__divsi3'), {
+    library: 'libgcc',
+    version: 'agbcc',
+    name: '__divsi3',
+  });
+  for (const bad of [undefined, 'legacy', 'sig:', 'sig:m4a', 'sig:@1', 'sig:m4a@'])
+    assert.equal(signatureOfKey(bad, 'X'), undefined, String(bad));
 });
 
 test('a bare ROM: the placement holding the address, with its rule; none without files or outside every placement', () => {
   const rom = fixtureRom('library-game');
   const inside = explainOutcome(rom, 0x0800_0246, { signatureFiles: [LIBFIX] }).report;
   assert.deepEqual(inside.signature, { library: 'libfix', version: '1.0', name: 'FixAbs', rule: 'sig.unique-fit' });
-  assert.deepEqual(explainOutcome(rom, 0x0800_0278, { signatureFiles: [LIBFIX] }).report.signature, { library: 'libfix', version: '1.0', name: 'gFixTable', rule: 'sig.short-member-window' });
+  assert.deepEqual(explainOutcome(rom, 0x0800_0278, { signatureFiles: [LIBFIX] }).report.signature, {
+    library: 'libfix',
+    version: '1.0',
+    name: 'gFixTable',
+    rule: 'sig.short-member-window',
+  });
   assert.equal(explainOutcome(rom, 0x0800_0246).report.signature, undefined);
-  assert.equal(explainOutcome(rom, 0x0800_0160, { signatureFiles: [LIBFIX] }).report.signature, undefined, 'GameFiller is no member');
+  assert.equal(
+    explainOutcome(rom, 0x0800_0160, { signatureFiles: [LIBFIX] }).report.signature,
+    undefined,
+    'GameFiller is no member',
+  );
 });
 
 test("a project: the from key of the function or the symbol holding the address, never the matcher's rule", () => {

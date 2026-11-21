@@ -16,7 +16,14 @@ import type { Addr } from '../../foundation/rom/span.ts';
 import { hex, hexAddr, hexSize } from '../../foundation/util/hex.ts';
 import { sortedEntries } from '../../foundation/util/sorted.ts';
 import { addressKey } from './keys.ts';
-import type { EntryPointConfig, FunctionConfig, ModuleConfig, OverrideConfig, RomliftConfig, SymbolConfig } from './schema.ts';
+import type {
+  EntryPointConfig,
+  FunctionConfig,
+  ModuleConfig,
+  OverrideConfig,
+  RomliftConfig,
+  SymbolConfig,
+} from './schema.ts';
 
 /** A TOML basic string: `"`, `\` and control characters escaped, everything else as it is. */
 export function tomlString(text: string): string {
@@ -99,7 +106,12 @@ export function symbolLine(addr: Addr, symbol: SymbolConfig): string {
 
 /** One [[modules]] block, without a trailing blank line. */
 export function moduleLines(module: ModuleConfig): string[] {
-  const lines = ['[[modules]]', `name = ${tomlString(module.name)}`, `start = ${tomlAddress(module.start)}`, `kind = ${tomlString(module.kind)}`];
+  const lines = [
+    '[[modules]]',
+    `name = ${tomlString(module.name)}`,
+    `start = ${tomlAddress(module.start)}`,
+    `kind = ${tomlString(module.kind)}`,
+  ];
   if (module.dataStart !== undefined) lines.push(`data_start = ${tomlAddress(module.dataStart)}`);
   if (!module.generated) lines.push('generated = false');
   if (module.source !== undefined) lines.push(`source = ${tomlString(module.source)}`);
@@ -112,7 +124,12 @@ export function moduleLines(module: ModuleConfig): string[] {
 
 /** One [[overrides]] block, without a trailing blank line. */
 export function overrideLines(override: OverrideConfig): string[] {
-  const lines = ['[[overrides]]', `start = ${tomlAddress(override.start)}`, `size = ${tomlSize(override.size)}`, `kind = ${tomlString(override.kind)}`];
+  const lines = [
+    '[[overrides]]',
+    `start = ${tomlAddress(override.start)}`,
+    `size = ${tomlSize(override.size)}`,
+    `kind = ${tomlString(override.kind)}`,
+  ];
   if (override.mode !== undefined) lines.push(`mode = ${tomlString(override.mode)}`);
   if (override.runsAt !== undefined) lines.push(`runs_at = ${tomlAddress(override.runsAt)}`);
   if (override.from !== undefined) lines.push(`from = ${tomlString(override.from)}`);

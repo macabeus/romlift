@@ -21,13 +21,20 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { type Rom, checkRom, compareCodeUnits } from 'romlift';
 
-import { checkRom, compareCodeUnits, type Rom } from 'romlift';
-
-import { analysisTuning, benchProfile, DEFAULT_RUN_TUNING, discoverOptions, measure, readRealInputs, type AnalysisRunner } from './analysis-run.ts';
-import { baselineDir, type BenchContext } from './context.ts';
-import { ROMLIFT_EMISSION, type EmissionOutcome, type EmissionRunner } from './emission-run.ts';
+import {
+  type AnalysisRunner,
+  DEFAULT_RUN_TUNING,
+  analysisTuning,
+  benchProfile,
+  discoverOptions,
+  measure,
+  readRealInputs,
+} from './analysis-run.ts';
+import { type BenchContext, baselineDir } from './context.ts';
 import { loadDatasets, tuningDatasets } from './dataset.ts';
+import { type EmissionOutcome, type EmissionRunner, ROMLIFT_EMISSION } from './emission-run.ts';
 import { BenchError, exists, isRecord, prettyJson, readJson, writeText } from './files.ts';
 
 export const SPEED_SCHEMA = 'romlift/bench-speed@1';
@@ -139,8 +146,15 @@ export interface EmissionTimes extends Omit<MedianTimes, 'cpuSamples'> {
  * A warm-up run of `fn`, then the median CPU and wall times of `runs` runs, each in a fresh empty directory under
  * os.tmpdir() that is made before and removed after its measurement.
  */
-export async function medianEmissionTimes(fn: (dir: string) => Promise<EmissionOutcome>, runs = SPEED_RUNS): Promise<EmissionTimes> {
-  const once = async (): Promise<{ readonly cpuMs: number; readonly wallMs: number; readonly outcome: EmissionOutcome }> => {
+export async function medianEmissionTimes(
+  fn: (dir: string) => Promise<EmissionOutcome>,
+  runs = SPEED_RUNS,
+): Promise<EmissionTimes> {
+  const once = async (): Promise<{
+    readonly cpuMs: number;
+    readonly wallMs: number;
+    readonly outcome: EmissionOutcome;
+  }> => {
     const dir = await mkdtemp(join(tmpdir(), 'romlift-speed-'));
     try {
       const wall = performance.now();
@@ -170,18 +184,28 @@ export interface EmissionMeasurement {
 }
 
 /** The generateCpuMs and initCpuMs of a ROM, each only when its run wrote the tree, with their run count; one log line each. */
-export async function emissionTimes(rom: Rom, runner: EmissionRunner, log: (line: string) => void, runs = SPEED_RUNS): Promise<EmissionMeasurement> {
+export async function emissionTimes(
+  rom: Rom,
+  runner: EmissionRunner,
+  log: (line: string) => void,
+  runs = SPEED_RUNS,
+): Promise<EmissionMeasurement> {
   if (checkRom(rom.bytes).length > 0) return { times: {}, runs: 0 };
   const config = runner.prepare(rom);
   const generate = await medianEmissionTimes((dir) => runner.generate(rom, config, dir), runs);
   const init = await medianEmissionTimes((dir) => runner.init(rom, dir), runs);
   const report = (label: string, t: EmissionTimes): void =>
-    log(`  ${label.padEnd(8)} ${t.cpuMs.toFixed(1)} ms CPU, ${t.wallMs.toFixed(1)} ms wall, ${t.outcome.files} files${t.outcome.ok ? '' : `: NOT MEASURED, ${t.outcome.detail}`}`);
+    log(
+      `  ${label.padEnd(8)} ${t.cpuMs.toFixed(1)} ms CPU, ${t.wallMs.toFixed(1)} ms wall, ${t.outcome.files} files${t.outcome.ok ? '' : `: NOT MEASURED, ${t.outcome.detail}`}`,
+    );
   report('generate', generate);
   report('init', init);
   const measured = [generate, init].filter((t) => t.outcome.ok);
   return {
-    times: { ...(generate.outcome.ok ? { generateCpuMs: generate.cpuMs } : {}), ...(init.outcome.ok ? { initCpuMs: init.cpuMs } : {}) },
+    times: {
+      ...(generate.outcome.ok ? { generateCpuMs: generate.cpuMs } : {}),
+      ...(init.outcome.ok ? { initCpuMs: init.cpuMs } : {}),
+    },
     runs: fewest(measured.map((t) => t.runs)),
   };
 }
@@ -196,7 +220,11 @@ export function fewest(counts: readonly number[]): number {
  * `budgetAnalysisCpuMs` the median of the first SPEED_RUNS of them (g3.speed-budget, D77 f), `analysisRuns` how many
  * there are (D77 g).
  */
-export function analysisRow(name: string, times: MedianTimes, baselineCpuMs: number): Omit<SpeedRom, 'generateCpuMs' | 'initCpuMs'> {
+export function analysisRow(
+  name: string,
+  times: MedianTimes,
+  baselineCpuMs: number,
+): Omit<SpeedRom, 'generateCpuMs' | 'initCpuMs'> {
   return {
     name,
     analysisCpuMs: times.cpuMs,
@@ -218,15 +246,24 @@ export function withinRatchet(rom: Pick<SpeedRom, 'analysisCpuMs' | 'baselineCpu
 }
 
 export function parseSpeedBaseline(value: unknown, where: string): SpeedBaseline {
-  if (!isRecord(value) || value['schema'] !== SPEED_BASELINE_SCHEMA || !isRecord(value['calibration']) || !isRecord(value['roms'])) {
-    throw new BenchError(`${where}: expected {"schema": "${SPEED_BASELINE_SCHEMA}", "calibration": {"cpuMs"}, "roms": {...}}`);
+  if (
+    !isRecord(value) ||
+    value['schema'] !== SPEED_BASELINE_SCHEMA ||
+    !isRecord(value['calibration']) ||
+    !isRecord(value['roms'])
+  ) {
+    throw new BenchError(
+      `${where}: expected {"schema": "${SPEED_BASELINE_SCHEMA}", "calibration": {"cpuMs"}, "roms": {...}}`,
+    );
   }
   const cpu = value['calibration']['cpuMs'];
-  if (typeof cpu !== 'number' || !(cpu > 0)) throw new BenchError(`${where}: calibration.cpuMs must be a positive number`);
+  if (typeof cpu !== 'number' || !(cpu > 0))
+    throw new BenchError(`${where}: calibration.cpuMs must be a positive number`);
   const roms: Record<string, { readonly analysisCpuMs: number }> = {};
   for (const [name, entry] of Object.entries(value['roms'])) {
     const ms = isRecord(entry) ? entry['analysisCpuMs'] : undefined;
-    if (typeof ms !== 'number' || !(ms > 0)) throw new BenchError(`${where}: roms.${name}.analysisCpuMs must be a positive number`);
+    if (typeof ms !== 'number' || !(ms > 0))
+      throw new BenchError(`${where}: roms.${name}.analysisCpuMs must be a positive number`);
     roms[name] = { analysisCpuMs: ms };
   }
   return { schema: SPEED_BASELINE_SCHEMA, calibration: { cpuMs: cpu }, roms };
@@ -275,12 +312,15 @@ export async function benchSpeed(cx: BenchContext, options: SpeedOptions): Promi
   const { datasets, problems } = await loadDatasets(cx);
   if (problems.length > 0) throw new BenchError(`malformed datasets: ${problems.map((p) => p.detail).join('; ')}`);
   const chosen = tuningDatasets(datasets, options.only);
-  if (chosen.length === 0) throw new BenchError(options.only === undefined ? 'no tuning datasets' : `no tuning dataset named ${options.only}`);
+  if (chosen.length === 0)
+    throw new BenchError(options.only === undefined ? 'no tuning datasets' : `no tuning dataset named ${options.only}`);
   const baseline = await readSpeedBaseline(cx);
   const calibration = medianTimes(options.calibrate ?? (() => calibrationWorkload()));
   const baselineCalibration = baseline?.calibration.cpuMs ?? 0;
   const ratio = calibrationRatio(calibration.cpuMs, baselineCalibration);
-  log(`calibration ${calibration.cpuMs.toFixed(1)} ms CPU${baseline === undefined ? ' (no bench/baseline/speed.json)' : `, baseline ${baselineCalibration} ms, ratio ${ratio.toFixed(3)}`}`);
+  log(
+    `calibration ${calibration.cpuMs.toFixed(1)} ms CPU${baseline === undefined ? ' (no bench/baseline/speed.json)' : `, baseline ${baselineCalibration} ms, ratio ${ratio.toFixed(3)}`}`,
+  );
   const profile = benchProfile();
   const tuning = analysisTuning(DEFAULT_RUN_TUNING);
   const roms: SpeedRom[] = [];
@@ -289,13 +329,18 @@ export async function benchSpeed(cx: BenchContext, options: SpeedOptions): Promi
     const inputs = await readRealInputs(cx, d);
     let times: MedianTimes;
     try {
-      times = medianTimes(() => options.runner.analyze(inputs.rom, profile, discoverOptions(), tuning), ANALYSIS_SPEED_RUNS);
+      times = medianTimes(
+        () => options.runner.analyze(inputs.rom, profile, discoverOptions(), tuning),
+        ANALYSIS_SPEED_RUNS,
+      );
     } catch (error) {
       throw new BenchError(`${d.name}: the analysis failed: ${error instanceof Error ? error.message : String(error)}`);
     }
     const analysis = analysisRow(d.name, times, baseline?.roms[d.name]?.analysisCpuMs ?? 0);
     const limit = SPEED_RATCHET * analysis.baselineCpuMs * ratio;
-    log(`${d.name.padEnd(12)} ${analysis.analysisCpuMs.toFixed(1)} ms CPU, ${analysis.wallMs.toFixed(1)} ms wall, ${analysis.baselineCpuMs > 0 ? `limit ${limit.toFixed(1)} ms: ${withinRatchet(analysis, ratio) ? 'ok' : 'SLOWER'}` : 'no baseline'}`);
+    log(
+      `${d.name.padEnd(12)} ${analysis.analysisCpuMs.toFixed(1)} ms CPU, ${analysis.wallMs.toFixed(1)} ms wall, ${analysis.baselineCpuMs > 0 ? `limit ${limit.toFixed(1)} ms: ${withinRatchet(analysis, ratio) ? 'ok' : 'SLOWER'}` : 'no baseline'}`,
+    );
     let emission: EmissionMeasurement;
     try {
       emission = await emissionTimes(inputs.rom, options.emission ?? ROMLIFT_EMISSION, log);
@@ -305,8 +350,17 @@ export async function benchSpeed(cx: BenchContext, options: SpeedOptions): Promi
     roms.push({ ...analysis, ...emission.times });
     if (emission.runs > 0) emissionRuns.push(emission.runs);
   }
-  const runs = { calibration: calibration.cpuSamples.length, analysis: fewest(roms.map((r) => r.analysisRuns)), emission: fewest(emissionRuns) };
-  const report: SpeedReport = { schema: SPEED_SCHEMA, runs, calibration: { cpuMs: calibration.cpuMs, baselineCpuMs: baselineCalibration, ratio }, roms };
+  const runs = {
+    calibration: calibration.cpuSamples.length,
+    analysis: fewest(roms.map((r) => r.analysisRuns)),
+    emission: fewest(emissionRuns),
+  };
+  const report: SpeedReport = {
+    schema: SPEED_SCHEMA,
+    runs,
+    calibration: { cpuMs: calibration.cpuMs, baselineCpuMs: baselineCalibration, ratio },
+    roms,
+  };
   if (options.writeBaseline === true) {
     await writeText(speedBaselinePath(cx), prettyJson(raisedBaseline(baseline, report)));
     log('wrote bench/baseline/speed.json (the phase lead commits it)');

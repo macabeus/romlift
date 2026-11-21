@@ -25,7 +25,14 @@ export interface TrailSink {
 export type TrailLevel = 'off' | 'decisions' | 'full';
 
 /** The kinds a 'decisions' trail keeps. */
-const DECISION_KINDS: ReadonlySet<TrailKind> = new Set<TrailKind>(['accept', 'reject', 'absorb', 'verdict', 'claim', 'place']);
+const DECISION_KINDS: ReadonlySet<TrailKind> = new Set<TrailKind>([
+  'accept',
+  'reject',
+  'absorb',
+  'verdict',
+  'claim',
+  'place',
+]);
 
 /** Whether a trail of `level`, filtered to `filter` when given, keeps `e`: its address or one of its cites lies in the filter. */
 export function trailKeeps(level: TrailLevel, filter: Span | undefined, e: TrailEvent): boolean {

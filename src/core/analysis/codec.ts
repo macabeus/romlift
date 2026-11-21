@@ -75,7 +75,8 @@ const addr: Codec<Addr> = {
   enc: (a) => hexAddr(a),
   dec(json, at) {
     const a = typeof json === 'string' ? parseHexAddr(json) : undefined;
-    if (a === undefined) throw new Malformed(at, `expected an address ('0x' and up to eight hex digits), got ${JSON.stringify(json)}`);
+    if (a === undefined)
+      throw new Malformed(at, `expected an address ('0x' and up to eight hex digits), got ${JSON.stringify(json)}`);
     return a;
   },
 };
@@ -84,7 +85,8 @@ const addr: Codec<Addr> = {
 const count: Codec<number> = {
   enc: (n) => n,
   dec(json, at) {
-    if (typeof json !== 'number' || !Number.isSafeInteger(json) || json < 0) throw new Malformed(at, `expected a non-negative integer, got ${JSON.stringify(json)}`);
+    if (typeof json !== 'number' || !Number.isSafeInteger(json) || json < 0)
+      throw new Malformed(at, `expected a non-negative integer, got ${JSON.stringify(json)}`);
     return json;
   },
 };
@@ -119,7 +121,8 @@ function textOf<T extends string>(what: string, is: (s: string) => s is T): Code
   return {
     enc: (s) => s,
     dec(json, at) {
-      if (typeof json !== 'string' || !is(json)) throw new Malformed(at, `expected ${what}, got ${JSON.stringify(json)}`);
+      if (typeof json !== 'string' || !is(json))
+        throw new Malformed(at, `expected ${what}, got ${JSON.stringify(json)}`);
       return json;
     },
   };
@@ -131,7 +134,11 @@ function oneOf<const T extends string | number>(values: readonly T[]): Codec<T> 
     enc: (v) => v,
     dec(json, at) {
       const found = values.find((v) => v === json);
-      if (found === undefined) throw new Malformed(at, `expected one of ${values.map((v) => JSON.stringify(v)).join(', ')}, got ${JSON.stringify(json)}`);
+      if (found === undefined)
+        throw new Malformed(
+          at,
+          `expected one of ${values.map((v) => JSON.stringify(v)).join(', ')}, got ${JSON.stringify(json)}`,
+        );
       return found;
     },
   };
@@ -168,7 +175,8 @@ function record<T extends object>(members: Members<T>): Codec<T> {
     },
     dec(json, at) {
       if (!isObject(json)) throw new Malformed(at, 'expected an object');
-      for (const key of Object.keys(json)) if (!Object.hasOwn(members, key)) throw new Malformed(`${at}.${key}`, 'not a member of this object');
+      for (const key of Object.keys(json))
+        if (!Object.hasOwn(members, key)) throw new Malformed(`${at}.${key}`, 'not a member of this object');
       const out: Record<string, unknown> = {};
       for (const key of keys) {
         const member = members[key];
@@ -194,7 +202,12 @@ const span = record<Span>({ start: required(addr), end: required(addr) });
 const addrs = list(addr);
 const spans = list(span);
 
-const provenance = record<Provenance>({ rule: required(ruleId), round: required(count), cites: required(addrs), note: optional(text) });
+const provenance = record<Provenance>({
+  rule: required(ruleId),
+  round: required(count),
+  cites: required(addrs),
+  note: optional(text),
+});
 
 const rejection = record<Rejection>({
   at: required(addr),
@@ -226,7 +239,11 @@ const blVerdictRecord = record<BlVerdictRecord>({
   verdict: required(oneOf<BlVerdict>(['call', 'far', 'noreturn'])),
   rule: required(ruleId),
 });
-const exit = record<Exit>({ at: required(addr), rule: required(ruleId), kind: required(oneOf<Exit['kind']>(['return', 'tail', 'noreturn-call', 'swi-end', 'reg-jump'])) });
+const exit = record<Exit>({
+  at: required(addr),
+  rule: required(ruleId),
+  kind: required(oneOf<Exit['kind']>(['return', 'tail', 'noreturn-call', 'swi-end', 'reg-jump'])),
+});
 
 const functionFact = record<FunctionFact>({
   entry: required(addr),
@@ -262,7 +279,12 @@ const seed = record<Seed>({
   validate: optional(yes),
 });
 
-const overrideFact = record<OverrideFact>({ span: required(span), kind: required(oneOf<OverrideFact['kind']>(['code', 'data'])), mode: optional(mode), runsAt: optional(addr) });
+const overrideFact = record<OverrideFact>({
+  span: required(span),
+  kind: required(oneOf<OverrideFact['kind']>(['code', 'data'])),
+  mode: optional(mode),
+  runsAt: optional(addr),
+});
 
 const options = record<AnalysisOptionsRecord>({
   mode: required(oneOf<AnalysisOptionsRecord['mode']>(['discover', 'confirm'])),
@@ -272,9 +294,18 @@ const options = record<AnalysisOptionsRecord>({
   trailFilter: optional(span),
 });
 
-const claimRun = record<ClaimRun>({ span: required(span), kind: required(oneOf<ClaimKind>(CLAIM_KINDS)), owner: optional(addr) });
+const claimRun = record<ClaimRun>({
+  span: required(span),
+  kind: required(oneOf<ClaimKind>(CLAIM_KINDS)),
+  owner: optional(addr),
+});
 const startup = record<StartupRegion>({ span: required(span), entries: required(addrs) });
-const unlistedFinding = record<UnlistedFinding>({ entry: required(addr), mode: required(mode), origin: required(origin), provenance: required(provenance) });
+const unlistedFinding = record<UnlistedFinding>({
+  entry: required(addr),
+  mode: required(mode),
+  origin: required(origin),
+  provenance: required(provenance),
+});
 const listedInvalid = record<ListedInvalid>({ entry: required(addr), rejection: required(rejection) });
 
 type Discover = Extract<AnalysisResult, { readonly mode: 'discover' }>;
@@ -305,7 +336,11 @@ const analysisResult: Codec<AnalysisResult> = {
   enc: (r) => (r.mode === 'discover' ? discover.enc(r) : confirm.enc(r)),
   dec(json, at) {
     if (!isObject(json)) throw new Malformed(at, 'expected an object');
-    if (json['schema'] !== ANALYSIS_SCHEMA) throw new Malformed(`${at}.schema`, `expected ${JSON.stringify(ANALYSIS_SCHEMA)}, got ${JSON.stringify(json['schema'])}`);
+    if (json['schema'] !== ANALYSIS_SCHEMA)
+      throw new Malformed(
+        `${at}.schema`,
+        `expected ${JSON.stringify(ANALYSIS_SCHEMA)}, got ${JSON.stringify(json['schema'])}`,
+      );
     if (json['mode'] === 'discover') return discover.dec(json, at);
     if (json['mode'] === 'confirm') return confirm.dec(json, at);
     throw new Malformed(`${at}.mode`, `expected "discover" or "confirm", got ${JSON.stringify(json['mode'])}`);
@@ -327,12 +362,18 @@ export function decodeAnalysis(source: string): DecodedAnalysis {
     json = JSON.parse(source) as unknown;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return { ok: false, diagnostics: [diagnostic(AnalysisCodes, 'E_ANALYSIS_JSON', `the analysis is not JSON: ${message}`)] };
+    return {
+      ok: false,
+      diagnostics: [diagnostic(AnalysisCodes, 'E_ANALYSIS_JSON', `the analysis is not JSON: ${message}`)],
+    };
   }
   try {
     return { ok: true, result: analysisResult.dec(json, '$') };
   } catch (error) {
     if (!(error instanceof Malformed)) throw error;
-    return { ok: false, diagnostics: [diagnostic(AnalysisCodes, 'E_ANALYSIS_JSON', `${error.at}: ${error.message}`, { path: error.at })] };
+    return {
+      ok: false,
+      diagnostics: [diagnostic(AnalysisCodes, 'E_ANALYSIS_JSON', `${error.at}: ${error.message}`, { path: error.at })],
+    };
   }
 }

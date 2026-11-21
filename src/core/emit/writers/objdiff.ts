@@ -11,7 +11,7 @@
 // deterministic: the key order written below, two-space indent, a final newline.
 import type { Rom } from '../../../foundation/rom/rom.ts';
 import { isCSource } from '../../../foundation/util/project-files.ts';
-import { buildUnits, expectedObjectPath, hasExpectedTarget, OBJDIFF_JSON_PATH } from '../../model/paths.ts';
+import { OBJDIFF_JSON_PATH, buildUnits, expectedObjectPath, hasExpectedTarget } from '../../model/paths.ts';
 import type { Model } from '../../model/types.ts';
 import type { FileEntry, Writer } from '../tree.ts';
 
@@ -38,13 +38,20 @@ export interface ObjdiffConfig {
 
 /** The objdiff configuration of a model: one unit per generated C unit with an objdiff target, in ROM order. */
 export function objdiffConfig(model: Pick<Model, 'modules' | 'chunks'>): ObjdiffConfig {
-  const units = buildUnits({ modules: model.modules, chunks: model.chunks, labels: [] }).filter((u, i) => isCSource(u.source) && hasExpectedTarget(model.modules[i]));
+  const units = buildUnits({ modules: model.modules, chunks: model.chunks, labels: [] }).filter(
+    (u, i) => isCSource(u.source) && hasExpectedTarget(model.modules[i]),
+  );
   return {
     $schema: OBJDIFF_SCHEMA_URL,
     custom_make: 'make',
     build_target: false,
     build_base: true,
-    units: units.map((u) => ({ name: u.module, target_path: expectedObjectPath(u.module), base_path: u.object, metadata: { source_path: u.source } })),
+    units: units.map((u) => ({
+      name: u.module,
+      target_path: expectedObjectPath(u.module),
+      base_path: u.object,
+      metadata: { source_path: u.source },
+    })),
     options: { functionRelocDiffs: 'none' },
   };
 }

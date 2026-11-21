@@ -4,7 +4,7 @@
 //
 // FROZEN output: the last stdout line of `npm run bench -- provenance --json` (exit 0):
 //   {ok, checks: [{id, ok, detail}]}, ids: source-digest, gate-record, families, dataset-rows, heldout-rows
-import { gate, type ExecResult } from './gate.ts';
+import { type ExecResult, gate } from './gate.ts';
 
 interface ProvenanceCheck {
   readonly id: string;

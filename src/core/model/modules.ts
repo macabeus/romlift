@@ -25,7 +25,7 @@ import { underGeneratedRoot } from '../../foundation/util/project-files.ts';
 import { compareNumbers } from '../../foundation/util/sorted.ts';
 import { buildCompilerOf } from '../config/compilers.ts';
 import type { ModuleConfig, RomliftConfig } from '../config/schema.ts';
-import { isLegalStart, nearestLegalStarts, WORD } from '../layout/borders.ts';
+import { WORD, isLegalStart, nearestLegalStarts } from '../layout/borders.ts';
 import type { BorderRule } from '../layout/borders.ts';
 import { ModelCodes } from './codes.ts';
 import type { Module } from './types.ts';
@@ -42,7 +42,10 @@ const FALLBACK_NAME = 'main';
 /** The nearest legal starts around `start` under `rule`, as E_MODULE_BORDER's message names them. */
 function describeBorders(rule: BorderRule, start: Addr): string {
   const { below, above } = nearestLegalStarts(rule, start);
-  const parts = [below === undefined ? undefined : `${hexAddr(below)} below`, above === undefined ? undefined : `${hexAddr(above)} above`].filter((p) => p !== undefined);
+  const parts = [
+    below === undefined ? undefined : `${hexAddr(below)} below`,
+    above === undefined ? undefined : `${hexAddr(above)} above`,
+  ].filter((p) => p !== undefined);
   return parts.length === 0 ? 'there is no legal border' : `the nearest legal borders are ${parts.join(' and ')}`;
 }
 
@@ -52,27 +55,62 @@ function orderedModules(rom: Rom, config: RomliftConfig, rule: BorderRule, diagn
   for (const m of config.modules) {
     const last = kept[kept.length - 1];
     if (last !== undefined && m.start <= last.start) {
-      diagnostics.push(diagnostic(ModelCodes, 'E_MODULE_ORDER', `module ${m.name} starts at ${hexAddr(m.start)}, not after ${last.name} (${hexAddr(last.start)})`, { addr: m.start, cites: [last.start] }));
+      diagnostics.push(
+        diagnostic(
+          ModelCodes,
+          'E_MODULE_ORDER',
+          `module ${m.name} starts at ${hexAddr(m.start)}, not after ${last.name} (${hexAddr(last.start)})`,
+          { addr: m.start, cites: [last.start] },
+        ),
+      );
       continue;
     }
     if (m.start < rom.base || m.start >= rom.end) {
-      diagnostics.push(diagnostic(ModelCodes, 'E_MODULE_BORDER', `module ${m.name} starts at ${hexAddr(m.start)}, outside the ROM [${hexAddr(rom.base)}, ${hexAddr(rom.end)})`, { addr: m.start }));
+      diagnostics.push(
+        diagnostic(
+          ModelCodes,
+          'E_MODULE_BORDER',
+          `module ${m.name} starts at ${hexAddr(m.start)}, outside the ROM [${hexAddr(rom.base)}, ${hexAddr(rom.end)})`,
+          { addr: m.start },
+        ),
+      );
       continue;
     }
     if (!isLegalStart(rule, m.start)) {
       const near = nearestLegalStarts(rule, m.start);
       const why = rule.why?.(m.start);
-      diagnostics.push(diagnostic(ModelCodes, 'E_MODULE_BORDER', `module ${m.name} starts at ${hexAddr(m.start)}, which is not a legal border${why === undefined ? '' : ` (${why})`}: ${describeBorders(rule, m.start)}`, { addr: m.start, cites: [near.below, near.above].filter((a): a is Addr => a !== undefined) }));
+      diagnostics.push(
+        diagnostic(
+          ModelCodes,
+          'E_MODULE_BORDER',
+          `module ${m.name} starts at ${hexAddr(m.start)}, which is not a legal border${why === undefined ? '' : ` (${why})`}: ${describeBorders(rule, m.start)}`,
+          { addr: m.start, cites: [near.below, near.above].filter((a): a is Addr => a !== undefined) },
+        ),
+      );
     }
     kept.push(m);
   }
   const first = kept[0];
   if (first === undefined) {
-    diagnostics.push(diagnostic(ModelCodes, 'E_MODULE_ORDER', `the config has no module inside the ROM; the model uses one module, ${FALLBACK_NAME}, for the whole ROM`, { addr: rom.base }));
+    diagnostics.push(
+      diagnostic(
+        ModelCodes,
+        'E_MODULE_ORDER',
+        `the config has no module inside the ROM; the model uses one module, ${FALLBACK_NAME}, for the whole ROM`,
+        { addr: rom.base },
+      ),
+    );
     return [{ name: FALLBACK_NAME, start: rom.base, kind: 'asm', generated: true }];
   }
   if (first.start !== rom.base) {
-    diagnostics.push(diagnostic(ModelCodes, 'E_MODULE_ORDER', `the first module, ${first.name}, starts at ${hexAddr(first.start)}, not at the ROM base ${hexAddr(rom.base)}; the model starts it at the base`, { addr: first.start }));
+    diagnostics.push(
+      diagnostic(
+        ModelCodes,
+        'E_MODULE_ORDER',
+        `the first module, ${first.name}, starts at ${hexAddr(first.start)}, not at the ROM base ${hexAddr(rom.base)}; the model starts it at the base`,
+        { addr: first.start },
+      ),
+    );
     kept[0] = { ...first, start: rom.base };
   }
   return kept;
@@ -94,7 +132,12 @@ const RUN_ALIGN = WORD;
  * from the load start is not a multiple of RUN_ALIGN, since the range's own alignments (a pool's `.align 2`) are laid
  * out at the run address and would emit other bytes than the ROM holds.
  */
-function runAddresses(rom: Rom, config: RomliftConfig, spans: readonly { readonly start: Addr; readonly end: Addr }[], diagnostics: Diagnostic[]): (Addr | undefined)[] {
+function runAddresses(
+  rom: Rom,
+  config: RomliftConfig,
+  spans: readonly { readonly start: Addr; readonly end: Addr }[],
+  diagnostics: Diagnostic[],
+): (Addr | undefined)[] {
   const runAt: (Addr | undefined)[] = spans.map(() => undefined);
   const isBorder = (a: Addr): boolean => a === rom.end || spans.some((s) => s.start === a);
   const ranged = [...runsAtOverrides(config)].sort((a, b) => compareNumbers(a.start, b.start));
@@ -104,27 +147,42 @@ function runAddresses(rom: Rom, config: RomliftConfig, spans: readonly { readonl
     const span = { start: o.start, end };
     const run = { start: o.runsAt, end: o.runsAt + o.size };
     const refuse = (why: string): void => {
-      diagnostics.push(diagnostic(ModelCodes, 'E_OVERRIDE_INVALID', `the runs_at range [${hexAddr(o.start)}, ${hexAddr(end)}) ${why}`, { span, addr: o.start }));
+      diagnostics.push(
+        diagnostic(
+          ModelCodes,
+          'E_OVERRIDE_INVALID',
+          `the runs_at range [${hexAddr(o.start)}, ${hexAddr(end)}) ${why}`,
+          { span, addr: o.start },
+        ),
+      );
     };
     if (!isBorder(o.start) || !isBorder(end)) {
       refuse('does not start and end on module borders; a range that runs from RAM is its own module');
       continue;
     }
     if (run.end > ADDRESS_SPACE_END) {
-      refuse(`runs at [${hexAddr(run.start)}, ${hexSize(run.end)}), past the end of the 32-bit address space; ld cannot place a section that wraps around`);
+      refuse(
+        `runs at [${hexAddr(run.start)}, ${hexSize(run.end)}), past the end of the 32-bit address space; ld cannot place a section that wraps around`,
+      );
       continue;
     }
     if ((run.start - span.start) % RUN_ALIGN !== 0) {
-      refuse(`runs at ${hexAddr(run.start)}, which is not its load start ${hexAddr(span.start)} plus a multiple of ${RUN_ALIGN}: every alignment inside the range (a pool's, a function's \`.align 2\`) would lay out other bytes at the run address`);
+      refuse(
+        `runs at ${hexAddr(run.start)}, which is not its load start ${hexAddr(span.start)} plus a multiple of ${RUN_ALIGN}: every alignment inside the range (a pool's, a function's \`.align 2\`) would lay out other bytes at the run address`,
+      );
       continue;
     }
     if (run.start !== span.start && run.start < rom.end && rom.base < run.end) {
-      refuse(`runs at [${hexAddr(run.start)}, ${hexAddr(run.end)}), which overlaps the ROM's load space [${hexAddr(rom.base)}, ${hexAddr(rom.end)}); a range runs from RAM, outside the cartridge`);
+      refuse(
+        `runs at [${hexAddr(run.start)}, ${hexAddr(run.end)}), which overlaps the ROM's load space [${hexAddr(rom.base)}, ${hexAddr(rom.end)}); a range runs from RAM, outside the cartridge`,
+      );
       continue;
     }
     const clash = running.find((r) => run.start < r.end && r.start < run.end);
     if (clash !== undefined) {
-      refuse(`runs at [${hexAddr(run.start)}, ${hexAddr(run.end)}), which overlaps the run range [${hexAddr(clash.start)}, ${hexAddr(clash.end)}) of another runs_at range`);
+      refuse(
+        `runs at [${hexAddr(run.start)}, ${hexAddr(run.end)}), which overlaps the run range [${hexAddr(clash.start)}, ${hexAddr(clash.end)}) of another runs_at range`,
+      );
       continue;
     }
     running.push(run);
@@ -142,8 +200,12 @@ interface PlannedRange {
 }
 
 /** The config's overrides that carry runs_at, in the config's order: the one reading of "the runs_at ranges" (architecture-r1-6). */
-export function runsAtOverrides(config: Pick<RomliftConfig, 'overrides'>): readonly { readonly start: Addr; readonly size: number; readonly runsAt: Addr }[] {
-  return config.overrides.flatMap((o) => (o.runsAt === undefined ? [] : [{ start: o.start, size: o.size, runsAt: o.runsAt }]));
+export function runsAtOverrides(
+  config: Pick<RomliftConfig, 'overrides'>,
+): readonly { readonly start: Addr; readonly size: number; readonly runsAt: Addr }[] {
+  return config.overrides.flatMap((o) =>
+    o.runsAt === undefined ? [] : [{ start: o.start, size: o.size, runsAt: o.runsAt }],
+  );
 }
 
 /** The runs_at ranges of the config's overrides, as load spans. */
@@ -163,7 +225,15 @@ function rangeText(span: Span): string {
  * Why module `kept[i]`'s data_start cannot start the data range `span` (from the data_start to the next module start, the
  * module comment above), or undefined when it can. `others` are the ranges already accepted, in config order.
  */
-function rangeProblem(rom: Rom, kept: readonly ModuleConfig[], i: number, span: Span, rule: BorderRule, config: RomliftConfig, others: readonly PlannedRange[]): string | undefined {
+function rangeProblem(
+  rom: Rom,
+  kept: readonly ModuleConfig[],
+  i: number,
+  span: Span,
+  rule: BorderRule,
+  config: RomliftConfig,
+  others: readonly PlannedRange[],
+): string | undefined {
   const m = kept[i];
   if (m === undefined) return 'it names no module';
   const start = span.start;
@@ -177,16 +247,25 @@ function rangeProblem(rom: Rom, kept: readonly ModuleConfig[], i: number, span: 
   if (runsAt !== undefined) return `its range ${rangeText(span)} overlaps the runs_at range ${rangeText(runsAt)}`;
   const holder = kept.findIndex((k, j) => k.start <= start && start < (kept[j + 1]?.start ?? rom.end));
   const cut = kept[holder];
-  if (cut !== undefined && holder !== i && cut.kind !== 'data' && cut.start < start) return `its range ${rangeText(span)} cuts module ${cut.name}, which is neither ${m.name} nor a data module`;
+  if (cut !== undefined && holder !== i && cut.kind !== 'data' && cut.start < start)
+    return `its range ${rangeText(span)} cuts module ${cut.name}, which is neither ${m.name} nor a data module`;
   const covered = kept.find((k) => k.start === start);
-  if (covered !== undefined && covered.kind !== 'data') return `its range ${rangeText(span)} covers module ${covered.name}, which is not a data module`;
+  if (covered !== undefined && covered.kind !== 'data')
+    return `its range ${rangeText(span)} covers module ${covered.name}, which is not a data module`;
   const other = others.find((r) => overlaps(r.span, span));
-  if (other !== undefined) return `its range ${rangeText(span)} overlaps module ${kept[other.owner]?.name ?? ''}'s data range ${rangeText(other.span)}`;
+  if (other !== undefined)
+    return `its range ${rangeText(span)} overlaps module ${kept[other.owner]?.name ?? ''}'s data range ${rangeText(other.span)}`;
   return undefined;
 }
 
 /** The data ranges of the kept modules that pass their checks, with E_DATA_RANGE_INVALID for every one that does not. */
-function dataRanges(rom: Rom, config: RomliftConfig, kept: readonly ModuleConfig[], rule: BorderRule, diagnostics: Diagnostic[]): readonly PlannedRange[] {
+function dataRanges(
+  rom: Rom,
+  config: RomliftConfig,
+  kept: readonly ModuleConfig[],
+  rule: BorderRule,
+  diagnostics: Diagnostic[],
+): readonly PlannedRange[] {
   const out: PlannedRange[] = [];
   kept.forEach((m, i) => {
     if (m.dataStart === undefined) return;
@@ -209,7 +288,14 @@ function dataRanges(rom: Rom, config: RomliftConfig, kept: readonly ModuleConfig
       }
       return;
     }
-    diagnostics.push(diagnostic(ModelCodes, 'E_DATA_RANGE_INVALID', `module ${m.name}'s data_start ${hexAddr(start)} cannot start a C data range: ${problem}`, { addr: start }));
+    diagnostics.push(
+      diagnostic(
+        ModelCodes,
+        'E_DATA_RANGE_INVALID',
+        `module ${m.name}'s data_start ${hexAddr(start)} cannot start a C data range: ${problem}`,
+        { addr: start },
+      ),
+    );
   });
   return out;
 }
@@ -219,10 +305,14 @@ const SOURCE_PATH = /^[A-Za-z0-9_][A-Za-z0-9_.+-]*(\/[A-Za-z0-9_][A-Za-z0-9_.+-]
 
 /** Why module `m`'s `source` cannot be its hand-written source (D109), or undefined when it can. */
 function sourceProblem(m: ModuleConfig, source: string, taken: ReadonlyMap<string, string>): string | undefined {
-  if (m.kind !== 'asm') return `module ${m.name} is kind = "${m.kind}"; only an asm module builds from a hand-written source`;
-  if (!m.generated) return `module ${m.name} is generated = false; a module with a source has no generated file, so it needs no generated = false`;
-  if (!SOURCE_PATH.test(source)) return `${JSON.stringify(source)} is not a relative path to a .s file of letters, digits and _ . + - (no segment may start with a dot)`;
-  if (underGeneratedRoot(source) || source.startsWith('build/')) return `${source} lies where romlift or make writes (asm/, data/, expected/, build/ and the generated files), which would overwrite or delete it`;
+  if (m.kind !== 'asm')
+    return `module ${m.name} is kind = "${m.kind}"; only an asm module builds from a hand-written source`;
+  if (!m.generated)
+    return `module ${m.name} is generated = false; a module with a source has no generated file, so it needs no generated = false`;
+  if (!SOURCE_PATH.test(source))
+    return `${JSON.stringify(source)} is not a relative path to a .s file of letters, digits and _ . + - (no segment may start with a dot)`;
+  if (underGeneratedRoot(source) || source.startsWith('build/'))
+    return `${source} lies where romlift or make writes (asm/, data/, expected/, build/ and the generated files), which would overwrite or delete it`;
   const other = taken.get(source);
   if (other !== undefined) return `${source} is already the source of module ${other}`;
   return undefined;
@@ -239,7 +329,14 @@ function moduleSources(kept: readonly ModuleConfig[], diagnostics: Diagnostic[])
       taken.set(m.source, m.name);
       sources.set(m.name, m.source);
     } else {
-      diagnostics.push(diagnostic(ModelCodes, 'E_MODULE_SOURCE_INVALID', `module ${m.name}'s source cannot be its hand-written source: ${problem}`, { addr: m.start }));
+      diagnostics.push(
+        diagnostic(
+          ModelCodes,
+          'E_MODULE_SOURCE_INVALID',
+          `module ${m.name}'s source cannot be its hand-written source: ${problem}`,
+          { addr: m.start },
+        ),
+      );
     }
   }
   return sources;
@@ -272,7 +369,9 @@ export function planModules(rom: Rom, config: RomliftConfig, rule: BorderRule): 
       ...(source === undefined ? {} : { source }),
       compiler: compilerId,
       cflags: [...(compiler?.flags ?? []), ...(m.cflags ?? [])],
-      ...(m.library === undefined || m.version === undefined ? {} : { library: { name: m.library, version: m.version } }),
+      ...(m.library === undefined || m.version === undefined
+        ? {}
+        : { library: { name: m.library, version: m.version } }),
       ...(run === undefined ? {} : { runAt: run }),
       ...(dataRange === undefined ? {} : { dataRange }),
       chunks: { first: 0, count: 0 },
@@ -322,7 +421,9 @@ export function loadSymbolOf(module: Pick<Module, 'name'>): string {
  * `__load_<module>` at its load start (§6.7). The one list names.ts, rename.ts and text-layout.ts read
  * (architecture-r2-2).
  */
-export function linkerDefinedNames(modules: readonly Module[]): readonly { readonly name: string; readonly addr: Addr; readonly module: Module }[] {
+export function linkerDefinedNames(
+  modules: readonly Module[],
+): readonly { readonly name: string; readonly addr: Addr; readonly module: Module }[] {
   return relocatedModules(modules).map((m) => ({ name: loadSymbolOf(m), addr: m.span.start, module: m }));
 }
 

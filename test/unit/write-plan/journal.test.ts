@@ -34,7 +34,9 @@ test('a journal encodes canonically, keeps its op order, and decodes to itself',
   const journal = journalOf(OPS);
   const text = [...encodeJournal(journal)].join('');
   assert.ok(text.endsWith('\n'));
-  assert.ok(text.indexOf('asm/main.s') < text.indexOf('src/main.c') && text.indexOf('src/main.c') < text.indexOf('Gone.s'));
+  assert.ok(
+    text.indexOf('asm/main.s') < text.indexOf('src/main.c') && text.indexOf('src/main.c') < text.indexOf('Gone.s'),
+  );
   assert.deepEqual(decodeJournal(text), { ok: true, journal });
   const empty: Journal = { schema: 1, ops: [] };
   assert.deepEqual(decodeJournal([...encodeJournal(empty)].join('')), { ok: true, journal: empty });

@@ -12,7 +12,10 @@ import { readAgbccPin, readTemplates } from '../../../../src/shell/project/templ
 
 const PACKAGE_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 
-async function withPackage(files: Readonly<Record<string, string | Uint8Array>>, body: (root: string) => Promise<void>): Promise<void> {
+async function withPackage(
+  files: Readonly<Record<string, string | Uint8Array>>,
+  body: (root: string) => Promise<void>,
+): Promise<void> {
   const root = await mkdtemp(join(tmpdir(), 'romlift-templates-'));
   try {
     for (const [path, data] of Object.entries(files)) {
@@ -27,22 +30,34 @@ async function withPackage(files: Readonly<Record<string, string | Uint8Array>>,
 }
 
 function manifest(extra: readonly object[]): string {
-  return JSON.stringify({ schema: 1, files: [...ROMLIFT_RENDERED_TARGETS.map((target) => ({ target, source: null, executable: false })), ...extra] });
+  return JSON.stringify({
+    schema: 1,
+    files: [...ROMLIFT_RENDERED_TARGETS.map((target) => ({ target, source: null, executable: false })), ...extra],
+  });
 }
 
-test('the package\'s own templates read: the manifest and a text for every source it names', async () => {
+test("the package's own templates read: the manifest and a text for every source it names", async () => {
   const read = await readTemplates(PACKAGE_ROOT);
   assert.ok(read.ok, read.ok ? '' : read.diagnostic.message);
   const sources = read.value.manifest.files.flatMap((f) => (f.source === null ? [] : [f.source]));
-  assert.deepEqual([...read.value.texts.keys()], [...sources].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)));
+  assert.deepEqual(
+    [...read.value.texts.keys()],
+    [...sources].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
+  );
   for (const text of read.value.texts.values()) assert.doesNotMatch(text, /\r/);
   const pin = await readAgbccPin(PACKAGE_ROOT);
   assert.ok(pin.ok);
-  assert.deepEqual(pin.value, { url: 'https://github.com/pret/agbcc', commit: 'da598c1d918402c42c0c0d7128ba14567f3175e9' });
+  assert.deepEqual(pin.value, {
+    url: 'https://github.com/pret/agbcc',
+    commit: 'da598c1d918402c42c0c0d7128ba14567f3175e9',
+  });
 });
 
 test('readTemplates on a temporary package: texts keyed by source, CRLF read as LF', async () => {
-  const files = { 'MANIFEST.json': manifest([{ target: 'README.md', source: 'docs/README.md', executable: false }]), 'docs/README.md': '# @@title@@\r\nline\r\n' };
+  const files = {
+    'MANIFEST.json': manifest([{ target: 'README.md', source: 'docs/README.md', executable: false }]),
+    'docs/README.md': '# @@title@@\r\nline\r\n',
+  };
   await withPackage(files, async (root) => {
     const read = await readTemplates(root);
     assert.ok(read.ok);
@@ -64,17 +79,26 @@ test('a missing manifest, a manifest that does not decode, a missing template an
     assert.equal(read.diagnostic.code, 'E_IO_READ');
     assert.match(read.diagnostic.message, /MANIFEST\.json: schema 2, expected 1/);
   });
-  await withPackage({ 'MANIFEST.json': manifest([{ target: 'Makefile', source: 'Makefile', executable: false }]) }, async (root) => {
-    const read = await readTemplates(root);
-    assert.ok(!read.ok);
-    assert.equal(read.diagnostic.code, 'E_IO_READ');
-    assert.match(read.diagnostic.path ?? '', /templates[/\\]Makefile$/);
-  });
-  await withPackage({ 'MANIFEST.json': manifest([{ target: 'Makefile', source: 'Makefile', executable: false }]), Makefile: new Uint8Array([0x41, 0xff, 0x0a]) }, async (root) => {
-    const read = await readTemplates(root);
-    assert.ok(!read.ok);
-    assert.match(read.diagnostic.message, /not UTF-8 text/);
-  });
+  await withPackage(
+    { 'MANIFEST.json': manifest([{ target: 'Makefile', source: 'Makefile', executable: false }]) },
+    async (root) => {
+      const read = await readTemplates(root);
+      assert.ok(!read.ok);
+      assert.equal(read.diagnostic.code, 'E_IO_READ');
+      assert.match(read.diagnostic.path ?? '', /templates[/\\]Makefile$/);
+    },
+  );
+  await withPackage(
+    {
+      'MANIFEST.json': manifest([{ target: 'Makefile', source: 'Makefile', executable: false }]),
+      Makefile: new Uint8Array([0x41, 0xff, 0x0a]),
+    },
+    async (root) => {
+      const read = await readTemplates(root);
+      assert.ok(!read.ok);
+      assert.match(read.diagnostic.message, /not UTF-8 text/);
+    },
+  );
 });
 
 test('readAgbccPin refuses a pin that is not forty lower-case hex digits', async () => {

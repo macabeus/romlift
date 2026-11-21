@@ -15,7 +15,13 @@ const ID = 'bl.target-inside-caller';
 
 test('one byte below the code end is far; the code end itself is not', () => {
   const rom = romWith([{ at: F, bytes: thumbAt(F)`push {lr}; pop {pc}` }]);
-  const caller = readingOf(rom, { entry: F, insns: [{ addr: F, len: 2 }, { addr: F + 0x7fe, len: 2 }] });
+  const caller = readingOf(rom, {
+    entry: F,
+    insns: [
+      { addr: F, len: 2 },
+      { addr: F + 0x7fe, len: 2 },
+    ],
+  });
   assert.equal(caller.codeEnd, F + 0x800);
   const v = viewWith({ rom });
   const rule = blRule(ID);
@@ -32,5 +38,9 @@ test("a far bl into the stretch the caller's walk spans is a jump, even to a tar
   const r = settle(driverOver(rom), F);
   assert.deepEqual(r.blVerdicts, [{ site: F + 6, target: T, verdict: 'far', rule: ID }]);
   assert.equal(r.insnAt.has(T), true, 'the target is walked as part of the caller');
-  assert.deepEqual(settle(driverOver(rom, ID), F).blVerdicts.map((v) => [v.verdict, v.rule]), [['call', 'bl.target-has-prologue']], 'without the rule');
+  assert.deepEqual(
+    settle(driverOver(rom, ID), F).blVerdicts.map((v) => [v.verdict, v.rule]),
+    [['call', 'bl.target-has-prologue']],
+    'without the rule',
+  );
 });

@@ -5,12 +5,7 @@
 // digests of the two results say whether the analysis is deterministic. The analysis is reached through
 // an AnalysisRunner so the bench tests run it on hand-built results; ROMLIFT_RUNNER is the real one.
 import { join } from 'node:path';
-
 import {
-  canonicalJson,
-  parseElf,
-  profileById,
-  romFromBytes,
   type AnalysisOptions,
   type AnalysisResult,
   type CompilerProfile,
@@ -18,8 +13,19 @@ import {
   type Rom,
   type RuleId,
   type TrailSink,
+  canonicalJson,
+  parseElf,
+  profileById,
+  romFromBytes,
 } from 'romlift';
-import { analyzeTuned, DEFAULT_TUNING, diagnoseMisses, type AnalysisTuning, type MissDiagnosis, type MissQuery } from 'romlift/internal';
+import {
+  type AnalysisTuning,
+  DEFAULT_TUNING,
+  type MissDiagnosis,
+  type MissQuery,
+  analyzeTuned,
+  diagnoseMisses,
+} from 'romlift/internal';
 import { sha1Of, sha256Of, sha256Stream } from 'romlift/node';
 
 import type { FoundFunction as ClassifiedFunction, NoReturnSite } from './classify.ts';
@@ -27,7 +33,7 @@ import type { BenchContext } from './context.ts';
 import type { Dataset } from './dataset.ts';
 import { BenchError, exists, readFileBytes } from './files.ts';
 import type { SealedInput } from './seal.ts';
-import { elfCodeEnd, elfTruth, type Truth } from './truth.ts';
+import { type Truth, elfCodeEnd, elfTruth } from './truth.ts';
 
 /** The ROM and ELF of one dataset, both checked against its recorded digests. */
 export interface RealInputs {
@@ -47,19 +53,40 @@ export async function readRealInputs(cx: BenchContext, d: Dataset): Promise<Real
   if (!(await exists(elfPath))) throw new BenchError(`${d.name}: the ELF ${elfPath} is missing`);
   const bytes = await readFileBytes(romPath);
   const sha1 = sha1Of(bytes);
-  if (sha1 !== d.sha1) throw new BenchError(`${d.name}: refusing ${d.rom}: SHA-1 ${sha1}, the dataset records ${d.sha1}`);
+  if (sha1 !== d.sha1)
+    throw new BenchError(`${d.name}: refusing ${d.rom}: SHA-1 ${sha1}, the dataset records ${d.sha1}`);
   const elfBytes = await readFileBytes(elfPath);
   const elfSha256 = sha256Of(elfBytes);
-  if (elfSha256 !== d.elfSha256) throw new BenchError(`${d.name}: refusing ${d.elf}: sha256 ${elfSha256}, the dataset records ${d.elfSha256}`);
+  if (elfSha256 !== d.elfSha256)
+    throw new BenchError(`${d.name}: refusing ${d.elf}: sha256 ${elfSha256}, the dataset records ${d.elfSha256}`);
   const elf = parseElf(elfBytes);
   if (!elf.ok) throw new BenchError(`${d.name}: ${d.elf}: ${elf.error}`);
-  return { dataset: d, rom: romFromBytes(bytes, sha1), sha1, elfSha256, romSize: bytes.length, truth: elfTruth(elf.value, bytes.length) };
+  return {
+    dataset: d,
+    rom: romFromBytes(bytes, sha1),
+    sha1,
+    elfSha256,
+    romSize: bytes.length,
+    truth: elfTruth(elf.value, bytes.length),
+  };
 }
 
 /** How the bench reaches the analysis: analyzeTuned and diagnoseMisses with their own signatures. */
 export interface AnalysisRunner {
-  analyze(rom: Rom, profile: CompilerProfile, options: AnalysisOptions, tuning: AnalysisTuning, sink?: TrailSink): AnalysisResult;
-  diagnose(rom: Rom, profile: CompilerProfile, options: AnalysisOptions, tuning: AnalysisTuning, misses: readonly MissQuery[]): { readonly result: AnalysisResult; readonly diagnoses: readonly MissDiagnosis[] };
+  analyze(
+    rom: Rom,
+    profile: CompilerProfile,
+    options: AnalysisOptions,
+    tuning: AnalysisTuning,
+    sink?: TrailSink,
+  ): AnalysisResult;
+  diagnose(
+    rom: Rom,
+    profile: CompilerProfile,
+    options: AnalysisOptions,
+    tuning: AnalysisTuning,
+    misses: readonly MissQuery[],
+  ): { readonly result: AnalysisResult; readonly diagnoses: readonly MissDiagnosis[] };
 }
 
 /** romlift's analysis with the registered rules. */
@@ -139,13 +166,24 @@ export interface DatasetAnalysis {
 }
 
 /** Runs, measures, diagnoses and re-runs the analysis of `inputs` (the second run is diagnoseMisses'). */
-export function analyzeDataset(inputs: Pick<RealInputs, 'rom' | 'truth'>, runner: AnalysisRunner, tuning: RunTuning): DatasetAnalysis {
+export function analyzeDataset(
+  inputs: Pick<RealInputs, 'rom' | 'truth'>,
+  runner: AnalysisRunner,
+  tuning: RunTuning,
+): DatasetAnalysis {
   const profile = benchProfile();
   const t = analysisTuning(tuning);
   const first = measure(() => runner.analyze(inputs.rom, profile, discoverOptions(), t));
   const second = runner.diagnose(inputs.rom, profile, discoverOptions(), t, missQueries(first.value, inputs.truth));
   const digests = [resultDigest(first.value), resultDigest(second.result)] as const;
-  return { result: first.value, diagnoses: second.diagnoses, digests, deterministic: digests[0] === digests[1], cpuMs: first.cpuMs, wallMs: first.wallMs };
+  return {
+    result: first.value,
+    diagnoses: second.diagnoses,
+    digests,
+    deterministic: digests[0] === digests[1],
+    cpuMs: first.cpuMs,
+    wallMs: first.wallMs,
+  };
 }
 
 /**
@@ -153,20 +191,34 @@ export function analyzeDataset(inputs: Pick<RealInputs, 'rom' | 'truth'>, runner
  * code and never read): the result and the miss reasons in a single analysis, for checks that need no
  * timing and no determinism (dataset-check, adopt).
  */
-export function diagnosedRun(inputs: Pick<RealInputs, 'rom' | 'truth'>, runner: AnalysisRunner, tuning: RunTuning): { readonly result: AnalysisResult; readonly diagnoses: readonly MissDiagnosis[] } {
-  const queries = inputs.truth.functions.map((t) => ({ addr: t.addr, mode: t.thumb ? ('thumb' as const) : ('arm' as const) }));
+export function diagnosedRun(
+  inputs: Pick<RealInputs, 'rom' | 'truth'>,
+  runner: AnalysisRunner,
+  tuning: RunTuning,
+): { readonly result: AnalysisResult; readonly diagnoses: readonly MissDiagnosis[] } {
+  const queries = inputs.truth.functions.map((t) => ({
+    addr: t.addr,
+    mode: t.thumb ? ('thumb' as const) : ('arm' as const),
+  }));
   return runner.diagnose(inputs.rom, benchProfile(), discoverOptions(), analysisTuning(tuning), queries);
 }
 
 /** The never-returning sites of a function: its noreturn bl verdicts (4 bytes) and its swi ends. */
 function noReturnSites(f: AnalysisResult['functions'][number]): NoReturnSite[] {
-  const sites: NoReturnSite[] = f.blVerdicts.filter((v) => v.verdict === 'noreturn').map((v) => ({ site: v.site, size: 4 }));
+  const sites: NoReturnSite[] = f.blVerdicts
+    .filter((v) => v.verdict === 'noreturn')
+    .map((v) => ({ site: v.site, size: 4 }));
   for (const e of f.exits) if (e.kind === 'swi-end') sites.push({ site: e.at, size: f.mode === 'thumb' ? 2 : 4 });
   return sites.sort((a, b) => a.site - b.site);
 }
 
 /** The classifiers' input for a sealed run (classify.ts, seal.ts), built from the analysis. */
-export function sealedInput(name: string, inputs: Pick<RealInputs, 'rom' | 'truth'>, result: AnalysisResult, profile: CompilerProfile): SealedInput {
+export function sealedInput(
+  name: string,
+  inputs: Pick<RealInputs, 'rom' | 'truth'>,
+  result: AnalysisResult,
+  profile: CompilerProfile,
+): SealedInput {
   const thumb = new Map(inputs.truth.functions.map((t) => [t.addr, t.thumb]));
   const found: ClassifiedFunction[] = result.functions.map((f) => ({
     entry: f.entry,

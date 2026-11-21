@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { speedVerdict, type SpeedLine } from '../../gates/speed-verdict.ts';
+import { type SpeedLine, speedVerdict } from '../../gates/speed-verdict.ts';
 
 function report(over: Partial<SpeedLine> = {}): SpeedLine {
   return {
@@ -29,11 +29,16 @@ test('over the limit, a missing ROM, a bad schema or ratio fail', () => {
   assert.deepEqual(speedVerdict(slow, ['sa2']).problems, ['sa2: 151 ms CPU > 150 ms (1.5 x 100 x 1.000)']);
   assert.deepEqual(speedVerdict(report(), ['sa2', 'tmc']).problems, ['tmc: not measured']);
   assert.equal(speedVerdict(report({ schema: 'other' }), ['sa2']).problems.length, 1);
-  assert.match(speedVerdict(report({ calibration: { cpuMs: 1, baselineCpuMs: 0, ratio: 0 } }), ['klonoa']).problems.join('; '), /the calibration ratio is 0/);
+  assert.match(
+    speedVerdict(report({ calibration: { cpuMs: 1, baselineCpuMs: 0, ratio: 0 } }), ['klonoa']).problems.join('; '),
+    /the calibration ratio is 0/,
+  );
 });
 
 test('a report of five analysis runs, or a ROM of five, is rejected whatever its times (D77 g)', () => {
-  assert.deepEqual(speedVerdict(report({ runs: { analysis: 5 } }), ['sa2']).problems, ["bench speed measured each ROM's analysis over 5 runs, not 9 (D76 b)"]);
+  assert.deepEqual(speedVerdict(report({ runs: { analysis: 5 } }), ['sa2']).problems, [
+    "bench speed measured each ROM's analysis over 5 runs, not 9 (D76 b)",
+  ]);
   const five = report({ roms: [{ name: 'sa2', analysisCpuMs: 1, analysisRuns: 5, wallMs: 1, baselineCpuMs: 100 }] });
   assert.deepEqual(speedVerdict(five, ['sa2']).problems, ['sa2: its median is of 5 measured runs, not 9 (D76 b)']);
   const unsaid = report({ runs: {}, roms: [{ name: 'sa2', analysisCpuMs: 1, wallMs: 1, baselineCpuMs: 100 }] });

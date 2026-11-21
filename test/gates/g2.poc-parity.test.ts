@@ -15,14 +15,21 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { gate, type GateContext } from './gate.ts';
-import { LOCKSTEP_SETS, parityCheck, SCOPED_OUT, type ParityEvidence, type PocDigests } from './poc-parity-check.ts';
+import { type GateContext, gate } from './gate.ts';
+import { LOCKSTEP_SETS, type ParityEvidence, type PocDigests, SCOPED_OUT, parityCheck } from './poc-parity-check.ts';
 
 async function run(cx: GateContext): Promise<void> {
-  const results = JSON.parse(await readFile(path.join(cx.repoRoot, 'bench', 'results.json'), 'utf8')) as { readonly parity?: ParityEvidence };
-  const digests = JSON.parse(await readFile(path.join(cx.repoRoot, 'bench', 'baseline', 'poc-digests.json'), 'utf8')) as PocDigests;
+  const results = JSON.parse(await readFile(path.join(cx.repoRoot, 'bench', 'results.json'), 'utf8')) as {
+    readonly parity?: ParityEvidence;
+  };
+  const digests = JSON.parse(
+    await readFile(path.join(cx.repoRoot, 'bench', 'baseline', 'poc-digests.json'), 'utf8'),
+  ) as PocDigests;
   const e = results.parity;
-  const ancestor = e === undefined ? false : (await cx.exec('git', ['merge-base', '--is-ancestor', e.commit, 'HEAD'], { cwd: cx.repoRoot })).code === 0;
+  const ancestor =
+    e === undefined
+      ? false
+      : (await cx.exec('git', ['merge-base', '--is-ancestor', e.commit, 'HEAD'], { cwd: cx.repoRoot })).code === 0;
   const outcome = parityCheck({ evidence: e, digests, tuning: cx.datasets, scopedOut: SCOPED_OUT, ancestor });
   for (const line of outcome.notApplicable) cx.note(line);
   for (const name of Object.keys(outcome.digests)) cx.digest(`parity:${name}`, outcome.digests[name] ?? '');

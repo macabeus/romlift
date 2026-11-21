@@ -13,7 +13,13 @@ type JsonObject = { readonly [key: string]: JsonValue | undefined };
 
 type Frame =
   | { readonly kind: 'array'; readonly node: readonly JsonValue[]; index: number }
-  | { readonly kind: 'object'; readonly node: JsonObject; readonly keys: readonly string[]; index: number; written: number };
+  | {
+      readonly kind: 'object';
+      readonly node: JsonObject;
+      readonly keys: readonly string[];
+      index: number;
+      written: number;
+    };
 
 function scalarText(value: JsonValue): string | undefined {
   if (value === null) return 'null';
@@ -54,7 +60,13 @@ export function* canonicalJson(value: JsonValue, chunkSize: number = CANONICAL_J
     } else {
       buffer += '{';
       const object = node as JsonObject;
-      stack.push({ kind: 'object', node: object, keys: Object.keys(object).sort(compareCodeUnits), index: 0, written: 0 });
+      stack.push({
+        kind: 'object',
+        node: object,
+        keys: Object.keys(object).sort(compareCodeUnits),
+        index: 0,
+        written: 0,
+      });
     }
   };
 

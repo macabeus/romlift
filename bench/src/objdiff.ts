@@ -25,37 +25,50 @@
 //   assemble            the base did not assemble
 //   tool                objdiff-cli failed on the pair
 // objdiffVerdict is pure; scoreObjdiff runs the tools.
-import { availableParallelism, tmpdir } from 'node:os';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { availableParallelism, tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
-
 import {
-  buildModel,
-  compareCodeUnits,
-  configFromDiscover,
-  contains,
-  itemAt,
-  MACROS_PATH,
-  parseElf,
-  printChunk,
-  regionOf,
   type AnalysisResult,
   type ElfFile,
   type ElfSymbol,
   type FunctionConfig,
   type GnuMap,
   type Label,
+  MACROS_PATH,
   type Model,
   type Rom,
   type RomliftConfig,
   type SymbolConfig,
+  buildModel,
+  compareCodeUnits,
+  configFromDiscover,
+  contains,
+  itemAt,
+  parseElf,
+  printChunk,
+  regionOf,
 } from 'romlift';
 import { DIALECT } from 'romlift/isa';
-import { assembleWithBinutils, findBinutils, type Binutils } from 'romlift/node';
+import { type Binutils, assembleWithBinutils, findBinutils } from 'romlift/node';
 
-import { diffObjects, type FunctionDiff } from './objdiff-cli.ts';
-import { classTotals, countClasses, isGated, nameAddresses, OBJDIFF_CLASSES, objdiffClass, type NameAddresses } from './objdiff-classes.ts';
 import {
+  type NameAddresses,
+  OBJDIFF_CLASSES,
+  classTotals,
+  countClasses,
+  isGated,
+  nameAddresses,
+  objdiffClass,
+} from './objdiff-classes.ts';
+import { type FunctionDiff, diffObjects } from './objdiff-cli.ts';
+import {
+  type Definition,
+  type LinkedInput,
+  type ObjectName,
+  type ObjectRelocation,
+  type ObjectSymbolIndex,
+  type ObjectSymbols,
   indexObjectSymbols,
   inputAt,
   linkedInputs,
@@ -66,12 +79,6 @@ import {
   objectRelocations,
   parseMemberKey,
   readObjectSymbolIndex,
-  type LinkedInput,
-  type Definition,
-  type ObjectName,
-  type ObjectRelocation,
-  type ObjectSymbolIndex,
-  type ObjectSymbols,
 } from './objects.ts';
 import { runProcess } from './process.ts';
 import { agreeingFunctions } from './score.ts';
@@ -90,7 +97,16 @@ export interface ObjdiffExample {
 }
 
 /** The kinds of difference functionDifferences gives (the header's list). */
-export type ObjdiffKind = 'instruction' | 'resolved-call' | 'relocation' | 'missing-relocation' | 'missing-symbol' | 'score' | 'assemble' | 'tool' | 'unnamed-target';
+export type ObjdiffKind =
+  | 'instruction'
+  | 'resolved-call'
+  | 'relocation'
+  | 'missing-relocation'
+  | 'missing-symbol'
+  | 'score'
+  | 'assemble'
+  | 'tool'
+  | 'unnamed-target';
 
 /**
  * What a difference's detail text does not say and bench/src/objdiff-classes.ts needs to check that its two sides
@@ -152,7 +168,10 @@ export type ComparedFunction =
       /** The function's entry, the address the ELF and the analysis agree it starts at. */
       readonly entry?: number;
     }
-  | { readonly name: string; readonly failure: { readonly kind: 'missing-symbol' | 'assemble' | 'tool'; readonly detail: string } };
+  | {
+      readonly name: string;
+      readonly failure: { readonly kind: 'missing-symbol' | 'assemble' | 'tool'; readonly detail: string };
+    };
 
 /** A call or branch `as` resolved inside its object: the mnemonic (`bl`, `b`) and the target's offset. */
 const RESOLVED_BRANCH = /^(bl|b) 0x([0-9a-f]+)$/;
@@ -165,7 +184,12 @@ const RELOCATED_BRANCH = /^(bl|b) ([A-Za-z_.$][A-Za-z0-9_.$]*)-0x[48]$/;
  * (`-0x8` in ARM state) or `b <name>-0x4`, a relocation against that target because the base holds one
  * function, where the reference object defines <name> at <offset>.
  */
-export function resolvedCall(kind: string, reference: string | null, base: string | null, functions: ReadonlyMap<string, number> | undefined): string | undefined {
+export function resolvedCall(
+  kind: string,
+  reference: string | null,
+  base: string | null,
+  functions: ReadonlyMap<string, number> | undefined,
+): string | undefined {
   if (kind !== 'arg-mismatch' || functions === undefined) return undefined;
   const resolved = RESOLVED_BRANCH.exec(reference ?? '');
   const relocated = RELOCATED_BRANCH.exec(base ?? '');
@@ -179,7 +203,11 @@ const offsetText = (offset: number | null): string => (offset === null ? 'base o
 /** The differences of one function, each with its kind and the facts its classes are checked by. */
 export function objdiffDifferences(compared: ComparedFunction): ObjdiffDifference[] {
   const name = compared.name;
-  const one = (kind: ObjdiffKind, detail: string, facts: DifferenceFacts = {}): ObjdiffDifference => ({ kind, example: { function: name, kind, detail }, facts });
+  const one = (kind: ObjdiffKind, detail: string, facts: DifferenceFacts = {}): ObjdiffDifference => ({
+    kind,
+    example: { function: name, kind, detail },
+    facts,
+  });
   if ('failure' in compared) return [one(compared.failure.kind, compared.failure.detail)];
   const diff = compared.diff;
   if (diff === undefined) return [one('missing-symbol', 'the reference object lists no function of that name')];
@@ -192,7 +220,11 @@ export function objdiffDifferences(compared: ComparedFunction): ObjdiffDifferenc
   for (const d of diff.instructionDifferences) {
     const callee = resolvedCall(d.kind, d.reference, d.base, compared.referenceFunctions);
     const detail = `${offsetText(d.offset)} ${d.kind}: ${d.reference ?? '(none)'} | ${d.base ?? '(none)'}`;
-    out.push(callee === undefined ? one('instruction', detail, where(d.offset)) : one('resolved-call', `${detail} (${callee} is at that offset of the reference object)`, where(d.offset)));
+    out.push(
+      callee === undefined
+        ? one('instruction', detail, where(d.offset))
+        : one('resolved-call', `${detail} (${callee} is at that offset of the reference object)`, where(d.offset)),
+    );
   }
   for (const r of diff.relocationDifferences) {
     const at = `${offsetText(r.offset)} ${r.type}`;
@@ -203,11 +235,17 @@ export function objdiffDifferences(compared: ComparedFunction): ObjdiffDifferenc
       ...(r.baseAddend === undefined ? {} : { baseAddend: r.baseAddend }),
       ...(r.baseField === undefined ? {} : { baseField: r.baseField }),
     };
-    if (r.reference?.symbol === 'section') out.push(one(REPORTED_ONLY, `${at}: section ${r.reference.name} | ${r.base ?? 'no relocation'}`, facts));
-    else if (r.reference !== null && r.base === null) out.push(one('missing-relocation', `${at}: ${r.reference.name} | a plain value`, facts));
-    else out.push(one('relocation', `${at}: ${r.reference?.name ?? 'no relocation'} | ${r.base ?? 'no relocation'}`, facts));
+    if (r.reference?.symbol === 'section')
+      out.push(one(REPORTED_ONLY, `${at}: section ${r.reference.name} | ${r.base ?? 'no relocation'}`, facts));
+    else if (r.reference !== null && r.base === null)
+      out.push(one('missing-relocation', `${at}: ${r.reference.name} | a plain value`, facts));
+    else
+      out.push(
+        one('relocation', `${at}: ${r.reference?.name ?? 'no relocation'} | ${r.base ?? 'no relocation'}`, facts),
+      );
   }
-  if (out.length === 0 && diff.matchPercent !== 100) out.push(one('score', `objdiff scored it ${String(diff.matchPercent)}% with no differing row`));
+  if (out.length === 0 && diff.matchPercent !== 100)
+    out.push(one('score', `objdiff scored it ${String(diff.matchPercent)}% with no differing row`));
   return out;
 }
 
@@ -216,7 +254,8 @@ export function functionDifferences(compared: ComparedFunction): ObjdiffExample[
   return objdiffDifferences(compared).map((d) => d.example);
 }
 
-const byExample = (a: ObjdiffExample, b: ObjdiffExample): number => compareCodeUnits(a.kind, b.kind) || compareCodeUnits(a.function, b.function) || compareCodeUnits(a.detail, b.detail);
+const byExample = (a: ObjdiffExample, b: ObjdiffExample): number =>
+  compareCodeUnits(a.kind, b.kind) || compareCodeUnits(a.function, b.function) || compareCodeUnits(a.detail, b.detail);
 
 export interface ObjdiffVerdict {
   readonly scored: number;
@@ -254,7 +293,12 @@ export function objdiffVerdict(compared: readonly ComparedFunction[], addressesO
   const occurring: Record<string, number> = {};
   for (const c of OBJDIFF_CLASSES) if (perClass[c] > 0) occurring[c] = perClass[c];
   const gatedRows = classed.flatMap((d) => (isGated(d.cls) ? [{ ...d.example, kind: d.cls }] : []));
-  const classes: ObjdiffClassSummary = { counts: occurring, gated: totals.gated, uncompared: totals.uncompared, gatedExamples: capped(gatedRows.sort(byExample), (e) => e.kind) };
+  const classes: ObjdiffClassSummary = {
+    counts: occurring,
+    gated: totals.gated,
+    uncompared: totals.uncompared,
+    gatedExamples: capped(gatedRows.sort(byExample), (e) => e.kind),
+  };
   return { scored: compared.length, differences, examples: capped(all, (e) => e.kind), classes };
 }
 
@@ -264,7 +308,13 @@ export function unlinkedSummary(): ObjdiffSummary {
 }
 
 export function linkedSummary(verdict: ObjdiffVerdict): ObjdiffSummary {
-  return { linked: true, scored: verdict.scored, differences: verdict.differences, examples: verdict.examples, classes: verdict.classes };
+  return {
+    linked: true,
+    scored: verdict.scored,
+    differences: verdict.differences,
+    examples: verdict.examples,
+    classes: verdict.classes,
+  };
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -289,7 +339,9 @@ function isNameable(s: ElfSymbol): boolean {
  */
 export function symbolSizes(symbols: readonly ElfSymbol[]): Map<ElfSymbol, number> {
   const bySection = new Map<number, ElfSymbol[]>();
-  for (const s of symbols) if (isNameable(s) && s.sectionIndex < SHN_LORESERVE) bySection.set(s.sectionIndex, [...(bySection.get(s.sectionIndex) ?? []), s]);
+  for (const s of symbols)
+    if (isNameable(s) && s.sectionIndex < SHN_LORESERVE)
+      bySection.set(s.sectionIndex, [...(bySection.get(s.sectionIndex) ?? []), s]);
   const out = new Map<ElfSymbol, number>();
   for (const s of symbols) if (s.sectionIndex >= SHN_LORESERVE) out.set(s, s.size);
   for (const list of bySection.values()) {
@@ -318,13 +370,18 @@ function lowerBoundOf(sorted: readonly number[], key: number): number {
 }
 
 /** One name per address, a global or weak definition before a local one, then the first in the table; with its size. */
-function namesByAddr(symbols: readonly ElfSymbol[], sizes: ReadonlyMap<ElfSymbol, number>, keep: (s: ElfSymbol) => boolean): Map<number, { readonly name: string; readonly size: number }> {
+function namesByAddr(
+  symbols: readonly ElfSymbol[],
+  sizes: ReadonlyMap<ElfSymbol, number>,
+  keep: (s: ElfSymbol) => boolean,
+): Map<number, { readonly name: string; readonly size: number }> {
   const out = new Map<number, { readonly name: string; readonly size: number; readonly global: boolean }>();
   for (const s of symbols) {
     if (!isNameable(s) || !keep(s)) continue;
     const global = s.bind !== 'local';
     const had = out.get(s.addr);
-    if (had === undefined || (global && !had.global)) out.set(s.addr, { name: s.name, size: sizes.get(s) ?? s.size, global });
+    if (had === undefined || (global && !had.global))
+      out.set(s.addr, { name: s.name, size: sizes.get(s) ?? s.size, global });
   }
   return new Map([...out].map(([addr, v]) => [addr, { name: v.name, size: v.size }] as const));
 }
@@ -349,12 +406,25 @@ function isAddressedMemory(addr: number): boolean {
  * those as plain constants, never as relocations. A name the ELF uses at two addresses (two static definitions) is
  * given to neither, so the model keeps one name per label.
  */
-export function namedConfig(config: RomliftConfig, rom: Rom, symbols: readonly ElfSymbol[], extents: readonly { readonly entry: number; readonly end: number }[]): RomliftConfig {
+export function namedConfig(
+  config: RomliftConfig,
+  rom: Rom,
+  symbols: readonly ElfSymbol[],
+  extents: readonly { readonly entry: number; readonly end: number }[],
+): RomliftConfig {
   const inside = (addr: number): boolean => extents.some((f) => addr >= f.entry && addr < f.end);
   const sizes = symbolSizes(symbols);
   const listed = (addr: number): boolean => config.functions.has(addr) || config.entryPoints.has(addr);
   const funcs = namesByAddr(symbols, sizes, (s) => s.type === 'func' && listed(s.addr));
-  const data = namesByAddr(symbols, sizes, (s) => s.type !== 'func' && (contains(rom, s.addr) ? !listed(s.addr) && !inside(s.addr) : s.sectionName !== undefined && isAddressedMemory(s.addr)));
+  const data = namesByAddr(
+    symbols,
+    sizes,
+    (s) =>
+      s.type !== 'func' &&
+      (contains(rom, s.addr)
+        ? !listed(s.addr) && !inside(s.addr)
+        : s.sectionName !== undefined && isAddressedMemory(s.addr)),
+  );
   const uses = new Map<string, number>();
   for (const { name } of [...funcs.values(), ...data.values()]) uses.set(name, (uses.get(name) ?? 0) + 1);
   const unique = (name: string): boolean => uses.get(name) === 1;
@@ -368,7 +438,9 @@ export function namedConfig(config: RomliftConfig, rom: Rom, symbols: readonly E
     return out;
   };
   const named = new Map<number, SymbolConfig>(config.symbols);
-  for (const [addr, { name, size }] of data) if (unique(name) && !named.has(addr)) named.set(addr, size > 0 ? { name, size, aliases: [] } : { name, aliases: [] });
+  for (const [addr, { name, size }] of data)
+    if (unique(name) && !named.has(addr))
+      named.set(addr, size > 0 ? { name, size, aliases: [] } : { name, aliases: [] });
   return { ...config, functions: withElf(config.functions), entryPoints: withElf(config.entryPoints), symbols: named };
 }
 
@@ -398,7 +470,11 @@ function reachedChunks(rom: Rom, model: Model, chunk: number): number[] {
  * cannot relocate a PC-relative reference into another object (D63), so a function assembled alone would not
  * assemble; with the chunks between, every distance is the tree's.
  */
-export function pcRelativeChunkRange(rom: Rom, model: Model, chunk: number): { readonly first: number; readonly last: number } {
+export function pcRelativeChunkRange(
+  rom: Rom,
+  model: Model,
+  chunk: number,
+): { readonly first: number; readonly last: number } {
   let first = chunk;
   let last = chunk;
   const done = new Set<number>();
@@ -454,7 +530,11 @@ const GLOBAL_LINE = /^\.global (\S+)$/;
  * another address, or an earlier address takes it (the label then keeps the model's name). A token is a label's name
  * only through `labelOf`; a token that is no label holds nothing.
  */
-export function baseRenames(tokens: ReadonlySet<string>, labelOf: (name: string) => BaseLabel | undefined, names: ReadonlyMap<number, ObjectName>): Map<string, string> {
+export function baseRenames(
+  tokens: ReadonlySet<string>,
+  labelOf: (name: string) => BaseLabel | undefined,
+  names: ReadonlyMap<number, ObjectName>,
+): Map<string, string> {
   let wanted: { readonly from: string; readonly to: string; readonly addr: number }[] = [];
   for (const token of tokens) {
     const label = labelOf(token);
@@ -485,7 +565,10 @@ export function baseRenames(tokens: ReadonlySet<string>, labelOf: (name: string)
  * defines that name at that address, global for a function the object does not define (another object's, which the
  * reference reaches through a relocation), unchanged otherwise.
  */
-export function baseBindings(defined: readonly { readonly name: string; readonly label: BaseLabel }[], names: ReadonlyMap<number, ObjectName>): Map<string, 'local' | 'global'> {
+export function baseBindings(
+  defined: readonly { readonly name: string; readonly label: BaseLabel }[],
+  names: ReadonlyMap<number, ObjectName>,
+): Map<string, 'local' | 'global'> {
   const out = new Map<string, 'local' | 'global'>();
   for (const { name, label } of defined) {
     const own = names.get(label.addr);
@@ -501,7 +584,11 @@ export function baseBindings(defined: readonly { readonly name: string; readonly
  * label takes its binding (a function's start macro its `_local` form or not, a `.global` line dropped or added), so
  * `as` resolves a call inside the base exactly where it resolved it inside the reference object.
  */
-export function nameBase(text: string, labelOf: (name: string) => BaseLabel | undefined, names: ReadonlyMap<number, ObjectName>): string {
+export function nameBase(
+  text: string,
+  labelOf: (name: string) => BaseLabel | undefined,
+  names: ReadonlyMap<number, ObjectName>,
+): string {
   const tokens = new Set(text.match(IDENTIFIER) ?? []);
   const renames = baseRenames(tokens, labelOf, names);
   const renamed = renames.size === 0 ? text : text.replace(IDENTIFIER, (t) => renames.get(t) ?? t);
@@ -528,7 +615,10 @@ export function nameBase(text: string, labelOf: (name: string) => BaseLabel | un
       lines.push(line);
     }
   }
-  const missing = [...binds].filter(([n, b]) => b === 'global' && !globals.has(n)).map(([n]) => `.global ${n}`).sort(compareCodeUnits);
+  const missing = [...binds]
+    .filter(([n, b]) => b === 'global' && !globals.has(n))
+    .map(([n]) => `.global ${n}`)
+    .sort(compareCodeUnits);
   if (missing.length === 0) return lines.join('\n');
   const last = lines.at(-1) === '' ? lines.pop() : undefined;
   return [...lines, ...missing, ...(last === undefined ? [] : [last])].join('\n');
@@ -641,7 +731,10 @@ export interface LinkedSpan {
  * its offset in the object (its `func` symbol's value without the Thumb bit), the section's size on. A section two
  * functions place at different addresses is left out (the object is not the linked one).
  */
-export function linkedSpans(object: Pick<ElfFile, 'sections' | 'symbols'>, functions: readonly { readonly name: string; readonly entry: number }[]): LinkedSpan[] {
+export function linkedSpans(
+  object: Pick<ElfFile, 'sections' | 'symbols'>,
+  functions: readonly { readonly name: string; readonly entry: number }[],
+): LinkedSpan[] {
   const starts = new Map<string, number | null>();
   for (const f of functions) {
     const s = object.symbols.find((x) => x.name === f.name && x.type === 'func' && x.sectionName !== undefined);
@@ -726,9 +819,17 @@ function definedNames(model: Model, chunks: readonly number[]): Set<string> {
 }
 
 /** Assembles `source`; the object's path, or the assembler's complaint. */
-async function assembleText(source: string, path: string, cx: Context): Promise<{ readonly path: string } | { readonly error: string }> {
-  const assembled = await assembleWithBinutils(source, { files: { [MACROS_PATH]: DIALECT.macrosInc }, tools: cx.tools });
-  if (!assembled.ok) return { error: assemblerError(assembled.stderr) ?? assembled.diagnostics[0]?.message ?? 'as failed' };
+async function assembleText(
+  source: string,
+  path: string,
+  cx: Context,
+): Promise<{ readonly path: string } | { readonly error: string }> {
+  const assembled = await assembleWithBinutils(source, {
+    files: { [MACROS_PATH]: DIALECT.macrosInc },
+    tools: cx.tools,
+  });
+  if (!assembled.ok)
+    return { error: assemblerError(assembled.stderr) ?? assembled.diagnostics[0]?.message ?? 'as failed' };
   await writeFile(path, assembled.object);
   return { path };
 }
@@ -736,9 +837,18 @@ async function assembleText(source: string, path: string, cx: Context): Promise<
 /** One objdiff-cli run of the reference object against `base`, read for each job's function. */
 async function diffJobs(cx: Context, object: string, base: string, jobs: readonly Job[]): Promise<ComparedFunction[]> {
   const diffed = await diffObjects(cx.inputs.objdiff, cx.references.path(object), base);
-  if (!diffed.ok) return jobs.map((job) => ({ name: job.name, failure: { kind: 'tool' as const, detail: `${object}: ${toolError(diffed.error)}` } }));
+  if (!diffed.ok)
+    return jobs.map((job) => ({
+      name: job.name,
+      failure: { kind: 'tool' as const, detail: `${object}: ${toolError(diffed.error)}` },
+    }));
   const referenceFunctions = new Map(diffed.value.functions.map((f) => [f.name, f.offset] as const));
-  return jobs.map((job) => ({ name: job.name, diff: diffed.value.functions.find((f) => f.name === job.name), referenceFunctions, entry: job.entry }));
+  return jobs.map((job) => ({
+    name: job.name,
+    diff: diffed.value.functions.find((f) => f.name === job.name),
+    referenceFunctions,
+    entry: job.entry,
+  }));
 }
 
 /**
@@ -756,17 +866,32 @@ async function groupSource(group: Group, cx: Context): Promise<string> {
   const { rom } = cx.inputs;
   const facts = await cx.references.facts(group.object);
   const linked = cx.references.inputs?.filter((i) => i.object === group.object) ?? [];
-  const spans = linked.length > 0 ? linked.filter((i) => group.jobs.some((j) => j.entry >= i.start && j.entry < i.end)) : facts === undefined ? [] : linkedSpans(facts.elf, group.jobs);
+  const spans =
+    linked.length > 0
+      ? linked.filter((i) => group.jobs.some((j) => j.entry >= i.start && j.entry < i.end))
+      : facts === undefined
+        ? []
+        : linkedSpans(facts.elf, group.jobs);
   const seeds = group.jobs.flatMap((j) => (j.chunk === undefined ? [] : [j.chunk]));
   const chunks = objectChunks(rom, cx.model, spans, seeds);
   const text = objectSource(rom, cx.model, chunks);
   if (facts === undefined) return text;
   const startOf = new Map(spans.map((s) => [s.section, s.start] as const));
-  const names = (await cx.references.naming(group.object)) ?? preferredNames(objectNames({ symbols: facts.elf.symbols, relocations: facts.relocations }, (section) => startOf.get(section), cx.references.definitionOf));
+  const names =
+    (await cx.references.naming(group.object)) ??
+    preferredNames(
+      objectNames(
+        { symbols: facts.elf.symbols, relocations: facts.relocations },
+        (section) => startOf.get(section),
+        cx.references.definitionOf,
+      ),
+    );
   const defined = definedNames(cx.model, chunks);
   const labelOf = (name: string): BaseLabel | undefined => {
     const l = cx.labelByName.get(name);
-    return l === undefined || l === null ? undefined : { addr: l.addr, func: l.kind === 'func', defined: defined.has(name) };
+    return l === undefined || l === null
+      ? undefined
+      : { addr: l.addr, func: l.kind === 'func', defined: defined.has(name) };
   };
   return nameBase(text, labelOf, names);
 }
@@ -794,17 +919,29 @@ async function compareApart(group: Group, cx: Context): Promise<ComparedFunction
   const out = new Map<number, ComparedFunction>();
   const assembled: { readonly job: Job; readonly path: string }[] = [];
   for (const job of group.jobs) {
-    const result = await assembleText(functionSource(cx.inputs.rom, cx.model, job.chunk ?? 0), join(cx.dir, `${job.n}.o`), cx);
+    const result = await assembleText(
+      functionSource(cx.inputs.rom, cx.model, job.chunk ?? 0),
+      join(cx.dir, `${job.n}.o`),
+      cx,
+    );
     if ('path' in result) assembled.push({ job, path: result.path });
     else out.set(job.n, { name: job.name, failure: { kind: 'assemble', detail: result.error } });
   }
   const merged = join(cx.dir, `${assembled[0]?.job.n ?? 0}-group.o`);
   if (assembled.length > 0) {
-    const joined = assembled.length === 1 ? { code: 0 } : await runProcess(cx.tools.ld, ['-r', '-o', merged, ...assembled.map((a) => a.path)]);
+    const joined =
+      assembled.length === 1
+        ? { code: 0 }
+        : await runProcess(cx.tools.ld, ['-r', '-o', merged, ...assembled.map((a) => a.path)]);
     const base = assembled.length === 1 ? (assembled[0]?.path ?? merged) : merged;
     const compared =
       joined.code === 0
-        ? await diffJobs(cx, group.object, base, assembled.map((a) => a.job))
+        ? await diffJobs(
+            cx,
+            group.object,
+            base,
+            assembled.map((a) => a.job),
+          )
         : (await Promise.all(assembled.map((a) => diffJobs(cx, group.object, a.path, [a.job])))).flat();
     compared.forEach((c, i) => {
       const job = assembled[i]?.job;
@@ -812,12 +949,17 @@ async function compareApart(group: Group, cx: Context): Promise<ComparedFunction
     });
   }
   await Promise.all([...assembled.map((a) => rm(a.path, { force: true })), rm(merged, { force: true })]);
-  return group.jobs.map((job) => out.get(job.n) ?? { name: job.name, failure: { kind: 'tool', detail: 'not compared' } });
+  return group.jobs.map(
+    (job) => out.get(job.n) ?? { name: job.name, failure: { kind: 'tool', detail: 'not compared' } },
+  );
 }
 
 /** The assembler's first error line (`source.s:12: Error: ...`), or its first line, or undefined when it printed nothing. */
 export function assemblerError(stderr: string): string | undefined {
-  const lines = stderr.split('\n').map((l) => l.trim()).filter((l) => l !== '');
+  const lines = stderr
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l !== '');
   return lines.find((l) => l.includes('Error:')) ?? lines[0];
 }
 
@@ -851,7 +993,12 @@ export function globalDefinitions(symbols: readonly ElfSymbol[]): Map<string, De
     if (s.sectionIndex < SHN_LORESERVE && !isAddressedMemory(s.addr)) continue;
     const had = out.get(s.name);
     const size = sizes.get(s) ?? s.size;
-    out.set(s.name, had === undefined || (had !== null && had.addr === s.addr) ? { addr: s.addr, size: Math.max(size, had?.size ?? 0) } : null);
+    out.set(
+      s.name,
+      had === undefined || (had !== null && had.addr === s.addr)
+        ? { addr: s.addr, size: Math.max(size, had?.size ?? 0) }
+        : null,
+    );
   }
   return out;
 }
@@ -865,7 +1012,12 @@ export function arOf(tools: Pick<Binutils, 'as'>): string {
  * The archive members the map links, extracted with `ar x` into `dir` (one directory per archive): each member key's
  * file. A member `ar` cannot extract is left out (no reference object defines its names).
  */
-async function extractMembers(inputs: readonly LinkedInput[], objectsDir: string, dir: string, ar: string): Promise<Map<string, string>> {
+async function extractMembers(
+  inputs: readonly LinkedInput[],
+  objectsDir: string,
+  dir: string,
+  ar: string,
+): Promise<Map<string, string>> {
   const byArchive = new Map<string, Set<string>>();
   for (const i of inputs) {
     const m = parseMemberKey(i.object);
@@ -877,7 +1029,9 @@ async function extractMembers(inputs: readonly LinkedInput[], objectsDir: string
     const into = join(dir, `archive-${n++}`);
     await mkdir(into, { recursive: true });
     const members = [...(byArchive.get(archive) ?? [])].sort(compareCodeUnits);
-    const run = await runProcess(ar, ['x', isAbsolute(archive) ? archive : join(objectsDir, archive), ...members], { cwd: into });
+    const run = await runProcess(ar, ['x', isAbsolute(archive) ? archive : join(objectsDir, archive), ...members], {
+      cwd: into,
+    });
     if (run.code !== 0) continue;
     for (const member of members) out.set(memberKey(archive, member), join(into, member));
   }
@@ -887,11 +1041,17 @@ async function extractMembers(inputs: readonly LinkedInput[], objectsDir: string
 /** The reference side of a ROM: with the map, its linked inputs and extracted archive members. */
 async function references(inputs: ObjdiffInputs, tools: Binutils, dir: string): Promise<References> {
   const linked = inputs.map === undefined ? undefined : linkedInputs(inputs.map);
-  const members = linked === undefined ? new Map<string, string>() : await extractMembers(linked, inputs.objectsDir, dir, arOf(tools));
+  const members =
+    linked === undefined
+      ? new Map<string, string>()
+      : await extractMembers(linked, inputs.objectsDir, dir, arOf(tools));
   const path = (object: string): string => members.get(object) ?? join(inputs.objectsDir, object);
   const cache = new Map<string, Promise<ReferenceFacts | undefined>>();
   const read = async (object: string): Promise<ReferenceFacts | undefined> => {
-    const bytes = await readFile(path(object)).then((b) => new Uint8Array(b), () => undefined);
+    const bytes = await readFile(path(object)).then(
+      (b) => new Uint8Array(b),
+      () => undefined,
+    );
     if (bytes === undefined) return undefined;
     const elf = parseElf(bytes);
     const relocations = objectRelocations(bytes);
@@ -904,7 +1064,9 @@ async function references(inputs: ObjdiffInputs, tools: Binutils, dir: string): 
   };
   const definitions = globalDefinitions(inputs.symbols);
   const definitionOf = (name: string): Definition | undefined => definitions.get(name) ?? undefined;
-  const usable = linked?.filter((i) => parseMemberKey(i.object) === undefined ? inputs.linkedObjects?.has(i.object) ?? true : members.has(i.object));
+  const usable = linked?.filter((i) =>
+    parseMemberKey(i.object) === undefined ? (inputs.linkedObjects?.has(i.object) ?? true) : members.has(i.object),
+  );
   const starts = new Map<string, Map<string, number>>();
   for (const i of usable ?? []) {
     const of = starts.get(i.object) ?? new Map<string, number>();
@@ -915,7 +1077,17 @@ async function references(inputs: ObjdiffInputs, tools: Binutils, dir: string): 
   const naming = (object: string): Promise<ReadonlyMap<number, ObjectName> | undefined> => {
     let p = namings.get(object);
     if (p === undefined) {
-      p = facts(object).then((f) => (f === undefined || usable === undefined ? undefined : preferredNames(objectNames({ symbols: f.elf.symbols, relocations: f.relocations }, (section) => starts.get(object)?.get(section), definitionOf))));
+      p = facts(object).then((f) =>
+        f === undefined || usable === undefined
+          ? undefined
+          : preferredNames(
+              objectNames(
+                { symbols: f.elf.symbols, relocations: f.relocations },
+                (section) => starts.get(object)?.get(section),
+                definitionOf,
+              ),
+            ),
+      );
       namings.set(object, p);
     }
     return p;
@@ -924,14 +1096,31 @@ async function references(inputs: ObjdiffInputs, tools: Binutils, dir: string): 
 }
 
 /** The jobs of the agreeing functions: each one's reference object by its entry (with the map) or by its name. */
-async function jobsOf(agreeing: readonly { readonly entry: number; readonly name: string }[], chunkAt: ReadonlyMap<number, number>, inputs: ObjdiffInputs, refs: References): Promise<Job[]> {
+async function jobsOf(
+  agreeing: readonly { readonly entry: number; readonly name: string }[],
+  chunkAt: ReadonlyMap<number, number>,
+  inputs: ObjdiffInputs,
+  refs: References,
+): Promise<Job[]> {
   if (refs.inputs === undefined) {
     const index = await symbolIndex(inputs.objectsDir, inputs.linkedObjects);
     return agreeing.map((f, n): Job => {
       const object = objectFor(index, f.name);
       const defs = index.definitions.get(f.name) ?? [];
-      const refused = object !== undefined ? undefined : defs.length === 0 ? 'no reference object defines it' : `it is defined ambiguously (${defs.map((d) => `${d.object} ${d.bind}`).join(', ')})`;
-      return { n, name: f.name, entry: f.entry, chunk: chunkAt.get(f.entry), object, ...(refused === undefined ? {} : { refused }) };
+      const refused =
+        object !== undefined
+          ? undefined
+          : defs.length === 0
+            ? 'no reference object defines it'
+            : `it is defined ambiguously (${defs.map((d) => `${d.object} ${d.bind}`).join(', ')})`;
+      return {
+        n,
+        name: f.name,
+        entry: f.entry,
+        chunk: chunkAt.get(f.entry),
+        object,
+        ...(refused === undefined ? {} : { refused }),
+      };
     });
   }
   const linked = refs.inputs;
@@ -939,10 +1128,26 @@ async function jobsOf(agreeing: readonly { readonly entry: number; readonly name
     agreeing.map(async (f, n): Promise<Job> => {
       const chunk = chunkAt.get(f.entry);
       const input = inputAt(linked, f.entry);
-      if (input === undefined) return { n, name: f.name, entry: f.entry, chunk, object: undefined, refused: 'no object or archive member the map links holds its entry' };
+      if (input === undefined)
+        return {
+          n,
+          name: f.name,
+          entry: f.entry,
+          chunk,
+          object: undefined,
+          refused: 'no object or archive member the map links holds its entry',
+        };
       const named = (await refs.naming(input.object))?.get(f.entry);
       const name = named?.defined === true && named.func ? named.name : undefined;
-      if (name === undefined) return { n, name: f.name, entry: f.entry, chunk, object: undefined, refused: `${input.object} defines no function at ${input.section} + 0x${(f.entry - input.start).toString(16)}` };
+      if (name === undefined)
+        return {
+          n,
+          name: f.name,
+          entry: f.entry,
+          chunk,
+          object: undefined,
+          refused: `${input.object} defines no function at ${input.section} + 0x${(f.entry - input.start).toString(16)}`,
+        };
       return { n, name, entry: f.entry, chunk, object: input.object };
     }),
   );
@@ -950,8 +1155,16 @@ async function jobsOf(agreeing: readonly { readonly entry: number; readonly name
 
 /** Why a job is not compared at all: no reference object holds it, or the model has no chunk at its entry. */
 function unpairable(job: Job): Failure | undefined {
-  if (job.refused !== undefined || job.object === undefined) return { name: job.name, failure: { kind: 'missing-symbol', detail: job.refused ?? 'no reference object defines it' } };
-  if (job.chunk === undefined) return { name: job.name, failure: { kind: 'missing-symbol', detail: 'the model has no function chunk at its entry' } };
+  if (job.refused !== undefined || job.object === undefined)
+    return {
+      name: job.name,
+      failure: { kind: 'missing-symbol', detail: job.refused ?? 'no reference object defines it' },
+    };
+  if (job.chunk === undefined)
+    return {
+      name: job.name,
+      failure: { kind: 'missing-symbol', detail: 'the model has no function chunk at its entry' },
+    };
   return undefined;
 }
 
@@ -974,7 +1187,12 @@ export async function compareFunctions(inputs: ObjdiffInputs): Promise<ComparedF
   const dir = await mkdtemp(join(tmpdir(), 'romlift-objdiff-'));
   try {
     const refs = await references(inputs, tools, dir);
-    const jobs = await jobsOf(agreeing.map(({ found: f, elf }) => ({ entry: f.entry, name: names.get(f.entry) ?? elf.name })), chunkAt, inputs, refs);
+    const jobs = await jobsOf(
+      agreeing.map(({ found: f, elf }) => ({ entry: f.entry, name: names.get(f.entry) ?? elf.name })),
+      chunkAt,
+      inputs,
+      refs,
+    );
     const out = new Map<number, ComparedFunction>();
     const groups = new Map<string, Job[]>();
     for (const job of jobs) {
@@ -983,12 +1201,18 @@ export async function compareFunctions(inputs: ObjdiffInputs): Promise<ComparedF
       else if (job.object !== undefined) groups.set(job.object, [...(groups.get(job.object) ?? []), job]);
     }
     const cx: Context = { inputs, model, tools, dir, references: refs, labelByName };
-    const ordered = [...groups.keys()].sort(compareCodeUnits).map((object): Group => ({ object, jobs: groups.get(object) ?? [] }));
-    const results = await pooled(ordered, inputs.concurrency ?? availableParallelism(), (group) => compareGroup(group, cx));
-    ordered.forEach((group, g) => group.jobs.forEach((job, i) => {
-      const c = results[g]?.[i];
-      if (c !== undefined) out.set(job.n, c);
-    }));
+    const ordered = [...groups.keys()]
+      .sort(compareCodeUnits)
+      .map((object): Group => ({ object, jobs: groups.get(object) ?? [] }));
+    const results = await pooled(ordered, inputs.concurrency ?? availableParallelism(), (group) =>
+      compareGroup(group, cx),
+    );
+    ordered.forEach((group, g) =>
+      group.jobs.forEach((job, i) => {
+        const c = results[g]?.[i];
+        if (c !== undefined) out.set(job.n, c);
+      }),
+    );
     return jobs.map((job) => out.get(job.n) ?? { name: job.name, failure: { kind: 'tool', detail: 'not compared' } });
   } finally {
     await rm(dir, { recursive: true, force: true });

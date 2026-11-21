@@ -9,11 +9,10 @@
 // with addresses as "0x..." strings (numbers are accepted, as the gate accepts them). The entries are
 // every FUNC symbol of the fixture's ELF inside the ROM, the two startup functions of common/crt0.s
 // included: the gate allows a negative fixture no entry beyond its list.
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-import { romFromBytes, type AnalysisResult, type Rom } from 'romlift';
+import { type AnalysisResult, type Rom, romFromBytes } from 'romlift';
 import { sha1Of } from 'romlift/node';
 
 export type FixtureMode = 'thumb' | 'arm';
@@ -86,7 +85,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function address(value: unknown, where: string): number {
-  const n = typeof value === 'number' ? value : typeof value === 'string' && /^0x[0-9A-Fa-f]+$/.test(value) ? Number(value) : Number.NaN;
+  const n =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && /^0x[0-9A-Fa-f]+$/.test(value)
+        ? Number(value)
+        : Number.NaN;
   if (!Number.isInteger(n) || n < 0) throw new Error(`${where}: '${String(value)}' is not an address`);
   return n;
 }
@@ -123,7 +127,8 @@ export function parseExpect(text: string, where: string): FixtureExpect {
     return { addr, mode, extent: { start, end } };
   });
   for (let i = 1; i < entries.length; i++) {
-    if ((entries[i - 1]?.addr ?? 0) >= (entries[i]?.addr ?? 0)) throw new Error(`${where}: entries are not in ascending address order`);
+    if ((entries[i - 1]?.addr ?? 0) >= (entries[i]?.addr ?? 0))
+      throw new Error(`${where}: entries are not in ascending address order`);
   }
   const code = value['codeEnd'];
   const base = { negative: negative === true, entries };
@@ -148,7 +153,10 @@ const hex = (a: number): string => `0x${a.toString(16).toUpperCase().padStart(8,
  * in another mode or with another extent, another code end, and on a negative fixture every entry
  * beyond the list. Empty when the expectation holds.
  */
-export function expectProblems(expect: FixtureExpect, result: Pick<AnalysisResult, 'functions' | 'codeEnd'>): readonly string[] {
+export function expectProblems(
+  expect: FixtureExpect,
+  result: Pick<AnalysisResult, 'functions' | 'codeEnd'>,
+): readonly string[] {
   const problems: string[] = [];
   const found = new Map(result.functions.map((f) => [f.entry, f] as const));
   for (const e of expect.entries) {
@@ -156,10 +164,13 @@ export function expectProblems(expect: FixtureExpect, result: Pick<AnalysisResul
     if (f === undefined) problems.push(`missed ${hex(e.addr)}`);
     else if (f.mode !== e.mode) problems.push(`${hex(e.addr)} is ${f.mode}, expected ${e.mode}`);
     else if (e.extent !== undefined && (f.extent.start !== e.extent.start || f.extent.end !== e.extent.end)) {
-      problems.push(`${hex(e.addr)} extent [${hex(f.extent.start)}, ${hex(f.extent.end)}), expected [${hex(e.extent.start)}, ${hex(e.extent.end)})`);
+      problems.push(
+        `${hex(e.addr)} extent [${hex(f.extent.start)}, ${hex(f.extent.end)}), expected [${hex(e.extent.start)}, ${hex(e.extent.end)})`,
+      );
     }
   }
-  if (expect.codeEnd !== undefined && result.codeEnd !== expect.codeEnd) problems.push(`code end ${hex(result.codeEnd)}, expected ${hex(expect.codeEnd)}`);
+  if (expect.codeEnd !== undefined && result.codeEnd !== expect.codeEnd)
+    problems.push(`code end ${hex(result.codeEnd)}, expected ${hex(expect.codeEnd)}`);
   if (expect.negative) {
     const listed = new Set(expect.entries.map((e) => e.addr));
     for (const f of result.functions) if (!listed.has(f.entry)) problems.push(`extra entry ${hex(f.entry)}`);

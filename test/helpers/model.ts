@@ -3,14 +3,23 @@
 // romWith), modules made of chunks made of items, and the labels a test names. Spans are derived from the
 // items: a chunk spans its items, a module its chunks. Nothing here checks the tiling; a test that wants a
 // broken model builds one.
-import type { Insn } from '../../src/foundation/isa/types.ts';
+import { itemTableBuilder } from '../../src/core/model/item-table.ts';
+import type { ItemInput } from '../../src/core/model/item-table.ts';
+import type {
+  Chunk,
+  ChunkKind,
+  Label,
+  LabelKind,
+  Model,
+  ModelFunction,
+  ModelSymbol,
+  Module,
+} from '../../src/core/model/types.ts';
 import { decode, thumbWordAt } from '../../src/foundation/isa/decode.ts';
+import type { Insn } from '../../src/foundation/isa/types.ts';
 import { u32 } from '../../src/foundation/rom/rom.ts';
 import type { Rom } from '../../src/foundation/rom/rom.ts';
 import type { Addr, Mode } from '../../src/foundation/rom/span.ts';
-import { itemTableBuilder } from '../../src/core/model/item-table.ts';
-import type { ItemInput } from '../../src/core/model/item-table.ts';
-import type { Chunk, ChunkKind, Label, LabelKind, Model, ModelFunction, ModelSymbol, Module } from '../../src/core/model/types.ts';
 
 export { romWith, words } from './analysis.ts';
 export type { ItemInput } from '../../src/core/model/item-table.ts';
@@ -65,7 +74,10 @@ function endOf(item: ItemInput): Addr {
   }
 }
 
-function byAddrThenName(a: { readonly addr: Addr; readonly name: string }, b: { readonly addr: Addr; readonly name: string }): number {
+function byAddrThenName(
+  a: { readonly addr: Addr; readonly name: string },
+  b: { readonly addr: Addr; readonly name: string },
+): number {
   return a.addr - b.addr || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
 }
 
@@ -127,7 +139,11 @@ export function modelOf(rom: Rom, spec: ModelSpec): Model {
 }
 
 /** A label; default kind 'func', Thumb, module scope. */
-export function label(name: string, addr: Addr, opts: { readonly kind?: LabelKind; readonly thumb?: boolean; readonly scope?: Label['scope'] } = {}): Label {
+export function label(
+  name: string,
+  addr: Addr,
+  opts: { readonly kind?: LabelKind; readonly thumb?: boolean; readonly scope?: Label['scope'] } = {},
+): Label {
   return { addr, name, kind: opts.kind ?? 'func', thumb: opts.thumb ?? true, scope: opts.scope ?? 'module' };
 }
 

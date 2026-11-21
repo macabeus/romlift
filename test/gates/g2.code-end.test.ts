@@ -6,7 +6,7 @@
 //   committed file. Per tuning ROM in `roms[]` this gate reads
 //     name
 //     codeEnd: {found, elf, delta}   hex addresses; delta = found - elf in bytes (may be negative)
-import { gate, type ExecResult } from './gate.ts';
+import { type ExecResult, gate } from './gate.ts';
 
 interface BenchRunRom {
   readonly name: string;
@@ -44,7 +44,8 @@ gate({
         continue;
       }
       const { found, elf, delta } = rom.codeEnd;
-      if (!Number.isFinite(delta) || Math.abs(delta) > MAX_DELTA) problems.push(`${rom.name}: code end ${found}, the ELF's ${elf} (delta ${delta} bytes)`);
+      if (!Number.isFinite(delta) || Math.abs(delta) > MAX_DELTA)
+        problems.push(`${rom.name}: code end ${found}, the ELF's ${elf} (delta ${delta} bytes)`);
       notes.push(`${rom.name} ${delta}`);
     }
     if (problems.length > 0) throw new Error(`code end beyond 16 bytes: ${problems.join('; ')}`);

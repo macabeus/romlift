@@ -15,13 +15,13 @@ interface RegisteredRule {
 
 type Rules = Readonly<Record<string, RegisteredRule>>;
 
-
 /** The ids of a closed vocabulary, whichever of the three shapes it has. */
 function idsOf(name: string, value: unknown): readonly string[] {
   if (Array.isArray(value)) {
     return (value as readonly unknown[]).map((item) => {
       if (typeof item === 'string') return item;
-      if (typeof item === 'object' && item !== null && typeof (item as { id?: unknown }).id === 'string') return (item as { id: string }).id;
+      if (typeof item === 'object' && item !== null && typeof (item as { id?: unknown }).id === 'string')
+        return (item as { id: string }).id;
       throw new Error(`${name} holds an entry that is neither an id nor {id}`);
     });
   }

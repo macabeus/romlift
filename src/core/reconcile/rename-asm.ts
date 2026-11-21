@@ -32,7 +32,10 @@ function opensLine(text: string, i: number): boolean {
 }
 
 /** The symbol tokens of `text` equal to `name`, as [start, end) offsets, in text order. */
-export function asmSymbolTokens(text: string, name: string): readonly { readonly start: number; readonly end: number }[] {
+export function asmSymbolTokens(
+  text: string,
+  name: string,
+): readonly { readonly start: number; readonly end: number }[] {
   const out: { start: number; end: number }[] = [];
   let i = 0;
   while (i < text.length) {
@@ -67,5 +70,10 @@ export function asmSymbolTokens(text: string, name: string): readonly { readonly
  */
 export function renameAsmIdentifiers(text: string, from: string, to: string): readonly TextEdit[] {
   if (from === to || from === '') return [];
-  return asmSymbolTokens(text, from).map((t) => ({ start: t.start, end: t.end, text: to, reason: 'rename-identifier' }));
+  return asmSymbolTokens(text, from).map((t) => ({
+    start: t.start,
+    end: t.end,
+    text: to,
+    reason: 'rename-identifier',
+  }));
 }

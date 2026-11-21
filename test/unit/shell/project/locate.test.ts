@@ -37,16 +37,28 @@ test('the nearest decomp.yaml above the start wins', async () => {
   await mkdir(join(root, 'project/inner/tools'), { recursive: true });
   await writeFile(join(root, 'project/decomp.yaml'), 'name: outer\n');
   await writeFile(join(root, 'project/inner/decomp.yaml'), 'name: inner\n');
-  assert.deepEqual(await locateProject(join(root, 'project/src/deep/er')), { ok: true, value: { dir: join(root, 'project'), decompYaml: join(root, 'project/decomp.yaml') } });
-  assert.deepEqual(await locateProject(join(root, 'project')), { ok: true, value: { dir: join(root, 'project'), decompYaml: join(root, 'project/decomp.yaml') } });
-  assert.deepEqual(await locateProject(join(root, 'project/inner/tools')), { ok: true, value: { dir: join(root, 'project/inner'), decompYaml: join(root, 'project/inner/decomp.yaml') } });
+  assert.deepEqual(await locateProject(join(root, 'project/src/deep/er')), {
+    ok: true,
+    value: { dir: join(root, 'project'), decompYaml: join(root, 'project/decomp.yaml') },
+  });
+  assert.deepEqual(await locateProject(join(root, 'project')), {
+    ok: true,
+    value: { dir: join(root, 'project'), decompYaml: join(root, 'project/decomp.yaml') },
+  });
+  assert.deepEqual(await locateProject(join(root, 'project/inner/tools')), {
+    ok: true,
+    value: { dir: join(root, 'project/inner'), decompYaml: join(root, 'project/inner/decomp.yaml') },
+  });
 });
 
 test('decomp.yml is the second name; a directory called decomp.yaml is not a file', async () => {
   const root = await tempRoot();
   await mkdir(join(root, 'a/decomp.yaml'), { recursive: true });
   await writeFile(join(root, 'a/decomp.yml'), 'name: yml\n');
-  assert.deepEqual(await locateProject(join(root, 'a')), { ok: true, value: { dir: join(root, 'a'), decompYaml: join(root, 'a/decomp.yml') } });
+  assert.deepEqual(await locateProject(join(root, 'a')), {
+    ok: true,
+    value: { dir: join(root, 'a'), decompYaml: join(root, 'a/decomp.yml') },
+  });
   await writeFile(join(root, 'decomp.yaml'), 'name: both\n');
   await writeFile(join(root, 'decomp.yml'), 'name: both\n');
   assert.deepEqual(await decompYamlIn(root), { ok: true, path: join(root, 'decomp.yaml') });
@@ -62,10 +74,13 @@ test('no decomp.yaml up to the root is E_PROJECT_NOT_FOUND', async (t) => {
   await mkdir(join(root, 'empty/sub'), { recursive: true });
   const found = await locateProject(join(root, 'empty/sub'));
   assert.equal(found.ok, false);
-  assert.deepEqual(
-    found.ok ? [] : found.diagnostics.map((d) => [d.code, d.message, d.path]),
-    [['E_PROJECT_NOT_FOUND', `no decomp.yaml in ${join(root, 'empty/sub')} or any parent directory; run \`romlift init <rom>\` to create a project`, join(root, 'empty/sub')]],
-  );
+  assert.deepEqual(found.ok ? [] : found.diagnostics.map((d) => [d.code, d.message, d.path]), [
+    [
+      'E_PROJECT_NOT_FOUND',
+      `no decomp.yaml in ${join(root, 'empty/sub')} or any parent directory; run \`romlift init <rom>\` to create a project`,
+      join(root, 'empty/sub'),
+    ],
+  ]);
 });
 
 test('a relative start is resolved from the working directory', async () => {
@@ -81,7 +96,11 @@ test('a git worktree of a project finds its own decomp.yaml', { skip: !hasGit() 
   await writeFile(join(main, 'decomp.yaml'), 'name: main\n');
   await writeFile(join(main, 'src/main.c'), '\n');
   const git = (cwd: string, ...args: string[]): void => {
-    execFileSync('git', ['-c', 'user.name=romlift', '-c', 'user.email=romlift@example.invalid', '-c', 'commit.gpgsign=false', ...args], { cwd, stdio: 'ignore' });
+    execFileSync(
+      'git',
+      ['-c', 'user.name=romlift', '-c', 'user.email=romlift@example.invalid', '-c', 'commit.gpgsign=false', ...args],
+      { cwd, stdio: 'ignore' },
+    );
   };
   git(main, 'init', '-q');
   git(main, 'add', '.');

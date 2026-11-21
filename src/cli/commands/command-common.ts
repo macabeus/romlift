@@ -5,9 +5,9 @@
 import type { Provenance } from '../../api/profile.ts';
 import { hexAddr } from '../../api/rom.ts';
 import type { Diagnostic, Span } from '../../api/rom.ts';
-import { VerifyCodes } from '../../core/diagnostic-codes.ts';
 import type { VerifyReport } from '../../api/verify.ts';
 import type { WriteOp } from '../../api/write-plan.ts';
+import { VerifyCodes } from '../../core/diagnostic-codes.ts';
 import { ExitCode } from '../exit-codes.ts';
 import type { RunSummary } from '../exit-codes.ts';
 import { PROGRAM } from '../registry.ts';
@@ -24,11 +24,16 @@ export const VERIFY_CODES: ReadonlySet<string> = new Set(Object.keys(VerifyCodes
  * model is wrong), else 3 (a self-check failed; also when nothing says why, since only a check refuses silently).
  */
 export function refusedExitCode(diagnostics: readonly Diagnostic[]): ExitCode {
-  return diagnostics.some((d) => d.severity === 'error' && !VERIFY_CODES.has(d.code)) ? ExitCode.errors : ExitCode.verifyFailed;
+  return diagnostics.some((d) => d.severity === 'error' && !VERIFY_CODES.has(d.code))
+    ? ExitCode.errors
+    : ExitCode.verifyFailed;
 }
 
 /** Every diagnostic of a checked run: the analysis and model ones, then each check's, in report order. */
-export function allDiagnostics(outcome: { readonly report: VerifyReport; readonly diagnostics: readonly Diagnostic[] }): readonly Diagnostic[] {
+export function allDiagnostics(outcome: {
+  readonly report: VerifyReport;
+  readonly diagnostics: readonly Diagnostic[];
+}): readonly Diagnostic[] {
   return [...outcome.diagnostics, ...outcome.report.checks.flatMap((c) => c.diagnostics)];
 }
 
@@ -37,7 +42,10 @@ export function allDiagnostics(outcome: { readonly report: VerifyReport; readonl
  * self-check's (the input, the model or the toolchain is wrong), else 3 when a check failed, else 0 (architecture
  * §2.1, D33). The diagnostics are allDiagnostics'.
  */
-export function verifyExitCode(outcome: { readonly report: VerifyReport; readonly diagnostics: readonly Diagnostic[] }): ExitCode {
+export function verifyExitCode(outcome: {
+  readonly report: VerifyReport;
+  readonly diagnostics: readonly Diagnostic[];
+}): ExitCode {
   if (allDiagnostics(outcome).some((d) => d.severity === 'error' && !VERIFY_CODES.has(d.code))) return ExitCode.errors;
   return outcome.report.ok ? ExitCode.ok : ExitCode.verifyFailed;
 }
@@ -71,7 +79,13 @@ export function provenanceJson(p: Provenance): RecordFields {
 }
 
 /** Prints a failure that happened before any analysis (the ROM could not be read). */
-export function printDiagnosticsOnly(io: CliIo, json: boolean, command: string, diagnostics: readonly Diagnostic[], summary: RunSummary): void {
+export function printDiagnosticsOnly(
+  io: CliIo,
+  json: boolean,
+  command: string,
+  diagnostics: readonly Diagnostic[],
+  summary: RunSummary,
+): void {
   if (json) {
     io.stdout([...diagnostics.map(diagnosticLine), summaryLine(summary)].join(''));
     return;

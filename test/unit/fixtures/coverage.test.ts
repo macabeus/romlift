@@ -11,12 +11,18 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-
-import { isRuleId, profileById, type AnalysisOptions, type CompilerProfile, type RuleId } from 'romlift';
-import { analyzeTuned, DEFAULT_TUNING, RULES } from 'romlift/internal';
+import { type AnalysisOptions, type CompilerProfile, type RuleId, isRuleId, profileById } from 'romlift';
+import { DEFAULT_TUNING, RULES, analyzeTuned } from 'romlift/internal';
 
 import { decisionSink, outcomeOf } from '../../../bench/src/ablate.ts';
-import { expectProblems, listSyntheticFixtures, readExpect, readFixtureRom, SYNTHETIC_ROOT, type SyntheticFixture } from '../../helpers/fixtures.ts';
+import {
+  SYNTHETIC_ROOT,
+  type SyntheticFixture,
+  expectProblems,
+  listSyntheticFixtures,
+  readExpect,
+  readFixtureRom,
+} from '../../helpers/fixtures.ts';
 
 interface Coverage {
   /** A fixture whose expect.json fails with the rule disabled. */
@@ -90,7 +96,6 @@ const EXEMPT: readonly RuleId[] = [
   'valid.in-rom-unclaimed',
 ];
 
-
 const FIXTURES = listSyntheticFixtures();
 const OPTIONS: AnalysisOptions = { mode: 'discover', seeds: [], overrides: [], trail: 'off' };
 const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
@@ -127,7 +132,7 @@ test('every rule of RULES is load-bearing on a named fixture or exempted by D57,
   assert.deepEqual(listed, ids);
 });
 
-test('disabling a covered rule makes its fixture\'s expect.json fail', () => {
+test("disabling a covered rule makes its fixture's expect.json fail", () => {
   const profile = agbcc();
   for (const { rule, fixture: name } of covered()) {
     const f = fixture(name);
@@ -159,5 +164,6 @@ test('D57 names every exempted rule with g2.rule-coverage, and no covered rule',
   const d57 = sections.find((s) => s.startsWith('D57.'));
   assert.ok(d57 !== undefined, 'D57 names g2.rule-coverage');
   for (const id of EXEMPT) assert.ok(d57.includes(`\`${id}\``), id);
-  for (const id of Object.keys(COVERAGE)) assert.ok(!sections.some((s) => s.includes(`\`${id}\``)), `${id} is load-bearing and must not be exempted`);
+  for (const id of Object.keys(COVERAGE))
+    assert.ok(!sections.some((s) => s.includes(`\`${id}\``)), `${id} is load-bearing and must not be exempted`);
 });

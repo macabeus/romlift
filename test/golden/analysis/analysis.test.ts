@@ -4,14 +4,14 @@
 // these files before buildModel exists, and a rule change shows up here as a diff. UPDATE_GOLDEN=1
 // rewrites them and removes a file no fixture produces; the diff is the review.
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { decodeAnalysis, encodeAnalysis } from '../../../src/core/analysis/codec.ts';
-import { discover } from '../../../src/core/workflow/discover.ts';
 import { profileById } from '../../../src/core/profile/registry.ts';
+import { discover } from '../../../src/core/workflow/discover.ts';
 import { listSyntheticFixtures, readFixtureRom } from '../../helpers/fixtures.ts';
 
 const DIR = fileURLToPath(new URL('./', import.meta.url));

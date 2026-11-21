@@ -4,7 +4,7 @@
 // module-scoped (printed with the _local macros), as static functions repeat in real decomps; a repeated name
 // one of whose labels is referenced from another module, or a name used twice inside one module, is
 // E_NAME_COLLISION.
-import { isModuleName, isSymbolName, MODULE_NAME_RULE, SYMBOL_NAME_RULE } from '../../foundation/asm/dialect.ts';
+import { MODULE_NAME_RULE, SYMBOL_NAME_RULE, isModuleName, isSymbolName } from '../../foundation/asm/dialect.ts';
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
@@ -13,9 +13,9 @@ import { hexAddr } from '../../foundation/util/hex.ts';
 import { defaultFunctionName } from '../../foundation/util/project-files.ts';
 import { compareCodeUnits, compareNumbers } from '../../foundation/util/sorted.ts';
 import type { FunctionConfig } from '../config/schema.ts';
-import { ModelCodes } from './codes.ts';
 import { cDataName, cRodataName } from './c-data-assert.ts';
-import { linkerDefinedNames, moduleIndexAt, relocatedModules, ROM_SECTION, runSectionOf } from './modules.ts';
+import { ModelCodes } from './codes.ts';
+import { ROM_SECTION, linkerDefinedNames, moduleIndexAt, relocatedModules, runSectionOf } from './modules.ts';
 import type { Label, Module, NameSource } from './types.ts';
 
 /** The name of the cartridge header's chunk and label. */
@@ -64,13 +64,24 @@ export function nameCollisions(names: readonly DefinedName[], modules: readonly 
   const out: Diagnostic[] = [];
   const relocated = relocatedModules(modules);
   for (const name of repeated.sort(compareCodeUnits)) {
-    const sorted = [...(uses.get(name) ?? [])].sort((a, b) => compareNumbers(a.addr, b.addr)).map((u) => ({ ...u, module: moduleIndexAt(modules, u.addr, relocated) }));
+    const sorted = [...(uses.get(name) ?? [])]
+      .sort((a, b) => compareNumbers(a.addr, b.addr))
+      .map((u) => ({ ...u, module: moduleIndexAt(modules, u.addr, relocated) }));
     const sameModule = sorted.some((u, i) => sorted.some((v, j) => j > i && v.module === u.module));
-    const crossGlobal = sorted.some((u, i) => sorted.some((v, j) => j > i && v.module !== u.module && (u.scope === 'global' || v.scope === 'global')));
+    const crossGlobal = sorted.some((u, i) =>
+      sorted.some((v, j) => j > i && v.module !== u.module && (u.scope === 'global' || v.scope === 'global')),
+    );
     if (!sameModule && !crossGlobal) continue;
-    const where = sorted.map((u) => `${hexAddr(u.addr)} (${moduleName(modules, u.module)}${u.scope === 'global' ? ', global' : ''})`).join(', ');
+    const where = sorted
+      .map((u) => `${hexAddr(u.addr)} (${moduleName(modules, u.module)}${u.scope === 'global' ? ', global' : ''})`)
+      .join(', ');
     const why = sameModule ? 'twice in one module' : 'in two modules, one of them referenced from another module';
-    out.push(diagnostic(ModelCodes, 'E_NAME_COLLISION', `the name ${name} is used ${why}: ${where}`, { addr: sorted[0]?.addr ?? 0, cites: sorted.slice(0, 4).map((u) => u.addr) }));
+    out.push(
+      diagnostic(ModelCodes, 'E_NAME_COLLISION', `the name ${name} is used ${why}: ${where}`, {
+        addr: sorted[0]?.addr ?? 0,
+        cites: sorted.slice(0, 4).map((u) => u.addr),
+      }),
+    );
   }
   return out;
 }
@@ -81,7 +92,10 @@ export function nameCollisions(names: readonly DefinedName[], modules: readonly 
  * label, so the tree would link to other bytes; `generate` refuses it here, and `rename` refuses it as a model name
  * (correctness-r1-2). Once per name, by name.
  */
-export function linkerNameCollisions(names: readonly { readonly name: string; readonly addr: Addr }[], modules: readonly Module[]): Diagnostic[] {
+export function linkerNameCollisions(
+  names: readonly { readonly name: string; readonly addr: Addr }[],
+  modules: readonly Module[],
+): Diagnostic[] {
   const reserved = new Map(linkerDefinedNames(modules).map((d) => [d.name, d.module] as const));
   const seen = new Set<string>();
   const out: Diagnostic[] = [];
@@ -89,7 +103,14 @@ export function linkerNameCollisions(names: readonly { readonly name: string; re
     const module = reserved.get(n.name);
     if (module === undefined || seen.has(n.name)) continue;
     seen.add(n.name);
-    out.push(diagnostic(ModelCodes, 'E_NAME_COLLISION', `the name ${n.name} at ${hexAddr(n.addr)} is the symbol ldscript.txt defines as the load address of runs_at module ${module.name} (${n.name} = LOADADDR(.${module.name}))`, { addr: n.addr, cites: [module.span.start] }));
+    out.push(
+      diagnostic(
+        ModelCodes,
+        'E_NAME_COLLISION',
+        `the name ${n.name} at ${hexAddr(n.addr)} is the symbol ldscript.txt defines as the load address of runs_at module ${module.name} (${n.name} = LOADADDR(.${module.name}))`,
+        { addr: n.addr, cites: [module.span.start] },
+      ),
+    );
   }
   return out;
 }
@@ -101,8 +122,10 @@ export function linkerNameCollisions(names: readonly { readonly name: string; re
  * other section's load address and the tree would link to other bytes, or the script would not parse
  * (correctness-r2-1). A module name holds no `.`, so no `.text.<module>` section can be one. In ROM order.
  */
-export function sectionNameCollisions(modules: readonly Pick<Module, 'name' | 'kind' | 'span' | 'runAt' | 'dataRange'>[]): Diagnostic[] {
-  const reserved = new Map<string, string>([[ROM_SECTION, 'the section of the ROM\'s first units']]);
+export function sectionNameCollisions(
+  modules: readonly Pick<Module, 'name' | 'kind' | 'span' | 'runAt' | 'dataRange'>[],
+): Diagnostic[] {
+  const reserved = new Map<string, string>([[ROM_SECTION, "the section of the ROM's first units"]]);
   for (const m of modules) {
     if (m.kind !== 'c') continue;
     reserved.set(cDataName(m.name), `the data check section of c module ${m.name}`);
@@ -114,7 +137,14 @@ export function sectionNameCollisions(modules: readonly Pick<Module, 'name' | 'k
     const section = runSectionOf(m);
     const other = reserved.get(section);
     if (other === undefined) continue;
-    out.push(diagnostic(ModelCodes, 'E_NAME_COLLISION', `the runs_at module ${m.name} at ${hexAddr(m.span.start)} would be ldscript.txt's section ${section}, which is ${other}; rename the module`, { addr: m.span.start }));
+    out.push(
+      diagnostic(
+        ModelCodes,
+        'E_NAME_COLLISION',
+        `the runs_at module ${m.name} at ${hexAddr(m.span.start)} would be ldscript.txt's section ${section}, which is ${other}; rename the module`,
+        { addr: m.span.start },
+      ),
+    );
   }
   return out;
 }
@@ -131,7 +161,14 @@ export function invalidNames(names: readonly { readonly name: string; readonly a
     const key = `${String(n.addr)}:${n.name}`;
     if (isSymbolName(n.name) || seen.has(key)) continue;
     seen.add(key);
-    out.push(diagnostic(ModelCodes, 'E_NAME_INVALID', `the name ${JSON.stringify(n.name)} at ${hexAddr(n.addr)} is not a symbol name (${SYMBOL_NAME_RULE})`, { addr: n.addr }));
+    out.push(
+      diagnostic(
+        ModelCodes,
+        'E_NAME_INVALID',
+        `the name ${JSON.stringify(n.name)} at ${hexAddr(n.addr)} is not a symbol name (${SYMBOL_NAME_RULE})`,
+        { addr: n.addr },
+      ),
+    );
   }
   return out;
 }
@@ -148,7 +185,14 @@ export function moduleNameProblems(modules: readonly Pick<Module, 'name' | 'span
   const out: Diagnostic[] = [];
   for (const m of modules) {
     if (!isModuleName(m.name)) {
-      out.push(diagnostic(ModelCodes, 'E_NAME_INVALID', `the module name ${JSON.stringify(m.name)} at ${hexAddr(m.span.start)} is not a module name (${MODULE_NAME_RULE})`, { addr: m.span.start }));
+      out.push(
+        diagnostic(
+          ModelCodes,
+          'E_NAME_INVALID',
+          `the module name ${JSON.stringify(m.name)} at ${hexAddr(m.span.start)} is not a module name (${MODULE_NAME_RULE})`,
+          { addr: m.span.start },
+        ),
+      );
       continue;
     }
     const first = seen.get(foldPath(m.name));
@@ -156,12 +200,20 @@ export function moduleNameProblems(modules: readonly Pick<Module, 'name' | 'span
       seen.set(foldPath(m.name), m);
       continue;
     }
-    const same = first.name === m.name ? `the name ${m.name}` : `the names ${first.name} and ${m.name}, one on a case-insensitive file system`;
+    const same =
+      first.name === m.name
+        ? `the name ${m.name}`
+        : `the names ${first.name} and ${m.name}, one on a case-insensitive file system`;
     out.push(
-      diagnostic(ModelCodes, 'E_MODULE_NAME_DUPLICATE', `the modules at ${hexAddr(first.span.start)} and ${hexAddr(m.span.start)} share ${same}, so both build build/${m.name}.o`, {
-        addr: m.span.start,
-        cites: [first.span.start],
-      }),
+      diagnostic(
+        ModelCodes,
+        'E_MODULE_NAME_DUPLICATE',
+        `the modules at ${hexAddr(first.span.start)} and ${hexAddr(m.span.start)} share ${same}, so both build build/${m.name}.o`,
+        {
+          addr: m.span.start,
+          cites: [first.span.start],
+        },
+      ),
     );
   }
   return out;

@@ -16,23 +16,22 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-
 import {
+  type FileEntry,
+  ItemKind,
+  type Model,
+  type Printer,
+  type Rom,
+  type VerifyReport,
   analyze,
   buildModel,
   buildUnits,
   checkEntries,
   configFromDiscover,
   emitTree,
-  ItemKind,
   profileById,
   romFromBytes,
   verifyModel,
-  type FileEntry,
-  type Model,
-  type Printer,
-  type Rom,
-  type VerifyReport,
 } from 'romlift';
 import { findBinutils, linkCheck, sha1Of } from 'romlift/node';
 
@@ -57,7 +56,13 @@ const ms = (started: bigint): number => Math.round(Number(process.hrtime.bigint(
 function failures(report: VerifyReport): string {
   return report.checks
     .filter((c) => !c.ok)
-    .map((c) => `${c.id}: ${c.detail} ${c.diagnostics.slice(0, 5).map((d) => d.message).join('; ')}`)
+    .map(
+      (c) =>
+        `${c.id}: ${c.detail} ${c.diagnostics
+          .slice(0, 5)
+          .map((d) => d.message)
+          .join('; ')}`,
+    )
     .join(' | ');
 }
 
@@ -103,41 +108,52 @@ async function runPrinter(name: string, rom: Rom, model: Model, printer: Printer
 }
 
 for (const name of TUNING) {
-  const dataset = JSON.parse(readFileSync(path.join(REPO, 'bench', 'dataset', 'real', `${name}.json`), 'utf8')) as { readonly rom: string; readonly sha1: string };
+  const dataset = JSON.parse(readFileSync(path.join(REPO, 'bench', 'dataset', 'real', `${name}.json`), 'utf8')) as {
+    readonly rom: string;
+    readonly sha1: string;
+  };
   const romPath = path.join(BENCH_ROOT, dataset.rom);
-  const unavailable = !existsSync(romPath) ? `unavailable: rom ${romPath}` : 'code' in tools ? `unavailable: ${tools.message}` : undefined;
+  const unavailable = !existsSync(romPath)
+    ? `unavailable: rom ${romPath}`
+    : 'code' in tools
+      ? `unavailable: ${tools.message}`
+      : undefined;
 
-  test(`emission on ${name}: self-checks, text layout, raw and readable links reproduce the SHA-1`, { skip: REQUIRE ? false : (unavailable ?? false) }, async (t) => {
-    assert.equal(unavailable, undefined, unavailable);
-    const bytes = new Uint8Array(readFileSync(romPath));
-    const sha1 = sha1Of(bytes);
-    assert.equal(sha1, dataset.sha1, `${romPath} is not the dataset's ROM`);
-    const rom = romFromBytes(bytes, sha1);
+  test(
+    `emission on ${name}: self-checks, text layout, raw and readable links reproduce the SHA-1`,
+    { skip: REQUIRE ? false : (unavailable ?? false) },
+    async (t) => {
+      assert.equal(unavailable, undefined, unavailable);
+      const bytes = new Uint8Array(readFileSync(romPath));
+      const sha1 = sha1Of(bytes);
+      assert.equal(sha1, dataset.sha1, `${romPath} is not the dataset's ROM`);
+      const rom = romFromBytes(bytes, sha1);
 
-    const analysisStarted = process.hrtime.bigint();
-    const analysis = analyze(rom, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' });
-    const analysisMs = ms(analysisStarted);
-    const modelStarted = process.hrtime.bigint();
-    const model = buildModel(rom, analysis, configFromDiscover(rom, analysis));
-    const modelMs = ms(modelStarted);
-    const checks = verifyModel(rom, model);
+      const analysisStarted = process.hrtime.bigint();
+      const analysis = analyze(rom, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' });
+      const analysisMs = ms(analysisStarted);
+      const modelStarted = process.hrtime.bigint();
+      const model = buildModel(rom, analysis, configFromDiscover(rom, analysis));
+      const modelMs = ms(modelStarted);
+      const checks = verifyModel(rom, model);
 
-    const results = new Map<Printer, PrinterResult>();
-    for (const printer of PRINTERS) results.set(printer, await runPrinter(name, rom, model, printer));
-    const raw = results.get('raw');
-    const readable = results.get('readable');
-    assert.ok(raw !== undefined && readable !== undefined);
+      const results = new Map<Printer, PrinterResult>();
+      for (const printer of PRINTERS) results.set(printer, await runPrinter(name, rom, model, printer));
+      const raw = results.get('raw');
+      const readable = results.get('readable');
+      assert.ok(raw !== undefined && readable !== undefined);
 
-    t.diagnostic(
-      `${name}: checks ${checks.ok ? 'ok' : 'FAIL'}, text layout raw ${raw.layout.ok ? 'ok' : 'FAIL'} readable ${readable.layout.ok ? 'ok' : 'FAIL'}, ` +
-        `raw link ${raw.sha1 === sha1 ? 'SHA-1' : 'differs'}, readable link ${readable.sha1 === sha1 ? 'SHA-1' : 'differs'}; ` +
-        `${model.items.count} items, ${countKind(model, ItemKind.rawInsn)} raw-insn, ${model.modules.length} modules, ${readable.files} files; ` +
-        `analysis ${analysisMs} ms, model ${modelMs} ms, emit+check raw ${raw.emitMs} ms readable ${readable.emitMs} ms, link raw ${raw.linkMs} ms readable ${readable.linkMs} ms`,
-    );
-    assert.ok(checks.ok, `${name}: ${failures(checks)}`);
-    assert.ok(raw.layout.ok, `${name} (raw): ${failures(raw.layout)}`);
-    assert.ok(readable.layout.ok, `${name} (readable): ${failures(readable.layout)}`);
-    assert.equal(raw.sha1, sha1, `${name}: the raw tree does not link to the ROM: ${raw.detail}`);
-    assert.equal(readable.sha1, sha1, `${name}: the readable tree does not link to the ROM: ${readable.detail}`);
-  });
+      t.diagnostic(
+        `${name}: checks ${checks.ok ? 'ok' : 'FAIL'}, text layout raw ${raw.layout.ok ? 'ok' : 'FAIL'} readable ${readable.layout.ok ? 'ok' : 'FAIL'}, ` +
+          `raw link ${raw.sha1 === sha1 ? 'SHA-1' : 'differs'}, readable link ${readable.sha1 === sha1 ? 'SHA-1' : 'differs'}; ` +
+          `${model.items.count} items, ${countKind(model, ItemKind.rawInsn)} raw-insn, ${model.modules.length} modules, ${readable.files} files; ` +
+          `analysis ${analysisMs} ms, model ${modelMs} ms, emit+check raw ${raw.emitMs} ms readable ${readable.emitMs} ms, link raw ${raw.linkMs} ms readable ${readable.linkMs} ms`,
+      );
+      assert.ok(checks.ok, `${name}: ${failures(checks)}`);
+      assert.ok(raw.layout.ok, `${name} (raw): ${failures(raw.layout)}`);
+      assert.ok(readable.layout.ok, `${name} (readable): ${failures(readable.layout)}`);
+      assert.equal(raw.sha1, sha1, `${name}: the raw tree does not link to the ROM: ${raw.detail}`);
+      assert.equal(readable.sha1, sha1, `${name}: the readable tree does not link to the ROM: ${readable.detail}`);
+    },
+  );
 }

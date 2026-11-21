@@ -4,8 +4,9 @@
 // lock file's `packages` without `dev: true`, each directory resolved from the repository root and
 // checked against the package names of `npm ls --all --omit=dev --json`; paths npm prints are never
 // trusted (npm 11 redacts UUID-like path segments in --parseable output).
-import { readdir, readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
+
 import { type ExecResult, byCodeUnit, gate } from './gate.ts';
 
 const EXPECTED = ['@match-kit/decomp-yaml', 'smol-toml', 'zod'] as const;
@@ -41,7 +42,6 @@ interface PackageJson {
   readonly gypfile?: boolean;
 }
 
-
 function tail(run: ExecResult, lines = 20): string {
   return `${run.stdout}${run.stderr}`.trimEnd().split('\n').slice(-lines).join('\n');
 }
@@ -69,7 +69,9 @@ gate({
     const manifest = JSON.parse(await readFile(path.join(cx.repoRoot, 'package.json'), 'utf8')) as PackageJson;
     const declared = Object.keys(manifest.dependencies ?? {}).sort(byCodeUnit);
     if (declared.join('\n') !== EXPECTED.join('\n')) {
-      throw new Error(`package.json dependencies are [${declared.join(', ')}], expected exactly [${EXPECTED.join(', ')}]`);
+      throw new Error(
+        `package.json dependencies are [${declared.join(', ')}], expected exactly [${EXPECTED.join(', ')}]`,
+      );
     }
 
     const lock = JSON.parse(await readFile(path.join(cx.repoRoot, 'package-lock.json'), 'utf8')) as LockFile;
@@ -82,11 +84,16 @@ gate({
     const listed = [...treeNames(JSON.parse(ls.stdout) as NpmTree)].sort(byCodeUnit);
     const locked = [...new Set(keys.map(lockName))].sort(byCodeUnit);
     if (listed.join('\n') !== locked.join('\n')) {
-      throw new Error(`npm ls lists the production packages [${listed.join(', ')}], the lock file [${locked.join(', ')}]`);
+      throw new Error(
+        `npm ls lists the production packages [${listed.join(', ')}], the lock file [${locked.join(', ')}]`,
+      );
     }
     const root = path.resolve(cx.repoRoot);
     const dirs = keys.map((key) => path.join(root, key));
-    if (dirs.length < EXPECTED.length) throw new Error(`the lock file lists ${dirs.length} production packages, fewer than the ${EXPECTED.length} dependencies`);
+    if (dirs.length < EXPECTED.length)
+      throw new Error(
+        `the lock file lists ${dirs.length} production packages, fewer than the ${EXPECTED.length} dependencies`,
+      );
 
     const problems: string[] = [];
     for (const dir of dirs) {
@@ -99,6 +106,8 @@ gate({
       for (const file of await nativeFiles(dir)) problems.push(`${label} contains ${file}`);
     }
     if (problems.length > 0) throw new Error(`the production tree is not pure JavaScript: ${problems.join('; ')}`);
-    cx.note(`dependencies: ${declared.join(', ')}; production tree: ${dirs.length} packages, no install script, .node or binding.gyp`);
+    cx.note(
+      `dependencies: ${declared.join(', ')}; production tree: ${dirs.length} packages, no install script, .node or binding.gyp`,
+    );
   },
 });

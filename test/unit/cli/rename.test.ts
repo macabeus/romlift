@@ -17,7 +17,10 @@ after(() => rm(TMP, { recursive: true, force: true }));
 const COMPOSITE = listSyntheticFixtures().find((f) => f.name === 'composite') ?? assert.fail('composite');
 let fresh = 0;
 
-async function run(cwd: string, argv: readonly string[]): Promise<{ readonly code: ExitCode; readonly stdout: string; readonly stderr: string }> {
+async function run(
+  cwd: string,
+  argv: readonly string[],
+): Promise<{ readonly code: ExitCode; readonly stdout: string; readonly stderr: string }> {
   const io = { ...capturingIo(), cwd };
   const code = await main(argv, io);
   return { code, stdout: io.out.join(''), stderr: io.err.join('') };
@@ -37,7 +40,10 @@ async function project(): Promise<{ readonly dir: string; readonly names: readon
   const init = await run(dir, ['init', 'baserom.gba']);
   assert.equal(init.code, ExitCode.ok, init.stderr);
   const main = await readFile(path.join(dir, 'src', 'main.c'), 'utf8');
-  return { dir, names: [...main.matchAll(/INCLUDE_ASM\("asm\/nonmatchings\/main", (sub_[0-9A-F]{8})\);/g)].map((m) => m[1] ?? '') };
+  return {
+    dir,
+    names: [...main.matchAll(/INCLUDE_ASM\("asm\/nonmatchings\/main", (sub_[0-9A-F]{8})\);/g)].map((m) => m[1] ?? ''),
+  };
 }
 
 test('rename --json: one edit line per file, the patch line, then the summary; exit 0', async () => {
@@ -50,7 +56,12 @@ test('rename --json: one edit line per file, the patch line, then the summary; e
     { type: 'edit', path: 'src/main.c', op: 'edit', identifiers: 1 },
     { type: 'patch', path: 'romlift.toml', written: true },
   ]);
-  assert.deepEqual(records.at(-1), { type: 'summary', ok: true, exitCode: 0, counts: { files: 1, identifiers: 1, toml: 1, diagnostics: 0 } });
+  assert.deepEqual(records.at(-1), {
+    type: 'summary',
+    ok: true,
+    exitCode: 0,
+    counts: { files: 1, identifiers: 1, toml: 1, diagnostics: 0 },
+  });
   assert.ok((await readFile(path.join(dir, 'romlift.toml'), 'utf8')).includes('"GameInit"'));
 });
 
@@ -58,7 +69,10 @@ test('rename in text: the edited files and the TOML, then the summary', async ()
   const { dir, names } = await project();
   const out = await run(dir, ['rename', names[1] ?? '', 'GameLoop']);
   assert.equal(out.code, ExitCode.ok, out.stderr);
-  assert.equal(out.stdout, 'edit   src/main.c (1 identifier)\npatch  romlift.toml\nrename: ok (exit 0): diagnostics 0, files 1, identifiers 1, toml 1\n');
+  assert.equal(
+    out.stdout,
+    'edit   src/main.c (1 identifier)\npatch  romlift.toml\nrename: ok (exit 0): diagnostics 0, files 1, identifiers 1, toml 1\n',
+  );
 });
 
 test('a refusal exits 1, prints its diagnostic and the summary, and changes nothing', async () => {
@@ -73,8 +87,16 @@ test('a refusal exits 1, prints its diagnostic and the summary, and changes noth
     const out = await run(dir, ['rename', ...args, '--json']);
     assert.equal(out.code, ExitCode.errors, args.join(' '));
     const records = lines(out.stdout);
-    assert.deepEqual(records.filter((r) => r['type'] === 'diagnostic').map((r) => r['code']), [code]);
-    assert.deepEqual(records.at(-1), { type: 'summary', ok: false, exitCode: 1, counts: { files: 0, identifiers: 0, toml: 0, diagnostics: 1 } });
+    assert.deepEqual(
+      records.filter((r) => r['type'] === 'diagnostic').map((r) => r['code']),
+      [code],
+    );
+    assert.deepEqual(records.at(-1), {
+      type: 'summary',
+      ok: false,
+      exitCode: 1,
+      counts: { files: 0, identifiers: 0, toml: 0, diagnostics: 1 },
+    });
     assert.ok(!records.some((r) => r['type'] === 'edit'));
   }
   const text = await run(dir, ['rename', 'NoSuchName', 'X']);

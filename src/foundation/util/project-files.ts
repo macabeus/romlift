@@ -81,7 +81,9 @@ export function matchingDir(module: string): string {
  * same module directory and base name; any other path as it is.
  */
 export function matchingFileOf(file: string): string {
-  return file.startsWith(`${NONMATCHINGS_ROOT}/`) ? `${MATCHINGS_ROOT}/${file.slice(NONMATCHINGS_ROOT.length + 1)}` : file;
+  return file.startsWith(`${NONMATCHINGS_ROOT}/`)
+    ? `${MATCHINGS_ROOT}/${file.slice(NONMATCHINGS_ROOT.length + 1)}`
+    : file;
 }
 
 /**
@@ -119,7 +121,15 @@ export function stubNameOf(file: string): string {
  * content is overwritten only under one of them, and no hand-written source may lie under one (D109). A root ending in
  * '/' is a directory; the others are files.
  */
-export const GENERATED_ROOTS: readonly string[] = ['asm/', 'data/', 'expected/', 'ldscript.txt', 'symbols.ld', 'modules.mk', 'objdiff.json'];
+export const GENERATED_ROOTS: readonly string[] = [
+  'asm/',
+  'data/',
+  'expected/',
+  'ldscript.txt',
+  'symbols.ld',
+  'modules.mk',
+  'objdiff.json',
+];
 
 /** Whether `path` lies under one of GENERATED_ROOTS. */
 export function underGeneratedRoot(path: string): boolean {

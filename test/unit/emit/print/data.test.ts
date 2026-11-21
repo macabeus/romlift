@@ -4,7 +4,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { ALIGN_LINE, dataLines, isAlignPadding, isThumbCodeData, noteLines, paddingLines, thumbCodeLines } from '../../../../src/core/emit/print/data.ts';
+import {
+  ALIGN_LINE,
+  dataLines,
+  isAlignPadding,
+  isThumbCodeData,
+  noteLines,
+  paddingLines,
+  thumbCodeLines,
+} from '../../../../src/core/emit/print/data.ts';
 import { romWith, words } from '../../../helpers/model.ts';
 
 const AT = 0x0800_0300;
@@ -26,7 +34,10 @@ test('data splits into a leading byte, a halfword to the word, words four to a l
 });
 
 test('each line of a noted data item carries its note', () => {
-  assert.deepEqual(noteLines(rom, { start: AT + 2, end: AT + 8 }, 'dead', 'arm'), ['\t.2byte 0x4433 @ dead', '\t.4byte 0x88776655 @ dead']);
+  assert.deepEqual(noteLines(rom, { start: AT + 2, end: AT + 8 }, 'dead', 'arm'), [
+    '\t.2byte 0x4433 @ dead',
+    '\t.4byte 0x88776655 @ dead',
+  ]);
   assert.deepEqual(noteLines(rom, { start: AT, end: AT + 1 }, 'mixer-hole', 'thumb'), ['\t.byte 0x11 @ mixer hole']);
   assert.deepEqual(noteLines(rom, { start: AT, end: AT + 2 }, 'unreached', 'thumb'), ['\t.2byte 0x2211 @ unreached']);
   assert.deepEqual(noteLines(rom, { start: AT, end: AT + 2 }, undefined, 'thumb'), ['\t.2byte 0x2211']);
@@ -35,15 +46,41 @@ test('each line of a noted data item carries its note', () => {
 test('in Thumb state a non-zero dead run and 0x46C0 no-ops print as .inst.n: the code the assembler emitted', () => {
   const nops = { start: AT + 0x40, end: AT + 0x44 };
   assert.deepEqual(noteLines(rom, nops, undefined, 'thumb'), ['\t.inst.n 0x46C0', '\t.inst.n 0x46C0']);
-  assert.deepEqual(noteLines(rom, { start: AT + 0x44, end: AT + 0x46 }, 'dead', 'thumb'), ['\t.inst.n 0xE039 @ dead'], "a dead `b` after a `b`");
-  assert.deepEqual(noteLines(rom, { start: AT + 0x44, end: AT + 0x48 }, 'dead', 'thumb'), ['\t.inst.n 0xE039 @ dead', '\t.inst.n 0x0000 @ dead'], 'a run is code when any byte of it is not zero');
-  assert.deepEqual(noteLines(rom, { start: AT + 0x48, end: AT + 0x4a }, 'dead', 'thumb'), ['\t.2byte 0x0000 @ dead'], 'zeros stay data');
-  assert.deepEqual(noteLines(rom, { start: AT + 0x44, end: AT + 0x46 }, undefined, 'thumb'), ['\t.2byte 0xE039'], 'an unnoted run is code only when it is no-ops');
-  assert.deepEqual(noteLines(rom, { start: AT + 0x44, end: AT + 0x46 }, 'mixer-hole', 'thumb'), ['\t.2byte 0xE039 @ mixer hole']);
+  assert.deepEqual(
+    noteLines(rom, { start: AT + 0x44, end: AT + 0x46 }, 'dead', 'thumb'),
+    ['\t.inst.n 0xE039 @ dead'],
+    'a dead `b` after a `b`',
+  );
+  assert.deepEqual(
+    noteLines(rom, { start: AT + 0x44, end: AT + 0x48 }, 'dead', 'thumb'),
+    ['\t.inst.n 0xE039 @ dead', '\t.inst.n 0x0000 @ dead'],
+    'a run is code when any byte of it is not zero',
+  );
+  assert.deepEqual(
+    noteLines(rom, { start: AT + 0x48, end: AT + 0x4a }, 'dead', 'thumb'),
+    ['\t.2byte 0x0000 @ dead'],
+    'zeros stay data',
+  );
+  assert.deepEqual(
+    noteLines(rom, { start: AT + 0x44, end: AT + 0x46 }, undefined, 'thumb'),
+    ['\t.2byte 0xE039'],
+    'an unnoted run is code only when it is no-ops',
+  );
+  assert.deepEqual(noteLines(rom, { start: AT + 0x44, end: AT + 0x46 }, 'mixer-hole', 'thumb'), [
+    '\t.2byte 0xE039 @ mixer hole',
+  ]);
   assert.deepEqual(noteLines(rom, nops, 'dead', 'arm'), ['\t.4byte 0x46C046C0 @ dead'], 'never in ARM state');
   assert.deepEqual(noteLines(rom, nops, undefined, undefined), ['\t.4byte 0x46C046C0'], 'never outside a function');
-  assert.equal(isThumbCodeData(rom, { start: AT + 0x41, end: AT + 0x43 }, undefined, 'thumb'), false, 'not halfword aligned');
-  assert.equal(isThumbCodeData(rom, { start: AT + 0x40, end: AT + 0x43 }, 'dead', 'thumb'), false, 'not whole halfwords');
+  assert.equal(
+    isThumbCodeData(rom, { start: AT + 0x41, end: AT + 0x43 }, undefined, 'thumb'),
+    false,
+    'not halfword aligned',
+  );
+  assert.equal(
+    isThumbCodeData(rom, { start: AT + 0x40, end: AT + 0x43 }, 'dead', 'thumb'),
+    false,
+    'not whole halfwords',
+  );
   assert.deepEqual(thumbCodeLines(rom, nops, 'x'), ['\t.inst.n 0x46C0 @ x', '\t.inst.n 0x46C0 @ x']);
 });
 
@@ -54,6 +91,14 @@ test('padding is .align 2, 0 only for zeros that end on a word boundary; anythin
   assert.deepEqual(paddingLines(rom, { start: zeros + 2, end: zeros + 4 }), [ALIGN_LINE]);
   assert.equal(ALIGN_LINE, '\t.align 2, 0');
   assert.equal(isAlignPadding(rom, { start: zeros, end: zeros + 2 }), false, 'does not end on a word boundary');
-  assert.equal(isAlignPadding(rom, { start: zeros, end: zeros + 4 }), false, '.align 2 pads nothing at a word boundary');
-  assert.deepEqual(paddingLines(rom, { start: AT + 0xe, end: AT + 0x10 }), ['\t.2byte 0x00FF @ padding'], 'nonzero bytes print as data');
+  assert.equal(
+    isAlignPadding(rom, { start: zeros, end: zeros + 4 }),
+    false,
+    '.align 2 pads nothing at a word boundary',
+  );
+  assert.deepEqual(
+    paddingLines(rom, { start: AT + 0xe, end: AT + 0x10 }),
+    ['\t.2byte 0x00FF @ padding'],
+    'nonzero bytes print as data',
+  );
 });

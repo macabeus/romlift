@@ -10,7 +10,11 @@ import { configFromDiscover } from '../../../src/core/workflow/config-from-disco
 import { discover } from '../../../src/core/workflow/discover.ts';
 import { generate, generatedEntries } from '../../../src/core/workflow/generate.ts';
 import type { Journal } from '../../../src/core/write-plan/journal.ts';
-import { freshTreePlanInputs, planChangesNothing, projectPlanInputs } from '../../../src/core/write-plan/project-plan.ts';
+import {
+  freshTreePlanInputs,
+  planChangesNothing,
+  projectPlanInputs,
+} from '../../../src/core/write-plan/project-plan.ts';
 import type { ProjectWriteState } from '../../../src/core/write-plan/project-plan.ts';
 import type { DiskFileState, Manifest, WritePlan } from '../../../src/core/write-plan/types.ts';
 import { listSyntheticFixtures, readFixtureRom } from '../../helpers/fixtures.ts';
@@ -32,11 +36,27 @@ test('freshTreePlanInputs: no manifest, every path absent, no reconciled text, t
   const fixture = listSyntheticFixtures().find((f) => f.name === 'far-jump');
   assert.ok(fixture !== undefined);
   const rom = readFixtureRom(fixture);
-  const result = generate({ rom, config: configFromDiscover(rom, discover(rom)), decomp: { defined: [] }, printer: 'readable' });
-  const kept = { ...result.model, modules: result.model.modules.map((m, i) => (i === 1 ? { ...m, generated: false } : m)) };
-  const inputs = freshTreePlanInputs(generatedEntries(rom, result), result.paths, (t) => String(t.length), retainedPrefixes(kept));
+  const result = generate({
+    rom,
+    config: configFromDiscover(rom, discover(rom)),
+    decomp: { defined: [] },
+    printer: 'readable',
+  });
+  const kept = {
+    ...result.model,
+    modules: result.model.modules.map((m, i) => (i === 1 ? { ...m, generated: false } : m)),
+  };
+  const inputs = freshTreePlanInputs(
+    generatedEntries(rom, result),
+    result.paths,
+    (t) => String(t.length),
+    retainedPrefixes(kept),
+  );
   assert.equal(inputs.manifest, null);
-  assert.deepEqual([...inputs.disk.values()].every((v) => v.kind === 'absent'), true);
+  assert.deepEqual(
+    [...inputs.disk.values()].every((v) => v.kind === 'absent'),
+    true,
+  );
   assert.deepEqual([...inputs.disk.keys()], result.paths);
   assert.equal(inputs.reconciledTexts.size, 0);
   assert.ok(inputs.retained.length > 0);
@@ -63,9 +83,17 @@ test('planChangesNothing: only keeps, no journal left, and the manifest already 
   const keep: WritePlan['ops'][number] = { op: 'keep', path: 'asm/a.s', sha1: 'sha-a' };
   const plan = { ops: [keep], manifest: MANIFEST };
   assert.equal(planChangesNothing(plan, state()), true);
-  assert.equal(planChangesNothing({ ...plan, ops: [...plan.ops, { op: 'delete', path: 'asm/b.s' }] }, state()), false, 'an op that is no keep');
+  assert.equal(
+    planChangesNothing({ ...plan, ops: [...plan.ops, { op: 'delete', path: 'asm/b.s' }] }, state()),
+    false,
+    'an op that is no keep',
+  );
   const journal: Journal = { schema: 1, ops: [] };
   assert.equal(planChangesNothing(plan, state({ journal })), false, "an interrupted run's journal is left");
   assert.equal(planChangesNothing(plan, state({ manifest: null })), false, 'no manifest on disk yet');
-  assert.equal(planChangesNothing({ ...plan, manifest: { ...MANIFEST, romlift: '2.0.0' } }, state()), false, 'another manifest');
+  assert.equal(
+    planChangesNothing({ ...plan, manifest: { ...MANIFEST, romlift: '2.0.0' } }, state()),
+    false,
+    'another manifest',
+  );
 });

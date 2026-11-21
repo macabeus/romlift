@@ -20,7 +20,8 @@ test('a refinement: a site in the dead ends never returns; any other site is lef
   assert.equal(rule.refines, true);
   const v = viewWith({ rom });
   for (const site of [F + 2, F + 0x10, F + 0x20]) assert.equal(rule.decide({ site, target: T }, caller, v), 'noreturn');
-  for (const site of [F, F + 4, F + 0x12, F + 0x22]) assert.equal(rule.decide({ site, target: T }, caller, v), undefined);
+  for (const site of [F, F + 4, F + 0x12, F + 0x22])
+    assert.equal(rule.decide({ site, target: T }, caller, v), undefined);
   assert.equal(rule.decide({ site: F + 2, target: T }, readingOf(rom, { entry: F }), v), undefined, 'no dead ends');
 });
 
@@ -32,16 +33,25 @@ test('through settle: the call keeps its verdict rule and is refined to noreturn
   const r = settle(driverOver(rom), F);
   assert.deepEqual(r.noret, [F + 2]);
   assert.deepEqual(r.blVerdicts, [{ site: F + 2, target: T, verdict: 'noreturn', rule: ID }]);
-  assert.deepEqual(r.exits.map((e) => [e.at, e.kind, e.rule]), [[F + 2, 'noreturn-call', ID]]);
+  assert.deepEqual(
+    r.exits.map((e) => [e.at, e.kind, e.rule]),
+    [[F + 2, 'noreturn-call', ID]],
+  );
   assert.deepEqual(r.errors, []);
   const bare = settle(driverOver(rom, ID), F);
   assert.deepEqual(bare.noret, []);
-  assert.deepEqual(bare.blVerdicts.map((v) => [v.verdict, v.rule]), [['call', 'bl.near-is-call']]);
+  assert.deepEqual(
+    bare.blVerdicts.map((v) => [v.verdict, v.rule]),
+    [['call', 'bl.near-is-call']],
+  );
   assert.deepEqual(bare.deadEnd, [F + 2], 'the walk rule still marks the dead end');
 });
 
 test('a far jump is never refined', () => {
-  const rom = romWith([{ at: F, bytes: Uint8Array.from([...thumbAt(F)`push {lr}; bl _08000A00`, ...INVALID]) }, { at: 0x0800_0a00, bytes: thumbAt(0x0800_0a00)`pop {pc}` }]);
+  const rom = romWith([
+    { at: F, bytes: Uint8Array.from([...thumbAt(F)`push {lr}; bl _08000A00`, ...INVALID]) },
+    { at: 0x0800_0a00, bytes: thumbAt(0x0800_0a00)`pop {pc}` },
+  ]);
   const r = settle(driverOver(rom), F);
   assert.deepEqual(r.noret, []);
   assert.deepEqual(r.far, [F + 2]);

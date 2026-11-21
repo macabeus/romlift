@@ -8,8 +8,8 @@ import { functionWriter } from '../../../../src/core/emit/writers/function.ts';
 import { moduleWriter } from '../../../../src/core/emit/writers/module.ts';
 import { orphanWriter } from '../../../../src/core/emit/writers/orphan.ts';
 import { DIALECT } from '../../../../src/foundation/asm/dialect.ts';
-import { layoutUnit, romBytes, sampleModel, sampleRom } from '../print/fixture.ts';
 import { dataItem, modelOf, romWith } from '../../../helpers/model.ts';
+import { layoutUnit, romBytes, sampleModel, sampleRom } from '../print/fixture.ts';
 
 const rom = sampleRom();
 const model = sampleModel(rom);
@@ -34,13 +34,29 @@ test('the header and startup modules, a data module and no module yield nothing'
   for (const i of [0, 1]) assert.deepEqual([...moduleWriter.emit(rom, model, cx, i)], []);
   assert.deepEqual([...moduleWriter.emit(rom, model, cx, null)], []);
   const r = romWith([]);
-  const m = modelOf(r, { modules: [{ name: 'data', kind: 'data', chunks: [{ kind: 'data', name: 'data_start', items: [dataItem(0x0800_0200, 0x10)] }] }] });
+  const m = modelOf(r, {
+    modules: [
+      {
+        name: 'data',
+        kind: 'data',
+        chunks: [{ kind: 'data', name: 'data_start', items: [dataItem(0x0800_0200, 0x10)] }],
+      },
+    ],
+  });
   assert.deepEqual([...moduleWriter.emit(r, m, cx, 0)], []);
 });
 
 test('a library module names its library under the preamble', () => {
   const r = romWith([]);
-  const m = modelOf(r, { modules: [{ name: 'm4a', library: { name: 'm4a', version: '2001' }, chunks: [{ kind: 'orphan', name: 'unk_08000200', items: [dataItem(0x0800_0200, 4)] }] }] });
+  const m = modelOf(r, {
+    modules: [
+      {
+        name: 'm4a',
+        library: { name: 'm4a', version: '2001' },
+        chunks: [{ kind: 'orphan', name: 'unk_08000200', items: [dataItem(0x0800_0200, 4)] }],
+      },
+    ],
+  });
   const entry = [...moduleWriter.emit(r, m, cx, 0)][0]!;
   assert.ok(entry.ownership === 'generated');
   assert.equal(entry.text, `${DIALECT.preamble('thumb')}@ m4a 2001\n.include "asm/nonmatchings/m4a/unk_08000200.s"\n`);
@@ -48,9 +64,16 @@ test('a library module names its library under the preamble', () => {
 
 test('every module file with its includes reproduces the module bytes, with both printers', () => {
   for (const printer of ['readable', 'raw'] as const) {
-    for (const [i, name] of [[2, 'main'], [3, 'other']] as const) {
+    for (const [i, name] of [
+      [2, 'main'],
+      [3, 'other'],
+    ] as const) {
       const c = { ...cx, printer };
-      const entries = [...moduleWriter.emit(rom, model, c, i), ...functionWriter.emit(rom, model, c, i), ...orphanWriter.emit(rom, model, c, i)];
+      const entries = [
+        ...moduleWriter.emit(rom, model, c, i),
+        ...functionWriter.emit(rom, model, c, i),
+        ...orphanWriter.emit(rom, model, c, i),
+      ];
       const { layout, errors } = layoutUnit(model, entries, `asm/${name}.s`, name);
       assert.deepEqual(errors, [], `${printer} ${name}`);
       const span = model.modules[i]!.span;

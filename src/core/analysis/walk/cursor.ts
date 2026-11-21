@@ -53,10 +53,20 @@ export interface WalkEnv {
 }
 
 /** The cursor a walker fills in place before each ask; `run` is built only when a rule reads it. */
-export type MutableCursor = { -readonly [K in Exclude<keyof WalkCursor, 'run' | 'back'>]: WalkCursor[K] } & Pick<WalkCursor, 'run' | 'back'>;
+export type MutableCursor = { -readonly [K in Exclude<keyof WalkCursor, 'run' | 'back'>]: WalkCursor[K] } & Pick<
+  WalkCursor,
+  'run' | 'back'
+>;
 
 /** A cursor for one walk of `entry`; `run` and `back` decode the current path's run (its addresses, `runAddrs()`) on demand. */
-export function walkCursor(view: AnalysisView, entry: Addr, mode: Mode, walked: (a: Addr) => boolean, runAddrs: () => readonly Addr[], decodeAt: (a: Addr) => Insn): MutableCursor {
+export function walkCursor(
+  view: AnalysisView,
+  entry: Addr,
+  mode: Mode,
+  walked: (a: Addr) => boolean,
+  runAddrs: () => readonly Addr[],
+  decodeAt: (a: Addr) => Insn,
+): MutableCursor {
   return {
     entry,
     mode,
@@ -79,7 +89,11 @@ export function walkCursor(view: AnalysisView, entry: Addr, mode: Mode, walked: 
 }
 
 /** The first policy's answer, with its id. */
-export function askWalk(env: WalkEnv, insn: Insn, cursor: WalkCursor): { readonly id: RuleId; readonly step: WalkStep } | undefined {
+export function askWalk(
+  env: WalkEnv,
+  insn: Insn,
+  cursor: WalkCursor,
+): { readonly id: RuleId; readonly step: WalkStep } | undefined {
   for (const p of env.policies) {
     const step = p.rule.onInsn(insn, cursor);
     if (step !== undefined) return { id: p.id, step };
@@ -89,7 +103,13 @@ export function askWalk(env: WalkEnv, insn: Insn, cursor: WalkCursor): { readonl
 
 /** The flow kinds the walk slot is asked about; the rest follow the decoder's Flow without asking. */
 export function asksWalk(flow: Flow): boolean {
-  return flow.kind === 'pool-load' || flow.kind === 'branch' || flow.kind === 'return' || flow.kind === 'indirect' || flow.kind === 'mode-switch';
+  return (
+    flow.kind === 'pool-load' ||
+    flow.kind === 'branch' ||
+    flow.kind === 'return' ||
+    flow.kind === 'indirect' ||
+    flow.kind === 'mode-switch'
+  );
 }
 
 /** The decoded instruction with its Flow's targets mapped from run space back to load addresses (D46). */

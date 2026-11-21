@@ -75,7 +75,8 @@ function ownerOf(functions: readonly FunctionFact[], addr: Addr): FunctionFact |
     if (
       best === undefined ||
       f.extent.start > best.extent.start ||
-      (f.extent.start === best.extent.start && (f.extent.end < best.extent.end || (f.extent.end === best.extent.end && f.entry < best.entry)))
+      (f.extent.start === best.extent.start &&
+        (f.extent.end < best.extent.end || (f.extent.end === best.extent.end && f.entry < best.entry)))
     ) {
       best = f;
     }
@@ -84,7 +85,12 @@ function ownerOf(functions: readonly FunctionFact[], addr: Addr): FunctionFact |
 }
 
 /** The explanation of `addr` from a finished `result`, its filtered trail `events` and the metadata of the registered rules. */
-export function explainAnalysis(result: AnalysisResult, events: readonly TrailEvent[], addr: Addr, rules: readonly RuleMeta[]): AnalysisExplanation {
+export function explainAnalysis(
+  result: AnalysisResult,
+  events: readonly TrailEvent[],
+  addr: Addr,
+  rules: readonly RuleMeta[],
+): AnalysisExplanation {
   const owner = ownerOf(result.functions, addr);
   const provenance = owner === undefined ? [] : [owner.accepted, ...owner.also];
   const named = new Set<RuleId>();

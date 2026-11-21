@@ -54,7 +54,11 @@ export interface RomSignatures {
 const NOTHING: RomSignatures = { placements: [], regions: [], proposals: [], diagnostics: [] };
 
 /** The settled placements of `files` on `rom` (matchSignatures over the discover result, then resolvePlacements). */
-function placeSignatures(rom: Rom, analysis: AnalysisResult, files: readonly SignatureFile[]): ReturnType<typeof resolvePlacements> {
+function placeSignatures(
+  rom: Rom,
+  analysis: AnalysisResult,
+  files: readonly SignatureFile[],
+): ReturnType<typeof resolvePlacements> {
   return resolvePlacements(rom, matchSignatures(rom, analysis, files));
 }
 
@@ -66,7 +70,12 @@ function placeSignatures(rom: Rom, analysis: AnalysisResult, files: readonly Sig
 export function signaturesOver(rom: Rom, analysis: AnalysisResult, files: readonly SignatureFile[]): RomSignatures {
   if (files.length === 0 || analysis.diagnostics.some((d) => d.severity === 'error')) return NOTHING;
   const resolved = placeSignatures(rom, analysis, files);
-  return { placements: resolved.placements, regions: resolved.regions, proposals: proposeFromSignatures(resolved, analysis), diagnostics: resolved.diagnostics };
+  return {
+    placements: resolved.placements,
+    regions: resolved.regions,
+    proposals: proposeFromSignatures(resolved, analysis),
+    diagnostics: resolved.diagnostics,
+  };
 }
 
 /** The shell's notes on the files it located, kept when the run uses signatures (`used`), else dropped. */
@@ -96,17 +105,43 @@ export interface SignatureLayer {
  * The signature layer over a discover result: the placements of `files` (signaturesOver), their proposals screened
  * against the analysis and `config` when given (checkProposals). Empty when no file is given or the analysis failed.
  */
-export function signatureLayer(rom: Rom, analysis: AnalysisResult, files: readonly SignatureFile[], config?: RomliftConfig): SignatureLayer {
+export function signatureLayer(
+  rom: Rom,
+  analysis: AnalysisResult,
+  files: readonly SignatureFile[],
+  config?: RomliftConfig,
+): SignatureLayer {
   const found = signaturesOver(rom, analysis, files);
   const screened = checkProposals(found.proposals, config === undefined ? { analysis } : { analysis, config });
-  return { proposals: screened.kept, regions: keptRegions(found.regions, found.placements, screened.kept), placements: found.placements, diagnostics: [...found.diagnostics, ...screened.conflicts] };
+  return {
+    proposals: screened.kept,
+    regions: keptRegions(found.regions, found.placements, screened.kept),
+    placements: found.placements,
+    diagnostics: [...found.diagnostics, ...screened.conflicts],
+  };
 }
 
 /** Each region narrowed to the placements of its library whose proposals were kept; a region with none left goes. */
-function keptRegions(regions: readonly LibraryRegion[], placements: readonly SignaturePlacement[], kept: readonly Proposal[]): readonly LibraryRegion[] {
-  const at = new Set(kept.flatMap((p) => (p.source.kind === 'signature' && (p.kind === 'function' || p.kind === 'symbol') ? [`${p.source.library}:${String(p.addr)}`] : [])));
+function keptRegions(
+  regions: readonly LibraryRegion[],
+  placements: readonly SignaturePlacement[],
+  kept: readonly Proposal[],
+): readonly LibraryRegion[] {
+  const at = new Set(
+    kept.flatMap((p) =>
+      p.source.kind === 'signature' && (p.kind === 'function' || p.kind === 'symbol')
+        ? [`${p.source.library}:${String(p.addr)}`]
+        : [],
+    ),
+  );
   return regions.flatMap((r) => {
-    const inside = placements.filter((p) => p.library === r.library && p.addr >= r.span.start && p.addr < r.span.end && at.has(`${p.library}:${String(p.addr)}`));
+    const inside = placements.filter(
+      (p) =>
+        p.library === r.library &&
+        p.addr >= r.span.start &&
+        p.addr < r.span.end &&
+        at.has(`${p.library}:${String(p.addr)}`),
+    );
     if (inside.length === 0) return [];
     const start = Math.min(...inside.map((p) => p.addr));
     const end = Math.max(...inside.map((p) => p.addr + p.size));
@@ -121,7 +156,10 @@ function keptRegions(regions: readonly LibraryRegion[], placements: readonly Sig
  * The signature files a config lets a run use (final-review docs-and-plan-4): none when `[signatures] enabled` is
  * false; else, when `libraries` is set, only the files of the libraries it names; else every file.
  */
-export function filesFor<F extends { readonly library: string }>(signatures: { readonly enabled: boolean; readonly libraries?: readonly string[] }, files: readonly F[]): readonly F[] {
+export function filesFor<F extends { readonly library: string }>(
+  signatures: { readonly enabled: boolean; readonly libraries?: readonly string[] },
+  files: readonly F[],
+): readonly F[] {
   if (!signatures.enabled) return [];
   const only = signatures.libraries;
   return only === undefined ? files : files.filter((f) => only.includes(f.library));
@@ -146,7 +184,9 @@ function entriesInside(functions: ReadonlyMap<Addr, FunctionConfig>, entry: Addr
  * [symbols] entry with `size`, `type` and `from`. Modules are module inference's (InferModulesOptions.libraries).
  */
 export function foldSignatures(config: RomliftConfig, proposals: readonly Proposal[]): RomliftConfig {
-  const signed = proposals.filter((p) => (p.kind === 'function' || p.kind === 'symbol') && p.source.kind === 'signature');
+  const signed = proposals.filter(
+    (p) => (p.kind === 'function' || p.kind === 'symbol') && p.source.kind === 'signature',
+  );
   const applied = applyProposals(config, signed);
   const functions = new Map(applied.functions);
   const entryPoints = new Map(applied.entryPoints);
@@ -174,7 +214,11 @@ export function isDefaultName(name: string, addr: Addr): boolean {
  * extent, an entry-point proposal for every listed function it holds (source the analysis's, so `from` is not written
  * there).
  */
-export function updateProposals(config: RomliftConfig, analysis: AnalysisResult, proposals: readonly Proposal[]): readonly Proposal[] {
+export function updateProposals(
+  config: RomliftConfig,
+  analysis: AnalysisResult,
+  proposals: readonly Proposal[],
+): readonly Proposal[] {
   const out: Proposal[] = [];
   for (const p of proposals) {
     if (p.kind === 'function') {
@@ -186,7 +230,13 @@ export function updateProposals(config: RomliftConfig, analysis: AnalysisResult,
         const entry = config.functions.get(inner);
         const fact = functionAt(analysis.functions, inner);
         if (entry === undefined) continue;
-        out.push({ kind: 'function', addr: inner, mode: entry.mode, entryPoint: true, source: { kind: 'analysis', rule: fact?.accepted.rule ?? 'seed.listed' } });
+        out.push({
+          kind: 'function',
+          addr: inner,
+          mode: entry.mode,
+          entryPoint: true,
+          source: { kind: 'analysis', rule: fact?.accepted.rule ?? 'seed.listed' },
+        });
       }
     } else if (p.kind === 'symbol') {
       const listed = config.symbols.get(p.addr);
@@ -214,7 +264,10 @@ export interface LibraryModules {
  */
 function droppedRegion(region: LibraryRegion, why: string, span: Span = region.span): Diagnostic {
   const at = `${region.library}@${region.version} [${hexAddr(span.start)}, ${hexAddr(span.end)})`;
-  return diagnostic(WorkflowCodes, 'W_LIBRARY_MODULE_DROPPED', `the library region ${at} takes no module: ${why}`, { addr: span.start, span });
+  return diagnostic(WorkflowCodes, 'W_LIBRARY_MODULE_DROPPED', `the library region ${at} takes no module: ${why}`, {
+    addr: span.start,
+    span,
+  });
 }
 
 const NO_LEGAL_BORDER = 'no legal module border lies inside it';
@@ -222,7 +275,8 @@ const NO_LEGAL_BORDER = 'no legal module border lies inside it';
 /** How the range the module border check read (`checked`, which the note names) relates to the region's code. */
 function checkedSpan(code: Span, checked: Span): string {
   if (checked.start === code.start && checked.end === code.end) return '';
-  if (checked.start === code.start && checked.end > code.end) return ` (the region's code ends at ${hexAddr(code.end)}; the range adds its trailing pad, as the module border check reads it)`;
+  if (checked.start === code.start && checked.end > code.end)
+    return ` (the region's code ends at ${hexAddr(code.end)}; the range adds its trailing pad, as the module border check reads it)`;
   return ` (the part of the region's code [${hexAddr(code.start)}, ${hexAddr(code.end)}) the module border check read)`;
 }
 
@@ -232,12 +286,29 @@ function checkedSpan(code: Span, checked: Span): string {
  * region that takes none. `proposed` are the module proposals already made (the runs_at borders); `replaces` the
  * starts of those a library module replaces.
  */
-export function libraryModuleProposals(rom: Rom, analysis: AnalysisResult, config: RomliftConfig, regions: readonly LibraryRegion[], proposed: readonly ModuleProposal[] = []): LibraryModules & { readonly replaces: readonly Addr[] } {
-  const plan = planLibraryModules(codeLayout(rom, analysis), config.modules, regions, runsAtSpans(config), rom.end, proposed);
+export function libraryModuleProposals(
+  rom: Rom,
+  analysis: AnalysisResult,
+  config: RomliftConfig,
+  regions: readonly LibraryRegion[],
+  proposed: readonly ModuleProposal[] = [],
+): LibraryModules & { readonly replaces: readonly Addr[] } {
+  const plan = planLibraryModules(
+    codeLayout(rom, analysis),
+    config.modules,
+    regions,
+    runsAtSpans(config),
+    rom.end,
+    proposed,
+  );
   const notes = plan.dropped.map(({ region, why }) =>
     why.kind === 'no-legal-border'
       ? droppedRegion(region, NO_LEGAL_BORDER)
-      : droppedRegion(region, `the module ${why.module.name} of romlift.toml starts at ${hexAddr(why.module.start)} inside it, and update only inserts modules${checkedSpan(region.span, why.span)}`, why.span),
+      : droppedRegion(
+          region,
+          `the module ${why.module.name} of romlift.toml starts at ${hexAddr(why.module.start)} inside it, and update only inserts modules${checkedSpan(region.span, why.span)}`,
+          why.span,
+        ),
   );
   return { proposals: plan.proposals, notes, replaces: plan.replaces };
 }

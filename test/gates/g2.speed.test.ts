@@ -16,8 +16,8 @@
 //    runs: {calibration: 5, analysis: 9, emission: 5},
 //    calibration: {cpuMs, baselineCpuMs, ratio},       ratio = cpuMs / baselineCpuMs
 //    roms: [{name, analysisCpuMs, budgetAnalysisCpuMs, analysisRuns, wallMs, baselineCpuMs}]}
-import { gate, type ExecResult } from './gate.ts';
-import { ANALYSIS_RUNS, speedVerdict, type SpeedLine } from './speed-verdict.ts';
+import { type ExecResult, gate } from './gate.ts';
+import { ANALYSIS_RUNS, type SpeedLine, speedVerdict } from './speed-verdict.ts';
 
 function tail(run: ExecResult, lines = 30): string {
   return `${run.stdout}${run.stderr}`.trimEnd().split('\n').slice(-lines).join('\n');
@@ -34,8 +34,13 @@ gate({
     if (run.code !== 0) throw new Error(`bench speed --json exited ${run.code}:\n${tail(run)}`);
     const speed = cx.lastJson<SpeedLine>(run.stdout);
     // The verdict is speed-verdict.ts's (D77 g; tested by test/unit/gates/speed-verdict.test.ts).
-    const { problems, notes } = speedVerdict(speed, cx.datasets.map((d) => d.name));
+    const { problems, notes } = speedVerdict(
+      speed,
+      cx.datasets.map((d) => d.name),
+    );
     if (problems.length > 0) throw new Error(`speed: ${problems.join('; ')}`);
-    cx.note(`median of ${ANALYSIS_RUNS} runs; calibration ratio ${speed.calibration.ratio.toFixed(3)}; CPU/limit: ${notes.join(', ')}`);
+    cx.note(
+      `median of ${ANALYSIS_RUNS} runs; calibration ratio ${speed.calibration.ratio.toFixed(3)}; CPU/limit: ${notes.join(', ')}`,
+    );
   },
 });

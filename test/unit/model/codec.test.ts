@@ -3,18 +3,18 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { RomliftInvariantError } from '../../../src/foundation/diagnostics/diagnostic.ts';
-import { romFromBytes } from '../../../src/foundation/rom/rom.ts';
-import { hexAddr } from '../../../src/foundation/util/hex.ts';
-import { encodeModel, MODEL_JSON_SCHEMA } from '../../../src/core/model/codec.ts';
+import { MODEL_JSON_SCHEMA, encodeModel } from '../../../src/core/model/codec.ts';
 import { specIdAt } from '../../../src/core/model/item-table.ts';
 import { buildModel } from '../../../src/core/model/model.ts';
 import type { Model, ModelJsonChunk, ModelJsonHeader } from '../../../src/core/model/types.ts';
 import { NO_SPEC } from '../../../src/core/model/types.ts';
 import { configFromDiscover } from '../../../src/core/workflow/config-from-discover.ts';
 import { discover } from '../../../src/core/workflow/discover.ts';
+import { RomliftInvariantError } from '../../../src/foundation/diagnostics/diagnostic.ts';
+import { romFromBytes } from '../../../src/foundation/rom/rom.ts';
+import { hexAddr } from '../../../src/foundation/util/hex.ts';
 import { listSyntheticFixtures, readFixtureRom } from '../../helpers/fixtures.ts';
-import { analysisOf, BASE, configOf, fact, HEADER_END, romWith } from '../layout/hand-made.ts';
+import { BASE, HEADER_END, analysisOf, configOf, fact, romWith } from '../layout/hand-made.ts';
 
 function fixtureModel(name: string) {
   const fixture = listSyntheticFixtures().find((f) => f.name === name);
@@ -35,15 +35,37 @@ function richModel() {
     ],
   });
   if (base.mode !== 'confirm') throw new Error('confirm');
-  const analysis = { ...base, unlisted: [{ entry: BASE + 0x180, mode: 'arm' as const, origin: 'call' as const, provenance: { rule: 'seed.call' as const, round: 2, cites: [BASE + 0x104], note: 'n' } }] };
+  const analysis = {
+    ...base,
+    unlisted: [
+      {
+        entry: BASE + 0x180,
+        mode: 'arm' as const,
+        origin: 'call' as const,
+        provenance: { rule: 'seed.call' as const, round: 2, cites: [BASE + 0x104], note: 'n' },
+      },
+    ],
+  };
   const config = configOf({
     modules: [
       ['rom_header', BASE],
       ['main', HEADER_END],
-      { name: 'lib', start: BASE + 0x110, kind: 'asm', generated: false, library: 'm4a', version: '2001', compiler: 'old_agbcc', cflags: ['-ftst'] },
+      {
+        name: 'lib',
+        start: BASE + 0x110,
+        kind: 'asm',
+        generated: false,
+        library: 'm4a',
+        version: '2001',
+        compiler: 'old_agbcc',
+        cflags: ['-ftst'],
+      },
       ['oops', BASE + 0x114],
     ],
-    functions: [[BASE + 0x100, { name: 'A', aliases: ['A_alias'], from: 'evidence:elf' }], [BASE + 0x110, 'sub_08000110']],
+    functions: [
+      [BASE + 0x100, { name: 'A', aliases: ['A_alias'], from: 'evidence:elf' }],
+      [BASE + 0x110, 'sub_08000110'],
+    ],
     symbols: [[0x0300_0000, { name: 'gRam', size: 8, aliases: [] }]],
     overrides: [{ start: BASE + 0x110, size: 4, kind: 'code', runsAt: BASE + 0x110 }],
   });
@@ -93,7 +115,13 @@ test('every ItemTable row survives the encoding, in order, inside its chunk', ()
     assert.equal(rows.length, model.items.count);
     rows.forEach((row, i) => {
       const spec = model.items.spec[i] ?? NO_SPEC;
-      assert.deepEqual(row, [model.items.kind[i], hexAddr(model.items.start[i] ?? 0), model.items.length[i], spec === NO_SPEC ? null : specIdAt(spec), model.items.aux[i]]);
+      assert.deepEqual(row, [
+        model.items.kind[i],
+        hexAddr(model.items.start[i] ?? 0),
+        model.items.length[i],
+        spec === NO_SPEC ? null : specIdAt(spec),
+        model.items.aux[i],
+      ]);
     });
   }
 });
@@ -102,11 +130,28 @@ test('optional members appear when present: library, runAt, aliases, symbol size
   const { rom, model } = richModel();
   const header = JSON.parse(lines(model, rom)[0] ?? '') as ModelJsonHeader;
   const lib = header.modules.find((m) => m.name === 'lib');
-  assert.deepEqual([lib?.library, lib?.runAt, lib?.generated, lib?.compiler, lib?.cflags.at(-1)], [{ name: 'm4a', version: '2001' }, '0x08000110', false, 'old_agbcc', '-ftst']);
-  assert.deepEqual(header.functions[0], { aliases: ['A_alias'], entry: '0x08000100', extent: { end: '0x08000110', start: '0x08000100' }, mode: 'thumb', name: 'A', source: { extent: 'analysis', name: { from: 'evidence:elf', kind: 'toml' } } });
+  assert.deepEqual(
+    [lib?.library, lib?.runAt, lib?.generated, lib?.compiler, lib?.cflags.at(-1)],
+    [{ name: 'm4a', version: '2001' }, '0x08000110', false, 'old_agbcc', '-ftst'],
+  );
+  assert.deepEqual(header.functions[0], {
+    aliases: ['A_alias'],
+    entry: '0x08000100',
+    extent: { end: '0x08000110', start: '0x08000100' },
+    mode: 'thumb',
+    name: 'A',
+    source: { extent: 'analysis', name: { from: 'evidence:elf', kind: 'toml' } },
+  });
   assert.deepEqual(header.functions[1]?.source, { extent: 'analysis', name: { kind: 'default' } });
   assert.deepEqual(header.symbols, [{ addr: '0x03000000', name: 'gRam', size: 8 }]);
-  assert.deepEqual(header.unlisted, [{ entry: '0x08000180', mode: 'arm', origin: 'call', provenance: { cites: ['0x08000104'], note: 'n', round: 2, rule: 'seed.call' } }]);
+  assert.deepEqual(header.unlisted, [
+    {
+      entry: '0x08000180',
+      mode: 'arm',
+      origin: 'call',
+      provenance: { cites: ['0x08000104'], note: 'n', round: 2, rule: 'seed.call' },
+    },
+  ]);
   assert.deepEqual(
     header.diagnostics.map((d) => [d.code, d.severity, d.addr]),
     model.diagnostics.map((d) => [d.code, d.severity, d.addr === undefined ? undefined : hexAddr(d.addr)]),
@@ -132,7 +177,10 @@ test('a module with a C data range prints dataStart in the header, and only that
   const { rom } = fixtureModel('c-data');
   const analysis = discover(rom);
   const base = configFromDiscover(rom, analysis);
-  const config = { ...base, modules: base.modules.map((m) => (m.name === 'main' ? { ...m, dataStart: 0x0800_014c } : m)) };
+  const config = {
+    ...base,
+    modules: base.modules.map((m) => (m.name === 'main' ? { ...m, dataStart: 0x0800_014c } : m)),
+  };
   const model = buildModel(rom, analysis, config);
   const header = JSON.parse([...encodeModel(model, rom)][0] ?? '{}') as ModelJsonHeader;
   assert.deepEqual(
@@ -144,5 +192,8 @@ test('a module with a C data range prints dataStart in the header, and only that
     ],
   );
   const plain = JSON.parse([...encodeModel(buildModel(rom, analysis, base), rom)][0] ?? '{}') as ModelJsonHeader;
-  assert.ok(plain.modules.every((m) => !('dataStart' in m)), 'no module without a range has the key');
+  assert.ok(
+    plain.modules.every((m) => !('dataStart' in m)),
+    'no module without a range has the key',
+  );
 });

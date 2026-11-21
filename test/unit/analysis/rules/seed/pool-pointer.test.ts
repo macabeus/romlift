@@ -19,14 +19,27 @@ test('Thumb pointers in the pools of accepted functions (both modes), not yet fu
       { addr: F + 0x1c, value: 0x0800_0503 },
     ],
   });
-  const g = readingOf(rom, { entry: G, mode: 'arm', pools: [{ addr: G + 8, value: 0x0800_0601 }, { addr: G + 12, value: 0x0800_0401 }] });
+  const g = readingOf(rom, {
+    entry: G,
+    mode: 'arm',
+    pools: [
+      { addr: G + 8, value: 0x0800_0601 },
+      { addr: G + 12, value: 0x0800_0401 },
+    ],
+  });
   const v = viewWith({ rom, functions: [F, G], readings: [f, g] });
   assert.deepEqual(poolPointer.harvest(v, new Set()), [0x0800_0400, 0x0800_0600]);
 });
 
 test('the target must lie in the ROM: the last word is in, the ROM end is out', () => {
   const rom = romWith([], { size: 0x800 });
-  const f = readingOf(rom, { entry: F, pools: [{ addr: F + 8, value: rom.end + 1 }, { addr: F + 12, value: rom.end - 3 }] });
+  const f = readingOf(rom, {
+    entry: F,
+    pools: [
+      { addr: F + 8, value: rom.end + 1 },
+      { addr: F + 12, value: rom.end - 3 },
+    ],
+  });
   assert.deepEqual(poolPointer.harvest(viewWith({ rom, functions: [F], readings: [f] }), new Set()), [rom.end - 4]);
 });
 
@@ -50,6 +63,13 @@ test('inside a runs_at range a pool word names code by its run address: harveste
       { addr: F + 0x20, value: 0x0800_0601 },
     ],
   });
-  const v = { ...viewWith({ rom, functions: [F], readings: [f] }), addresses: addressMap([{ span: { start: L, end: L + 0x100 }, kind: 'code', runsAt: R }]) };
-  assert.deepEqual(poolPointer.harvest(v, new Set()), [L + 0x20, 0x0800_0600], 'R + 0x21 is L + 0x20; L + 1 is the source, R + 0x101 is RAM past the range, R + 0x23 is no word');
+  const v = {
+    ...viewWith({ rom, functions: [F], readings: [f] }),
+    addresses: addressMap([{ span: { start: L, end: L + 0x100 }, kind: 'code', runsAt: R }]),
+  };
+  assert.deepEqual(
+    poolPointer.harvest(v, new Set()),
+    [L + 0x20, 0x0800_0600],
+    'R + 0x21 is L + 0x20; L + 1 is the source, R + 0x101 is RAM past the range, R + 0x23 is no word',
+  );
 });

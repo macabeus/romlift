@@ -10,7 +10,7 @@ import { compareNumbers, sortedEntries, sortedKeys } from '../../../foundation/u
 import type { CompilerProfile } from '../../profile/types.ts';
 import { compareRejections } from '../../provenance/provenance.ts';
 import type { TrailSink } from '../../provenance/trail.ts';
-import { fixpointLimit, LIMITS } from '../limits.ts';
+import { LIMITS, fixpointLimit } from '../limits.ts';
 import { Claim, claimName } from '../types.ts';
 import type {
   AnalysisOptions,
@@ -24,12 +24,12 @@ import type {
   StartupRegion,
 } from '../types.ts';
 import { accept, write } from './accept.ts';
+import { canonicalize } from './canonical.ts';
 import { compareOverrides, compareSeeds } from './confirm.ts';
 import { extentEndOf, factOf, ownerOf } from './facts.ts';
 import { fillGaps } from './fill-gaps.ts';
 import { grow } from './grow.ts';
 import { RULES } from './rules.ts';
-import { canonicalize } from './canonical.ts';
 import { createDriver } from './state.ts';
 import type { DriverState } from './state.ts';
 import { emit } from './trail.ts';
@@ -61,7 +61,14 @@ export function runDriver(s: DriverState): StartupRegion {
     }
     const region = startup === undefined ? rule.startup?.(s.view) : undefined;
     if (region !== undefined) {
-      emit(s, 'verdict', region.span.start, id, [region.span.start, ...region.entries], `startup region to ${hexAddr(region.span.end)}`);
+      emit(
+        s,
+        'verdict',
+        region.span.start,
+        id,
+        [region.span.start, ...region.entries],
+        `startup region to ${hexAddr(region.span.end)}`,
+      );
       startup = region;
     }
   }
@@ -75,7 +82,13 @@ const OWNED: ReadonlySet<number> = new Set([Claim.code, Claim.pool, Claim.table,
  * then a word of four equal claims at a time through `words` (a view of the same bytes), then byte by byte (final-review
  * gates-r1-1: the claim array is as long as the ROM).
  */
-function sameRunEnd(claims: Uint8Array, words: Uint32Array | undefined, k: number, limit: number, kind: number): number {
+function sameRunEnd(
+  claims: Uint8Array,
+  words: Uint32Array | undefined,
+  k: number,
+  limit: number,
+  kind: number,
+): number {
   while (k < limit && (k & 3) !== 0) {
     if (claims[k] !== kind) return k;
     k++;
@@ -97,7 +110,8 @@ function claimRuns(s: DriverState, functions: readonly FunctionFact[]): readonly
     .filter((b, i, all) => i === 0 || all[i - 1] !== b);
   const runs: ClaimRun[] = [];
   const claims = s.claims;
-  const words = claims.byteOffset % 4 === 0 ? new Uint32Array(claims.buffer, claims.byteOffset, claims.length >>> 2) : undefined;
+  const words =
+    claims.byteOffset % 4 === 0 ? new Uint32Array(claims.buffer, claims.byteOffset, claims.length >>> 2) : undefined;
   let next = 0;
   for (let k = 0; k < claims.length; ) {
     const kind = (claims[k] ?? 0) as ClaimKind;
@@ -117,7 +131,13 @@ function claimRuns(s: DriverState, functions: readonly FunctionFact[]): readonly
 
 /** The options as the result records them: seeds and overrides in a total order, so the order the project lists them in never reaches the result. */
 function optionsRecord(o: AnalysisOptions): AnalysisOptionsRecord {
-  return { mode: o.mode, seeds: [...o.seeds].sort(compareSeeds), overrides: [...o.overrides].sort(compareOverrides), trail: o.trail, ...(o.trailFilter === undefined ? {} : { trailFilter: o.trailFilter }) };
+  return {
+    mode: o.mode,
+    seeds: [...o.seeds].sort(compareSeeds),
+    overrides: [...o.overrides].sort(compareOverrides),
+    trail: o.trail,
+    ...(o.trailFilter === undefined ? {} : { trailFilter: o.trailFilter }),
+  };
 }
 
 /** The result of a finished run. */
@@ -155,17 +175,35 @@ export function resultOf(s: DriverState, startup: StartupRegion): AnalysisResult
 }
 
 /** The analysis with an explicit rule registry (internal: driver tests run fake rules through it). */
-export function runAnalysis(rom: Rom, profile: CompilerProfile, options: AnalysisOptions, tuning: AnalysisTuning, rules: RuleRegistry, sink?: TrailSink): AnalysisResult {
+export function runAnalysis(
+  rom: Rom,
+  profile: CompilerProfile,
+  options: AnalysisOptions,
+  tuning: AnalysisTuning,
+  rules: RuleRegistry,
+  sink?: TrailSink,
+): AnalysisResult {
   const s = createDriver(rom, profile, options, tuning, rules, sink);
   return resultOf(s, runDriver(s));
 }
 
 /** The analysis of `rom` under `profile` (architecture §3.3). */
-export function analyze(rom: Rom, profile: CompilerProfile, options: AnalysisOptions, sink?: TrailSink): AnalysisResult {
+export function analyze(
+  rom: Rom,
+  profile: CompilerProfile,
+  options: AnalysisOptions,
+  sink?: TrailSink,
+): AnalysisResult {
   return runAnalysis(rom, profile, options, DEFAULT_TUNING, RULES, sink);
 }
 
 /** The analysis with internal tuning (romlift/internal, outside semver). */
-export function analyzeTuned(rom: Rom, profile: CompilerProfile, options: AnalysisOptions, tuning: AnalysisTuning, sink?: TrailSink): AnalysisResult {
+export function analyzeTuned(
+  rom: Rom,
+  profile: CompilerProfile,
+  options: AnalysisOptions,
+  tuning: AnalysisTuning,
+  sink?: TrailSink,
+): AnalysisResult {
   return runAnalysis(rom, profile, options, tuning, RULES, sink);
 }

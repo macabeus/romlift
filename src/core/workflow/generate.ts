@@ -37,7 +37,14 @@ import { combineReports } from '../verify/report.ts';
 import type { VerifyReport } from '../verify/report.ts';
 import { checkEntries } from '../verify/text-layout.ts';
 import { verifyModel } from '../verify/tiling.ts';
-import { NO_STUBS, outTreeEntries, projectEntries, reconciledBases, reconcileStubs, resolvedEntries } from './c-stubs.ts';
+import {
+  NO_STUBS,
+  outTreeEntries,
+  projectEntries,
+  reconcileStubs,
+  reconciledBases,
+  resolvedEntries,
+} from './c-stubs.ts';
 import type { StubReconciliation } from './c-stubs.ts';
 import { configFromDiscover } from './config-from-discover.ts';
 import { profileOrDefault } from './discover.ts';
@@ -111,7 +118,12 @@ export function confirmOptions(config: RomliftConfig): AnalysisOptions {
 }
 
 /** The confirm result of an image that is not a cartridge: nothing analysed, only the image's diagnostics. */
-function notAnalysed(rom: Rom, profile: CompilerProfile, options: AnalysisOptions, diagnostics: readonly Diagnostic[]): AnalysisResult {
+function notAnalysed(
+  rom: Rom,
+  profile: CompilerProfile,
+  options: AnalysisOptions,
+  diagnostics: readonly Diagnostic[],
+): AnalysisResult {
   return {
     schema: 'romlift/analysis@1',
     rom: { sha1: rom.sha1, end: rom.end },
@@ -149,7 +161,9 @@ export function confirmModel(inputs: Pick<GenerateInputs, 'rom' | 'config' | 'pr
 function* recordingPaths(entries: Iterable<FileEntry>, paths: string[]): Generator<FileEntry> {
   for (const entry of entries) {
     paths.push(entry.path);
-    yield entry.ownership === 'generated' && entry.writer === 'function' ? { ...entry, path: nonmatchingFileOf(entry.path) } : entry;
+    yield entry.ownership === 'generated' && entry.writer === 'function'
+      ? { ...entry, path: nonmatchingFileOf(entry.path) }
+      : entry;
   }
 }
 
@@ -159,14 +173,21 @@ function* recordingPaths(entries: Iterable<FileEntry>, paths: string[]): Generat
  * pass.
  */
 export function generate(inputs: GenerateInputs): GenerateResult {
-  return checkPass(inputs.rom, confirmModel(inputs), { decomp: inputs.decomp, printer: inputs.printer, ...(inputs.configSha1 === undefined ? {} : { configSha1: inputs.configSha1 }) });
+  return checkPass(inputs.rom, confirmModel(inputs), {
+    decomp: inputs.decomp,
+    printer: inputs.printer,
+    ...(inputs.configSha1 === undefined ? {} : { configSha1: inputs.configSha1 }),
+  });
 }
 
 /** The check pass over a confirmed model (§6.4 step 2): verifyModel, then one streaming pass of checkEntries. */
 function checkPass(rom: Rom, confirmed: ConfirmedModel, cx: EmitContext): GenerateResult {
   const { analysis, model } = confirmed;
   const paths: string[] = [];
-  const report = combineReports(verifyModel(rom, model), checkEntries(rom, model, recordingPaths(emitTree(rom, model, cx), paths)));
+  const report = combineReports(
+    verifyModel(rom, model),
+    checkEntries(rom, model, recordingPaths(emitTree(rom, model, cx), paths)),
+  );
   return { analysis, model, report, paths, diagnostics: [...analysis.diagnostics, ...model.diagnostics], cx };
 }
 
@@ -175,7 +196,10 @@ function checkPass(rom: Rom, confirmed: ConfirmedModel, cx: EmitContext): Genera
  * the tree checks' temporary directory, `generate --out`): entry for entry what its check pass read, but an existing C
  * file's entry holds its reconciled text (c-stubs.ts resolvedEntries), the C `make` compiles.
  */
-export function generatedEntries(rom: Rom, result: Pick<GenerateResult, 'model' | 'cx' | 'stubs'>): Iterable<FileEntry> {
+export function generatedEntries(
+  rom: Rom,
+  result: Pick<GenerateResult, 'model' | 'cx' | 'stubs'>,
+): Iterable<FileEntry> {
   return resolvedEntries(emitTree(rom, result.model, result.cx), result.stubs ?? NO_STUBS);
 }
 
@@ -183,7 +207,11 @@ export function generatedEntries(rom: Rom, result: Pick<GenerateResult, 'model' 
  * The emission stream of a generate result as the project receives it: an existing C file's entry is a `reconciled`
  * edit of the text the shell read (c-stubs.ts projectEntries; `hash`, the shell's sha1, names its base).
  */
-export function projectTreeEntries(rom: Rom, result: Pick<GenerateResult, 'model' | 'cx' | 'stubs'>, hash: (text: string) => string): Iterable<FileEntry> {
+export function projectTreeEntries(
+  rom: Rom,
+  result: Pick<GenerateResult, 'model' | 'cx' | 'stubs'>,
+  hash: (text: string) => string,
+): Iterable<FileEntry> {
   return projectEntries(emitTree(rom, result.model, result.cx), result.stubs ?? NO_STUBS, hash);
 }
 
@@ -196,7 +224,10 @@ export function reconciledTextsOf(result: Pick<GenerateResult, 'stubs'>): Readon
  * The emission stream `generate --out <dir>` writes: generatedEntries with every C file `generated`, so a later run
  * into the same directory rewrites or deletes it as it does asm/ (c-stubs.ts outTreeEntries).
  */
-export function outTreeEntriesOf(rom: Rom, result: Pick<GenerateResult, 'model' | 'cx' | 'stubs'>): Iterable<FileEntry> {
+export function outTreeEntriesOf(
+  rom: Rom,
+  result: Pick<GenerateResult, 'model' | 'cx' | 'stubs'>,
+): Iterable<FileEntry> {
   return outTreeEntries(generatedEntries(rom, result));
 }
 
@@ -237,7 +268,9 @@ export function decompStateOf(cTexts: ReadonlyMap<string, string>): DecompState 
 }
 
 /** The confirm analysis and Model of a project's config, or the refusal of another ROM (`explain` in a project, and the gates). */
-export function confirmProject(inputs: Pick<ProjectInputs, 'rom' | 'config' | 'profile'>): ({ readonly ok: true } & ConfirmedModel) | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] } {
+export function confirmProject(
+  inputs: Pick<ProjectInputs, 'rom' | 'config' | 'profile'>,
+): ({ readonly ok: true } & ConfirmedModel) | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] } {
   const refused = romSha1Problems(inputs.rom, inputs.config);
   if (refused.length > 0) return { ok: false, diagnostics: refused };
   return { ok: true, ...confirmModel(inputs) };
@@ -254,8 +287,18 @@ export function generateProject(inputs: ProjectInputs, options: ProjectGenerateO
   if (!confirmed.ok) return confirmed;
   const modelDiagnostics = [...confirmed.analysis.diagnostics, ...confirmed.model.diagnostics];
   if (modelDiagnostics.some((d) => d.severity === 'error')) return { ok: false, diagnostics: modelDiagnostics };
-  const checked = checkPass(inputs.rom, confirmed, { decomp: decompStateOf(inputs.cTexts), printer: options.printer ?? 'readable', ...(inputs.configSha1 === undefined ? {} : { configSha1: inputs.configSha1 }) });
-  const stubs = reconcileStubs(confirmed.model, inputs.cTexts, inputs.previousChunkFiles, inputs.headerTexts, inputs.headerRealPaths);
+  const checked = checkPass(inputs.rom, confirmed, {
+    decomp: decompStateOf(inputs.cTexts),
+    printer: options.printer ?? 'readable',
+    ...(inputs.configSha1 === undefined ? {} : { configSha1: inputs.configSha1 }),
+  });
+  const stubs = reconcileStubs(
+    confirmed.model,
+    inputs.cTexts,
+    inputs.previousChunkFiles,
+    inputs.headerTexts,
+    inputs.headerRealPaths,
+  );
   const result: GenerateResult = { ...checked, stubs, diagnostics: [...checked.diagnostics, ...stubs.diagnostics] };
   return { ok: true, result, diagnostics: result.diagnostics };
 }

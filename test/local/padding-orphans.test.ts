@@ -23,8 +23,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-
-import { chunkEntry, initModel, profileById, romFromBytes, type Model, type Rom } from 'romlift';
+import { type Model, type Rom, chunkEntry, initModel, profileById, romFromBytes } from 'romlift';
 import { sha1Of } from 'romlift/node';
 
 const REPO = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
@@ -34,7 +33,14 @@ const REQUIRE = process.env['ROMLIFT_REQUIRE_LOCAL'] === '1';
 const TUNING = ['fe7j', 'klonoa', 'pokeemerald', 'sa2', 'sa3', 'tmc'] as const;
 const WORD = 4;
 /** The zero pads that end a `c` module right after a function, kept as orphans by the owner's answer to Q8 (D79 a). */
-const KEPT_AT_C_END: Readonly<Record<(typeof TUNING)[number], number>> = { fe7j: 5, klonoa: 1, pokeemerald: 5, sa2: 1, sa3: 0, tmc: 1 };
+const KEPT_AT_C_END: Readonly<Record<(typeof TUNING)[number], number>> = {
+  fe7j: 5,
+  klonoa: 1,
+  pokeemerald: 5,
+  sa2: 1,
+  sa3: 0,
+  tmc: 1,
+};
 
 const profile = profileById('agbcc');
 if (profile === undefined) throw new Error('the agbcc profile is not registered');
@@ -48,7 +54,12 @@ function isPad(rom: Rom, start: number, end: number): boolean {
 
 /** Whether [start, end) is one Thumb nop (0x46C0) up to a word-aligned address. */
 function isNopPad(rom: Rom, start: number, end: number): boolean {
-  return end - start === 2 && end % WORD === 0 && rom.bytes[start - rom.base] === 0xc0 && rom.bytes[start + 1 - rom.base] === 0x46;
+  return (
+    end - start === 2 &&
+    end % WORD === 0 &&
+    rom.bytes[start - rom.base] === 0xc0 &&
+    rom.bytes[start + 1 - rom.base] === 0x46
+  );
 }
 
 interface Counts {
@@ -78,15 +89,24 @@ function countsOf(rom: Rom, model: Model): Counts {
     if (c.kind === 'function' && chunkEntry(c) > c.span.start) folded++;
     const last = c.items.first + c.items.count - 1;
     const lastStart = model.items.start[last] ?? c.span.start;
-    if ((c.kind === 'function' || c.kind === 'orphan') && c.items.count > 1 && model.items.kind[last] === 4 && isPad(rom, lastStart, c.span.end) && model.modules.some((m) => m.span.end === c.span.end)) folded++;
+    if (
+      (c.kind === 'function' || c.kind === 'orphan') &&
+      c.items.count > 1 &&
+      model.items.kind[last] === 4 &&
+      isPad(rom, lastStart, c.span.end) &&
+      model.modules.some((m) => m.span.end === c.span.end)
+    )
+      folded++;
     if (c.kind !== 'orphan') return;
     orphans++;
     let inside = false;
     for (let a = c.span.start + 1; a < c.span.end; a++) if (labelled.has(a)) inside = true;
     if (isPad(rom, c.span.start, c.span.end) && c.innerLabels.length === 0 && !inside) {
       const before = model.chunks[index - 1];
-      const endsC = kinds.get(c.module) === 'c' && model.modules.some((m) => m.name === c.module && m.span.end === c.span.end);
-      if (endsC && before?.kind === 'function' && before.module === c.module && before.span.end === c.span.start) keptAtCEnd++;
+      const endsC =
+        kinds.get(c.module) === 'c' && model.modules.some((m) => m.name === c.module && m.span.end === c.span.end);
+      if (endsC && before?.kind === 'function' && before.module === c.module && before.span.end === c.span.start)
+        keptAtCEnd++;
       else padOrphans.push(c.name);
     }
     if (isNopPad(rom, c.span.start, c.span.end)) {
@@ -98,7 +118,10 @@ function countsOf(rom: Rom, model: Model): Counts {
 }
 
 for (const name of TUNING) {
-  const dataset = JSON.parse(readFileSync(path.join(REPO, 'bench', 'dataset', 'real', `${name}.json`), 'utf8')) as { readonly rom: string; readonly sha1: string };
+  const dataset = JSON.parse(readFileSync(path.join(REPO, 'bench', 'dataset', 'real', `${name}.json`), 'utf8')) as {
+    readonly rom: string;
+    readonly sha1: string;
+  };
   const romPath = path.join(BENCH_ROOT, dataset.rom);
   const unavailable = existsSync(romPath) ? undefined : `unavailable: rom ${romPath}`;
 
@@ -111,9 +134,15 @@ for (const name of TUNING) {
     const init = initModel(rom, { profile });
     assert.ok(init.ok, init.ok ? '' : init.diagnostics.map((d) => d.message).join('; '));
     const counts = countsOf(rom, init.model);
-    t.diagnostic(`${name}: orphan files before ${counts.orphans + counts.folded}, after ${counts.orphans} (${counts.folded} pads folded); zero pads kept after a c module's last function ${counts.keptAtCEnd}; 0x46C0 nop pads left as orphans ${counts.nopOrphans}, ${counts.nopInC} of them in c modules`);
+    t.diagnostic(
+      `${name}: orphan files before ${counts.orphans + counts.folded}, after ${counts.orphans} (${counts.folded} pads folded); zero pads kept after a c module's last function ${counts.keptAtCEnd}; 0x46C0 nop pads left as orphans ${counts.nopOrphans}, ${counts.nopInC} of them in c modules`,
+    );
     assert.deepEqual(counts.padOrphans.slice(0, 10), [], `${name}: ${counts.padOrphans.length} padding-only orphans`);
-    assert.equal(counts.keptAtCEnd, KEPT_AT_C_END[name], `${name}: the zero pads kept after a c module's last function (Q8)`);
+    assert.equal(
+      counts.keptAtCEnd,
+      KEPT_AT_C_END[name],
+      `${name}: the zero pads kept after a c module's last function (Q8)`,
+    );
     assert.ok(counts.folded > 0, `${name}: no pad folded`);
   });
 }

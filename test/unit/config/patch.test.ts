@@ -11,8 +11,8 @@ import { parseConfig } from '../../../src/core/config/parse.ts';
 import { applyProposals, planPatch } from '../../../src/core/config/patch.ts';
 import type { RomliftConfig } from '../../../src/core/config/schema.ts';
 import { serializeConfig } from '../../../src/core/config/serialize.ts';
-import type { Proposal } from '../../../src/core/proposals/types.ts';
 import { profileById } from '../../../src/core/profile/registry.ts';
+import type { Proposal } from '../../../src/core/proposals/types.ts';
 import type { RuleId } from '../../../src/core/provenance/rule-id.ts';
 import { configFromDiscover } from '../../../src/core/workflow/config-from-discover.ts';
 import { discover } from '../../../src/core/workflow/discover.ts';
@@ -97,31 +97,50 @@ test("g4.toml-canonical's patch assertions hold on every committed fixture's con
     const addr = Number.parseInt(match[1], 16);
     const output = patched(input, [rename(addr, 'GatePatchedName', config.functions.get(addr)?.mode)], config);
     for (const comment of COMMENTS) assert.ok(output.includes(comment), `${name}: lost ${comment}`);
-    assert.deepEqual(changedLines(input, output), [`${match[1]} = { name = "GatePatchedName", from = "sig:gate@0" }`], name);
+    assert.deepEqual(
+      changedLines(input, output),
+      [`${match[1]} = { name = "GatePatchedName", from = "sig:gate@0" }`],
+      name,
+    );
     const again = parsed(output);
     assert.equal(again.functions.get(addr)?.name, 'GatePatchedName');
     assert.equal(again.functions.size, config.functions.size);
-    for (const [other, fn] of config.functions) if (other !== addr) assert.deepEqual(again.functions.get(other), fn, name);
+    for (const [other, fn] of config.functions)
+      if (other !== addr) assert.deepEqual(again.functions.get(other), fn, name);
     assert.deepEqual(again.modules, config.modules);
 
-    const moved = `${lines.filter((l) => l !== lines[at]).join('\n').trimEnd()}\n\n[functions.${match[1]}]\nname = "${match[2]}"\n`;
+    const moved = `${lines
+      .filter((l) => l !== lines[at])
+      .join('\n')
+      .trimEnd()}\n\n[functions.${match[1]}]\nname = "${match[2]}"\n`;
     const movedConfig = parsed(moved);
     assert.equal(serializeConfig(movedConfig), text, `${name}: the restructured file means the same config`);
     const refused = refusal(moved, [rename(addr, 'GatePatchedName', config.functions.get(addr)?.mode)], movedConfig);
     assert.equal(refused.length, 1, name);
-    assert.match(refused[0] ?? '', /^E_TOML_PATCH_REFUSED .* restructured by hand.*: 0x[0-9A-F]{8} = \{ name = "GatePatchedName", from = "sig:gate@0" \}$/);
+    assert.match(
+      refused[0] ?? '',
+      /^E_TOML_PATCH_REFUSED .* restructured by hand.*: 0x[0-9A-F]{8} = \{ name = "GatePatchedName", from = "sig:gate@0" \}$/,
+    );
   }
 });
 
 test('a rename keeps the indentation and a trailing comment of its line, and the comment above it', () => {
   const text = `${BASE}\n[functions]\n# the entry\n  0x08000010 = "sub_08000010"   # keep me\n0x08000020 = "sub_08000020"\n`;
   const output = patched(text, [rename(0x0800_0010, 'Main')]);
-  assert.equal(output, text.replace('0x08000010 = "sub_08000010"', '0x08000010 = { name = "Main", from = "sig:gate@0" }'));
+  assert.equal(
+    output,
+    text.replace('0x08000010 = "sub_08000010"', '0x08000010 = { name = "Main", from = "sig:gate@0" }'),
+  );
 });
 
 test('a new entry goes after the next lower address, or right after the header, with its neighbour’s indentation', () => {
   const text = `${BASE}\n[functions] # table comment\n  0x08000010 = "A"\n  # about B\n  0x08000030 = "B"\n\n[symbols]\n`;
-  const add = (addr: number): Proposal => ({ kind: 'function', addr, mode: 'thumb', source: { kind: 'analysis', rule: 'seed.test' as RuleId } });
+  const add = (addr: number): Proposal => ({
+    kind: 'function',
+    addr,
+    mode: 'thumb',
+    source: { kind: 'analysis', rule: 'seed.test' as RuleId },
+  });
   const output = patched(text, [add(0x0800_0040), add(0x0800_0020), add(0x0800_0000), add(0x0800_0028)]);
   assert.equal(
     output,
@@ -133,40 +152,95 @@ test('a new entry goes after the next lower address, or right after the header, 
 
 test('a CRLF file gets CRLF lines', () => {
   const text = `${BASE}\n[functions]\n0x08000010 = "A"\n\n[symbols]\n`.replace(/\n/g, '\r\n');
-  const output = patched(text, [{ kind: 'function', addr: 0x0800_0020, mode: 'arm', name: 'B', source: SIGNATURE }, rename(0x0800_0010, 'C')]);
-  assert.equal(output, text.replace('0x08000010 = "A"\r\n', '0x08000010 = { name = "C", from = "sig:gate@0" }\r\n0x08000020 = { name = "B", mode = "arm", from = "sig:gate@0" }\r\n'));
+  const output = patched(text, [
+    { kind: 'function', addr: 0x0800_0020, mode: 'arm', name: 'B', source: SIGNATURE },
+    rename(0x0800_0010, 'C'),
+  ]);
+  assert.equal(
+    output,
+    text.replace(
+      '0x08000010 = "A"\r\n',
+      '0x08000010 = { name = "C", from = "sig:gate@0" }\r\n0x08000020 = { name = "B", mode = "arm", from = "sig:gate@0" }\r\n',
+    ),
+  );
 });
 
 test('a new module is inserted as its canonical block before the next module, or after the last one, keeping comments (§6.7)', () => {
   const RANGE = { kind: 'layout', reason: 'runs-at' } as const;
   const text = `${BASE}# the data\n[[modules]]\nname = "data"  # keep\nstart = 0x08000400\nkind = "data"\n\n[functions]\n0x08000010 = "A"\n`;
   const ram: Proposal = { kind: 'module', name: 'ram_03000000', start: 0x0800_0100, moduleKind: 'asm', source: RANGE };
-  const resumed: Proposal = { kind: 'module', name: 'main_08000200', start: 0x0800_0200, moduleKind: 'asm', source: RANGE };
-  const tail: Proposal = { kind: 'module', name: 'tail', start: 0x0800_0500, moduleKind: 'data', library: { name: 'lib', version: '1' }, source: RANGE };
+  const resumed: Proposal = {
+    kind: 'module',
+    name: 'main_08000200',
+    start: 0x0800_0200,
+    moduleKind: 'asm',
+    source: RANGE,
+  };
+  const tail: Proposal = {
+    kind: 'module',
+    name: 'tail',
+    start: 0x0800_0500,
+    moduleKind: 'data',
+    library: { name: 'lib', version: '1' },
+    source: RANGE,
+  };
   const output = patched(text, [resumed, ram, tail]);
-  const block = (name: string, start: string, kind: string, extra = ''): string => `[[modules]]\nname = "${name}"\nstart = ${start}\nkind = "${kind}"\n${extra}`;
+  const block = (name: string, start: string, kind: string, extra = ''): string =>
+    `[[modules]]\nname = "${name}"\nstart = ${start}\nkind = "${kind}"\n${extra}`;
   assert.equal(
     output,
     `${BASE}${block('ram_03000000', '0x08000100', 'asm')}\n${block('main_08000200', '0x08000200', 'asm')}\n# the data\n[[modules]]\nname = "data"  # keep\nstart = 0x08000400\nkind = "data"\n\n${block('tail', '0x08000500', 'data', 'library = "lib"\nversion = "1"\n')}\n[functions]\n0x08000010 = "A"\n`,
   );
   const crlf = `${BASE}\n[functions]\n`.replace(/\n/g, '\r\n');
-  assert.equal(patched(crlf, [ram]), `${BASE}\n${block('ram_03000000', '0x08000100', 'asm')}\n[functions]\n`.replace(/\n/g, '\r\n'));
-  assert.equal(patched(BASE, [ram]), `${BASE}\n${block('ram_03000000', '0x08000100', 'asm')}`, 'after the last block at the end of the text');
+  assert.equal(
+    patched(crlf, [ram]),
+    `${BASE}\n${block('ram_03000000', '0x08000100', 'asm')}\n[functions]\n`.replace(/\n/g, '\r\n'),
+  );
+  assert.equal(
+    patched(BASE, [ram]),
+    `${BASE}\n${block('ram_03000000', '0x08000100', 'asm')}`,
+    'after the last block at the end of the text',
+  );
 });
 
 test('`from` records a persisted source; the analysis leaves it as it was; aliases and size are kept', () => {
   const text = `${BASE}\n[functions]\n0x08000010 = { name = "A", size = 0x20, aliases = ["B"], from = "sig:gate@0" }\n`;
-  const signature: Proposal = { kind: 'function', addr: 0x0800_0010, mode: 'thumb', name: 'm4aSoundMain', source: { kind: 'signature', library: 'm4a', version: '2001', rule: 'sig.test' as RuleId } };
-  assert.match(patched(text, [signature]), /^0x08000010 = \{ name = "m4aSoundMain", size = 0x20, aliases = \["B"\], from = "sig:m4a@2001" \}$/m);
-  const analysis: Proposal = { kind: 'function', addr: 0x0800_0010, mode: 'thumb', size: 0x30, source: { kind: 'analysis', rule: 'seed.test' as RuleId } };
-  assert.match(patched(text, [analysis]), /^0x08000010 = \{ name = "A", size = 0x30, aliases = \["B"\], from = "sig:gate@0" \}$/m);
+  const signature: Proposal = {
+    kind: 'function',
+    addr: 0x0800_0010,
+    mode: 'thumb',
+    name: 'm4aSoundMain',
+    source: { kind: 'signature', library: 'm4a', version: '2001', rule: 'sig.test' as RuleId },
+  };
+  assert.match(
+    patched(text, [signature]),
+    /^0x08000010 = \{ name = "m4aSoundMain", size = 0x20, aliases = \["B"\], from = "sig:m4a@2001" \}$/m,
+  );
+  const analysis: Proposal = {
+    kind: 'function',
+    addr: 0x0800_0010,
+    mode: 'thumb',
+    size: 0x30,
+    source: { kind: 'analysis', rule: 'seed.test' as RuleId },
+  };
+  assert.match(
+    patched(text, [analysis]),
+    /^0x08000010 = \{ name = "A", size = 0x30, aliases = \["B"\], from = "sig:gate@0" \}$/m,
+  );
 });
 
 test('a proposal never moves an entry point back to [functions]: the startup code inside the cartridge entry stays one (D64 a, D116)', () => {
   const text = `${BASE}\n[functions]\n0x08000000 = { name = "sub_08000000", mode = "arm" }\n\n[entry_points]\n0x080000C0 = { name = "sub_080000C0", mode = "arm" }\n`;
   const output = patched(text, [rename(0x0800_00c0, 'start', 'arm')]);
   assert.deepEqual(changedLines(text, output), ['0x080000C0 = { name = "start", mode = "arm", from = "sig:gate@0" }']);
-  const cleared: Proposal = { kind: 'function', addr: 0x0800_00c0, mode: 'arm', entryPoint: false, name: 'start', source: SIGNATURE };
+  const cleared: Proposal = {
+    kind: 'function',
+    addr: 0x0800_00c0,
+    mode: 'arm',
+    entryPoint: false,
+    name: 'start',
+    source: SIGNATURE,
+  };
   const after = parsed(patched(text, [cleared]));
   assert.equal(after.entryPoints.get(0x0800_00c0)?.name, 'start');
   assert.equal(after.functions.has(0x0800_00c0), false);
@@ -174,7 +248,13 @@ test('a proposal never moves an entry point back to [functions]: the startup cod
 
 test('an entry-point proposal moves a [functions] line to [entry_points], adding the table before [symbols] when it is missing (D116)', () => {
   const text = `${BASE}\n[functions]\n0x08000000 = { name = "sub_08000000", mode = "arm" }  # keep\n0x08000100 = "Inner"\n0x08000200 = "After"\n\n# the RAM\n[symbols]\n`;
-  const p: Proposal = { kind: 'function', addr: 0x0800_0100, mode: 'thumb', entryPoint: true, source: { kind: 'analysis', rule: 'seed.call' } };
+  const p: Proposal = {
+    kind: 'function',
+    addr: 0x0800_0100,
+    mode: 'thumb',
+    entryPoint: true,
+    source: { kind: 'analysis', rule: 'seed.call' },
+  };
   const output = patched(text, [p]);
   assert.equal(
     output,
@@ -188,15 +268,29 @@ test('an entry-point proposal moves a [functions] line to [entry_points], adding
 test('symbols are patched like functions', () => {
   const text = `${BASE}\n[functions]\n\n[symbols]\n0x03000000 = "gUnk_03000000"   # RAM\n`;
   const output = patched(text, [
-    { kind: 'symbol', addr: 0x0300_0000, name: 'gMain', source: { kind: 'signature', library: 'm4a', version: '2001', rule: 'sig.unique-fit' } },
+    {
+      kind: 'symbol',
+      addr: 0x0300_0000,
+      name: 'gMain',
+      source: { kind: 'signature', library: 'm4a', version: '2001', rule: 'sig.unique-fit' },
+    },
     { kind: 'symbol', addr: 0x0300_0010, name: 'gTable', size: 0x40, type: 'pointers', source: SIGNATURE },
   ]);
-  assert.equal(output, `${BASE}\n[functions]\n\n[symbols]\n0x03000000 = { name = "gMain", from = "sig:m4a@2001" }   # RAM\n0x03000010 = { name = "gTable", size = 0x40, type = "pointers", from = "sig:gate@0" }\n`);
+  assert.equal(
+    output,
+    `${BASE}\n[functions]\n\n[symbols]\n0x03000000 = { name = "gMain", from = "sig:m4a@2001" }   # RAM\n0x03000010 = { name = "gTable", size = 0x40, type = "pointers", from = "sig:gate@0" }\n`,
+  );
 });
 
 test('an unchanged entry is not rewritten, so a no-op patch returns the text itself', () => {
   const text = `${BASE}\n[functions]\n0x08000010 = { name = "A", mode = "thumb" }  # not canonical, but meant the same\n`;
-  assert.equal(patched(text, [rename(0x0800_0010, 'A')].map((p) => ({ ...p, source: { kind: 'analysis', rule: 'seed.x' as RuleId } }))), text);
+  assert.equal(
+    patched(
+      text,
+      [rename(0x0800_0010, 'A')].map((p) => ({ ...p, source: { kind: 'analysis', rule: 'seed.x' as RuleId } })),
+    ),
+    text,
+  );
   assert.equal(patched(text, []), text);
 });
 
@@ -211,11 +305,25 @@ test('the refusals: a block entry, a missing table, a multi-line value, dotted k
   assert.deepEqual(refusal(BASE, [{ kind: 'symbol', addr: 0x0300_0000, name: 'gA', source: SIGNATURE }]), [
     'E_TOML_PATCH_REFUSED romlift.toml has no [symbols] table to add 0x03000000 to; add the table with this line: 0x03000000 = { name = "gA", from = "sig:gate@0" }',
   ]);
-  const module: Proposal = { kind: 'module', name: 'm4a', start: 0x0800_0000, moduleKind: 'asm', library: { name: 'm4a', version: '2001' }, source: { kind: 'signature', library: 'm4a', version: '2001', rule: 'sig.x' as RuleId } };
+  const module: Proposal = {
+    kind: 'module',
+    name: 'm4a',
+    start: 0x0800_0000,
+    moduleKind: 'asm',
+    library: { name: 'm4a', version: '2001' },
+    source: { kind: 'signature', library: 'm4a', version: '2001', rule: 'sig.x' as RuleId },
+  };
   assert.deepEqual(refusal(`${BASE}\n[functions]\n`, [module]), [
     'E_TOML_PATCH_REFUSED [[modules]] are blocks, which the planner edits only to insert a new module; make the [[modules]] read, in link order:\n[[modules]]\nname = "m4a"\nstart = 0x08000000\nkind = "asm"\nlibrary = "m4a"\nversion = "2001"',
   ]);
-  const override: Proposal = { kind: 'override', span: { start: 0x0800_0100, end: 0x0800_0140 }, overrideKind: 'code', mode: 'arm', runsAt: 0x0300_0000, source: { kind: 'signature', library: 'm4a', version: '2001', rule: 'sig.unique-fit' } };
+  const override: Proposal = {
+    kind: 'override',
+    span: { start: 0x0800_0100, end: 0x0800_0140 },
+    overrideKind: 'code',
+    mode: 'arm',
+    runsAt: 0x0300_0000,
+    source: { kind: 'signature', library: 'm4a', version: '2001', rule: 'sig.unique-fit' },
+  };
   assert.deepEqual(refusal(`${BASE}\n[functions]\n`, [override]), [
     'E_TOML_PATCH_REFUSED [[overrides]] are blocks, which the planner does not edit; make the [[overrides]] read:\n[[overrides]]\nstart = 0x08000100\nsize = 0x40\nkind = "code"\nmode = "arm"\nruns_at = 0x03000000\nfrom = "sig:m4a@2001"',
   ]);
@@ -223,18 +331,28 @@ test('the refusals: a block entry, a missing table, a multi-line value, dotted k
   const stale = parsed(plain.replace('"B"', '"Stale"'));
   const message = refusal(plain, [rename(0x0800_0010, 'X')], stale);
   assert.equal(message.length, 1);
-  assert.match(message[0] ?? '', /^E_TOML_PATCH_REFUSED the patched text does not mean the intended config: the patched file reads "0x08000020 = \\"B\\"" where the intended config reads "0x08000020 = \\"Stale\\""; paste these entries by hand:\n\[functions\] 0x08000010 = \{ name = "X", from = "sig:gate@0" \}$/);
+  assert.match(
+    message[0] ?? '',
+    /^E_TOML_PATCH_REFUSED the patched text does not mean the intended config: the patched file reads "0x08000020 = \\"B\\"" where the intended config reads "0x08000020 = \\"Stale\\""; paste these entries by hand:\n\[functions\] 0x08000010 = \{ name = "X", from = "sig:gate@0" \}$/,
+  );
 });
 
 test('applyProposals: in order, later wins; modules and overrides land in start order', () => {
-  const config = parsed(`${BASE}\n[[modules]]\nname = "data"\nstart = 0x08000400\nkind = "data"\ngenerated = false\n\n[functions]\n`);
+  const config = parsed(
+    `${BASE}\n[[modules]]\nname = "data"\nstart = 0x08000400\nkind = "data"\ngenerated = false\n\n[functions]\n`,
+  );
   const next = applyProposals(config, [
     rename(0x0800_0010, 'First'),
     rename(0x0800_0010, 'Second'),
     { kind: 'module', name: 'lib', start: 0x0800_0200, moduleKind: 'asm', source: SIGNATURE },
     { kind: 'module', name: 'rodata', start: 0x0800_0400, moduleKind: 'data', source: SIGNATURE },
     { kind: 'override', span: { start: 0x0800_0300, end: 0x0800_0310 }, overrideKind: 'data', source: SIGNATURE },
-    { kind: 'override', span: { start: 0x0800_0100, end: 0x0800_0110 }, overrideKind: 'code', source: { kind: 'layout', reason: 'data' } },
+    {
+      kind: 'override',
+      span: { start: 0x0800_0100, end: 0x0800_0110 },
+      overrideKind: 'code',
+      source: { kind: 'layout', reason: 'data' },
+    },
   ]);
   assert.equal(next.functions.get(0x0800_0010)?.name, 'Second');
   assert.deepEqual(

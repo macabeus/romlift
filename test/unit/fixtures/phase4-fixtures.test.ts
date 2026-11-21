@@ -7,13 +7,24 @@
 // `generate` must refuse it with E_MODULE_BORDER; each overlay/src/<module>.c defines, under the names `init`
 // gives, exactly the functions of its module (multi-compiler: of every C module; c-data: with a const array).
 import assert from 'node:assert/strict';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import {
+  type AnalysisResult,
+  BUILD_COMPILERS,
+  DEFAULT_BUILD_COMPILER,
+  type Rom,
+  codeLayout,
+  configFromDiscover,
+  discover,
+  inferModules,
+  isLegalStart,
+  legalStartsBetween,
+  profileById,
+} from 'romlift';
 
-import { BUILD_COMPILERS, codeLayout, configFromDiscover, DEFAULT_BUILD_COMPILER, discover, inferModules, isLegalStart, legalStartsBetween, profileById, type AnalysisResult, type Rom } from 'romlift';
-
-import { listSyntheticFixtures, readExpect, readFixtureRom, type SyntheticFixture } from '../../helpers/fixtures.ts';
+import { type SyntheticFixture, listSyntheticFixtures, readExpect, readFixtureRom } from '../../helpers/fixtures.ts';
 
 const FIXTURES = listSyntheticFixtures();
 
@@ -78,7 +89,9 @@ function moduleSizeOf(args: readonly string[]): number | undefined {
 /** inferModules' module proposals under init.args, each with its end (the next start, or the ROM end). */
 function modulesOf(p: Phase4): readonly ModuleProposal[] {
   const size = moduleSizeOf(initArgs(p));
-  const proposals = inferModules(p.rom, p.analysis, size === undefined ? {} : { moduleSize: size }).flatMap((m) => (m.kind === 'module' ? [{ name: m.name, start: m.start, kind: m.moduleKind }] : []));
+  const proposals = inferModules(p.rom, p.analysis, size === undefined ? {} : { moduleSize: size }).flatMap((m) =>
+    m.kind === 'module' ? [{ name: m.name, start: m.start, kind: m.moduleKind }] : [],
+  );
   return proposals.map((m, i) => ({ ...m, end: proposals[i + 1]?.start ?? p.rom.end }));
 }
 
@@ -97,12 +110,20 @@ function definedFunctions(text: string): readonly string[] {
 function functionsIn(p: Phase4, module: ModuleProposal): readonly string[] {
   const size = moduleSizeOf(initArgs(p));
   const config = configFromDiscover(p.rom, p.analysis, size === undefined ? {} : { moduleSize: size });
-  return [...config.functions.entries()].filter(([addr]) => addr >= module.start && addr < module.end).map(([, f]) => f.name).sort(byCodeUnit);
+  return [...config.functions.entries()]
+    .filter(([addr]) => addr >= module.start && addr < module.end)
+    .map(([, f]) => f.name)
+    .sort(byCodeUnit);
 }
 
 function overlayModules(p: Phase4): readonly string[] {
   const dir = join(p.fixture.dir, 'overlay', 'src');
-  return existsSync(dir) ? readdirSync(dir).filter((n) => n.endsWith('.c')).map((n) => n.slice(0, -2)).sort(byCodeUnit) : [];
+  return existsSync(dir)
+    ? readdirSync(dir)
+        .filter((n) => n.endsWith('.c'))
+        .map((n) => n.slice(0, -2))
+        .sort(byCodeUnit)
+    : [];
 }
 
 function overlayText(p: Phase4, module: string): string {
@@ -110,7 +131,11 @@ function overlayText(p: Phase4, module: string): string {
 }
 
 test('the three phase-4 fixtures are committed', () => {
-  for (const name of ['composite', 'multi-compiler', 'c-data']) assert.ok(FIXTURES.some((f) => f.name === name), name);
+  for (const name of ['composite', 'multi-compiler', 'c-data'])
+    assert.ok(
+      FIXTURES.some((f) => f.name === name),
+      name,
+    );
 });
 
 test('composite: init.args is --module-size 0x200, which gives at least three C modules with legal borders inside them', () => {
@@ -119,17 +144,24 @@ test('composite: init.args is --module-size 0x200, which gives at least three C 
   // core/layout's one legal-start rule (architecture-r1-3).
   const layout = codeLayout(p.rom, p.analysis);
   const modules = modulesOf(p);
-  for (const m of modules) assert.ok(isLegalStart(layout, m.start), `${m.name} starts at ${hex(m.start)}, no legal border`);
+  for (const m of modules)
+    assert.ok(isLegalStart(layout, m.start), `${m.name} starts at ${hex(m.start)}, no legal border`);
   const c = modules.filter((m) => m.kind === 'c');
   assert.ok(c.length >= 3, `${c.length} C modules`);
   const split = c.filter((m) => legalStartsBetween(layout, m.start, m.end).length > 0);
   assert.ok(split.length >= 3, `C modules with a legal border inside: ${split.map((m) => m.name).join(', ')}`);
-  assert.ok(modules.some((m) => m.kind === 'asm' && m.name.startsWith('asm_')), 'an assembly-only module');
-  assert.ok(modules.some((m) => m.kind === 'data'), 'a data module');
+  assert.ok(
+    modules.some((m) => m.kind === 'asm' && m.name.startsWith('asm_')),
+    'an assembly-only module',
+  );
+  assert.ok(
+    modules.some((m) => m.kind === 'data'),
+    'a data module',
+  );
   assert.deepEqual(overlayModules(p), []);
 });
 
-test("composite: illegalBorder names a C module and a start between its neighbours that is no legal border", () => {
+test('composite: illegalBorder names a C module and a start between its neighbours that is no legal border', () => {
   const p = load('composite');
   const border = p.raw['illegalBorder'];
   assert.ok(isRecord(border), 'illegalBorder is an object');
@@ -137,7 +169,10 @@ test("composite: illegalBorder names a C module and a start between its neighbou
   const module = border['module'];
   const start = border['start'];
   assert.ok(typeof module === 'string');
-  assert.ok(typeof start === 'string' && /^0x[0-9A-F]{8}$/.test(start), `start ${String(start)} is "0x" and eight upper-case digits`);
+  assert.ok(
+    typeof start === 'string' && /^0x[0-9A-F]{8}$/.test(start),
+    `start ${String(start)} is "0x" and eight upper-case digits`,
+  );
   const modules = modulesOf(p);
   const at = modules.findIndex((m) => m.name === module);
   const target = modules[at];
@@ -145,7 +180,10 @@ test("composite: illegalBorder names a C module and a start between its neighbou
   assert.equal(target.kind, 'c');
   const addr = Number(start);
   const previous = modules[at - 1];
-  assert.ok(previous !== undefined && addr > previous.start && addr < target.end, `${start} lies between ${previous?.name ?? '?'} and the module after ${module}`);
+  assert.ok(
+    previous !== undefined && addr > previous.start && addr < target.end,
+    `${start} lies between ${previous?.name ?? '?'} and the module after ${module}`,
+  );
   assert.notEqual(addr, target.start);
   assert.ok(!isLegalStart(codeLayout(p.rom, p.analysis), addr), `${start} is a legal border`);
 });
@@ -162,21 +200,33 @@ test('multi-compiler: the named modules are C proposals under init.args, built w
     assert.ok(c.includes(name), `${name} is no C proposal of inferModules (${c.join(', ')})`);
     const spec = compilers[name];
     assert.ok(isRecord(spec), `${name}: not an object`);
-    assert.ok(Object.keys(spec).every((k) => k === 'compiler' || k === 'cflags'), `${name}: keys ${Object.keys(spec).join(', ')}`);
+    assert.ok(
+      Object.keys(spec).every((k) => k === 'compiler' || k === 'cflags'),
+      `${name}: keys ${Object.keys(spec).join(', ')}`,
+    );
     const compiler = spec['compiler'];
-    assert.ok(typeof compiler === 'string' && Object.hasOwn(BUILD_COMPILERS, compiler), `${name}: compiler ${String(compiler)} is not registered`);
+    assert.ok(
+      typeof compiler === 'string' && Object.hasOwn(BUILD_COMPILERS, compiler),
+      `${name}: compiler ${String(compiler)} is not registered`,
+    );
     assert.notEqual(compiler, DEFAULT_BUILD_COMPILER);
     assert.ok(spec['cflags'] === undefined || isStringArray(spec['cflags']), `${name}: cflags is not a string array`);
   }
   assert.deepEqual(named, ['main_2']);
   assert.deepEqual(compilers['main_2'], { compiler: 'old_agbcc', cflags: ['-mno-thumb-interwork'] });
-  assert.ok(c.some((m) => !named.includes(m)), 'a C module stays on agbcc');
+  assert.ok(
+    c.some((m) => !named.includes(m)),
+    'a C module stays on agbcc',
+  );
 });
 
 test('multi-compiler: each source is its own C module, and overlay/src holds every C module defining exactly its functions', () => {
   const p = load('multi-compiler');
   const modules = modulesOf(p);
-  assert.deepEqual(modules.map((m) => `${m.name}:${m.kind}@${hex(m.start)}`), ['rom_header:asm@0x08000000', 'crt0:asm@0x080000C0', 'main:c@0x080000F4', 'main_2:c@0x08000174']);
+  assert.deepEqual(
+    modules.map((m) => `${m.name}:${m.kind}@${hex(m.start)}`),
+    ['rom_header:asm@0x08000000', 'crt0:asm@0x080000C0', 'main:c@0x080000F4', 'main_2:c@0x08000174'],
+  );
   const c = modules.filter((m) => m.kind === 'c');
   assert.deepEqual(overlayModules(p), c.map((m) => m.name).sort(byCodeUnit));
   for (const m of c) assert.deepEqual(definedFunctions(overlayText(p, m.name)), functionsIn(p, m), m.name);
@@ -191,8 +241,14 @@ test('c-data: one C module, whose overlay defines its functions and a const arra
   assert.equal(p.raw['init'], undefined);
   const modules = modulesOf(p);
   const c = modules.filter((m) => m.kind === 'c');
-  assert.deepEqual(c.map((m) => m.name), ['main']);
-  assert.ok(modules.some((m) => m.kind === 'data'), 'the table is a data tail');
+  assert.deepEqual(
+    c.map((m) => m.name),
+    ['main'],
+  );
+  assert.ok(
+    modules.some((m) => m.kind === 'data'),
+    'the table is a data tail',
+  );
   assert.deepEqual(overlayModules(p), ['main']);
   const text = overlayText(p, 'main');
   assert.match(text, /^const unsigned short \w+\[\d+\] = \{[^}]+\};$/m);

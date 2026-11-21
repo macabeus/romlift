@@ -6,7 +6,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { main, takeRepeated, usage, type BenchIo } from '../../../bench/src/cli.ts';
+import { type BenchIo, main, takeRepeated, usage } from '../../../bench/src/cli.ts';
 import { REPO_ROOT } from '../../../bench/src/context.ts';
 import { withTempDir } from './fixtures.ts';
 
@@ -78,14 +78,21 @@ test('a refused input exits 1 with its message; an empty gates directory prints 
 });
 
 test('the process entry exits 2 on an unknown command and prints the usage on stderr', () => {
-  const run = spawnSync(process.execPath, ['--conditions=source', join(REPO_ROOT, 'bench/src/cli.ts'), 'frobnicate'], { cwd: REPO_ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  const run = spawnSync(process.execPath, ['--conditions=source', join(REPO_ROOT, 'bench/src/cli.ts'), 'frobnicate'], {
+    cwd: REPO_ROOT,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
   assert.equal(run.status, 2);
   assert.equal(run.stdout, '');
   assert.match(run.stderr, /^unknown command frobnicate\nromlift benchmark: npm run bench -- <command>/);
 });
 
 test('takeRepeated collects every value of a repeatable option, comma lists included, and leaves the rest', () => {
-  assert.deepEqual(takeRepeated(['--json', '--disable', 'a.b', '--only', 'x', '--disable', 'c.d,e.f'], ['disable']), { rest: ['--json', '--only', 'x'], values: { disable: ['a.b', 'c.d', 'e.f'] } });
+  assert.deepEqual(takeRepeated(['--json', '--disable', 'a.b', '--only', 'x', '--disable', 'c.d,e.f'], ['disable']), {
+    rest: ['--json', '--only', 'x'],
+    values: { disable: ['a.b', 'c.d', 'e.f'] },
+  });
   assert.deepEqual(takeRepeated(['--json'], []), { rest: ['--json'], values: {} });
   assert.throws(() => takeRepeated(['--disable', '--json'], ['disable']), /--disable needs a value/);
 });

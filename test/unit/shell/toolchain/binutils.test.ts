@@ -7,7 +7,13 @@ import path from 'node:path';
 import { test } from 'node:test';
 
 import { DIALECT } from '../../../../src/foundation/asm/dialect.ts';
-import { assembleWithBinutils, binutilsVersions, findBinutils, findExecutable, linkWithBinutils } from '../../../../src/shell/toolchain/binutils.ts';
+import {
+  assembleWithBinutils,
+  binutilsVersions,
+  findBinutils,
+  findExecutable,
+  linkWithBinutils,
+} from '../../../../src/shell/toolchain/binutils.ts';
 import { stubBinutils } from './stub.ts';
 
 const tools = findBinutils(process.env);
@@ -51,34 +57,52 @@ test('the PATH is searched in order for executables', async () => {
   }
 });
 
-test('assembleWithBinutils returns the .text bytes', { skip: available ? false : 'unavailable: toolchain' }, async () => {
-  const source = `${DIALECT.preamble('thumb')}\tthumb_func_start f\nf:\n\tpush {r4, lr}\n\tbx lr\n`;
-  const result = await assembleWithBinutils(source, { mode: 'thumb', files: { 'include/macros.inc': DIALECT.macrosInc } });
-  assert.ok(result.ok, result.ok ? '' : result.stderr);
-  assert.deepEqual([...result.bytes], [0x10, 0xb5, 0x70, 0x47]);
-  // The relocatable object itself, for a caller that reads its symbols and relocations (bench objdiff).
-  assert.deepEqual([...result.object.subarray(0, 4)], [0x7f, 0x45, 0x4c, 0x46]);
-  const arm = await assembleWithBinutils('.syntax unified\n.arm\n\tbx lr\n');
-  assert.ok(arm.ok);
-  assert.deepEqual([...arm.bytes], [0x1e, 0xff, 0x2f, 0xe1]);
-});
+test(
+  'assembleWithBinutils returns the .text bytes',
+  { skip: available ? false : 'unavailable: toolchain' },
+  async () => {
+    const source = `${DIALECT.preamble('thumb')}\tthumb_func_start f\nf:\n\tpush {r4, lr}\n\tbx lr\n`;
+    const result = await assembleWithBinutils(source, {
+      mode: 'thumb',
+      files: { 'include/macros.inc': DIALECT.macrosInc },
+    });
+    assert.ok(result.ok, result.ok ? '' : result.stderr);
+    assert.deepEqual([...result.bytes], [0x10, 0xb5, 0x70, 0x47]);
+    // The relocatable object itself, for a caller that reads its symbols and relocations (bench objdiff).
+    assert.deepEqual([...result.object.subarray(0, 4)], [0x7f, 0x45, 0x4c, 0x46]);
+    const arm = await assembleWithBinutils('.syntax unified\n.arm\n\tbx lr\n');
+    assert.ok(arm.ok);
+    assert.deepEqual([...arm.bytes], [0x1e, 0xff, 0x2f, 0xe1]);
+  },
+);
 
-test('an assembler error is returned with its stderr and E_TOOLCHAIN_FAILED', { skip: available ? false : 'unavailable: toolchain' }, async () => {
-  const result = await assembleWithBinutils('.syntax unified\n.thumb\n\tmov r0, r1\n', { mode: 'thumb' });
-  assert.ok(!result.ok);
-  assert.match(result.stderr, /Error: MOV Rd, Rs with two low registers/);
-  assert.deepEqual(result.diagnostics.map((d) => d.code), ['E_TOOLCHAIN_FAILED']);
-  const escape = await assembleWithBinutils('.thumb\n', { files: { '../outside.inc': '' } });
-  assert.ok(!escape.ok && /outside the assembly directory/.test(escape.diagnostics[0]?.message ?? ''));
-});
+test(
+  'an assembler error is returned with its stderr and E_TOOLCHAIN_FAILED',
+  { skip: available ? false : 'unavailable: toolchain' },
+  async () => {
+    const result = await assembleWithBinutils('.syntax unified\n.thumb\n\tmov r0, r1\n', { mode: 'thumb' });
+    assert.ok(!result.ok);
+    assert.match(result.stderr, /Error: MOV Rd, Rs with two low registers/);
+    assert.deepEqual(
+      result.diagnostics.map((d) => d.code),
+      ['E_TOOLCHAIN_FAILED'],
+    );
+    const escape = await assembleWithBinutils('.thumb\n', { files: { '../outside.inc': '' } });
+    assert.ok(!escape.ok && /outside the assembly directory/.test(escape.diagnostics[0]?.message ?? ''));
+  },
+);
 
-test('the versions are the first lines of --version', { skip: available ? false : 'unavailable: toolchain' }, async () => {
-  assert.ok(!('code' in tools));
-  const versions = await binutilsVersions(tools);
-  assert.match(versions.as, /^GNU assembler /);
-  assert.match(versions.ld, /^GNU ld /);
-  assert.match(versions.objcopy, /^GNU objcopy /);
-});
+test(
+  'the versions are the first lines of --version',
+  { skip: available ? false : 'unavailable: toolchain' },
+  async () => {
+    assert.ok(!('code' in tools));
+    const versions = await binutilsVersions(tools);
+    assert.match(versions.as, /^GNU assembler /);
+    assert.match(versions.ld, /^GNU ld /);
+    assert.match(versions.objcopy, /^GNU objcopy /);
+  },
+);
 
 test('assembleWithBinutils without the tools gives E_TOOLCHAIN_MISSING', async () => {
   const saved = process.env['PATH'];
@@ -86,7 +110,10 @@ test('assembleWithBinutils without the tools gives E_TOOLCHAIN_MISSING', async (
   try {
     const result = await assembleWithBinutils('.thumb\n');
     assert.ok(!result.ok);
-    assert.deepEqual(result.diagnostics.map((d) => d.code), ['E_TOOLCHAIN_MISSING']);
+    assert.deepEqual(
+      result.diagnostics.map((d) => d.code),
+      ['E_TOOLCHAIN_MISSING'],
+    );
   } finally {
     process.env['PATH'] = saved;
   }
@@ -106,35 +133,46 @@ test('findExecutable searches the PATH of the given environment only', async () 
   }
 });
 
-test('assembleWithBinutils runs the tools it is given, not the PATH', { skip: available ? false : 'unavailable: toolchain' }, async () => {
-  assert.ok(!('code' in tools));
-  const saved = process.env['PATH'];
-  process.env['PATH'] = '';
-  try {
-    const result = await assembleWithBinutils('.syntax unified\n.arm\n\tbx lr\n', { tools });
-    assert.ok(result.ok);
-    assert.deepEqual([...result.bytes], [0x1e, 0xff, 0x2f, 0xe1]);
-  } finally {
-    process.env['PATH'] = saved;
-  }
-});
+test(
+  'assembleWithBinutils runs the tools it is given, not the PATH',
+  { skip: available ? false : 'unavailable: toolchain' },
+  async () => {
+    assert.ok(!('code' in tools));
+    const saved = process.env['PATH'];
+    process.env['PATH'] = '';
+    try {
+      const result = await assembleWithBinutils('.syntax unified\n.arm\n\tbx lr\n', { tools });
+      assert.ok(result.ok);
+      assert.deepEqual([...result.bytes], [0x1e, 0xff, 0x2f, 0xe1]);
+    } finally {
+      process.env['PATH'] = saved;
+    }
+  },
+);
 
-test('linkWithBinutils links two objects with the script and returns the linked .text', { skip: available ? false : 'unavailable: toolchain' }, async () => {
-  assert.ok(!('code' in tools));
-  const script = 'SECTIONS\n{\n  . = 0x08000000;\n  .text : { a.o(.text) b.o(.text) }\n  /DISCARD/ : { *(*) }\n}\n';
-  const a = { name: 'a', mode: 'arm' as const, text: '.syntax unified\n.arm\n.global _start\n_start:\n\tbl far\n' };
-  const b = { name: 'b', mode: 'arm' as const, text: '.syntax unified\n.arm\n.global far\nfar:\n\tbx lr\n' };
-  const result = await linkWithBinutils([a, b], { script, tools });
-  assert.ok(result.ok, result.ok ? '' : result.stderr);
-  // bl from 0x08000000 to 0x08000004: offset (4 - 8) >> 2 = -1.
-  assert.deepEqual([...result.bytes], [0xff, 0xff, 0xff, 0xeb, 0x1e, 0xff, 0x2f, 0xe1]);
-  const unresolved = await linkWithBinutils([a], { script: 'SECTIONS { .text : { a.o(.text) } }\n', tools });
-  assert.ok(!unresolved.ok);
-  assert.match(unresolved.stderr, /undefined reference to `far'/);
-  assert.deepEqual(unresolved.diagnostics.map((d) => d.code), ['E_TOOLCHAIN_FAILED']);
-  const escape = await linkWithBinutils([{ name: '../a', text: '' }], { script, tools });
-  assert.ok(!escape.ok && /refusing the link source name/.test(escape.diagnostics[0]?.message ?? ''));
-});
+test(
+  'linkWithBinutils links two objects with the script and returns the linked .text',
+  { skip: available ? false : 'unavailable: toolchain' },
+  async () => {
+    assert.ok(!('code' in tools));
+    const script = 'SECTIONS\n{\n  . = 0x08000000;\n  .text : { a.o(.text) b.o(.text) }\n  /DISCARD/ : { *(*) }\n}\n';
+    const a = { name: 'a', mode: 'arm' as const, text: '.syntax unified\n.arm\n.global _start\n_start:\n\tbl far\n' };
+    const b = { name: 'b', mode: 'arm' as const, text: '.syntax unified\n.arm\n.global far\nfar:\n\tbx lr\n' };
+    const result = await linkWithBinutils([a, b], { script, tools });
+    assert.ok(result.ok, result.ok ? '' : result.stderr);
+    // bl from 0x08000000 to 0x08000004: offset (4 - 8) >> 2 = -1.
+    assert.deepEqual([...result.bytes], [0xff, 0xff, 0xff, 0xeb, 0x1e, 0xff, 0x2f, 0xe1]);
+    const unresolved = await linkWithBinutils([a], { script: 'SECTIONS { .text : { a.o(.text) } }\n', tools });
+    assert.ok(!unresolved.ok);
+    assert.match(unresolved.stderr, /undefined reference to `far'/);
+    assert.deepEqual(
+      unresolved.diagnostics.map((d) => d.code),
+      ['E_TOOLCHAIN_FAILED'],
+    );
+    const escape = await linkWithBinutils([{ name: '../a', text: '' }], { script, tools });
+    assert.ok(!escape.ok && /refusing the link source name/.test(escape.diagnostics[0]?.message ?? ''));
+  },
+);
 
 test('a tool that exits 0 without writing its output is E_TOOLCHAIN_FAILED, not a thrown read', async () => {
   await stubBinutils({}, async (dir) => {
@@ -142,7 +180,10 @@ test('a tool that exits 0 without writing its output is E_TOOLCHAIN_FAILED, not 
     assert.ok(!('code' in stub));
     const assembled = await assembleWithBinutils('.thumb\n', { tools: stub });
     assert.ok(!assembled.ok);
-    assert.deepEqual(assembled.diagnostics.map((d) => d.code), ['E_TOOLCHAIN_FAILED']);
+    assert.deepEqual(
+      assembled.diagnostics.map((d) => d.code),
+      ['E_TOOLCHAIN_FAILED'],
+    );
     assert.match(assembled.diagnostics[0]?.message ?? '', /wrote no source\.o/);
     const linked = await linkWithBinutils([{ name: 'a', text: '.thumb\n' }], { script: 'SECTIONS {}\n', tools: stub });
     assert.ok(!linked.ok);

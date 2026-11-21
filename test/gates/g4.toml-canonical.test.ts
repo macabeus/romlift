@@ -13,9 +13,10 @@
 //   serializeConfig(config) -> string
 //   planPatch(text, config, proposals) -> {ok: true, text: string, diagnostics} | {ok: false, diagnostics}
 //   a rename proposal: {kind: 'function', addr, mode, name, source: {kind: 'legacy'}}
-import { copyFile, mkdir, readdir, readFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
-import { CHECKOUT_CLI_ENV, FIXTURE_PARALLELISM, gate, pooled, type ExecResult, type GateContext } from './gate.ts';
+
+import { CHECKOUT_CLI_ENV, type ExecResult, FIXTURE_PARALLELISM, type GateContext, gate, pooled } from './gate.ts';
 
 type Addr = number;
 type Mode = 'thumb' | 'arm';
@@ -43,9 +44,17 @@ interface Proposal {
   readonly source: { readonly kind: 'legacy' };
 }
 
-type ParseConfig = (text: string) => { readonly ok: true; readonly value: RomliftConfig } | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
+type ParseConfig = (
+  text: string,
+) =>
+  | { readonly ok: true; readonly value: RomliftConfig }
+  | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
 type SerializeConfig = (config: RomliftConfig) => string;
-type PlanPatch = (text: string, config: RomliftConfig, proposals: readonly Proposal[]) => { readonly ok: true; readonly text: string } | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
+type PlanPatch = (
+  text: string,
+  config: RomliftConfig,
+  proposals: readonly Proposal[],
+) => { readonly ok: true; readonly text: string } | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
 
 interface CliLine {
   readonly type: string;
@@ -54,7 +63,11 @@ interface CliLine {
 
 const GOLDEN = 'test/golden/config';
 const PLAIN_DEFAULT_ENTRY = /^(0x[0-9A-F]{8}) = "(sub_[0-9A-F]{8})"$/;
-const COMMENTS = ['# romlift gate: a comment above everything', '# romlift gate: a comment above an entry', '# romlift gate: a trailing comment'] as const;
+const COMMENTS = [
+  '# romlift gate: a comment above everything',
+  '# romlift gate: a comment above an entry',
+  '# romlift gate: a trailing comment',
+] as const;
 
 function tail(run: ExecResult, lines = 30): string {
   return `${run.stdout}${run.stderr}`.trimEnd().split('\n').slice(-lines).join('\n');
@@ -67,7 +80,8 @@ function hex(addr: Addr): string {
 function firstDiff(a: string, b: string): string {
   const x = a.split('\n');
   const y = b.split('\n');
-  for (let i = 0; i < Math.max(x.length, y.length); i++) if (x[i] !== y[i]) return `line ${i + 1}: ${JSON.stringify(x[i] ?? null)} became ${JSON.stringify(y[i] ?? null)}`;
+  for (let i = 0; i < Math.max(x.length, y.length); i++)
+    if (x[i] !== y[i]) return `line ${i + 1}: ${JSON.stringify(x[i] ?? null)} became ${JSON.stringify(y[i] ?? null)}`;
   return 'no line differs';
 }
 
@@ -78,7 +92,8 @@ function commented(text: string): { readonly text: string; readonly addr: Addr; 
   const at = lines.findIndex((l, i) => i > header && PLAIN_DEFAULT_ENTRY.test(l));
   const match = PLAIN_DEFAULT_ENTRY.exec(lines[at] ?? '');
   const moduleLine = lines.findIndex((l) => /^kind = "/.test(l));
-  if (header < 0 || match?.[1] === undefined || match[2] === undefined || moduleLine < 0) throw new Error('the TOML lacks a [functions] entry with a default name or a [[modules]] kind line');
+  if (header < 0 || match?.[1] === undefined || match[2] === undefined || moduleLine < 0)
+    throw new Error('the TOML lacks a [functions] entry with a default name or a [[modules]] kind line');
   const out = [...lines];
   out[moduleLine] = `${out[moduleLine] ?? ''}  ${COMMENTS[2]}`;
   out.splice(at, 0, COMMENTS[1]);
@@ -95,7 +110,10 @@ function restructured(text: string, addr: Addr, name: string): string {
 async function goldenCanonicals(cx: GateContext): Promise<readonly string[]> {
   const dir = path.join(cx.repoRoot, GOLDEN, 'canonical');
   const names = await readdir(dir).catch(() => [] as string[]);
-  return names.filter((n) => n.endsWith('.toml')).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)).map((n) => path.join(dir, n));
+  return names
+    .filter((n) => n.endsWith('.toml'))
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+    .map((n) => path.join(dir, n));
 }
 
 gate({
@@ -127,14 +145,22 @@ gate({
     const cli = path.join(cx.repoRoot, 'src', 'cli', 'main.ts');
     // The inits, each in a project of its own, run FIXTURE_PARALLELISM at once; what is checked of their files is checked
     // in the fixtures' order, and an init that failed stops the gate where a serial loop would have.
-    const inits = await pooled(cx.fixtures, FIXTURE_PARALLELISM, async (fixture): Promise<{ readonly text: string } | { readonly error: Error }> => {
-      const dir = path.join(base, fixture.name);
-      await mkdir(dir, { recursive: true });
-      await copyFile(fixture.rom, path.join(dir, 'baserom.gba'));
-      const init = await cx.exec(process.execPath, ['--conditions=source', cli, 'init', 'baserom.gba', '--json'], { cwd: dir, env: CHECKOUT_CLI_ENV });
-      if (init.code !== 0 || cx.jsonLines<CliLine>(init.stdout).at(-1)?.exitCode !== 0) return { error: new Error(`${fixture.name}: init exited ${init.code}:\n${tail(init)}`) };
-      return { text: await readFile(path.join(dir, 'romlift.toml'), 'utf8') };
-    });
+    const inits = await pooled(
+      cx.fixtures,
+      FIXTURE_PARALLELISM,
+      async (fixture): Promise<{ readonly text: string } | { readonly error: Error }> => {
+        const dir = path.join(base, fixture.name);
+        await mkdir(dir, { recursive: true });
+        await copyFile(fixture.rom, path.join(dir, 'baserom.gba'));
+        const init = await cx.exec(process.execPath, ['--conditions=source', cli, 'init', 'baserom.gba', '--json'], {
+          cwd: dir,
+          env: CHECKOUT_CLI_ENV,
+        });
+        if (init.code !== 0 || cx.jsonLines<CliLine>(init.stdout).at(-1)?.exitCode !== 0)
+          return { error: new Error(`${fixture.name}: init exited ${init.code}:\n${tail(init)}`) };
+        return { text: await readFile(path.join(dir, 'romlift.toml'), 'utf8') };
+      },
+    );
     for (const [i, fixture] of cx.fixtures.entries()) {
       const init = inits[i];
       if (init === undefined || 'error' in init) throw init?.error ?? new Error(`${fixture.name}: no init`);
@@ -143,35 +169,61 @@ gate({
       if (config === undefined) continue;
 
       const edited = commented(text);
-      const proposal: Proposal = { kind: 'function', addr: edited.addr, mode: config.functions.get(edited.addr)?.mode ?? 'thumb', name: 'GatePatchedName', source: { kind: 'legacy' } };
+      const proposal: Proposal = {
+        kind: 'function',
+        addr: edited.addr,
+        mode: config.functions.get(edited.addr)?.mode ?? 'thumb',
+        name: 'GatePatchedName',
+        source: { kind: 'legacy' },
+      };
       const patched = planPatch(edited.text, config, [proposal]);
       if (!patched.ok) {
-        problems.push(`${fixture.name}: planPatch refused a commented canonical file: ${patched.diagnostics.map((d) => d.code).join(', ')}`);
+        problems.push(
+          `${fixture.name}: planPatch refused a commented canonical file: ${patched.diagnostics.map((d) => d.code).join(', ')}`,
+        );
       } else {
         const lost = COMMENTS.filter((c) => !patched.text.includes(c));
         if (lost.length > 0) problems.push(`${fixture.name}: the patch dropped ${lost.length} comments`);
         const reparsed = parse(patched.text);
         if (!reparsed.ok) {
-          problems.push(`${fixture.name}: the patched text does not parse: ${reparsed.diagnostics.map((d) => d.code).join(', ')}`);
+          problems.push(
+            `${fixture.name}: the patched text does not parse: ${reparsed.diagnostics.map((d) => d.code).join(', ')}`,
+          );
         } else {
           const renamed = reparsed.value.functions.get(edited.addr)?.name;
-          if (renamed !== 'GatePatchedName') problems.push(`${fixture.name}: ${hex(edited.addr)} is named ${renamed ?? 'nothing'} after the patch`);
-          const others = [...config.functions.keys()].filter((a) => a !== edited.addr && reparsed.value.functions.get(a)?.name !== config.functions.get(a)?.name);
-          if (others.length > 0 || reparsed.value.functions.size !== config.functions.size) problems.push(`${fixture.name}: the patch changed other entries (${others.slice(0, 4).map(hex).join(', ')})`);
-          if (JSON.stringify(reparsed.value.modules) !== JSON.stringify(config.modules)) problems.push(`${fixture.name}: the patch changed [[modules]]`);
+          if (renamed !== 'GatePatchedName')
+            problems.push(`${fixture.name}: ${hex(edited.addr)} is named ${renamed ?? 'nothing'} after the patch`);
+          const others = [...config.functions.keys()].filter(
+            (a) => a !== edited.addr && reparsed.value.functions.get(a)?.name !== config.functions.get(a)?.name,
+          );
+          if (others.length > 0 || reparsed.value.functions.size !== config.functions.size)
+            problems.push(
+              `${fixture.name}: the patch changed other entries (${others.slice(0, 4).map(hex).join(', ')})`,
+            );
+          if (JSON.stringify(reparsed.value.modules) !== JSON.stringify(config.modules))
+            problems.push(`${fixture.name}: the patch changed [[modules]]`);
         }
       }
 
       const moved = restructured(text, edited.addr, edited.name);
       const movedParsed = parse(moved);
-      if (!movedParsed.ok || serialize(movedParsed.value) !== text) throw new Error(`${fixture.name}: the gate's hand restructuring changed the config; fix the gate`);
+      if (!movedParsed.ok || serialize(movedParsed.value) !== text)
+        throw new Error(`${fixture.name}: the gate's hand restructuring changed the config; fix the gate`);
       const refused = planPatch(moved, movedParsed.value, [proposal]);
-      if (refused.ok || !refused.diagnostics.some((d) => d.code === 'E_TOML_PATCH_REFUSED')) problems.push(`${fixture.name}: a patch of a restructured entry was not refused with E_TOML_PATCH_REFUSED`);
+      if (refused.ok || !refused.diagnostics.some((d) => d.code === 'E_TOML_PATCH_REFUSED'))
+        problems.push(`${fixture.name}: a patch of a restructured entry was not refused with E_TOML_PATCH_REFUSED`);
     }
 
-    const tests = await cx.exec(process.execPath, ['--conditions=source', '--test', '--test-reporter=tap', `${GOLDEN}/**/*.test.ts`], { cwd: cx.repoRoot, env: { UPDATE_GOLDEN: '' } });
-    if (tests.code !== 0) problems.push(`the config goldens fail (node --test ${GOLDEN} exited ${tests.code}):\n${tail(tests)}`);
+    const tests = await cx.exec(
+      process.execPath,
+      ['--conditions=source', '--test', '--test-reporter=tap', `${GOLDEN}/**/*.test.ts`],
+      { cwd: cx.repoRoot, env: { UPDATE_GOLDEN: '' } },
+    );
+    if (tests.code !== 0)
+      problems.push(`the config goldens fail (node --test ${GOLDEN} exited ${tests.code}):\n${tail(tests)}`);
     if (problems.length > 0) throw new Error(`canonical TOML: ${problems.join(' | ')}`);
-    cx.note(`serialize∘parse is the identity on ${cx.fixtures.length} init files and ${goldens.length} golden files; patches keep comments; a restructured entry is refused`);
+    cx.note(
+      `serialize∘parse is the identity on ${cx.fixtures.length} init files and ${goldens.length} golden files; patches keep comments; a restructured entry is refused`,
+    );
   },
 });

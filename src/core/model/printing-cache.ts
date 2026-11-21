@@ -21,7 +21,8 @@ function offsetMask(id: SpecId): number {
   let mask = OFFSET_MASK.get(id);
   if (mask === undefined) {
     mask = 0;
-    for (const f of specOf(id).fields) if (f.kind === 'pc-rel' || f.kind === 'bl-off') mask |= ((2 ** f.width - 1) * 2 ** f.lo) >>> 0;
+    for (const f of specOf(id).fields)
+      if (f.kind === 'pc-rel' || f.kind === 'bl-off') mask |= ((2 ** f.width - 1) * 2 ** f.lo) >>> 0;
     mask >>>= 0;
     OFFSET_MASK.set(id, mask);
   }
@@ -95,7 +96,15 @@ export interface PrintingCache {
    * reasonOf for an instruction that names `target`, known by its row, word and run address: `insn` decodes it
    * when the round trip has to run.
    */
-  reasonOfNaming(mode: Mode, specId: SpecId, word: number, addr: Addr, target: Addr, resolver: SymbolResolver, insn: () => Insn): RawReason | null;
+  reasonOfNaming(
+    mode: Mode,
+    specId: SpecId,
+    word: number,
+    addr: Addr,
+    target: Addr,
+    resolver: SymbolResolver,
+    insn: () => Insn,
+  ): RawReason | null;
 }
 
 export function printingCache(): PrintingCache {
@@ -103,7 +112,8 @@ export function printingCache(): PrintingCache {
   const labelled: Record<Mode, Map<number, RawReason | null>> = { thumb: new Map(), arm: new Map() };
   const reasonOfNaming: PrintingCache['reasonOfNaming'] = (mode, specId, word, addr, target, resolver, insn) => {
     const name = resolver.labelFor(target, addr);
-    if (name === undefined || !isDefaultSpelling(name) || resolver.addressOf(name) !== target) return rawReason(insn(), resolver);
+    if (name === undefined || !isDefaultSpelling(name) || resolver.addressOf(name) !== target)
+      return rawReason(insn(), resolver);
     const mask = offsetMask(specId);
     const key = ((word & ~mask) >>> 0) * 8 + (addr & 3) * 2 + ((word & mask) === 0 ? 1 : 0);
     const hit = labelled[mode].get(key);
@@ -117,7 +127,8 @@ export function printingCache(): PrintingCache {
     reasonOfNaming,
     reasonOf(insn, resolver) {
       const target = targetOf(insn.flow);
-      if (target !== undefined) return reasonOfNaming(insn.mode, insn.specId, insn.word, insn.addr, target, resolver, () => insn);
+      if (target !== undefined)
+        return reasonOfNaming(insn.mode, insn.specId, insn.word, insn.addr, target, resolver, () => insn);
       if (!namesNoAddress(insn)) return rawReason(insn, resolver);
       return free.reasonOf(insn, resolver);
     },

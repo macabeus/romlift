@@ -21,14 +21,17 @@ export interface Journal {
   readonly ops: readonly JournalOp[];
 }
 
-export type DecodedJournal = { readonly ok: true; readonly journal: Journal } | { readonly ok: false; readonly error: string };
+export type DecodedJournal =
+  | { readonly ok: true; readonly journal: Journal }
+  | { readonly ok: false; readonly error: string };
 
 /** The journal of a plan: every op that changes a file, in plan order (a keep changes nothing and is left out). */
 export function journalOf(ops: readonly WriteOp[]): Journal {
   const out: JournalOp[] = [];
   for (const op of ops) {
     if (op.op === 'write') out.push({ op: 'write', path: op.path, resultSha1: op.sha1 });
-    else if (op.op === 'edit') out.push({ op: 'edit', path: op.path, baseSha1: op.baseSha1, resultSha1: op.resultSha1 });
+    else if (op.op === 'edit')
+      out.push({ op: 'edit', path: op.path, baseSha1: op.baseSha1, resultSha1: op.resultSha1 });
     else if (op.op === 'delete') out.push({ op: 'delete', path: op.path });
     else if (op.op === 'mode') out.push({ op: 'mode', path: op.path });
   }
@@ -52,14 +55,18 @@ function decodeOp(value: unknown, at: string): JournalOp | string {
   const path = record['path'];
   const base = record['baseSha1'];
   const result = record['resultSha1'];
-  if (typeof op !== 'string' || !(OPS as readonly string[]).includes(op)) return `${at}.op ${JSON.stringify(op)} is not write, edit, delete or mode`;
-  if (typeof path !== 'string' || !isProjectPath(path)) return `${at}.path ${JSON.stringify(path)} is not a project path`;
+  if (typeof op !== 'string' || !(OPS as readonly string[]).includes(op))
+    return `${at}.op ${JSON.stringify(op)} is not write, edit, delete or mode`;
+  if (typeof path !== 'string' || !isProjectPath(path))
+    return `${at}.path ${JSON.stringify(path)} is not a project path`;
   if (base !== undefined && !isSha1(base)) return `${at}.baseSha1 is not a lower-case hex SHA-1`;
   if (result !== undefined && !isSha1(result)) return `${at}.resultSha1 is not a lower-case hex SHA-1`;
   const kind = op as JournalOp['op'];
   if (kind === 'write' && (result === undefined || base !== undefined)) return `${at}: a write carries resultSha1 only`;
-  if (kind === 'edit' && (result === undefined || base === undefined)) return `${at}: an edit carries baseSha1 and resultSha1`;
-  if ((kind === 'delete' || kind === 'mode') && (result !== undefined || base !== undefined)) return `${at}: a ${kind} carries no sha1`;
+  if (kind === 'edit' && (result === undefined || base === undefined))
+    return `${at}: an edit carries baseSha1 and resultSha1`;
+  if ((kind === 'delete' || kind === 'mode') && (result !== undefined || base !== undefined))
+    return `${at}: a ${kind} carries no sha1`;
   return {
     op: kind,
     path,
@@ -76,7 +83,8 @@ export function decodeJournal(text: string): DecodedJournal {
   } catch (error) {
     return { ok: false, error: `not JSON: ${error instanceof Error ? error.message : String(error)}` };
   }
-  if (typeof json !== 'object' || json === null || Array.isArray(json)) return { ok: false, error: 'not a JSON object' };
+  if (typeof json !== 'object' || json === null || Array.isArray(json))
+    return { ok: false, error: 'not a JSON object' };
   const record = json as Readonly<Record<string, unknown>>;
   const extra = extraKeys(record, ['schema', 'ops']);
   if (extra.length > 0) return { ok: false, error: `unknown member ${JSON.stringify(extra[0])}` };

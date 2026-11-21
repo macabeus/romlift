@@ -54,6 +54,7 @@ test('random nested and overlapping intervals agree with a brute force', () => {
       intervals.push({ start, end: start + next(120), value: i });
     }
     const idx = intervalIndex(intervals);
-    for (let a = -2; a < 640; a += 3) assert.equal(innermost(idx, a)?.value, brute(intervals, a), `round ${round} at ${a}`);
+    for (let a = -2; a < 640; a += 3)
+      assert.equal(innermost(idx, a)?.value, brute(intervals, a), `round ${round} at ${a}`);
   }
 });

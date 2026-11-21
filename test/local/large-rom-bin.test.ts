@@ -14,7 +14,6 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-
 import { findBinutils } from 'romlift/node';
 
 const REPO = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
@@ -37,25 +36,33 @@ interface Report {
   }[];
 }
 
-test('the romlift bin completes every command, init and generate among them, on the 32 MiB synthetic ROM under its 1,024 MiB heap cap', { skip: REQUIRE ? false : (unavailable ?? false) }, () => {
-  assert.equal(unavailable, undefined, unavailable);
-  const ran = spawnSync(process.execPath, ['--conditions=source', path.join(REPO, 'bench', 'src', 'large-rom.ts'), '--bin', '--json'], { cwd: REPO, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-  const last = ran.stdout.trimEnd().split('\n').at(-1) ?? '';
-  const report = JSON.parse(last) as Report;
-  assert.equal(report.schema, 'romlift/bench-large-rom-bin@1');
-  assert.equal(report.romBytes, 32 * 1024 * 1024);
-  assert.ok(report.nodeOptions.includes('--max-old-space-size=1024'), `the launcher's options: ${report.nodeOptions.join(' ')}`);
-  assert.deepEqual(
-    report.runs.map((r) => r.command),
-    [
-      'explain',
-      'explain --json',
-      'init --json',
-      'generate --json',
-      'update --json',
-    ],
-  );
-  const failed = report.runs.filter((r) => r.exitCode !== 0 || r.summaryOk === false);
-  assert.deepEqual(failed.map((r) => `${r.command}: exit ${r.exitCode}, ${r.detail}`), []);
-  assert.equal(ran.status, 0, ran.stderr.slice(-2000));
-});
+test(
+  'the romlift bin completes every command, init and generate among them, on the 32 MiB synthetic ROM under its 1,024 MiB heap cap',
+  { skip: REQUIRE ? false : (unavailable ?? false) },
+  () => {
+    assert.equal(unavailable, undefined, unavailable);
+    const ran = spawnSync(
+      process.execPath,
+      ['--conditions=source', path.join(REPO, 'bench', 'src', 'large-rom.ts'), '--bin', '--json'],
+      { cwd: REPO, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
+    );
+    const last = ran.stdout.trimEnd().split('\n').at(-1) ?? '';
+    const report = JSON.parse(last) as Report;
+    assert.equal(report.schema, 'romlift/bench-large-rom-bin@1');
+    assert.equal(report.romBytes, 32 * 1024 * 1024);
+    assert.ok(
+      report.nodeOptions.includes('--max-old-space-size=1024'),
+      `the launcher's options: ${report.nodeOptions.join(' ')}`,
+    );
+    assert.deepEqual(
+      report.runs.map((r) => r.command),
+      ['explain', 'explain --json', 'init --json', 'generate --json', 'update --json'],
+    );
+    const failed = report.runs.filter((r) => r.exitCode !== 0 || r.summaryOk === false);
+    assert.deepEqual(
+      failed.map((r) => `${r.command}: exit ${r.exitCode}, ${r.detail}`),
+      [],
+    );
+    assert.equal(ran.status, 0, ran.stderr.slice(-2000));
+  },
+);

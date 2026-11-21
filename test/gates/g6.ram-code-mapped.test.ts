@@ -17,9 +17,10 @@
 //     first line is {"schema":"romlift/model-json@1","modules":[{"name","span":{"start","end"},"runAt"?},…]}
 //   setup.sh honours $ROMLIFT_CLI and <name>.sha1 is in sha1sum format (as in g4.e2e-fixtures)
 import { createHash } from 'node:crypto';
-import { appendFile, copyFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { appendFile, copyFile, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { gate, type ExecResult, type GateContext } from './gate.ts';
+
+import { type ExecResult, type GateContext, gate } from './gate.ts';
 
 type Mode = 'thumb' | 'arm';
 
@@ -34,7 +35,11 @@ interface RamOverride {
 /** encodeModel's first line: addresses are "0x…" strings (romlift/model-json@1), read with num(). */
 interface ModelHeader {
   readonly schema: string;
-  readonly modules: readonly { readonly name: string; readonly span: { readonly start: unknown; readonly end: unknown }; readonly runAt?: unknown }[];
+  readonly modules: readonly {
+    readonly name: string;
+    readonly span: { readonly start: unknown; readonly end: unknown };
+    readonly runAt?: unknown;
+  }[];
 }
 
 interface Case {
@@ -67,9 +72,17 @@ function modeOf(value: unknown, what: string): Mode | undefined {
   throw new Error(`${what} is not 'thumb' or 'arm' (${JSON.stringify(value)})`);
 }
 
-function ramOverride(value: Readonly<Record<string, unknown>>, runAtKey: 'runAt' | 'runsAt', what: string): RamOverride {
+function ramOverride(
+  value: Readonly<Record<string, unknown>>,
+  runAtKey: 'runAt' | 'runsAt',
+  what: string,
+): RamOverride {
   const mode = modeOf(value['mode'], `${what}.mode`);
-  const base = { start: num(value['start'], `${what}.start`), size: num(value['size'], `${what}.size`), runAt: num(value[runAtKey], `${what}.${runAtKey}`) };
+  const base = {
+    start: num(value['start'], `${what}.start`),
+    size: num(value['size'], `${what}.size`),
+    runAt: num(value[runAtKey], `${what}.${runAtKey}`),
+  };
   return mode === undefined ? base : { ...base, mode };
 }
 
@@ -77,15 +90,22 @@ function ramOverride(value: Readonly<Record<string, unknown>>, runAtKey: 'runAt'
 async function klonoaOverrides(cx: GateContext): Promise<readonly RamOverride[]> {
   const file = path.join(cx.repoRoot, KLONOA_OVERRIDES);
   const text = await readFile(file, 'utf8').catch(() => undefined);
-  if (text === undefined) throw new Error(`${KLONOA_OVERRIDES} is missing (the bench config of Klonoa's RAM code, p6-ram-code)`);
-  const json = JSON.parse(text) as { readonly schema?: unknown; readonly overrides?: unknown; readonly source?: unknown };
-  if (json.schema !== 1 || !Array.isArray(json.overrides) || typeof json.source !== 'string') throw new Error(`${KLONOA_OVERRIDES} is not {"schema": 1, "overrides": [...], "source": string}`);
+  if (text === undefined)
+    throw new Error(`${KLONOA_OVERRIDES} is missing (the bench config of Klonoa's RAM code, p6-ram-code)`);
+  const json = JSON.parse(text) as {
+    readonly schema?: unknown;
+    readonly overrides?: unknown;
+    readonly source?: unknown;
+  };
+  if (json.schema !== 1 || !Array.isArray(json.overrides) || typeof json.source !== 'string')
+    throw new Error(`${KLONOA_OVERRIDES} is not {"schema": 1, "overrides": [...], "source": string}`);
   const entries = (json.overrides as readonly Readonly<Record<string, unknown>>[]).map((o, i) => {
     if (o['kind'] !== 'code') throw new Error(`${KLONOA_OVERRIDES} overrides[${i}] is not kind "code"`);
     return ramOverride(o, 'runsAt', `${KLONOA_OVERRIDES} overrides[${i}]`);
   });
   const mixer = entries.find((o) => o.start === KLONOA.start);
-  if (mixer?.runAt !== KLONOA.runAt) throw new Error(`${KLONOA_OVERRIDES} gives no override ${hex(KLONOA.start)} -> ${hex(KLONOA.runAt)}`);
+  if (mixer?.runAt !== KLONOA.runAt)
+    throw new Error(`${KLONOA_OVERRIDES} gives no override ${hex(KLONOA.start)} -> ${hex(KLONOA.runAt)}`);
   return [mixer, ...entries.filter((o) => o !== mixer)];
 }
 
@@ -106,7 +126,14 @@ async function sourceCli(cx: GateContext): Promise<string> {
   return shim;
 }
 
-async function step(cx: GateContext, what: string, command: string, args: readonly string[], cwd: string, env: Readonly<Record<string, string>>): Promise<ExecResult> {
+async function step(
+  cx: GateContext,
+  what: string,
+  command: string,
+  args: readonly string[],
+  cwd: string,
+  env: Readonly<Record<string, string>>,
+): Promise<ExecResult> {
   const run = await cx.exec(command, args, { cwd, env });
   if (run.code !== 0) throw new Error(`${what} exited ${run.code}:\n${tail(run)}`);
   return run;
@@ -114,17 +141,34 @@ async function step(cx: GateContext, what: string, command: string, args: readon
 
 /** The (start, runs_at) of every [[overrides]] block of a romlift.toml. */
 function overrides(toml: string): readonly { readonly start: number; readonly runsAt?: number }[] {
-  return toml.split(/^\s*\[\[overrides\]\]\s*$/m).slice(1).flatMap((block) => {
-    const body = block.split(/^\s*\[/m)[0] ?? '';
-    const start = /^\s*start\s*=\s*(0x[0-9A-Fa-f]+)/m.exec(body)?.[1];
-    const runsAt = /^\s*runs_at\s*=\s*(0x[0-9A-Fa-f]+)/m.exec(body)?.[1];
-    if (start === undefined) return [];
-    return [runsAt === undefined ? { start: Number.parseInt(start, 16) } : { start: Number.parseInt(start, 16), runsAt: Number.parseInt(runsAt, 16) }];
-  });
+  return toml
+    .split(/^\s*\[\[overrides\]\]\s*$/m)
+    .slice(1)
+    .flatMap((block) => {
+      const body = block.split(/^\s*\[/m)[0] ?? '';
+      const start = /^\s*start\s*=\s*(0x[0-9A-Fa-f]+)/m.exec(body)?.[1];
+      const runsAt = /^\s*runs_at\s*=\s*(0x[0-9A-Fa-f]+)/m.exec(body)?.[1];
+      if (start === undefined) return [];
+      return [
+        runsAt === undefined
+          ? { start: Number.parseInt(start, 16) }
+          : { start: Number.parseInt(start, 16), runsAt: Number.parseInt(runsAt, 16) },
+      ];
+    });
 }
 
-type ReadProject = (dir: string, options: { readonly withoutC: boolean }) => Promise<{ readonly ok: true; readonly value: { readonly inputs: { readonly rom: unknown } } } | { readonly ok: false; readonly diagnostics: readonly { readonly message: string }[] }>;
-type ConfirmProject = (inputs: unknown) => { readonly ok: true; readonly model: unknown } | { readonly ok: false; readonly diagnostics: readonly { readonly message: string }[] };
+type ReadProject = (
+  dir: string,
+  options: { readonly withoutC: boolean },
+) => Promise<
+  | { readonly ok: true; readonly value: { readonly inputs: { readonly rom: unknown } } }
+  | { readonly ok: false; readonly diagnostics: readonly { readonly message: string }[] }
+>;
+type ConfirmProject = (
+  inputs: unknown,
+) =>
+  | { readonly ok: true; readonly model: unknown }
+  | { readonly ok: false; readonly diagnostics: readonly { readonly message: string }[] };
 type EncodeModel = (model: unknown, rom: unknown) => Iterable<string>;
 
 /** The project's model in `dir` as romlift/model-json@1 NDJSON: readProject, confirmProject, encodeModel (D108). */
@@ -132,7 +176,8 @@ async function projectModel(cx: GateContext, dir: string): Promise<string> {
   const read = await cx.need<ReadProject>('readProject')(dir, { withoutC: true });
   if (!read.ok) throw new Error(`readProject ${dir}: ${read.diagnostics.map((d) => d.message).join('; ')}`);
   const confirmed = cx.need<ConfirmProject>('confirmProject')(read.value.inputs);
-  if (!confirmed.ok) throw new Error(`confirmProject ${dir}: ${confirmed.diagnostics.map((d) => d.message).join('; ')}`);
+  if (!confirmed.ok)
+    throw new Error(`confirmProject ${dir}: ${confirmed.diagnostics.map((d) => d.message).join('; ')}`);
   return [...cx.need<EncodeModel>('encodeModel')(confirmed.model, read.value.inputs.rom)].join('');
 }
 
@@ -152,31 +197,56 @@ async function check(cx: GateContext, cli: string, c: Case, dir: string): Promis
   await step(cx, 'update --write', cli, ['update', '--write', '--json'], dir, env);
   const problems: string[] = [];
   const listed = overrides(await readFile(tomlPath, 'utf8')).find((o) => o.start === range.start);
-  if (listed?.runsAt !== range.runAt) problems.push(`romlift.toml has no override at ${hex(range.start)} with runs_at ${hex(range.runAt)}`);
+  if (listed?.runsAt !== range.runAt)
+    problems.push(`romlift.toml has no override at ${hex(range.start)} with runs_at ${hex(range.runAt)}`);
   await step(cx, 'generate', cli, ['generate', '--json'], dir, env);
   const header = JSON.parse((await projectModel(cx, dir)).split('\n')[0] ?? '{}') as ModelHeader;
   const modules = header.modules.map((m) => ({
     name: m.name,
-    span: { start: num(m.span.start, `module ${m.name} span.start`), end: num(m.span.end, `module ${m.name} span.end`) },
+    span: {
+      start: num(m.span.start, `module ${m.name} span.start`),
+      end: num(m.span.end, `module ${m.name} span.end`),
+    },
     runAt: m.runAt === undefined ? undefined : num(m.runAt, `module ${m.name} runAt`),
   }));
   const module = modules.find((m) => m.span.start === range.start);
   if (module === undefined) problems.push(`no module starts at ${hex(range.start)}`);
   else {
-    if (module.runAt !== range.runAt) problems.push(`module ${module.name} runs at ${module.runAt === undefined ? 'its load address' : hex(module.runAt)}, expected ${hex(range.runAt)}`);
-    if (module.span.end !== range.start + range.size) problems.push(`module ${module.name} ends at ${hex(module.span.end)}, the range at ${hex(range.start + range.size)}`);
+    if (module.runAt !== range.runAt)
+      problems.push(
+        `module ${module.name} runs at ${module.runAt === undefined ? 'its load address' : hex(module.runAt)}, expected ${hex(range.runAt)}`,
+      );
+    if (module.span.end !== range.start + range.size)
+      problems.push(
+        `module ${module.name} ends at ${hex(module.span.end)}, the range at ${hex(range.start + range.size)}`,
+      );
     const ldscript = await readFile(path.join(dir, 'ldscript.txt'), 'utf8');
-    const placed = ldscript.split('\n').some((l) => l.includes(`.${module.name}`) && /AT\s*\(/.test(l) && l.toLowerCase().includes(range.runAt.toString(16)));
+    const placed = ldscript
+      .split('\n')
+      .some(
+        (l) => l.includes(`.${module.name}`) && /AT\s*\(/.test(l) && l.toLowerCase().includes(range.runAt.toString(16)),
+      );
     if (!placed) problems.push(`ldscript.txt does not place .${module.name} at ${hex(range.runAt)} with AT(...)`);
-    if (!ldscript.includes(`__load_${module.name}`)) problems.push(`ldscript.txt does not define __load_${module.name}`);
+    if (!ldscript.includes(`__load_${module.name}`))
+      problems.push(`ldscript.txt does not define __load_${module.name}`);
   }
   await step(cx, './setup.sh', './setup.sh', [], dir, env);
   await step(cx, 'make', 'make', [], dir, env);
   const sha1Name = (await readdir(dir)).find((n) => n.endsWith('.sha1'));
-  const match = sha1Name === undefined ? null : /^([0-9a-f]{40})\s+\*?(\S+)\s*$/m.exec(await readFile(path.join(dir, sha1Name), 'utf8'));
+  const match =
+    sha1Name === undefined
+      ? null
+      : /^([0-9a-f]{40})\s+\*?(\S+)\s*$/m.exec(await readFile(path.join(dir, sha1Name), 'utf8'));
   const built = match?.[2] === undefined ? undefined : path.join(dir, match[2]);
-  const actual = built !== undefined && (await exists(built)) ? createHash('sha1').update(await readFile(built)).digest('hex') : 'nothing';
-  const expected = createHash('sha1').update(await readFile(c.rom)).digest('hex');
+  const actual =
+    built !== undefined && (await exists(built))
+      ? createHash('sha1')
+          .update(await readFile(built))
+          .digest('hex')
+      : 'nothing';
+  const expected = createHash('sha1')
+    .update(await readFile(c.rom))
+    .digest('hex');
   if (actual !== expected) problems.push(`make built ${actual}, expected ${expected}`);
   return problems;
 }
@@ -194,20 +264,34 @@ gate({
     const problems: string[] = [];
     let fixtures = 0;
     for (const fixture of cx.fixtures) {
-      const expect = (await exists(fixture.expect)) ? (JSON.parse(await readFile(fixture.expect, 'utf8')) as { readonly ramCopy?: Readonly<Record<string, unknown>> }) : {};
+      const expect = (await exists(fixture.expect))
+        ? (JSON.parse(await readFile(fixture.expect, 'utf8')) as {
+            readonly ramCopy?: Readonly<Record<string, unknown>>;
+          })
+        : {};
       if (expect.ramCopy === undefined) continue;
       fixtures++;
-      const c: Case = { name: fixture.name, rom: fixture.rom, overrides: [ramOverride(expect.ramCopy, 'runAt', `${fixture.name} expect.json ramCopy`)] };
+      const c: Case = {
+        name: fixture.name,
+        rom: fixture.rom,
+        overrides: [ramOverride(expect.ramCopy, 'runAt', `${fixture.name} expect.json ramCopy`)],
+      };
       for (const p of await check(cx, cli, c, path.join(base, fixture.name))) problems.push(`${fixture.name}: ${p}`);
     }
     if (fixtures === 0) problems.push('no committed fixture declares ramCopy in its expect.json');
     if (cx.tier === 'real') {
       const klonoa = cx.datasets.find((d) => d.name === 'klonoa');
       if (klonoa === undefined) throw new Error('no klonoa dataset');
-      const c: Case = { name: 'klonoa', rom: path.resolve(cx.benchRoot, klonoa.rom), overrides: await klonoaOverrides(cx) };
+      const c: Case = {
+        name: 'klonoa',
+        rom: path.resolve(cx.benchRoot, klonoa.rom),
+        overrides: await klonoaOverrides(cx),
+      };
       for (const p of await check(cx, cli, c, path.join(base, 'klonoa'))) problems.push(`klonoa: ${p}`);
     }
     if (problems.length > 0) throw new Error(`code run from RAM: ${problems.join(' | ')}`);
-    cx.note(`${fixtures} RAM-copy fixtures${cx.tier === 'real' ? ` and Klonoa (${hex(KLONOA.start)} -> ${hex(KLONOA.runAt)}, ${KLONOA_OVERRIDES})` : ''} link at their run address and rebuild the ROM`);
+    cx.note(
+      `${fixtures} RAM-copy fixtures${cx.tier === 'real' ? ` and Klonoa (${hex(KLONOA.start)} -> ${hex(KLONOA.runAt)}, ${KLONOA_OVERRIDES})` : ''} link at their run address and rebuild the ROM`,
+    );
   },
 });

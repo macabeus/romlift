@@ -12,7 +12,7 @@
 // previousStubs?, fragments?: {<project path>: <file of the case directory>}, headers?: likewise, sources?:
 // {<project path>: <module>} }.
 import assert from 'node:assert/strict';
-import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -45,7 +45,11 @@ interface CaseFile {
 
 /** A map of project paths to the texts of the case directory's files. */
 function filesOf(dir: string, files: Readonly<Record<string, string>>): ReadonlyMap<string, string> {
-  return new Map(Object.keys(files).sort().map((path) => [path, readFileSync(join(dir, files[path] ?? ''), 'utf8')] as const));
+  return new Map(
+    Object.keys(files)
+      .sort()
+      .map((path) => [path, readFileSync(join(dir, files[path] ?? ''), 'utf8')] as const),
+  );
 }
 
 /** case.json as planIncludeAsm's wanted chunks. */
@@ -55,7 +59,9 @@ function wantedOf(dir: string): IncludeAsmWanted {
     module: spec.module,
     chunks: spec.chunks.map((c) => (typeof c === 'string' ? { name: c, stub: c } : c)),
     ...(spec.path === undefined ? {} : { path: spec.path }),
-    ...(spec.tree === undefined ? {} : { tree: { files: new Set(spec.tree.files), userDirs: new Set(spec.tree.userDirs) } }),
+    ...(spec.tree === undefined
+      ? {}
+      : { tree: { files: new Set(spec.tree.files), userDirs: new Set(spec.tree.userDirs) } }),
     ...(spec.retired === undefined ? {} : { retired: spec.retired }),
     ...(spec.previousStubs === undefined ? {} : { previousStubs: spec.previousStubs }),
     ...(spec.fragments === undefined ? {} : { fragments: filesOf(dir, spec.fragments) }),
@@ -72,25 +78,49 @@ function wantedOf(dir: string): IncludeAsmWanted {
 function untouchable(text: string): readonly string[] {
   const tokens = tokenizeC(text);
   return tokens
-    .filter((t, k) => t.kind === 'comment' || t.kind === 'char' || (t.kind === 'string' && !(tokens[k - 1]?.text === '(' && tokens[k - 2]?.text === 'INCLUDE_ASM')))
+    .filter(
+      (t, k) =>
+        t.kind === 'comment' ||
+        t.kind === 'char' ||
+        (t.kind === 'string' && !(tokens[k - 1]?.text === '(' && tokens[k - 2]?.text === 'INCLUDE_ASM')),
+    )
     .map((t) => `${t.kind}:${t.text}`);
 }
 
 test('the reconciler goldens hold at least two add-, remove- and move- cases, and nothing else', () => {
-  for (const kind of KINDS) assert.ok(CASES.filter((name) => name.startsWith(kind)).length >= 2, `fewer than two ${kind} cases: ${CASES.join(', ')}`);
-  assert.deepEqual(CASES.filter((name) => !KINDS.some((kind) => name.startsWith(kind))), []);
+  for (const kind of KINDS)
+    assert.ok(
+      CASES.filter((name) => name.startsWith(kind)).length >= 2,
+      `fewer than two ${kind} cases: ${CASES.join(', ')}`,
+    );
+  assert.deepEqual(
+    CASES.filter((name) => !KINDS.some((kind) => name.startsWith(kind))),
+    [],
+  );
 });
 
 test('between them the cases hold comments, strings, character literals, #if regions, CRLF, a BOM and a fragment stub', () => {
   const inputs = CASES.map((name) => readFileSync(join(DIR, name, 'input.c'), 'utf8'));
   const kinds = new Set(inputs.flatMap((text) => tokenizeC(text).map((t) => t.kind)));
-  for (const kind of ['comment', 'string', 'char'] as const) assert.ok(kinds.has(kind), `no case holds a ${kind} token`);
-  assert.ok(inputs.some((text) => tokenizeC(text).some((t) => t.kind === 'preprocessor' && /^#\s*if/.test(t.text))), 'no case holds an #if region');
-  assert.ok(inputs.some((text) => text.includes('\r\n')), 'no CRLF case');
-  assert.ok(inputs.some((text) => text.charCodeAt(0) === 0xfeff), 'no case starts with a byte order mark');
+  for (const kind of ['comment', 'string', 'char'] as const)
+    assert.ok(kinds.has(kind), `no case holds a ${kind} token`);
+  assert.ok(
+    inputs.some((text) => tokenizeC(text).some((t) => t.kind === 'preprocessor' && /^#\s*if/.test(t.text))),
+    'no case holds an #if region',
+  );
+  assert.ok(
+    inputs.some((text) => text.includes('\r\n')),
+    'no CRLF case',
+  );
+  assert.ok(
+    inputs.some((text) => text.charCodeAt(0) === 0xfeff),
+    'no case starts with a byte order mark',
+  );
   const fragmentStub = CASES.some((name) => {
     const spec = JSON.parse(readFileSync(join(DIR, name, 'case.json'), 'utf8')) as CaseFile;
-    return Object.values(spec.fragments ?? {}).some((file) => readFileSync(join(DIR, name, file), 'utf8').includes('INCLUDE_ASM('));
+    return Object.values(spec.fragments ?? {}).some((file) =>
+      readFileSync(join(DIR, name, file), 'utf8').includes('INCLUDE_ASM('),
+    );
   });
   assert.ok(fragmentStub, 'no case has an INCLUDE_ASM in an #included fragment');
 });
@@ -110,9 +140,17 @@ for (const name of CASES) {
       else writeFileSync(diagnosticsFile, diagnostics);
     }
     assert.equal(actual, readFileSync(expectedFile, 'utf8'), `${name}/expected.c differs; UPDATE_GOLDEN=1 rewrites it`);
-    assert.equal(diagnostics, existsSync(diagnosticsFile) ? readFileSync(diagnosticsFile, 'utf8') : '', `${name}/diagnostics.txt differs; UPDATE_GOLDEN=1 rewrites it`);
+    assert.equal(
+      diagnostics,
+      existsSync(diagnosticsFile) ? readFileSync(diagnosticsFile, 'utf8') : '',
+      `${name}/diagnostics.txt differs; UPDATE_GOLDEN=1 rewrites it`,
+    );
     assert.notEqual(actual, input, `${name} edits nothing`);
-    assert.deepEqual(untouchable(actual), untouchable(input), `${name}: a comment, string or character literal changed`);
+    assert.deepEqual(
+      untouchable(actual),
+      untouchable(input),
+      `${name}: a comment, string or character literal changed`,
+    );
     // Reconciling the result again changes nothing: the planner reaches its fixpoint in one run.
     assert.deepEqual(planIncludeAsm(actual, wantedOf(dir)).edits, [], `${name}: a second run still edits`);
   });

@@ -16,7 +16,7 @@
 //     misses:          [{addr, reason, listed}]   listed: the row is in the dataset's `labels`
 //     falseEntries:    [{addr, origin, listed}]   listed: the row is in the dataset's `untyped`
 //     staleExceptions: [{list, addr}]             `labels`/`untyped` rows this run no longer needs
-import { gate, noPocReference, type ExecResult } from './gate.ts';
+import { type ExecResult, gate, noPocReference } from './gate.ts';
 
 interface Miss {
   readonly addr: string;
@@ -87,16 +87,38 @@ gate({
         continue;
       }
       const precision = rom.entries === 0 ? 0 : rom.tp / rom.entries;
-      if (precision < MIN_PRECISION) problems.push(`${rom.name}: raw precision ${percent(precision)} (${rom.tp}/${rom.entries}) < 99.70%`);
+      if (precision < MIN_PRECISION)
+        problems.push(`${rom.name}: raw precision ${percent(precision)} (${rom.tp}/${rom.entries}) < 99.70%`);
       const missing = noPocReference(rom);
       if (missing !== undefined) problems.push(missing);
-      else if (rom.tp < rom.poc.tp) problems.push(`${rom.name}: ${rom.tp} true positives, fewer than the PoC's ${rom.poc.tp}`);
+      else if (rom.tp < rom.poc.tp)
+        problems.push(`${rom.name}: ${rom.tp} true positives, fewer than the PoC's ${rom.poc.tp}`);
       const unlistedMisses = rom.misses.filter((m) => !m.listed);
-      if (unlistedMisses.length > 0) problems.push(`${rom.name}: misses not in labels: ${unlistedMisses.slice(0, 8).map((m) => `${m.addr} (${m.reason})`).join(', ')}`);
+      if (unlistedMisses.length > 0)
+        problems.push(
+          `${rom.name}: misses not in labels: ${unlistedMisses
+            .slice(0, 8)
+            .map((m) => `${m.addr} (${m.reason})`)
+            .join(', ')}`,
+        );
       const unlistedFalse = rom.falseEntries.filter((f) => !f.listed);
-      if (unlistedFalse.length > 0) problems.push(`${rom.name}: false entries not in untyped: ${unlistedFalse.slice(0, 8).map((f) => `${f.addr} (${f.origin})`).join(', ')}`);
-      if (rom.staleExceptions.length > 0) problems.push(`${rom.name}: stale-exception rows: ${rom.staleExceptions.slice(0, 8).map((s) => `${s.list} ${s.addr}`).join(', ')}`);
-      notes.push(`${rom.name} precision ${percent(precision)}, tp ${rom.tp} (PoC ${rom.poc.tp}${rom.poc.source === 'dump' ? ", the PoC's own run: no pinned baseline row" : ''}), ${rom.misses.length} misses, ${rom.falseEntries.length} false`);
+      if (unlistedFalse.length > 0)
+        problems.push(
+          `${rom.name}: false entries not in untyped: ${unlistedFalse
+            .slice(0, 8)
+            .map((f) => `${f.addr} (${f.origin})`)
+            .join(', ')}`,
+        );
+      if (rom.staleExceptions.length > 0)
+        problems.push(
+          `${rom.name}: stale-exception rows: ${rom.staleExceptions
+            .slice(0, 8)
+            .map((s) => `${s.list} ${s.addr}`)
+            .join(', ')}`,
+        );
+      notes.push(
+        `${rom.name} precision ${percent(precision)}, tp ${rom.tp} (PoC ${rom.poc.tp}${rom.poc.source === 'dump' ? ", the PoC's own run: no pinned baseline row" : ''}), ${rom.misses.length} misses, ${rom.falseEntries.length} false`,
+      );
     }
     if (problems.length > 0) throw new Error(`entries: ${problems.join('; ')}`);
     cx.note(notes.join('; '));

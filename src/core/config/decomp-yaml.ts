@@ -14,13 +14,13 @@ import { DecompYamlError, parseDecompYaml, toolBlock } from '@match-kit/decomp-y
 import type { LoadedConfig } from '@match-kit/decomp-yaml';
 import { z } from 'zod';
 
-import { NONMATCHINGS_ROOT } from '../../foundation/util/project-files.ts';
-import { diagnostic, RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
+import { RomliftInvariantError, diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
+import { NONMATCHINGS_ROOT } from '../../foundation/util/project-files.ts';
 import { BASEROM_FILE, DECOMP_YAML_FILE, ROMLIFT_CONFIG_FILE } from '../../foundation/util/project-files.ts';
 import { ConfigCodes } from './codes.ts';
 import type { ConfigCode } from './codes.ts';
-import { buildCompilerOf, DEFAULT_BUILD_COMPILER } from './compilers.ts';
+import { DEFAULT_BUILD_COMPILER, buildCompilerOf } from './compilers.ts';
 import type { BuildCompilerId } from './compilers.ts';
 
 /** romlift's key under `tools`. */
@@ -94,7 +94,10 @@ function q(text: string): string {
 }
 
 function invalid(path: string, problems: readonly string[]): DecompYamlRead {
-  return { ok: false, diagnostics: problems.map((p) => diagnostic(ConfigCodes, 'E_DECOMP_YAML_INVALID', `${path}: ${p}`, { path })) };
+  return {
+    ok: false,
+    diagnostics: problems.map((p) => diagnostic(ConfigCodes, 'E_DECOMP_YAML_INVALID', `${path}: ${p}`, { path })),
+  };
 }
 
 function baseName(path: string): string {
@@ -112,10 +115,14 @@ export function readDecompYaml(text: string, path: string = DECOMP_YAML_FILE): D
     if (error instanceof DecompYamlError) return invalid(path, error.problems);
     return invalid(path, [error instanceof Error ? error.message : String(error)]);
   }
-  if (block === undefined) return invalid(path, [`has no tools.${ROMLIFT_TOOL} block (add one with \`config: ${ROMLIFT_CONFIG_FILE}\`)`]);
+  if (block === undefined)
+    return invalid(path, [`has no tools.${ROMLIFT_TOOL} block (add one with \`config: ${ROMLIFT_CONFIG_FILE}\`)`]);
   // Always romlift.toml at the project root (fix round 7, architecture-b2-1, D83 b), as the ROM is always baserom.gba
   // (D74 c): the scaffold's Makefile and setup.sh hash romlift.toml by that name against modules.mk's stamp (D82 a).
-  if (block.config !== ROMLIFT_CONFIG_FILE) return invalid(path, [`tools.${ROMLIFT_TOOL}.config: ${q(block.config)} is not ${q(ROMLIFT_CONFIG_FILE)}: a project's config is always ${ROMLIFT_CONFIG_FILE} beside decomp.yaml, the file the Makefile and setup.sh check against modules.mk (D83 b); move it back and name it ${ROMLIFT_CONFIG_FILE}`]);
+  if (block.config !== ROMLIFT_CONFIG_FILE)
+    return invalid(path, [
+      `tools.${ROMLIFT_TOOL}.config: ${q(block.config)} is not ${q(ROMLIFT_CONFIG_FILE)}: a project's config is always ${ROMLIFT_CONFIG_FILE} beside decomp.yaml, the file the Makefile and setup.sh check against modules.mk (D83 b); move it back and name it ${ROMLIFT_CONFIG_FILE}`,
+    ]);
   const version = loaded.config.versions[0];
   if (version === undefined) return invalid(path, ['versions: lists no version']);
   const compiled = baseName(version.paths.compiled_target);
@@ -135,7 +142,8 @@ export function readDecompYaml(text: string, path: string = DECOMP_YAML_FILE): D
 export function renderDecompYaml(vars: DecompYamlVars): string {
   const compilerId = vars.compiler ?? DEFAULT_BUILD_COMPILER;
   const compiler = buildCompilerOf(compilerId);
-  if (compiler === undefined) throw new RomliftInvariantError(`renderDecompYaml: ${compilerId} is not a registered build compiler`);
+  if (compiler === undefined)
+    throw new RomliftInvariantError(`renderDecompYaml: ${compilerId} is not a registered build compiler`);
   const region = regionOf(vars.gameCode);
   const text = `# yaml-language-server: $schema=https://cdn.jsdelivr.net/npm/@match-kit/decomp-yaml/schema.json
 # decomp.yaml (the decomp_settings format): the settings this project's tools share.
@@ -178,9 +186,14 @@ tools:
     config: ${q(ROMLIFT_CONFIG_FILE)}
 `;
   const read = readDecompYaml(text);
-  if (!read.ok) throw new RomliftInvariantError(`renderDecompYaml wrote a decomp.yaml that does not validate: ${read.diagnostics.map((d) => d.message).join('; ')}`);
+  if (!read.ok)
+    throw new RomliftInvariantError(
+      `renderDecompYaml wrote a decomp.yaml that does not validate: ${read.diagnostics.map((d) => d.message).join('; ')}`,
+    );
   if (read.value.config !== ROMLIFT_CONFIG_FILE || read.value.sha1 !== vars.sha1) {
-    throw new RomliftInvariantError(`renderDecompYaml wrote a decomp.yaml that reads back differently (${JSON.stringify(read.value)})`);
+    throw new RomliftInvariantError(
+      `renderDecompYaml wrote a decomp.yaml that reads back differently (${JSON.stringify(read.value)})`,
+    );
   }
   return text;
 }

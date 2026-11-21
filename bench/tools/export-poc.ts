@@ -25,42 +25,50 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-
 import { compareCodeUnits } from 'romlift';
 import { sha1Of } from 'romlift/node';
 
-import { listFixtures, type SyntheticFixture } from '../src/ablate.ts';
-import { parseArgs, UsageError } from '../src/args.ts';
+import { type SyntheticFixture, listFixtures } from '../src/ablate.ts';
+import { UsageError, parseArgs } from '../src/args.ts';
 import { jsonDiffs, pocRomNames, readBaseline, stripSeconds } from '../src/baseline.ts';
-import { contextFromEnv, scoredPath, type BenchContext } from '../src/context.ts';
-import { loadDatasets, pocDatasets, tuningDatasets, type Dataset } from '../src/dataset.ts';
-import { BenchError, exists, isRecord, prettyJson, readFileBytes, readJson, readText, writeText } from '../src/files.ts';
+import { type BenchContext, contextFromEnv, scoredPath } from '../src/context.ts';
+import { type Dataset, loadDatasets, pocDatasets, tuningDatasets } from '../src/dataset.ts';
 import {
+  BenchError,
+  exists,
+  isRecord,
+  prettyJson,
+  readFileBytes,
+  readJson,
+  readText,
+  writeText,
+} from '../src/files.ts';
+import {
+  POC_DIGESTS_SCHEMA,
+  type ParityView,
+  type PocDigests,
   parityDigest,
   parityPath,
   parityText,
   parseParityView,
   parsePocDigests,
   pocDigestsPath,
-  POC_DIGESTS_SCHEMA,
-  type ParityView,
-  type PocDigests,
 } from '../src/parity-view.ts';
-import { openPocLog, queriesPath } from '../src/poc-log.ts';
-import { comparePocSource, computePocSource, readPinnedPocSource } from '../src/poc-source.ts';
-import { runProcess } from '../src/process.ts';
-import { analysisDigest, parseScoredRun, SCORED_SCHEMA, type ScoredRun } from '../src/scored-run.ts';
 import {
+  POC_DUMP_ROWS_SCHEMA,
+  type PinnedDumpRow,
   dumpRowMismatch,
   pocDatasetDigest,
   pocDatasetOf,
   pocDumpRowsPath,
   pocDumpRowsText,
   pocRowDigest,
-  POC_DUMP_ROWS_SCHEMA,
   readPocDumpRows,
-  type PinnedDumpRow,
 } from '../src/poc-dump-rows.ts';
+import { openPocLog, queriesPath } from '../src/poc-log.ts';
+import { comparePocSource, computePocSource, readPinnedPocSource } from '../src/poc-source.ts';
+import { runProcess } from '../src/process.ts';
+import { SCORED_SCHEMA, type ScoredRun, analysisDigest, parseScoredRun } from '../src/scored-run.ts';
 
 const USAGE = 'usage: npm run export-poc -- --mode scored|parity|queries|raw [--only <rom>] [--pin]';
 const CHILD = fileURLToPath(new URL('./export-poc-child.ts', import.meta.url));
@@ -75,7 +83,13 @@ export function isExportMode(value: string | undefined): value is ExportMode {
 // ---------------------------------------------------------------- pure post-processing
 
 /** Builds the frozen scored.json value from the child's document; throws when the document is not as expected. */
-export function scoredFromChild(doc: unknown, rom: string, sha1: string, pocSourceDigest: string, datasetDigest: string | null = null): ScoredRun {
+export function scoredFromChild(
+  doc: unknown,
+  rom: string,
+  sha1: string,
+  pocSourceDigest: string,
+  datasetDigest: string | null = null,
+): ScoredRun {
   if (!isRecord(doc) || !Array.isArray(doc['analyses']) || doc['analyses'].length !== 2 || !isRecord(doc['row'])) {
     throw new BenchError(`${rom}: the PoC child printed no {analyses: [2], misses, row} document`);
   }
@@ -105,14 +119,18 @@ export interface ParityRun {
 }
 
 function seconds(value: unknown, where: string): number {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) throw new BenchError(`${where}: expected a number of seconds`);
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0)
+    throw new BenchError(`${where}: expected a number of seconds`);
   return value;
 }
 
 /** Reads the child's `--mode parity` document, {parity, seconds}. */
 export function parityFromChild(doc: unknown, rom: string): ParityRun {
   if (!isRecord(doc)) throw new BenchError(`${rom}: the PoC child printed no {parity, seconds} document`);
-  return { view: parseParityView(doc['parity'], `${rom}: parity`), seconds: seconds(doc['seconds'], `${rom}: seconds`) };
+  return {
+    view: parseParityView(doc['parity'], `${rom}: parity`),
+    seconds: seconds(doc['seconds'], `${rom}: seconds`),
+  };
 }
 
 /** The digest of a ROM's view when two PoC runs agree; a BenchError naming the first differences otherwise. */
@@ -121,7 +139,9 @@ export function deterministicDigest(rom: string, first: ParityView, second: Pari
   const b = parityDigest(second);
   if (a !== b) {
     const diffs = jsonDiffs(first, second, '', 5).join('; ');
-    throw new BenchError(`${rom}: the PoC is not deterministic: two runs have parity digests ${a} and ${b} (${diffs}); nothing written`);
+    throw new BenchError(
+      `${rom}: the PoC is not deterministic: two runs have parity digests ${a} and ${b} (${diffs}); nothing written`,
+    );
   }
   return a;
 }
@@ -130,8 +150,13 @@ export function deterministicDigest(rom: string, first: ParityView, second: Pari
  * The poc-digests.json value: `digests` over the ROMs of `previous` when it pins the same PoC checkout
  * (an `--only` run keeps the other ROMs), keys sorted.
  */
-export function pocDigestsDocument(pocSourceDigest: string, digests: Readonly<Record<string, string>>, previous?: PocDigests): PocDigests {
-  const merged: Record<string, string> = previous?.pocSourceDigest === pocSourceDigest ? { ...previous.roms, ...digests } : { ...digests };
+export function pocDigestsDocument(
+  pocSourceDigest: string,
+  digests: Readonly<Record<string, string>>,
+  previous?: PocDigests,
+): PocDigests {
+  const merged: Record<string, string> =
+    previous?.pocSourceDigest === pocSourceDigest ? { ...previous.roms, ...digests } : { ...digests };
   const roms: Record<string, string> = {};
   for (const name of Object.keys(merged).sort(compareCodeUnits)) roms[name] = merged[name] ?? '';
   return parsePocDigests({ pocSourceDigest, roms, schema: POC_DIGESTS_SCHEMA }, 'poc-digests');
@@ -151,7 +176,8 @@ export interface QueriesRun extends ParityRun {
 }
 
 function count(value: unknown, where: string): number {
-  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) throw new BenchError(`${where}: expected a count`);
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0)
+    throw new BenchError(`${where}: expected a count`);
   return value;
 }
 
@@ -168,13 +194,20 @@ export function queriesFromChild(doc: unknown, rom: string): QueriesRun {
 }
 
 /** Refuses a queries run whose parity digest is not the committed one: the log would describe another run. */
-export function checkCommittedDigest(rom: string, digest: string, committed: PocDigests, pocSourceDigest: string): void {
+export function checkCommittedDigest(
+  rom: string,
+  digest: string,
+  committed: PocDigests,
+  pocSourceDigest: string,
+): void {
   if (committed.pocSourceDigest !== pocSourceDigest) {
     throw new BenchError(`${rom}: bench/baseline/poc-digests.json pins another PoC checkout; run --mode parity first`);
   }
   const want = committed.roms[rom];
-  if (want === undefined) throw new BenchError(`${rom}: bench/baseline/poc-digests.json has no digest for it; run --mode parity first`);
-  if (want !== digest) throw new BenchError(`${rom}: the instrumented run has parity digest ${digest}, the committed one is ${want}`);
+  if (want === undefined)
+    throw new BenchError(`${rom}: bench/baseline/poc-digests.json has no digest for it; run --mode parity first`);
+  if (want !== digest)
+    throw new BenchError(`${rom}: the instrumented run has parity digest ${digest}, the committed one is ${want}`);
 }
 
 // ---------------------------------------------------------------- the raw mode's dump
@@ -221,35 +254,55 @@ export interface PocRawDump {
 const isAddr = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 0xffffffff;
 
 function rawLabel(value: unknown, where: string): PocRawLabel {
-  if (!isRecord(value) || !isAddr(value['addr']) || typeof value['name'] !== 'string') throw new BenchError(`${where}: not a {addr, name, note?} label`);
+  if (!isRecord(value) || !isAddr(value['addr']) || typeof value['name'] !== 'string')
+    throw new BenchError(`${where}: not a {addr, name, note?} label`);
   const note = value['note'];
   if (note !== undefined && typeof note !== 'string') throw new BenchError(`${where}.note: not a string`);
-  return note === undefined ? { addr: value['addr'], name: value['name'] } : { addr: value['addr'], name: value['name'], note };
+  return note === undefined
+    ? { addr: value['addr'], name: value['name'] }
+    : { addr: value['addr'], name: value['name'], note };
 }
 
 function rawChunk(value: unknown, where: string): PocRawChunk {
   if (!isRecord(value)) throw new BenchError(`${where}: not an object`);
   const { start, end, name, kind, mode, module, labels } = value;
-  if (!isAddr(start) || !isAddr(end) || end <= start) throw new BenchError(`${where}: start and end are not a non-empty span`);
+  if (!isAddr(start) || !isAddr(end) || end <= start)
+    throw new BenchError(`${where}: start and end are not a non-empty span`);
   if (typeof name !== 'string' || name === '') throw new BenchError(`${where}.name: not a non-empty string`);
   if (kind !== 'func' && kind !== 'gap') throw new BenchError(`${where}.kind: not func or gap`);
-  if (mode !== 'thumb' && mode !== 'arm' && mode !== 'none') throw new BenchError(`${where}.mode: not thumb, arm or none`);
+  if (mode !== 'thumb' && mode !== 'arm' && mode !== 'none')
+    throw new BenchError(`${where}.mode: not thumb, arm or none`);
   if (typeof module !== 'string' || module === '') throw new BenchError(`${where}.module: not a non-empty string`);
   if (!Array.isArray(labels)) throw new BenchError(`${where}.labels: not an array`);
-  return { start, end, name, kind, mode, module, labels: labels.map((l: unknown, i) => rawLabel(l, `${where}.labels[${i}]`)) };
+  return {
+    start,
+    end,
+    name,
+    kind,
+    mode,
+    module,
+    labels: labels.map((l: unknown, i) => rawLabel(l, `${where}.labels[${i}]`)),
+  };
 }
 
 /** Reads the child's `--mode raw` document; throws a BenchError naming the first problem. */
 export function rawFromChild(doc: unknown, fixture: string): PocRawChild {
-  if (!isRecord(doc) || typeof doc['summary'] !== 'string' || !Array.isArray(doc['chunks']) || !Array.isArray(doc['claims'])) {
+  if (
+    !isRecord(doc) ||
+    typeof doc['summary'] !== 'string' ||
+    !Array.isArray(doc['chunks']) ||
+    !Array.isArray(doc['claims'])
+  ) {
     throw new BenchError(`${fixture}: the PoC child printed no {summary, chunks, claims} document`);
   }
   const claims = doc['claims'] as unknown[];
-  if (!claims.every((c) => c === 0 || c === 1 || c === 2 || c === 3 || c === 4)) throw new BenchError(`${fixture}: claims holds a value other than a claim kind 0..4`);
+  if (!claims.every((c) => c === 0 || c === 1 || c === 2 || c === 3 || c === 4))
+    throw new BenchError(`${fixture}: claims holds a value other than a claim kind 0..4`);
   const chunks = (doc['chunks'] as unknown[]).map((c, i) => rawChunk(c, `${fixture}: chunks[${i}]`));
   for (let i = 1; i < chunks.length; i++) {
     const [a, b] = [chunks[i - 1], chunks[i]];
-    if (a !== undefined && b !== undefined && b.start < a.end) throw new BenchError(`${fixture}: chunks[${i}] starts inside chunks[${i - 1}]`);
+    if (a !== undefined && b !== undefined && b.start < a.end)
+      throw new BenchError(`${fixture}: chunks[${i}] starts inside chunks[${i - 1}]`);
   }
   return { summary: doc['summary'], chunks, claims: claims as number[] };
 }
@@ -279,12 +332,21 @@ export function pocChunkLines(text: string, chunk: PocRawChunk): readonly string
     if (chunk.kind === 'gap' && line === '') return body;
     body.push(line);
   }
-  if (chunk.kind === 'func') throw new BenchError(`${chunk.name}: no ${JSON.stringify(end.trim())} line after its label in ${pocChunkFile(chunk)}`);
+  if (chunk.kind === 'func')
+    throw new BenchError(
+      `${chunk.name}: no ${JSON.stringify(end.trim())} line after its label in ${pocChunkFile(chunk)}`,
+    );
   return body;
 }
 
 /** The raw.json value of one fixture: every chunk with its body lines, read through `readTree(path)`. */
-export function pocRawDump(fixture: string, sha1: string, pocSourceDigest: string, child: PocRawChild, readTree: (path: string) => string): PocRawDump {
+export function pocRawDump(
+  fixture: string,
+  sha1: string,
+  pocSourceDigest: string,
+  child: PocRawChild,
+  readTree: (path: string) => string,
+): PocRawDump {
   return {
     schema: POC_RAW_SCHEMA,
     fixture,
@@ -297,7 +359,8 @@ export function pocRawDump(fixture: string, sha1: string, pocSourceDigest: strin
 }
 
 /** bench/.local/poc/raw/<fixture>/, the PoC's tree and raw.json. */
-export const pocRawDir = (cx: BenchContext, fixture: string): string => join(cx.repoRoot, 'bench', '.local', 'poc', 'raw', fixture);
+export const pocRawDir = (cx: BenchContext, fixture: string): string =>
+  join(cx.repoRoot, 'bench', '.local', 'poc', 'raw', fixture);
 
 // ---------------------------------------------------------------- running the child
 
@@ -314,7 +377,12 @@ async function runChild(cx: BenchContext, d: Dataset, args: readonly string[]): 
 }
 
 /** Runs the child for `name` (a dataset, or a fixture with no dataset) and returns its last stdout line's JSON. */
-async function runChildFor(cx: BenchContext, name: string, args: readonly string[], dataset: string | undefined): Promise<unknown> {
+async function runChildFor(
+  cx: BenchContext,
+  name: string,
+  args: readonly string[],
+  dataset: string | undefined,
+): Promise<unknown> {
   const tsx = join(cx.pocRoot, 'node_modules', '.bin', 'tsx');
   if (!(await exists(tsx))) throw new BenchError(`${tsx} is missing: the PoC checkout has no node_modules`);
   // Run outside both repositories. The PoC scaffolds into os.tmpdir()/romlift-bench/<name>, so the child gets a
@@ -329,7 +397,14 @@ async function runChildFor(cx: BenchContext, name: string, args: readonly string
 }
 
 /** runChildFor's child, run in `cwd`, which is also its TMPDIR. */
-async function runChildIn(cwd: string, tsx: string, name: string, args: readonly string[], cx: BenchContext, dataset: string | undefined): Promise<unknown> {
+async function runChildIn(
+  cwd: string,
+  tsx: string,
+  name: string,
+  args: readonly string[],
+  cx: BenchContext,
+  dataset: string | undefined,
+): Promise<unknown> {
   const run = await runProcess(tsx, [CHILD, name, ...args], {
     cwd,
     env: {
@@ -345,7 +420,10 @@ async function runChildIn(cwd: string, tsx: string, name: string, args: readonly
     echoStderr: true,
   });
   if (run.code !== 0) throw new BenchError(`${name}: the PoC child exited ${run.code}`);
-  const last = run.stdout.split('\n').filter((line) => line.trim() !== '').pop();
+  const last = run.stdout
+    .split('\n')
+    .filter((line) => line.trim() !== '')
+    .pop();
   if (last === undefined) throw new BenchError(`${name}: the PoC child printed nothing`);
   try {
     return JSON.parse(last) as unknown;
@@ -377,9 +455,16 @@ async function writeScored(cx: BenchContext, d: Dataset, scored: ScoredRun): Pro
  * The pinned PoC rows after a scored export: each dump made on romlift's dataset is checked against
  * bench/baseline/poc-dump-rows.json, or, with `pin`, written into it (the diff in Git is the review).
  */
-async function checkOrPinDumpRows(cx: BenchContext, runs: readonly { readonly d: Dataset; readonly scored: ScoredRun }[], pocSourceDigest: string, pin: boolean): Promise<void> {
+async function checkOrPinDumpRows(
+  cx: BenchContext,
+  runs: readonly { readonly d: Dataset; readonly scored: ScoredRun }[],
+  pocSourceDigest: string,
+  pin: boolean,
+): Promise<void> {
   const committed = await readPocDumpRows(cx);
-  const roms: Record<string, PinnedDumpRow> = { ...(committed?.pocSourceDigest === pocSourceDigest ? committed.roms : {}) };
+  const roms: Record<string, PinnedDumpRow> = {
+    ...(committed?.pocSourceDigest === pocSourceDigest ? committed.roms : {}),
+  };
   const problems: string[] = [];
   for (const { d, scored } of runs) {
     if (scored.datasetDigest === null) continue;
@@ -390,7 +475,11 @@ async function checkOrPinDumpRows(cx: BenchContext, runs: readonly { readonly d:
         continue;
       }
       const tp = scored.pocRow['tp'];
-      roms[d.name] = { datasetDigest: scored.datasetDigest, rowDigest: pocRowDigest(scored.pocRow), tp: typeof tp === 'number' ? tp : 0 };
+      roms[d.name] = {
+        datasetDigest: scored.datasetDigest,
+        rowDigest: pocRowDigest(scored.pocRow),
+        tp: typeof tp === 'number' ? tp : 0,
+      };
       continue;
     }
     const why = dumpRowMismatch(d, committed, scored.pocSourceDigest, scored.datasetDigest, scored.pocRow);
@@ -399,7 +488,9 @@ async function checkOrPinDumpRows(cx: BenchContext, runs: readonly { readonly d:
   }
   if (problems.length > 0) {
     throw new BenchError(
-      pin ? `refusing to pin, nothing written:\n${problems.join('\n')}` : `the PoC's rows differ from the pinned ones, no dump written (re-pin with --pin only after reviewing why):\n${problems.join('\n')}`,
+      pin
+        ? `refusing to pin, nothing written:\n${problems.join('\n')}`
+        : `the PoC's rows differ from the pinned ones, no dump written (re-pin with --pin only after reviewing why):\n${problems.join('\n')}`,
     );
   }
   if (pin) {
@@ -424,7 +515,12 @@ async function exportParity(cx: BenchContext, d: Dataset): Promise<string> {
 
 const mib = (bytes: number): string => `${(bytes / 1048576).toFixed(1)} MiB`;
 
-async function exportQueries(cx: BenchContext, d: Dataset, pocSourceDigest: string, committed: PocDigests): Promise<void> {
+async function exportQueries(
+  cx: BenchContext,
+  d: Dataset,
+  pocSourceDigest: string,
+  committed: PocDigests,
+): Promise<void> {
   const sha1 = await checkedRom(cx, d);
   const path = queriesPath(cx, d.name);
   const run = queriesFromChild(await runChild(cx, d, ['queries', dirname(path), sha1, pocSourceDigest]), d.name);
@@ -439,7 +535,9 @@ async function exportQueries(cx: BenchContext, d: Dataset, pocSourceDigest: stri
     throw new BenchError(`${path}: its header names another ROM or PoC checkout`);
   }
   if (records !== run.queries || log.readings.size !== run.readings) {
-    throw new BenchError(`${path}: holds ${records} queries and ${log.readings.size} readings, the child wrote ${run.queries} and ${run.readings}`);
+    throw new BenchError(
+      `${path}: holds ${records} queries and ${log.readings.size} readings, the child wrote ${run.queries} and ${run.readings}`,
+    );
   }
   process.stdout.write(
     `${d.name.padEnd(12)} ${run.view.functions.length} functions, ${run.queries} queries (${mib(run.queryBytes)}), ` +
@@ -462,7 +560,9 @@ async function exportRaw(cx: BenchContext, f: SyntheticFixture, pocSourceDigest:
   const dump = pocRawDump(f.name, sha1, pocSourceDigest, child, (file) => files.get(file) ?? '');
   await writeText(join(dir, 'raw.json'), `${JSON.stringify(dump)}\n`);
   const lines = dump.chunks.reduce((n, c) => n + c.lines.length, 0);
-  process.stdout.write(`${f.name.padEnd(32)} ${dump.chunks.length} chunks, ${lines} body lines -> ${join(dir, 'raw.json')}\n`);
+  process.stdout.write(
+    `${f.name.padEnd(32)} ${dump.chunks.length} chunks, ${lines} body lines -> ${join(dir, 'raw.json')}\n`,
+  );
 }
 
 async function readCommittedDigests(cx: BenchContext): Promise<PocDigests | undefined> {
@@ -481,24 +581,38 @@ async function main(argv: readonly string[]): Promise<number> {
   const problems = comparePocSource(pinned, actual);
   if (problems.length > 0) {
     for (const p of problems) process.stderr.write(`${p}\n`);
-    throw new BenchError(`refusing to run: the PoC checkout at ${cx.pocRoot} is not the pinned one (bench/baseline/poc-source.json)`);
+    throw new BenchError(
+      `refusing to run: the PoC checkout at ${cx.pocRoot} is not the pinned one (bench/baseline/poc-source.json)`,
+    );
   }
   const only = args.options['only'];
   if (mode === 'raw') {
     if (args.flags.has('pin')) throw new UsageError(`--pin goes with --mode scored\n${USAGE}`);
     const fixtures = (await listFixtures(cx)).filter((f) => only === undefined || f.name === only);
-    if (fixtures.length === 0) throw new BenchError(only === undefined ? 'no committed fixture under bench/dataset/synthetic' : `no committed fixture named ${only}`);
+    if (fixtures.length === 0)
+      throw new BenchError(
+        only === undefined
+          ? 'no committed fixture under bench/dataset/synthetic'
+          : `no committed fixture named ${only}`,
+      );
     for (const f of fixtures) await exportRaw(cx, f, pinned.digest);
     process.stdout.write(`${fixtures.length} fixture(s) -> ${join(cx.repoRoot, 'bench', '.local', 'poc', 'raw')}\n`);
     return 0;
   }
   const { datasets, problems: datasetProblems } = await loadDatasets(cx);
-  if (datasetProblems.length > 0) throw new BenchError(`malformed datasets: ${datasetProblems.map((p) => p.detail).join('; ')}`);
+  if (datasetProblems.length > 0)
+    throw new BenchError(`malformed datasets: ${datasetProblems.map((p) => p.detail).join('; ')}`);
   // scored: every tuning dataset (the PoC's scaffold measures the scaffold family until phase 3, and its
   // own row is the PoC reference of a ROM its baseline does not name, D60); parity and queries: the ROMs
   // of the PoC baseline, whose digests and logs are committed evidence.
-  const chosen = mode === 'scored' ? tuningDatasets(datasets, only) : pocDatasets(datasets, pocRomNames(await readBaseline(cx)), only);
-  if (chosen.length === 0) throw new BenchError(only === undefined ? 'no tuning datasets the PoC ran on' : `no tuning dataset named ${only} that the PoC ran on`);
+  const chosen =
+    mode === 'scored'
+      ? tuningDatasets(datasets, only)
+      : pocDatasets(datasets, pocRomNames(await readBaseline(cx)), only);
+  if (chosen.length === 0)
+    throw new BenchError(
+      only === undefined ? 'no tuning datasets the PoC ran on' : `no tuning dataset named ${only} that the PoC ran on`,
+    );
   if (mode === 'scored') {
     const runs: { readonly d: Dataset; readonly scored: ScoredRun }[] = [];
     for (const d of chosen) runs.push({ d, scored: await exportScored(cx, d, pinned.digest) });

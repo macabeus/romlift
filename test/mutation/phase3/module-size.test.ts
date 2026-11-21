@@ -10,7 +10,9 @@ test('a module whose items miss its span fails the module-size check with E_MODU
   const rom = fixtureRom();
   const model = fixtureModel(rom);
   assert.equal(verifyModel(rom, model).ok, true, 'the unmutated model passes');
-  const modules = model.modules.map((m) => (m.name === 'main' ? { ...m, span: { start: m.span.start, end: m.span.end + 4 } } : m));
+  const modules = model.modules.map((m) =>
+    m.name === 'main' ? { ...m, span: { start: m.span.start, end: m.span.end + 4 } } : m,
+  );
   const report = verifyModel(rom, { ...model, modules });
   assert.equal(report.ok, false);
   const size = report.checks.find((c) => c.id === 'module-size');

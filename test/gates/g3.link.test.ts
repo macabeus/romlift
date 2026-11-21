@@ -4,7 +4,7 @@
 //
 // The checks run in process through romlift/node (verify-rom.ts, D108).
 import { gate } from './gate.ts';
-import { failedChecks, targets, VERIFY_NEEDS, verifyRom } from './verify-rom.ts';
+import { VERIFY_NEEDS, failedChecks, targets, verifyRom } from './verify-rom.ts';
 
 const MIN_TUNING_LINKS = 3;
 
@@ -33,11 +33,16 @@ gate({
         unlinked.push(`${target.name}: ${failed.join('; ') || 'not ok'}`);
       }
     }
-    if (fixtureProblems.length > 0) throw new Error(`the readable printer does not link every fixture: ${fixtureProblems.join(' | ')}`);
+    if (fixtureProblems.length > 0)
+      throw new Error(`the readable printer does not link every fixture: ${fixtureProblems.join(' | ')}`);
     cx.note(`the readable printer links all ${cx.fixtures.length} fixtures`);
     if (cx.tier === 'real') {
-      if (unlinked.length > 0) cx.note(`tuning ROMs not linking yet (target all ${cx.datasets.length}): ${unlinked.join(' | ')}`);
-      if (linked.length < MIN_TUNING_LINKS) throw new Error(`the readable printer links ${linked.length} of ${cx.datasets.length} tuning ROMs, at least ${MIN_TUNING_LINKS} must`);
+      if (unlinked.length > 0)
+        cx.note(`tuning ROMs not linking yet (target all ${cx.datasets.length}): ${unlinked.join(' | ')}`);
+      if (linked.length < MIN_TUNING_LINKS)
+        throw new Error(
+          `the readable printer links ${linked.length} of ${cx.datasets.length} tuning ROMs, at least ${MIN_TUNING_LINKS} must`,
+        );
       cx.note(`the readable printer links ${linked.length} of ${cx.datasets.length} tuning ROMs: ${linked.join(', ')}`);
     }
   },

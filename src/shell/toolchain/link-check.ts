@@ -16,18 +16,25 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
+import { cDataStandIn } from '../../core/model/c-data-assert.ts';
+import type { BuildUnit } from '../../core/model/paths.ts';
+import { LDSCRIPT_PATH, MACROS_PATH, cAssemblyPath } from '../../core/model/paths.ts';
+import type { AssembleUnit } from '../../core/model/paths.ts';
+import { stubAssemblyOf } from '../../core/verify/c-stub.ts';
+import {
+  assembleFailure,
+  assembleVerdict,
+  compareObject,
+  linkFailure,
+  linkVerdict,
+  unassemblable,
+} from '../../core/verify/toolchain.ts';
+import type { AssembleCheckResult, LinkCheckResult, ModuleAssembly } from '../../core/verify/toolchain.ts';
 import { DIALECT } from '../../foundation/asm/dialect.ts';
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
-import type { BuildUnit } from '../../core/model/paths.ts';
 import { BASEROM_FILE, isCSource } from '../../foundation/util/project-files.ts';
-import { cDataStandIn } from '../../core/model/c-data-assert.ts';
-import { cAssemblyPath, LDSCRIPT_PATH, MACROS_PATH } from '../../core/model/paths.ts';
-import { stubAssemblyOf } from '../../core/verify/c-stub.ts';
-import { assembleFailure, assembleVerdict, compareObject, linkFailure, linkVerdict, unassemblable } from '../../core/verify/toolchain.ts';
-import type { AssembleUnit } from '../../core/model/paths.ts';
-import type { AssembleCheckResult, LinkCheckResult, ModuleAssembly } from '../../core/verify/toolchain.ts';
 import { ShellCodes } from '../codes.ts';
 import { errnoOf, errorReason } from '../fs.ts';
 import { sha1Of } from '../hash.ts';
@@ -61,7 +68,9 @@ export interface AssembleCheckOptions {
 /** The first lines of a program's error output, for a diagnostic. */
 function excerpt(stderr: string, lines = 12): string {
   const all = stderr.trimEnd().split('\n');
-  return all.length <= lines ? all.join('\n') : `${all.slice(0, lines).join('\n')}\n… (${all.length - lines} more lines)`;
+  return all.length <= lines
+    ? all.join('\n')
+    : `${all.slice(0, lines).join('\n')}\n… (${all.length - lines} more lines)`;
 }
 
 function toolFailed(what: string, result: ToolRun, path?: string): Diagnostic {
@@ -97,7 +106,9 @@ async function writeIfAbsent(dir: string, path: string, data: string | Uint8Arra
 
 /** include/macros.inc (DIALECT.macrosInc) and baserom.gba (the ROM's bytes), each when absent. */
 async function prepare(dir: string, rom: Rom): Promise<Diagnostic | undefined> {
-  return (await writeIfAbsent(dir, MACROS_PATH, DIALECT.macrosInc)) ?? (await writeIfAbsent(dir, BASEROM_FILE, rom.bytes));
+  return (
+    (await writeIfAbsent(dir, MACROS_PATH, DIALECT.macrosInc)) ?? (await writeIfAbsent(dir, BASEROM_FILE, rom.bytes))
+  );
 }
 
 /** Writes `text` at `path` under `dir`, replacing what is there (a build product, like an object). */
@@ -122,7 +133,12 @@ async function assemblySource(dir: string, unit: BuildUnit): Promise<BuildUnit |
   const text = await readOutput(dir, unit.source);
   if (isDiagnostic(text)) return text;
   if (unit.compiler === undefined) {
-    return diagnostic(ShellCodes, 'E_TOOLCHAIN_FAILED', `${unit.source} (module ${unit.module}) names no build compiler: a C unit assembles as its compiler's assembly of the stub`, { path: unit.source });
+    return diagnostic(
+      ShellCodes,
+      'E_TOOLCHAIN_FAILED',
+      `${unit.source} (module ${unit.module}) names no build compiler: a C unit assembles as its compiler's assembly of the stub`,
+      { path: unit.source },
+    );
   }
   const assembly = stubAssemblyOf(new TextDecoder().decode(text), unit.compiler);
   if (!assembly.ok) {
@@ -131,7 +147,11 @@ async function assemblySource(dir: string, unit: BuildUnit): Promise<BuildUnit |
     return diagnostic(ShellCodes, 'E_TOOLCHAIN_FAILED', message, { path: unit.source });
   }
   const source = cAssemblyPath(unit.module);
-  const written = await writeBuildFile(dir, source, unit.data === undefined ? assembly.text : `${assembly.text}${cDataStandIn(unit.data)}`);
+  const written = await writeBuildFile(
+    dir,
+    source,
+    unit.data === undefined ? assembly.text : `${assembly.text}${cDataStandIn(unit.data)}`,
+  );
   return written ?? { ...unit, source };
 }
 
@@ -144,7 +164,12 @@ async function assembleUnit(dir: string, given: BuildUnit, tools: Binutils): Pro
   try {
     await mkdir(dirname(onDisk(dir, unit.object)), { recursive: true });
   } catch (error) {
-    return diagnostic(ShellCodes, 'E_IO_WRITE', `cannot create the directory of ${unit.object}: ${errorReason(error)}`, { path: unit.object });
+    return diagnostic(
+      ShellCodes,
+      'E_IO_WRITE',
+      `cannot create the directory of ${unit.object}: ${errorReason(error)}`,
+      { path: unit.object },
+    );
   }
   const result = await runTool(tools.as, [...DIALECT.asArgs, '-I', dir, '-o', unit.object, unit.source], dir);
   return result.code === 0 ? undefined : toolFailed(`arm-none-eabi-as on ${unit.source}`, result, unit.source);
@@ -174,10 +199,15 @@ export async function linkCheck(options: LinkCheckOptions): Promise<LinkCheckRes
     const failed = await assembleUnit(dir, unit, tools.tools);
     if (failed !== undefined) return linkFailure(`module ${unit.module} does not assemble`, [failed]);
   }
-  const ld = await runTool(tools.tools.ld, ['-T', LDSCRIPT_PATH, '-o', LINK_ELF_PATH, ...units.map((u) => u.object)], dir);
+  const ld = await runTool(
+    tools.tools.ld,
+    ['-T', LDSCRIPT_PATH, '-o', LINK_ELF_PATH, ...units.map((u) => u.object)],
+    dir,
+  );
   if (ld.code !== 0) return linkFailure('the link failed', [toolFailed('arm-none-eabi-ld', ld, LDSCRIPT_PATH)]);
   const objcopy = await runTool(tools.tools.objcopy, ['-O', 'binary', LINK_ELF_PATH, LINK_IMAGE_PATH], dir);
-  if (objcopy.code !== 0) return linkFailure('objcopy failed', [toolFailed('arm-none-eabi-objcopy', objcopy, LINK_ELF_PATH)]);
+  if (objcopy.code !== 0)
+    return linkFailure('objcopy failed', [toolFailed('arm-none-eabi-objcopy', objcopy, LINK_ELF_PATH)]);
   const image = await readOutput(dir, LINK_IMAGE_PATH);
   if (isDiagnostic(image)) return linkFailure(image.message, [image]);
   return linkVerdict(image, sha1Of(image), rom, units.length);

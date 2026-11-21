@@ -7,15 +7,9 @@
 // cannot import test/gates (D37); test/unit/bench/objects.test.ts runs both on one directory and requires
 // the same digest.
 import { createHash } from 'node:crypto';
-import { readdir, readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { join, posix } from 'node:path';
-
 import {
-  compareCodeUnits,
-  parseElf,
-  relocationsOf,
-  SHT,
-  sortedKeys,
   type ElfFile,
   type ElfSection,
   type ElfSymbol,
@@ -23,6 +17,11 @@ import {
   type ElfSymbolType,
   type GnuMap,
   type ParseResult,
+  SHT,
+  compareCodeUnits,
+  parseElf,
+  relocationsOf,
+  sortedKeys,
 } from 'romlift';
 
 // ---------------------------------------------------------------------------------------------------
@@ -178,14 +177,21 @@ const SYMBOL_BINDS: readonly ElfSymbolBind[] = ['local', 'global', 'weak'];
 
 class Malformed extends Error {}
 
-function relocationSymbol(bytes: Uint8Array, view: DataView, elf: ElfFile, symtabIndex: number, index: number): RelocationSymbol {
+function relocationSymbol(
+  bytes: Uint8Array,
+  view: DataView,
+  elf: ElfFile,
+  symtabIndex: number,
+  index: number,
+): RelocationSymbol {
   const symtab = elf.sections[symtabIndex];
   if (symtab === undefined) throw new Malformed(`symbol table index ${symtabIndex} is out of range`);
   const strtab = elf.sections[symtab.link];
   if (strtab === undefined) throw new Malformed(`string table index ${symtab.link} is out of range`);
   const entsize = symtab.entsize === 0 ? SYMBOL_SIZE : symtab.entsize;
   const at = symtab.offset + index * entsize;
-  if (index * entsize + SYMBOL_SIZE > symtab.size || at + SYMBOL_SIZE > bytes.length) throw new Malformed(`symbol ${index} is outside ${symtab.name}`);
+  if (index * entsize + SYMBOL_SIZE > symtab.size || at + SYMBOL_SIZE > bytes.length)
+    throw new Malformed(`symbol ${index} is outside ${symtab.name}`);
   const info = view.getUint8(at + 12);
   const shndx = view.getUint16(at + 14, true);
   const type = SYMBOL_TYPES[info & 0xf] ?? 'other';
@@ -193,7 +199,8 @@ function relocationSymbol(bytes: Uint8Array, view: DataView, elf: ElfFile, symta
   const nameOffset = view.getUint32(at, true);
   let name = '';
   if (nameOffset !== 0) {
-    if (nameOffset >= strtab.size) throw new Malformed(`symbol ${index}: name offset 0x${nameOffset.toString(16)} is outside its string table`);
+    if (nameOffset >= strtab.size)
+      throw new Malformed(`symbol ${index}: name offset 0x${nameOffset.toString(16)} is outside its string table`);
     const start = strtab.offset + nameOffset;
     const end = bytes.subarray(start, strtab.offset + strtab.size).indexOf(0);
     if (end < 0) throw new Malformed(`symbol ${index}: name is not NUL-terminated`);
@@ -221,7 +228,8 @@ export function objectRelocations(bytes: Uint8Array): ParseResult<readonly Objec
     const targets = new Map<number, number>();
     for (const table of elf.sections) {
       if (!isRelocationTable(table)) continue;
-      if (elf.sections[table.info] === undefined) throw new Malformed(`${table.name}: target section ${table.info} is out of range`);
+      if (elf.sections[table.info] === undefined)
+        throw new Malformed(`${table.name}: target section ${table.info} is out of range`);
       if (!targets.has(table.info)) targets.set(table.info, table.link);
     }
     for (const [index, symtab] of [...targets].sort((a, b) => a[0] - b[0])) {
@@ -229,7 +237,14 @@ export function objectRelocations(bytes: Uint8Array): ParseResult<readonly Objec
       if (target === undefined) continue;
       const entries = relocationsOf(bytes, elf, target);
       if (!entries.ok) return { ok: false, error: `ELF relocations: ${entries.error}` };
-      for (const r of entries.value) out.push({ section: target.name, offset: r.offset, type: r.type, symbol: relocationSymbol(bytes, view, elf, symtab, r.symbol), addend: r.addend });
+      for (const r of entries.value)
+        out.push({
+          section: target.name,
+          offset: r.offset,
+          type: r.type,
+          symbol: relocationSymbol(bytes, view, elf, symtab, r.symbol),
+          addend: r.addend,
+        });
     }
   } catch (error) {
     if (error instanceof Malformed) return { ok: false, error: `ELF relocations: ${error.message}` };
@@ -294,7 +309,8 @@ export function linkedSectionMismatches(linked: LinkedObject, elf: ElfFile): str
   for (const name of sortedKeys(linked.sections)) {
     const want = linked.sections.get(name) ?? 0;
     const size = have.get(name) ?? 0;
-    if (size !== want) problems.push(`${linked.file} ${name} is 0x${size.toString(16)} bytes, the map links 0x${want.toString(16)}`);
+    if (size !== want)
+      problems.push(`${linked.file} ${name} is 0x${size.toString(16)} bytes, the map links 0x${want.toString(16)}`);
   }
   return problems;
 }
@@ -336,7 +352,9 @@ export function linkedInputs(map: GnuMap): LinkedInput[] {
       out.push({ object, section: input.section, start: input.address, end: input.address + input.size });
     }
   }
-  return out.sort((a, b) => a.start - b.start || compareCodeUnits(a.object, b.object) || compareCodeUnits(a.section, b.section));
+  return out.sort(
+    (a, b) => a.start - b.start || compareCodeUnits(a.object, b.object) || compareCodeUnits(a.section, b.section),
+  );
 }
 
 /**
@@ -397,7 +415,11 @@ function useCounts(relocations: readonly Pick<ObjectRelocation, 'symbol'>[]): Ma
  * at its section's linked start (`sectionStart`) plus its value (a function's without the Thumb bit). Every other
  * name a relocation refers to (an external, a common symbol) stands where `definitionOf` puts it.
  */
-export function objectNames(object: NamedObject, sectionStart: (section: string) => number | undefined, definitionOf: (name: string) => Definition | undefined): ObjectName[] {
+export function objectNames(
+  object: NamedObject,
+  sectionStart: (section: string) => number | undefined,
+  definitionOf: (name: string) => Definition | undefined,
+): ObjectName[] {
   const out: ObjectName[] = [];
   const seen = new Set<string>();
   for (const s of object.symbols) {
@@ -407,16 +429,26 @@ export function objectNames(object: NamedObject, sectionStart: (section: string)
     const at = s.bind === 'local' ? own : (definitionOf(s.name) ?? own);
     if (at === undefined) continue;
     seen.add(s.name);
-    out.push({ name: s.name, addr: at.addr, bind: s.bind === 'local' ? 'local' : 'global', defined: true, func: s.type === 'func' });
+    out.push({
+      name: s.name,
+      addr: at.addr,
+      bind: s.bind === 'local' ? 'local' : 'global',
+      defined: true,
+      func: s.type === 'func',
+    });
   }
   for (const r of object.relocations) {
     const s = r.symbol;
-    if (s.type === 'section' || s.name === '' || s.name.startsWith('$') || s.name.startsWith('.L') || seen.has(s.name)) continue;
+    if (s.type === 'section' || s.name === '' || s.name.startsWith('$') || s.name.startsWith('.L') || seen.has(s.name))
+      continue;
     seen.add(s.name);
     const at = definitionOf(s.name);
-    if (at !== undefined) out.push({ name: s.name, addr: at.addr, bind: 'global', defined: false, func: s.type === 'func' });
+    if (at !== undefined)
+      out.push({ name: s.name, addr: at.addr, bind: 'global', defined: false, func: s.type === 'func' });
   }
   const uses = useCounts(object.relocations);
   const used = (n: ObjectName): number => uses.get(n.name) ?? 0;
-  return out.sort((a, b) => a.addr - b.addr || NAME_RANK(a) - NAME_RANK(b) || used(b) - used(a) || compareCodeUnits(a.name, b.name));
+  return out.sort(
+    (a, b) => a.addr - b.addr || NAME_RANK(a) - NAME_RANK(b) || used(b) - used(a) || compareCodeUnits(a.name, b.name),
+  );
 }

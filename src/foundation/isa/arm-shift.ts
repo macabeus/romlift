@@ -10,7 +10,10 @@ export function shiftOperands(stype: number, samt: number): { readonly shift: nu
 }
 
 /** The encoded (type, amount) pair of a written shift, or undefined when it has no encoding. */
-export function shiftFields(shift: number, amount: number): { readonly stype: number; readonly samt: number } | undefined {
+export function shiftFields(
+  shift: number,
+  amount: number,
+): { readonly stype: number; readonly samt: number } | undefined {
   if (shift === 0) return amount >= 0 && amount <= 31 ? { stype: 0, samt: amount } : undefined;
   if (shift === 1 || shift === 2) return amount >= 1 && amount <= 32 ? { stype: shift, samt: amount & 31 } : undefined;
   if (shift === 3) return amount >= 1 && amount <= 31 ? { stype: 3, samt: amount } : undefined;

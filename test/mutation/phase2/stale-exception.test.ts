@@ -6,10 +6,9 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
-
 import type { AnalysisResult } from 'romlift';
 
-import { main, type BenchIo } from '../../../bench/src/cli.ts';
+import { type BenchIo, main } from '../../../bench/src/cli.ts';
 import type { StaleException } from '../../../bench/src/row.ts';
 import { staleExceptions } from '../../../bench/src/score.ts';
 import { analysisResult, fact, withTempDir } from '../../unit/bench/fixtures.ts';
@@ -49,7 +48,12 @@ function entriesStaleProblem(rom: RunRom): string | undefined {
 }
 
 /** Runs `bench <args...> --json` on the synthetic tier with `datasetOverrides`, romlift's run being `result`. */
-async function benchJson<T>(name: string, args: readonly string[], result: AnalysisResult, datasetOverrides: Record<string, unknown> = {}): Promise<{ readonly code: number; readonly report: T; readonly lines: readonly string[] }> {
+async function benchJson<T>(
+  name: string,
+  args: readonly string[],
+  result: AnalysisResult,
+  datasetOverrides: Record<string, unknown> = {},
+): Promise<{ readonly code: number; readonly report: T; readonly lines: readonly string[] }> {
   return withTempDir(`romlift-mut-stale-${name}-`, async (root) => {
     const cx = await syntheticTier(join(root, 't'), { datasetOverrides });
     const lines: string[] = [];
@@ -62,7 +66,11 @@ async function benchJson<T>(name: string, args: readonly string[], result: Analy
 /** tinyResult, which misses thumb_two, now also finding it. */
 function findsThumbTwo(): AnalysisResult {
   const base = tinyResult();
-  return analysisResult([...base.functions, fact(0x0800_000e, 0x0800_0018)], { end: 0x0800_0008, entries: [0x0800_0000] }, base.codeEnd);
+  return analysisResult(
+    [...base.functions, fact(0x0800_000e, 0x0800_0018)],
+    { end: 0x0800_0008, entries: [0x0800_0000] },
+    base.codeEnd,
+  );
 }
 
 test('unmutated, the scorer reports no stale row and the g2.entries rule holds', async () => {
@@ -93,8 +101,17 @@ test('a labels row the run no longer misses is a stale exception that fails g2.e
 });
 
 test('the scorer alone: staleExceptions lists exactly the rows the row no longer needs', () => {
-  const lists = { labels: [{ addr: THUMB_TWO, name: 'thumb_two', category: 'loop-label' as const, note: 'n' }], untyped: [{ addr: UNTYPED, category: 'veneer' as const, note: 'n' }] };
-  assert.deepEqual(staleExceptions(lists, { misses: [{ addr: THUMB_TWO, name: 'thumb_two', size: 10, reason: 'unanchored', listed: true }], falseEntries: [{ addr: UNTYPED, origin: 'gap-scan', size: 4, listed: true }] }), []);
+  const lists = {
+    labels: [{ addr: THUMB_TWO, name: 'thumb_two', category: 'loop-label' as const, note: 'n' }],
+    untyped: [{ addr: UNTYPED, category: 'veneer' as const, note: 'n' }],
+  };
+  assert.deepEqual(
+    staleExceptions(lists, {
+      misses: [{ addr: THUMB_TWO, name: 'thumb_two', size: 10, reason: 'unanchored', listed: true }],
+      falseEntries: [{ addr: UNTYPED, origin: 'gap-scan', size: 4, listed: true }],
+    }),
+    [],
+  );
   assert.deepEqual(staleExceptions(lists, { misses: [], falseEntries: [] }), [
     { list: 'labels', addr: THUMB_TWO },
     { list: 'untyped', addr: UNTYPED },
@@ -102,18 +119,33 @@ test('the scorer alone: staleExceptions lists exactly the rows the row no longer
 });
 
 test('dataset-check reports a stale untyped row as stale-exception and exits 1', async () => {
-  const { code, report, lines } = await benchJson<{ ok: boolean; problems: Problem[] }>('check-untyped', ['dataset-check'], tinyResult([0x0800_0010]));
+  const { code, report, lines } = await benchJson<{ ok: boolean; problems: Problem[] }>(
+    'check-untyped',
+    ['dataset-check'],
+    tinyResult([0x0800_0010]),
+  );
   assert.equal(code, 1);
   assert.equal(report.ok, false);
   assert.deepEqual(report.problems, [{ dataset: 'tiny', list: 'untyped', addr: UNTYPED, problem: 'stale-exception' }]);
-  assert.ok(lines.includes(`tiny: stale-exception: untyped: ${UNTYPED} is not reported any more; remove it from the list`), lines.join('\n'));
+  assert.ok(
+    lines.includes(`tiny: stale-exception: untyped: ${UNTYPED} is not reported any more; remove it from the list`),
+    lines.join('\n'),
+  );
 });
 
 test('dataset-check reports a stale labels row as stale-exception and exits 1', async () => {
   const label = { addr: THUMB_TWO, name: 'thumb_two', category: 'loop-label', note: 'injected' };
-  const { code, report, lines } = await benchJson<{ ok: boolean; problems: Problem[] }>('check-labels', ['dataset-check'], findsThumbTwo(), { labels: [label] });
+  const { code, report, lines } = await benchJson<{ ok: boolean; problems: Problem[] }>(
+    'check-labels',
+    ['dataset-check'],
+    findsThumbTwo(),
+    { labels: [label] },
+  );
   assert.equal(code, 1);
   const stale = report.problems.filter((p) => p.problem === 'stale-exception');
   assert.deepEqual(stale, [{ dataset: 'tiny', list: 'labels', addr: THUMB_TWO, problem: 'stale-exception' }]);
-  assert.ok(lines.includes(`tiny: stale-exception: labels: ${THUMB_TWO} is not missed any more; remove it from the list`), lines.join('\n'));
+  assert.ok(
+    lines.includes(`tiny: stale-exception: labels: ${THUMB_TWO} is not missed any more; remove it from the list`),
+    lines.join('\n'),
+  );
 });

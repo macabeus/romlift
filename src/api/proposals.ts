@@ -18,6 +18,13 @@ export type { LibraryModules, RomSignatures, SignatureLayer } from '../core/work
 export { signatureFromConfig, signatureFromPlacements, signatureOfKey } from '../core/workflow/explain.ts';
 export { freeModuleName, placeLibraries, runsAtName } from '../core/layout/infer-modules.ts';
 export { planLibraryModules, planRunsAtBorders, regionsWithoutModule } from '../core/layout/module-proposals.ts';
-export type { LibraryModuleDrop, LibraryModulePlan, ModuleAt, RunsAtBorderPlan, RunsAtOverride, RunsAtRefusal } from '../core/layout/module-proposals.ts';
+export type {
+  LibraryModuleDrop,
+  LibraryModulePlan,
+  ModuleAt,
+  RunsAtBorderPlan,
+  RunsAtOverride,
+  RunsAtRefusal,
+} from '../core/layout/module-proposals.ts';
 export type { LibraryDropReason, LibraryPlacement } from '../core/layout/infer-modules.ts';
 export type { RunsAtRange } from '../core/layout/types.ts';

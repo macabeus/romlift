@@ -4,12 +4,11 @@
 // generated roots at a path the tree generates must give E_PATH_NOT_OWNED, and a reconciled file changed
 // after its edits were planned must give E_STALE_EDIT; each refused plan applies nothing.
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
-
-import { planHasErrors, planWrites, type FileEntry, type WritePlan } from 'romlift';
+import { type FileEntry, type WritePlan, planHasErrors, planWrites } from 'romlift';
 import { applyWrites, readDiskState, readJournal, readManifest, readReconciledTexts, sha1Of } from 'romlift/node';
 
 const roots: string[] = [];
@@ -28,7 +27,12 @@ function tree(): readonly FileEntry[] {
   return [
     { ownership: 'generated', path: 'asm/main.s', text: '.include "asm/nonmatchings/main/New.s"\n', writer: 'module' },
     { ownership: 'generated', path: OUTSIDE, text: '@ generated\n', writer: 'objdiff' },
-    { ownership: 'reconciled', path: 'src/main.c', baseSha1: sha1Of(C_TEXT), edits: [{ start: at, end: at + 3, text: 'New', reason: 'add-stub' }] },
+    {
+      ownership: 'reconciled',
+      path: 'src/main.c',
+      baseSha1: sha1Of(C_TEXT),
+      edits: [{ start: at, end: at + 3, text: 'New', reason: 'add-stub' }],
+    },
   ];
 }
 
@@ -46,7 +50,10 @@ async function plan(dir: string): Promise<WritePlan> {
   const entries = tree();
   const manifest = await readManifest(dir);
   const journal = await readJournal(dir);
-  const disk = await readDiskState(dir, entries.map((e) => e.path));
+  const disk = await readDiskState(
+    dir,
+    entries.map((e) => e.path),
+  );
   const texts = await readReconciledTexts(dir, ['src/main.c']);
   assert.ok(manifest.ok && journal.ok && disk.ok && texts.ok);
   return planWrites({
@@ -71,7 +78,9 @@ async function filesOf(dir: string, prefix = ''): Promise<Record<string, string>
 }
 
 /** Plans and applies; returns the plan, the apply result and whether the directory changed. */
-async function attempt(dir: string): Promise<{ readonly plan: WritePlan; readonly ok: boolean; readonly changed: boolean }> {
+async function attempt(
+  dir: string,
+): Promise<{ readonly plan: WritePlan; readonly ok: boolean; readonly changed: boolean }> {
   const before = await filesOf(dir);
   const p = await plan(dir);
   const applied = await applyWrites(dir, p);
@@ -91,7 +100,10 @@ test('unmutated, the plan has no error and applies', async () => {
 test('a foreign file outside the generated roots is E_PATH_NOT_OWNED, and nothing is applied', async () => {
   const dir = await project({ 'src/main.c': C_TEXT, [OUTSIDE]: '@ the user wrote this\n' });
   const { plan: p, ok, changed } = await attempt(dir);
-  assert.deepEqual(p.diagnostics.map((d) => [d.code, d.path]), [['E_PATH_NOT_OWNED', OUTSIDE]]);
+  assert.deepEqual(
+    p.diagnostics.map((d) => [d.code, d.path]),
+    [['E_PATH_NOT_OWNED', OUTSIDE]],
+  );
   assert.ok(planHasErrors(p));
   assert.ok(!p.ops.some((op) => op.path === OUTSIDE), 'no op for the refused path');
   assert.equal(ok, false);
@@ -101,7 +113,10 @@ test('a foreign file outside the generated roots is E_PATH_NOT_OWNED, and nothin
 test('a reconciled file whose sha1 changed is E_STALE_EDIT, and nothing is applied', async () => {
   const dir = await project({ 'src/main.c': `${C_TEXT}int added_by_hand;\n` });
   const { plan: p, ok, changed } = await attempt(dir);
-  assert.deepEqual(p.diagnostics.map((d) => [d.code, d.path]), [['E_STALE_EDIT', 'src/main.c']]);
+  assert.deepEqual(
+    p.diagnostics.map((d) => [d.code, d.path]),
+    [['E_STALE_EDIT', 'src/main.c']],
+  );
   assert.ok(planHasErrors(p));
   assert.ok(!p.ops.some((op) => op.path === 'src/main.c'), 'no op for the stale file');
   assert.equal(ok, false);

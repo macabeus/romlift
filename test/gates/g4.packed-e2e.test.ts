@@ -17,9 +17,18 @@
 // romlift with npm (no lock yet: `npm install`) and duty 5 runs `npx romlift generate` from that install; make must
 // still end at the SHA-1.
 import { createHash } from 'node:crypto';
-import { copyFile, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { copyAgbcc, gate, withLock, withSharedAgbcc, type ExecResult, type FixtureRef, type GateContext } from './gate.ts';
+
+import {
+  type ExecResult,
+  type FixtureRef,
+  type GateContext,
+  copyAgbcc,
+  gate,
+  withLock,
+  withSharedAgbcc,
+} from './gate.ts';
 
 interface PackResult {
   readonly filename: string;
@@ -31,7 +40,9 @@ interface CliLine {
   readonly exitCode?: number;
 }
 
-const NOT_BUILT: Readonly<Record<string, string>> = { 'c-data': 'its C array must fail the link (g4.c-data-fails-loud)' };
+const NOT_BUILT: Readonly<Record<string, string>> = {
+  'c-data': 'its C array must fail the link (g4.c-data-fails-loud)',
+};
 const FORBIDDEN = /\.(gba|elf|map|o|sav)$/i;
 const BUILT_SIGNATURES = /^signatures\/(?!specs\/)[^/]+\.json$/;
 
@@ -62,7 +73,10 @@ function summaryOk(cx: GateContext, run: ExecResult): boolean {
 }
 
 /** Builds dist/ and packs the package into `dir`; returns the tarball and its file list. */
-async function pack(cx: GateContext, dir: string): Promise<{ readonly tarball: string; readonly files: readonly string[] }> {
+async function pack(
+  cx: GateContext,
+  dir: string,
+): Promise<{ readonly tarball: string; readonly files: readonly string[] }> {
   return withLock('dist', async () => {
     const build = await cx.exec('npm', ['run', '--silent', 'build'], { cwd: cx.repoRoot });
     if (build.code !== 0) throw new Error(`npm run build exited ${build.code}:\n${tail(build)}`);
@@ -94,7 +108,10 @@ async function sha1File(dir: string): Promise<{ readonly sha1: string; readonly 
 /** `npm` duty and `npx` duty of setup.sh without ROMLIFT_CLI: the project's romlift is the tarball, asm/ regenerated. */
 async function withoutBypass(dir: string, tarball: string): Promise<string | undefined> {
   const file = path.join(dir, 'package.json');
-  const json = JSON.parse(await readFile(file, 'utf8')) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+  const json = JSON.parse(await readFile(file, 'utf8')) as {
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
+  };
   const table = json.devDependencies?.['romlift'] !== undefined ? json.devDependencies : json.dependencies;
   if (table?.['romlift'] === undefined) return 'the scaffold package.json pins no romlift';
   table['romlift'] = `file:${tarball}`;
@@ -104,7 +121,14 @@ async function withoutBypass(dir: string, tarball: string): Promise<string | und
   return undefined;
 }
 
-async function build(cx: GateContext, bin: string, fixture: FixtureRef, dir: string, agbcc: string | undefined, tarball?: string): Promise<string | undefined> {
+async function build(
+  cx: GateContext,
+  bin: string,
+  fixture: FixtureRef,
+  dir: string,
+  agbcc: string | undefined,
+  tarball?: string,
+): Promise<string | undefined> {
   const expected = sha1(await readFile(fixture.rom));
   await mkdir(dir, { recursive: true });
   const rom = `${fixture.name}.gba`;
@@ -122,7 +146,8 @@ async function build(cx: GateContext, bin: string, fixture: FixtureRef, dir: str
   if (tarball !== undefined) {
     const said = `${setup.stdout}${setup.stderr}`;
     if (/ROMLIFT_CLI is set/.test(said)) return 'setup.sh took the ROMLIFT_CLI bypass';
-    if (!(await exists(path.join(dir, 'node_modules', '.bin', 'romlift')))) return "setup.sh's npm duty installed no romlift bin";
+    if (!(await exists(path.join(dir, 'node_modules', '.bin', 'romlift'))))
+      return "setup.sh's npm duty installed no romlift bin";
     if (!(await exists(path.join(dir, 'asm')))) return "setup.sh's generate duty wrote no asm/";
   }
   const make = await cx.exec('make', [], { cwd: dir, env });
@@ -132,7 +157,9 @@ async function build(cx: GateContext, bin: string, fixture: FixtureRef, dir: str
   const built = path.join(dir, target.file);
   if (!(await exists(built))) return `make did not build ${target.file}`;
   const actual = sha1(await readFile(built));
-  return actual === expected && target.sha1 === expected ? undefined : `built ${actual}, .sha1 records ${target.sha1}, expected ${expected}`;
+  return actual === expected && target.sha1 === expected
+    ? undefined
+    : `built ${actual}, .sha1 records ${target.sha1}, expected ${expected}`;
 }
 
 gate({
@@ -152,8 +179,11 @@ gate({
 
     const tool = path.join(base, 'install');
     await mkdir(tool);
-    const install = await cx.exec('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund', tarball], { cwd: tool });
-    if (install.code !== 0) throw new Error(`npm install --ignore-scripts <tarball> exited ${install.code}:\n${tail(install)}`);
+    const install = await cx.exec('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund', tarball], {
+      cwd: tool,
+    });
+    if (install.code !== 0)
+      throw new Error(`npm install --ignore-scripts <tarball> exited ${install.code}:\n${tail(install)}`);
     const bin = path.join(tool, 'node_modules', '.bin', 'romlift');
     if (!(await exists(bin))) throw new Error('the installed package has no romlift bin');
 
@@ -164,16 +194,24 @@ gate({
       const throughNpm = fixture === fixtures[0];
       const dir = path.join(tool, 'projects', fixture.name);
       const failure = await build(cx, bin, fixture, dir, agbcc, throughNpm ? tarball : undefined);
-      const fresh = agbcc === undefined && (await exists(path.join(dir, 'tools', 'agbcc', 'bin', 'agbcc'))) ? path.join(dir, 'tools', 'agbcc') : undefined;
+      const fresh =
+        agbcc === undefined && (await exists(path.join(dir, 'tools', 'agbcc', 'bin', 'agbcc')))
+          ? path.join(dir, 'tools', 'agbcc')
+          : undefined;
       return { fixture, throughNpm, failure, agbcc: fresh };
     });
     const problems: string[] = [];
     for (const o of outcomes) {
-      if (o.throughNpm && o.failure === undefined) cx.note(`${o.fixture.name}: setup.sh without ROMLIFT_CLI installed romlift from the tarball (npm install) and ran npx romlift generate`);
+      if (o.throughNpm && o.failure === undefined)
+        cx.note(
+          `${o.fixture.name}: setup.sh without ROMLIFT_CLI installed romlift from the tarball (npm install) and ran npx romlift generate`,
+        );
       if (o.failure !== undefined) problems.push(`${o.fixture.name}: ${o.failure}`);
     }
     const built = outcomes.filter((o) => o.failure === undefined).length;
     if (problems.length > 0) throw new Error(`end to end from the tarball: ${problems.join(' | ')}`);
-    cx.note(`${path.basename(tarball)}: ${files.length} files, no ROM, ELF, map or built signature file; ${built} fixtures reach their SHA-1`);
+    cx.note(
+      `${path.basename(tarball)}: ${files.length} files, no ROM, ELF, map or built signature file; ${built} fixtures reach their SHA-1`,
+    );
   },
 });

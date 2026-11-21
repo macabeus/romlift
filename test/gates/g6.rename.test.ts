@@ -15,9 +15,10 @@
 //   `romlift rename <old> <new> [--json]` exits 0, or 1 when <new> exists or <old> is unknown; NDJSON as in
 //   g4.e2e-fixtures.
 import { createHash } from 'node:crypto';
-import { appendFile, copyFile, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { appendFile, copyFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { gate, type ExecResult, type GateContext } from './gate.ts';
+
+import { type ExecResult, type GateContext, gate } from './gate.ts';
 
 interface CToken {
   readonly kind: string;
@@ -45,7 +46,14 @@ async function files(dir: string, prefix = ''): Promise<readonly string[]> {
 
 async function snapshot(dir: string): Promise<ReadonlyMap<string, string>> {
   const out = new Map<string, string>();
-  for (const file of await files(dir)) if (!file.startsWith('.git/')) out.set(file, createHash('sha1').update(await readFile(path.join(dir, file))).digest('hex'));
+  for (const file of await files(dir))
+    if (!file.startsWith('.git/'))
+      out.set(
+        file,
+        createHash('sha1')
+          .update(await readFile(path.join(dir, file)))
+          .digest('hex'),
+      );
   return out;
 }
 
@@ -54,7 +62,11 @@ function same(a: ReadonlyMap<string, string>, b: ReadonlyMap<string, string>): b
 }
 
 /** Comment/string tokens as they are, identifier tokens with `from` read as `to`. */
-function view(tokens: readonly CToken[], from: string, to: string): { readonly kept: string; readonly identifiers: string } {
+function view(
+  tokens: readonly CToken[],
+  from: string,
+  to: string,
+): { readonly kept: string; readonly identifiers: string } {
   const kept = tokens.filter((t) => UNTOUCHABLE.has(t.kind)).map((t) => t.text);
   const identifiers = tokens.filter((t) => t.kind === 'identifier').map((t) => (t.text === from ? to : t.text));
   return { kept: JSON.stringify(kept), identifiers: JSON.stringify(identifiers) };
@@ -73,7 +85,8 @@ gate({
     const dir = path.join(await cx.tmpDir('romlift-rename-'), fixture.name);
     await mkdir(dir, { recursive: true });
     await copyFile(fixture.rom, path.join(dir, 'baserom.gba'));
-    const romlift = (args: readonly string[]): Promise<ExecResult> => cx.exec(process.execPath, ['--conditions=source', main, ...args, '--json'], { cwd: dir });
+    const romlift = (args: readonly string[]): Promise<ExecResult> =>
+      cx.exec(process.execPath, ['--conditions=source', main, ...args, '--json'], { cwd: dir });
     const init = await romlift(['init', 'baserom.gba']);
     if (init.code !== 0) throw new Error(`init exited ${init.code}:\n${tail(init)}`);
 
@@ -81,14 +94,21 @@ gate({
     const toml = await readFile(tomlPath, 'utf8');
     // A `[functions]` line `0x… = "sub_…"`, never a `name = "sub_…"` inside an inline table: the owner's answer to
     // phase-6.md Q3, option (a), 25 October 2026 (D98 a).
-    const names = [...toml.matchAll(/^0x[0-9A-F]{8} = "(sub_[0-9A-F]{8})"$/gm)].flatMap((m) => (m[1] === undefined ? [] : [m[1]]));
+    const names = [...toml.matchAll(/^0x[0-9A-F]{8} = "(sub_[0-9A-F]{8})"$/gm)].flatMap((m) =>
+      m[1] === undefined ? [] : [m[1]],
+    );
     const [old, other] = names;
-    if (old === undefined || other === undefined) throw new Error('the project lists fewer than two default-named functions');
+    if (old === undefined || other === undefined)
+      throw new Error('the project lists fewer than two default-named functions');
     const cFiles = (await files(path.join(dir, 'src'))).filter((f) => f.endsWith('.c'));
     let stubFile: string | undefined;
-    for (const f of cFiles) if ((await readFile(path.join(dir, 'src', f), 'utf8')).includes(old)) stubFile = path.join(dir, 'src', f);
+    for (const f of cFiles)
+      if ((await readFile(path.join(dir, 'src', f), 'utf8')).includes(old)) stubFile = path.join(dir, 'src', f);
     if (stubFile === undefined) throw new Error(`no src/*.c names ${old}`);
-    await appendFile(stubFile, `\n/* ${old} is mentioned in this comment */\nextern void ${old}(void);\nstatic const char gGateText[] = "${old}";\nstatic const char gGateChar = '${old.charAt(0)}';\n`);
+    await appendFile(
+      stubFile,
+      `\n/* ${old} is mentioned in this comment */\nextern void ${old}(void);\nstatic const char gGateText[] = "${old}";\nstatic const char gGateChar = '${old.charAt(0)}';\n`,
+    );
     const header = path.join(dir, 'include', 'romlift_gate.h');
     await mkdir(path.dirname(header), { recursive: true });
     await writeFile(header, `// ${old} in a header comment\nvoid ${old}(void);\n`);
@@ -102,18 +122,23 @@ gate({
     const after = await readFile(tomlPath, 'utf8');
     const a = toml.split('\n');
     const b = after.split('\n');
-    const changedLines = a.length === b.length ? a.flatMap((line, i) => (line === b[i] ? [] : [b[i] ?? ''])) : ['(line count changed)'];
+    const changedLines =
+      a.length === b.length ? a.flatMap((line, i) => (line === b[i] ? [] : [b[i] ?? ''])) : ['(line count changed)'];
     if (changedLines.length !== 1) problems.push(`rename changed ${changedLines.length} TOML lines, not one`);
-    else if (!changedLines[0]?.includes(`"${NEW_NAME}"`) || /\bfrom\s*=/.test(changedLines[0] ?? '')) problems.push(`the TOML line became ${JSON.stringify(changedLines[0])}`);
+    else if (!changedLines[0]?.includes(`"${NEW_NAME}"`) || /\bfrom\s*=/.test(changedLines[0] ?? ''))
+      problems.push(`the TOML line became ${JSON.stringify(changedLines[0])}`);
     for (const f of tracked) {
       const was = view(tokenizeC(before.get(f) ?? ''), old, NEW_NAME);
       const now = view(tokenizeC(await readFile(f, 'utf8')), NEW_NAME, NEW_NAME);
-      if (was.kept !== now.kept) problems.push(`${path.relative(dir, f)}: a comment, string or character literal changed`);
-      if (was.identifiers !== now.identifiers) problems.push(`${path.relative(dir, f)}: identifiers are not ${old} -> ${NEW_NAME} exactly`);
+      if (was.kept !== now.kept)
+        problems.push(`${path.relative(dir, f)}: a comment, string or character literal changed`);
+      if (was.identifiers !== now.identifiers)
+        problems.push(`${path.relative(dir, f)}: identifiers are not ${old} -> ${NEW_NAME} exactly`);
     }
     const generate = await romlift(['generate']);
     if (generate.code !== 0) problems.push(`generate after rename exited ${generate.code}:\n${tail(generate)}`);
-    else if (!(await files(path.join(dir, 'asm'))).some((f) => path.posix.basename(f) === `${NEW_NAME}.s`)) problems.push(`generate emitted no ${NEW_NAME}.s`);
+    else if (!(await files(path.join(dir, 'asm'))).some((f) => path.posix.basename(f) === `${NEW_NAME}.s`))
+      problems.push(`generate emitted no ${NEW_NAME}.s`);
 
     for (const [label, args] of [
       ['the new name exists', ['rename', NEW_NAME, other]],
@@ -125,6 +150,8 @@ gate({
       if (!same(snap, await snapshot(dir))) problems.push(`rename when ${label} changed files`);
     }
     if (problems.length > 0) throw new Error(`rename: ${problems.join(' | ')}`);
-    cx.note(`rename ${old} -> ${NEW_NAME}: one TOML line, identifiers only in src/ and include/; both refusals change nothing`);
+    cx.note(
+      `rename ${old} -> ${NEW_NAME}: one TOML line, identifiers only in src/ and include/; both refusals change nothing`,
+    );
   },
 });

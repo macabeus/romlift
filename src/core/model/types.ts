@@ -21,7 +21,15 @@ export type ItemKindCode = (typeof ItemKind)[keyof typeof ItemKind];
 export type ItemRawReason = RawReason | 'cross-module-short-branch' | 'interworking-branch';
 
 /** The code of each raw reason in ItemTable.aux of a rawInsn item: its index here. */
-export const ITEM_RAW_REASONS: readonly ItemRawReason[] = ['undefined', 'unpredictable', 'sbz-set', 'as-alias', 'no-roundtrip', 'cross-module-short-branch', 'interworking-branch'];
+export const ITEM_RAW_REASONS: readonly ItemRawReason[] = [
+  'undefined',
+  'unpredictable',
+  'sbz-set',
+  'as-alias',
+  'no-roundtrip',
+  'cross-module-short-branch',
+  'interworking-branch',
+];
 
 /**
  * The note of a `data` item inside an extent: `dead` (claim.dead-code-in-extent), `mixer-hole` (a tiled
@@ -253,7 +261,12 @@ export interface ModelJsonUnlisted {
   readonly entry: HexAddr;
   readonly mode: Mode;
   readonly origin: string;
-  readonly provenance: { readonly rule: string; readonly round: number; readonly cites: readonly HexAddr[]; readonly note?: string };
+  readonly provenance: {
+    readonly rule: string;
+    readonly round: number;
+    readonly cites: readonly HexAddr[];
+    readonly note?: string;
+  };
 }
 
 export interface ModelJsonDiagnostic {
@@ -281,7 +294,13 @@ export interface ModelJsonHeader {
 }
 
 /** One item of a chunk line: [ItemKindCode, start, length, the row's SpecId or null, aux] (ItemTable's meaning of aux). */
-export type ModelJsonItem = readonly [kind: ItemKindCode, start: HexAddr, length: number, spec: SpecId | null, aux: number];
+export type ModelJsonItem = readonly [
+  kind: ItemKindCode,
+  start: HexAddr,
+  length: number,
+  spec: SpecId | null,
+  aux: number,
+];
 
 /** Every line after the header: one chunk with its items inline. */
 export interface ModelJsonChunk {

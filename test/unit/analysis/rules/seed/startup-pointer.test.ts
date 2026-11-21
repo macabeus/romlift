@@ -32,9 +32,19 @@ test('Thumb pointers of the accepted ARM functions, in acceptance order, then wa
 
 test('the target must lie in the ROM: the last word is in, the ROM end is out', () => {
   const rom = romWith([], { size: 0x800 });
-  const arm = readingOf(rom, { entry: ARM1, mode: 'arm', pools: [{ addr: ARM1 + 8, value: rom.end - 3 }, { addr: ARM1 + 12, value: rom.end + 1 }] });
+  const arm = readingOf(rom, {
+    entry: ARM1,
+    mode: 'arm',
+    pools: [
+      { addr: ARM1 + 8, value: rom.end - 3 },
+      { addr: ARM1 + 12, value: rom.end + 1 },
+    ],
+  });
   const v = viewWith({ rom, functions: [ARM1], readings: [arm] });
-  assert.deepEqual(startupPointer.seeds(v).map((c) => c.entry), [rom.end - 4]);
+  assert.deepEqual(
+    startupPointer.seeds(v).map((c) => c.entry),
+    [rom.end - 4],
+  );
 });
 
 test('no accepted ARM function, no proposal', () => {

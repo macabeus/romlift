@@ -7,7 +7,7 @@ import { DECODER_FLOW } from '../../../../../src/core/analysis/types.ts';
 import { romWith, viewWith, walkReading } from '../../../../helpers/analysis.ts';
 import { armAt } from '../../../../helpers/arm.ts';
 import { thumbAt } from '../../../../helpers/thumb.ts';
-import { cursorOf, insnAt, WALK, walkRule, without } from './support.ts';
+import { WALK, cursorOf, insnAt, walkRule, without } from './support.ts';
 
 const F = 0x0800_0200;
 const ID = 'walk.bx-pc-veneer';
@@ -27,7 +27,10 @@ test('bx pc on a word boundary and after a nop both name the next word as an ARM
   const nop = walkReading(v, F + 0x20, 'thumb', WALK);
   assert.deepEqual(nop.veneers, [F + 0x24], '(F + 0x22 + 4) & ~3');
   assert.equal(nop.insnAt.has(F + 0x24), false, 'the ARM word is not walked as Thumb');
-  assert.deepEqual(walkRule(ID).onInsn(insnAt(rom, F + 0x22, 'thumb'), cursorOf(v, { entry: F + 0x20, mode: 'thumb' })), { step: 'switch-mode', target: F + 0x24 });
+  assert.deepEqual(
+    walkRule(ID).onInsn(insnAt(rom, F + 0x22, 'thumb'), cursorOf(v, { entry: F + 0x20, mode: 'thumb' })),
+    { step: 'switch-mode', target: F + 0x24 },
+  );
 });
 
 test('declines: bx rN and bx lr; without the rule bx pc is a plain return and names no veneer', () => {

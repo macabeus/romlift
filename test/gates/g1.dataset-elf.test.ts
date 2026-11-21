@@ -6,7 +6,7 @@
 //
 // FROZEN output: the last stdout line of `npm run bench -- dataset-check --json` (exit 0):
 //   {ok, problems: []}   (each problem names its dataset, list and address)
-import { gate, type ExecResult } from './gate.ts';
+import { type ExecResult, gate } from './gate.ts';
 
 /** The tuning set of docs/benchmark-roms.md: the five of the PoC baseline and tmc, revealed (D60). */
 const TUNING = ['fe7j', 'klonoa', 'pokeemerald', 'sa2', 'sa3', 'tmc'];
@@ -31,11 +31,14 @@ gate({
     if (run.code !== 0) throw new Error(`bench dataset-check --json exited ${run.code}:\n${tail(run)}`);
     const check = cx.lastJson<DatasetCheck>(run.stdout);
     if (check.problems.length > 0) {
-      throw new Error(`${check.problems.length} dataset rows disagree with their ELF: ${JSON.stringify(check.problems.slice(0, 10))}`);
+      throw new Error(
+        `${check.problems.length} dataset rows disagree with their ELF: ${JSON.stringify(check.problems.slice(0, 10))}`,
+      );
     }
     if (!check.ok) throw new Error('bench dataset-check reported ok false with no problem');
     const names = cx.datasets.map((d) => d.name).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-    if (names.join(',') !== TUNING.join(',')) throw new Error(`the tuning datasets are ${names.join(', ')}, expected ${TUNING.join(', ')}`);
+    if (names.join(',') !== TUNING.join(','))
+      throw new Error(`the tuning datasets are ${names.join(', ')}, expected ${TUNING.join(', ')}`);
     cx.note(`labels and untyped rows of ${cx.datasets.length} tuning datasets agree with their ELFs`);
   },
 });

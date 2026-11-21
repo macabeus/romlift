@@ -13,7 +13,7 @@
 // The failure is real: the path of the op that must fail is replaced by a directory (a rename onto it and an unlink
 // of it both fail), and removed again before the next run, as a crash leaves the old file in place.
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readdir, readFile, rename, rm, rmdir, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rename, rm, rmdir, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
@@ -28,7 +28,12 @@ import type { Manifest, WritePlan } from '../../../src/core/write-plan/types.ts'
 import { sha1Of } from '../../../src/shell/hash.ts';
 import { applyWrites } from '../../../src/shell/project/apply-writes.ts';
 import type { ApplyResult } from '../../../src/shell/project/apply-writes.ts';
-import { readDiskState, readJournal, readManifest, readReconciledTexts } from '../../../src/shell/project/disk-state.ts';
+import {
+  readDiskState,
+  readJournal,
+  readManifest,
+  readReconciledTexts,
+} from '../../../src/shell/project/disk-state.ts';
 import { withProjectLock } from '../../../src/shell/project/lock.ts';
 import { caseTemporaryName, restoreCaseRenames } from '../../../src/shell/project/spelling.ts';
 import { assertCaught, runUnderMutant, underMutation } from './mutant.ts';
@@ -43,7 +48,12 @@ after(async () => {
 });
 
 const BASE_C = '#include "global.h"\n\nINCLUDE_ASM("asm/nonmatchings/main", Old);\n';
-const RENAME: TextEdit = { start: BASE_C.indexOf('Old'), end: BASE_C.indexOf('Old') + 3, text: 'New', reason: 'add-stub' };
+const RENAME: TextEdit = {
+  start: BASE_C.indexOf('Old'),
+  end: BASE_C.indexOf('Old') + 3,
+  text: 'New',
+  reason: 'add-stub',
+};
 const EDITED_C = BASE_C.replace('Old', 'New');
 /** A generated file outside the generated roots that the old manifest does not list: only the journal makes it romlift's. */
 const OUTSIDE = 'tools/generated.s';
@@ -93,7 +103,11 @@ async function project(): Promise<string> {
   return dir;
 }
 
-function ok<T>(result: { readonly ok: true; readonly value: T } | { readonly ok: false; readonly diagnostic: { readonly message: string } }): T {
+function ok<T>(
+  result:
+    | { readonly ok: true; readonly value: T }
+    | { readonly ok: false; readonly diagnostic: { readonly message: string } },
+): T {
   if (!result.ok) throw new Error(result.diagnostic.message);
   return result.value;
 }
@@ -103,14 +117,35 @@ async function planFor(dir: string, entries: readonly FileEntry[] = tree()): Pro
   const manifest = ok(await readManifest(dir));
   const journal = ok(await readJournal(dir));
   if (journal !== null) assert.equal(await restoreCaseRenames(dir, journal), undefined);
-  const paths = [...entries.map((e) => e.path), ...Object.keys(manifest?.files ?? {}), ...(journal?.ops ?? []).map((o) => o.path)];
+  const paths = [
+    ...entries.map((e) => e.path),
+    ...Object.keys(manifest?.files ?? {}),
+    ...(journal?.ops ?? []).map((o) => o.path),
+  ];
   const disk = ok(await readDiskState(dir, paths));
-  const reconciledTexts = ok(await readReconciledTexts(dir, entries.filter((e) => e.ownership === 'reconciled').map((e) => e.path)));
-  return planWrites({ entries, manifest, journal, disk, reconciledTexts, hash: sha1Of, retained: [], romlift: '0.1.0' });
+  const reconciledTexts = ok(
+    await readReconciledTexts(
+      dir,
+      entries.filter((e) => e.ownership === 'reconciled').map((e) => e.path),
+    ),
+  );
+  return planWrites({
+    entries,
+    manifest,
+    journal,
+    disk,
+    reconciledTexts,
+    hash: sha1Of,
+    retained: [],
+    romlift: '0.1.0',
+  });
 }
 
 /** One command run under the project lock: the plan and what applying it did. */
-async function command(dir: string, entries: readonly FileEntry[] = tree()): Promise<{ readonly plan: WritePlan; readonly applied: ApplyResult }> {
+async function command(
+  dir: string,
+  entries: readonly FileEntry[] = tree(),
+): Promise<{ readonly plan: WritePlan; readonly applied: ApplyResult }> {
   const outcome = await withProjectLock(dir, async () => {
     const plan = await planFor(dir, entries);
     return { plan, applied: await applyWrites(dir, plan) };
@@ -127,7 +162,9 @@ async function run(dir: string, entries: readonly FileEntry[] = tree()): Promise
 /** Every file below `dir` with its text, in code-unit order. */
 async function filesOf(dir: string, prefix = ''): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
-  const entries = (await readdir(join(dir, prefix), { withFileTypes: true })).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  const entries = (await readdir(join(dir, prefix), { withFileTypes: true })).sort((a, b) =>
+    a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
+  );
   for (const entry of entries) {
     const path = prefix === '' ? entry.name : `${prefix}/${entry.name}`;
     if (entry.isDirectory()) Object.assign(out, await filesOf(dir, path));
@@ -177,7 +214,10 @@ async function interrupt(dir: string, k: number): Promise<void> {
   await undo();
   assert.equal(applied.ok, false, `k=${k}: the injected failure at ${target} stops the run`);
   assert.equal(applied.applied, k, `k=${k}: ${k} ops applied before it`);
-  assert.deepEqual(applied.diagnostics.map((d) => d.code), ['E_IO_WRITE']);
+  assert.deepEqual(
+    applied.diagnostics.map((d) => d.code),
+    ['E_IO_WRITE'],
+  );
   const journal = ok(await readJournal(dir));
   assert.ok(journal !== null, `k=${k}: the journal is left for the next run`);
   assert.deepEqual(journal, journalOf(plan.ops), `k=${k}: the journal lists every changing op of the plan`);
@@ -212,7 +252,8 @@ test(CONVERGES, async () => {
   for (let k = 0; k <= changing.length; k++) {
     const dir = await project();
     await interrupt(dir, k);
-    if (k < changing.length) assert.deepEqual(ok(await readManifest(dir)), initialManifest(), `k=${k}: the old manifest is still in place`);
+    if (k < changing.length)
+      assert.deepEqual(ok(await readManifest(dir)), initialManifest(), `k=${k}: the old manifest is still in place`);
     await run(dir);
     assert.deepEqual(await filesOf(dir), expected, `k=${k}: the next run converges to the same tree and manifest`);
   }
@@ -225,11 +266,21 @@ test(STALE_EDIT, async () => {
     await writeFile(join(dir, 'src/main.c'), `${k === 0 ? BASE_C : EDITED_C}int added_by_hand;\n`);
     const before = await filesOf(dir);
     const { plan, applied } = await command(dir);
-    assert.deepEqual(plan.diagnostics.map((d) => [d.code, d.severity, d.path]), [['E_STALE_EDIT', 'error', 'src/main.c']], `k=${k}`);
+    assert.deepEqual(
+      plan.diagnostics.map((d) => [d.code, d.severity, d.path]),
+      [['E_STALE_EDIT', 'error', 'src/main.c']],
+      `k=${k}`,
+    );
     assert.equal(applied.ok, false);
     assert.equal(applied.applied, 0);
-    assert.deepEqual(applied.diagnostics.map((d) => d.code), ['E_STALE_EDIT']);
-    assert.equal(applied.diagnostics.some((d) => d.severity === 'error') ? ExitCode.errors : ExitCode.ok, ExitCode.errors);
+    assert.deepEqual(
+      applied.diagnostics.map((d) => d.code),
+      ['E_STALE_EDIT'],
+    );
+    assert.equal(
+      applied.diagnostics.some((d) => d.severity === 'error') ? ExitCode.errors : ExitCode.ok,
+      ExitCode.errors,
+    );
     assert.deepEqual(await filesOf(dir), before, `k=${k}: the refused plan touched nothing, the journal included`);
   }
 });
@@ -240,7 +291,10 @@ test(EDIT_DONE, async () => {
   assert.equal(await readFile(join(dir, 'src/main.c'), 'utf8'), EDITED_C, 'the edit was applied before the failure');
   const { plan, applied } = await command(dir);
   assert.deepEqual(plan.diagnostics, []);
-  assert.deepEqual(plan.ops.find((o) => o.path === 'src/main.c'), { op: 'keep', path: 'src/main.c', sha1: sha1Of(EDITED_C) });
+  assert.deepEqual(
+    plan.ops.find((o) => o.path === 'src/main.c'),
+    { op: 'keep', path: 'src/main.c', sha1: sha1Of(EDITED_C) },
+  );
   assert.ok(applied.ok);
   assert.equal(await readFile(join(dir, 'src/main.c'), 'utf8'), EDITED_C);
   assert.deepEqual(await filesOf(dir), await reference());
@@ -249,7 +303,12 @@ test(EDIT_DONE, async () => {
 /** A module whose name the second tree changes by case only, with a file of the user's in its directory. */
 function moduleTree(module: string): readonly FileEntry[] {
   return [
-    { ownership: 'generated', path: `asm/${module}.s`, text: `.include "asm/nonmatchings/${module}/sub_08000100.s"\n`, writer: 'module' },
+    {
+      ownership: 'generated',
+      path: `asm/${module}.s`,
+      text: `.include "asm/nonmatchings/${module}/sub_08000100.s"\n`,
+      writer: 'module',
+    },
     { ownership: 'generated', path: `asm/nonmatchings/${module}/sub_08000100.s`, text: 'F\n', writer: 'function' },
     { ownership: 'generated', path: `asm/nonmatchings/${module}/sub_08000200.s`, text: 'G\n', writer: 'function' },
   ];
@@ -275,14 +334,22 @@ test(CASE_RENAME, async () => {
   const plan = await planFor(dir, moduleTree('Main'));
   const cut = plan.ops.findIndex((o) => o.op === 'write' && o.path.startsWith('asm/nonmatchings/Main/'));
   assert.ok(cut > 0, 'the case-renamed deletes come before the first write under the new spelling');
-  const before = await applyWrites(dir, { ops: plan.ops.slice(0, cut), manifest: ok(await readManifest(dir)) ?? initialManifest(), diagnostics: [] });
+  const before = await applyWrites(dir, {
+    ops: plan.ops.slice(0, cut),
+    manifest: ok(await readManifest(dir)) ?? initialManifest(),
+    diagnostics: [],
+  });
   assert.ok(before.ok);
   await writeFile(join(dir, JOURNAL_PATH), [...encodeJournal(journalOf(plan.ops))].join(''));
   const stranded = caseTemporaryName('main', 4_194_303);
   await rename(join(dir, 'asm/nonmatchings/main'), join(dir, 'asm/nonmatchings', stranded));
   await run(dir, moduleTree('Main'));
   const files = await filesOf(dir);
-  assert.deepEqual(Object.keys(files).filter((p) => p.includes('.romlift-case-')), [], 'no entry is left under a temporary name');
+  assert.deepEqual(
+    Object.keys(files).filter((p) => p.includes('.romlift-case-')),
+    [],
+    'no entry is left under a temporary name',
+  );
   assert.deepEqual(files, expected, 'the next run converges to the same tree and manifest as the uninterrupted one');
 });
 
@@ -300,7 +367,13 @@ const MUTANTS: readonly Mutant[] = [
   },
   {
     name: 'the recovery ignores the journal: planWrites drops it',
-    mutations: [{ file: 'src/core/write-plan/plan-writes.ts', from: 'this.journal = journalByPath(inputs.journal);', to: 'this.journal = journalByPath(null);' }],
+    mutations: [
+      {
+        file: 'src/core/write-plan/plan-writes.ts',
+        from: 'this.journal = journalByPath(inputs.journal);',
+        to: 'this.journal = journalByPath(null);',
+      },
+    ],
     caughtBy: [CONVERGES, EDIT_DONE],
   },
   {
@@ -349,12 +422,20 @@ const MUTANTS: readonly Mutant[] = [
   },
 ];
 
-test('control: the tests pass with the journal modules loaded through the mutant harness unchanged', { skip: underMutation() }, async () => {
-  const mutations = [...new Map(MUTANTS.flatMap((m) => m.mutations).map((m) => [m.file, { file: m.file, from: m.from, to: m.from }])).values()];
-  const run = await runUnderMutant(THIS_FILE, { name: 'identity', mutations, caughtBy: [] });
-  assert.equal(run.code, 0, run.output.split('\n').slice(-40).join('\n'));
-  assert.deepEqual(run.failed, []);
-});
+test(
+  'control: the tests pass with the journal modules loaded through the mutant harness unchanged',
+  { skip: underMutation() },
+  async () => {
+    const mutations = [
+      ...new Map(
+        MUTANTS.flatMap((m) => m.mutations).map((m) => [m.file, { file: m.file, from: m.from, to: m.from }]),
+      ).values(),
+    ];
+    const run = await runUnderMutant(THIS_FILE, { name: 'identity', mutations, caughtBy: [] });
+    assert.equal(run.code, 0, run.output.split('\n').slice(-40).join('\n'));
+    assert.deepEqual(run.failed, []);
+  },
+);
 
 for (const mutant of MUTANTS) {
   test(`mutant caught: ${mutant.name}`, { skip: underMutation() }, async (t) => {

@@ -14,7 +14,13 @@ import { encodeManifest } from '../../../../src/core/write-plan/manifest.ts';
 import { JOURNAL_PATH, MANIFEST_PATH } from '../../../../src/core/write-plan/types.ts';
 import type { Manifest } from '../../../../src/core/write-plan/types.ts';
 import { sha1Of } from '../../../../src/shell/hash.ts';
-import { filesUnder, readDiskState, readJournal, readManifest, readReconciledTexts } from '../../../../src/shell/project/disk-state.ts';
+import {
+  filesUnder,
+  readDiskState,
+  readJournal,
+  readManifest,
+  readReconciledTexts,
+} from '../../../../src/shell/project/disk-state.ts';
 
 const roots: string[] = [];
 
@@ -42,23 +48,26 @@ test('readDiskState hashes every file under the generated roots and the given pa
     'ldscript.txt': 'l',
     'symbols.ld': 's',
     'src/main.c': 'c-file',
-    'Makefile': 'm',
+    Makefile: 'm',
     'asmx/not-a-root.s': 'x',
     'build/main.o': 'o',
   });
   const state = await readDiskState(dir, ['src/main.c', 'include/macros.inc', 'asm/main.s']);
   assert.ok(state.ok);
-  assert.deepEqual([...state.value], [
-    ['asm/main.s', { kind: 'present', sha1: sha1Of('a') }],
-    ['asm/nonmatchings/main/B.s', { kind: 'present', sha1: sha1Of('b') }],
-    ['asm/nonmatchings/main/a.s', { kind: 'present', sha1: sha1Of('c') }],
-    ['data/main.s', { kind: 'present', sha1: sha1Of('d') }],
-    ['expected/main.s', { kind: 'present', sha1: sha1Of('e') }],
-    ['include/macros.inc', { kind: 'absent' }],
-    ['ldscript.txt', { kind: 'present', sha1: sha1Of('l') }],
-    ['src/main.c', { kind: 'present', sha1: sha1Of('c-file') }],
-    ['symbols.ld', { kind: 'present', sha1: sha1Of('s') }],
-  ]);
+  assert.deepEqual(
+    [...state.value],
+    [
+      ['asm/main.s', { kind: 'present', sha1: sha1Of('a') }],
+      ['asm/nonmatchings/main/B.s', { kind: 'present', sha1: sha1Of('b') }],
+      ['asm/nonmatchings/main/a.s', { kind: 'present', sha1: sha1Of('c') }],
+      ['data/main.s', { kind: 'present', sha1: sha1Of('d') }],
+      ['expected/main.s', { kind: 'present', sha1: sha1Of('e') }],
+      ['include/macros.inc', { kind: 'absent' }],
+      ['ldscript.txt', { kind: 'present', sha1: sha1Of('l') }],
+      ['src/main.c', { kind: 'present', sha1: sha1Of('c-file') }],
+      ['symbols.ld', { kind: 'present', sha1: sha1Of('s') }],
+    ],
+  );
 });
 
 test('readDiskState of an empty directory is the given paths, absent', async () => {
@@ -82,12 +91,22 @@ test('readManifest and readJournal: null when absent, decoded when valid, E_IO_R
   const dir = await project({});
   assert.deepEqual(await readManifest(dir), { ok: true, value: null });
   assert.deepEqual(await readJournal(dir), { ok: true, value: null });
-  const manifest: Manifest = { schema: 1, romlift: '0.1.0', files: { 'asm/a.s': { sha1: sha1Of('a'), writer: 'function' } } };
+  const manifest: Manifest = {
+    schema: 1,
+    romlift: '0.1.0',
+    files: { 'asm/a.s': { sha1: sha1Of('a'), writer: 'function' } },
+  };
   await mkdir(join(dir, '.romlift'));
   await writeFile(join(dir, MANIFEST_PATH), [...encodeManifest(manifest)].join(''));
-  await writeFile(join(dir, JOURNAL_PATH), [...encodeJournal({ schema: 1, ops: [{ op: 'delete', path: 'asm/a.s' }] })].join(''));
+  await writeFile(
+    join(dir, JOURNAL_PATH),
+    [...encodeJournal({ schema: 1, ops: [{ op: 'delete', path: 'asm/a.s' }] })].join(''),
+  );
   assert.deepEqual(await readManifest(dir), { ok: true, value: manifest });
-  assert.deepEqual(await readJournal(dir), { ok: true, value: { schema: 1, ops: [{ op: 'delete', path: 'asm/a.s' }] } });
+  assert.deepEqual(await readJournal(dir), {
+    ok: true,
+    value: { schema: 1, ops: [{ op: 'delete', path: 'asm/a.s' }] },
+  });
   await writeFile(join(dir, MANIFEST_PATH), '{"schema":2}');
   await writeFile(join(dir, JOURNAL_PATH), 'not json');
   const badManifest = await readManifest(dir);
@@ -136,37 +155,48 @@ async function within<T>(promise: Promise<T>, ms: number, what: string): Promise
   }
 }
 
-test('filesUnder following links lists only regular files: a FIFO a followed link reaches, or a link to one, is left out (gate-honesty-e1-2)', { skip: NO_FIFO }, async () => {
-  const dir = await project({ 'include/real/x.h': 'x' });
-  const release = fifo(join(dir, 'include', 'real', 'pipe.h'));
-  try {
-    await symlink('real', join(dir, 'include', 'linked'));
-    await symlink('real/pipe.h', join(dir, 'include', 'to-pipe.h'));
-    const out: string[] = [];
-    const listed = await within(filesUnder(dir, 'include', out, { followLinks: true }), 5000, 'filesUnder');
-    assert.ok(listed.ok);
-    assert.deepEqual(out, ['include/linked/x.h', 'include/real/x.h']);
-  } finally {
-    release();
-  }
-});
+test(
+  'filesUnder following links lists only regular files: a FIFO a followed link reaches, or a link to one, is left out (gate-honesty-e1-2)',
+  { skip: NO_FIFO },
+  async () => {
+    const dir = await project({ 'include/real/x.h': 'x' });
+    const release = fifo(join(dir, 'include', 'real', 'pipe.h'));
+    try {
+      await symlink('real', join(dir, 'include', 'linked'));
+      await symlink('real/pipe.h', join(dir, 'include', 'to-pipe.h'));
+      const out: string[] = [];
+      const listed = await within(filesUnder(dir, 'include', out, { followLinks: true }), 5000, 'filesUnder');
+      assert.ok(listed.ok);
+      assert.deepEqual(out, ['include/linked/x.h', 'include/real/x.h']);
+    } finally {
+      release();
+    }
+  },
+);
 
-test('readDiskState returns promptly over a FIFO under a generated root: neither it nor a link to it is listed; a dangling link still reads as absent (gate-honesty-e1-2)', { skip: NO_FIFO }, async () => {
-  const dir = await project({ 'asm/a.s': 'a' });
-  const release = fifo(join(dir, 'asm', 'pipe.s'));
-  try {
-    await symlink('pipe.s', join(dir, 'asm', 'to-pipe.s'));
-    await symlink('missing.s', join(dir, 'asm', 'dangling.s'));
-    const state = await within(readDiskState(dir, []), 5000, 'readDiskState');
-    assert.ok(state.ok);
-    assert.deepEqual([...state.value], [
-      ['asm/a.s', { kind: 'present', sha1: sha1Of('a') }],
-      ['asm/dangling.s', { kind: 'absent' }],
-    ]);
-  } finally {
-    release();
-  }
-});
+test(
+  'readDiskState returns promptly over a FIFO under a generated root: neither it nor a link to it is listed; a dangling link still reads as absent (gate-honesty-e1-2)',
+  { skip: NO_FIFO },
+  async () => {
+    const dir = await project({ 'asm/a.s': 'a' });
+    const release = fifo(join(dir, 'asm', 'pipe.s'));
+    try {
+      await symlink('pipe.s', join(dir, 'asm', 'to-pipe.s'));
+      await symlink('missing.s', join(dir, 'asm', 'dangling.s'));
+      const state = await within(readDiskState(dir, []), 5000, 'readDiskState');
+      assert.ok(state.ok);
+      assert.deepEqual(
+        [...state.value],
+        [
+          ['asm/a.s', { kind: 'present', sha1: sha1Of('a') }],
+          ['asm/dangling.s', { kind: 'absent' }],
+        ],
+      );
+    } finally {
+      release();
+    }
+  },
+);
 
 // Phase 6 (gate-honesty-e1-1, roadmap "Carried from phase 4"): a followed walk enters no link to the project directory,
 // to a directory it is already inside or to a directory above the project; readHeaderTexts reads behind those only the

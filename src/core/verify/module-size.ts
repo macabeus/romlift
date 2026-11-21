@@ -5,9 +5,9 @@ import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
 import type { Model, Module } from '../model/types.ts';
+import { VerifyCodes } from './codes.ts';
 import { checkResult } from './report.ts';
 import type { CheckResult } from './report.ts';
-import { VerifyCodes } from './codes.ts';
 
 /** The bytes of the items of a module's chunks (an item index outside the table counts nothing). */
 function itemBytes(model: Model, module: Module): number {
@@ -37,5 +37,9 @@ export function checkModuleSize(model: Model): CheckResult {
     }
   }
   const detail = diagnostics[0]?.message ?? `the items of each of ${model.modules.length} modules add up to its span`;
-  return checkResult('module-size', diagnostics, diagnostics.length > 1 ? `${detail} (and ${diagnostics.length - 1} more modules)` : detail);
+  return checkResult(
+    'module-size',
+    diagnostics,
+    diagnostics.length > 1 ? `${detail} (and ${diagnostics.length - 1} more modules)` : detail,
+  );
 }

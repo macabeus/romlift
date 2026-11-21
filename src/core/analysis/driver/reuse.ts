@@ -51,7 +51,14 @@ export interface ReuseState {
 }
 
 export function reuseState(base: Addr, size: number): ReuseState {
-  return { stamp: 0, touched: new Uint32Array((size >>> PAGE_BITS) + 1), base, stack: [], facts: new Map(), carried: new Map() };
+  return {
+    stamp: 0,
+    touched: new Uint32Array((size >>> PAGE_BITS) + 1),
+    base,
+    stack: [],
+    facts: new Map(),
+    carried: new Map(),
+  };
 }
 
 /** The page of `a`, or -1 outside the ROM. */

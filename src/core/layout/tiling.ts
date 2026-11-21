@@ -52,4 +52,3 @@ export function tileCode(entries: readonly PlacedEntry[], from: Addr, to: Addr, 
   if (cursor < to) orphan(cursor, to);
   return out;
 }
-

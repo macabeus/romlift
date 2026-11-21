@@ -14,18 +14,32 @@ import { fileURLToPath } from 'node:url';
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const LAUNCHER = '#!/usr/bin/env -S node --max-old-space-size=1024';
 
-test('the built bin starts Node with the 1,024 MiB heap cap: the first line of cli/main.js is the launcher', { timeout: 300_000 }, () => {
-  const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as { readonly bin?: Readonly<Record<string, string>> };
-  assert.equal(pkg.bin?.['romlift'], './dist/cli/main.js', 'the bin is the build of src/cli/main.ts');
-  const outDir = mkdtempSync(join(tmpdir(), 'romlift-launcher-'));
-  try {
-    const tsc = join(ROOT, 'node_modules', 'typescript', 'bin', 'tsc');
-    const build = spawnSync(process.execPath, [tsc, '-p', 'tsconfig.build.json', '--outDir', outDir], { cwd: ROOT, encoding: 'utf8', timeout: 280_000 });
-    assert.equal(build.status, 0, `${build.stdout}${build.stderr}`);
-    const built = readFileSync(join(outDir, 'cli', 'main.js'), 'utf8');
-    assert.equal(built.split('\n')[0], LAUNCHER);
-    assert.equal(readFileSync(join(ROOT, 'src', 'cli', 'main.ts'), 'utf8').split('\n')[0], LAUNCHER, 'the source carries the same line');
-  } finally {
-    rmSync(outDir, { recursive: true, force: true });
-  }
-});
+test(
+  'the built bin starts Node with the 1,024 MiB heap cap: the first line of cli/main.js is the launcher',
+  { timeout: 300_000 },
+  () => {
+    const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as {
+      readonly bin?: Readonly<Record<string, string>>;
+    };
+    assert.equal(pkg.bin?.['romlift'], './dist/cli/main.js', 'the bin is the build of src/cli/main.ts');
+    const outDir = mkdtempSync(join(tmpdir(), 'romlift-launcher-'));
+    try {
+      const tsc = join(ROOT, 'node_modules', 'typescript', 'bin', 'tsc');
+      const build = spawnSync(process.execPath, [tsc, '-p', 'tsconfig.build.json', '--outDir', outDir], {
+        cwd: ROOT,
+        encoding: 'utf8',
+        timeout: 280_000,
+      });
+      assert.equal(build.status, 0, `${build.stdout}${build.stderr}`);
+      const built = readFileSync(join(outDir, 'cli', 'main.js'), 'utf8');
+      assert.equal(built.split('\n')[0], LAUNCHER);
+      assert.equal(
+        readFileSync(join(ROOT, 'src', 'cli', 'main.ts'), 'utf8').split('\n')[0],
+        LAUNCHER,
+        'the source carries the same line',
+      );
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  },
+);

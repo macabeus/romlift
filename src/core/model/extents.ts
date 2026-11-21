@@ -33,7 +33,10 @@ import { ModelCodes } from './codes.ts';
 import type { ModelFunction, ModelSymbol, Module } from './types.ts';
 
 /** What the pass reads of a function fact. */
-export type ExtentFact = Pick<FunctionFact, 'entry' | 'mode' | 'runAt' | 'code' | 'pools' | 'farPools' | 'branchTargets' | 'tables'>;
+export type ExtentFact = Pick<
+  FunctionFact,
+  'entry' | 'mode' | 'runAt' | 'code' | 'pools' | 'farPools' | 'branchTargets' | 'tables'
+>;
 
 /** A register's known value: `sym + n` when `sym` is set (an unsized RAM symbol's address), else the constant `n`. */
 interface Value {
@@ -75,7 +78,13 @@ function sum(a: Value | undefined, b: Value | undefined): Value | undefined {
 }
 
 /** The value an instruction writes to `rd`, for the rows the pass follows; undefined for every other write. */
-function written(insn: Insn, ops: Readonly<Record<string, number>>, regs: readonly (Value | undefined)[], rom: Rom, candidates: ReadonlySet<Addr>): Value | undefined {
+function written(
+  insn: Insn,
+  ops: Readonly<Record<string, number>>,
+  regs: readonly (Value | undefined)[],
+  rom: Rom,
+  candidates: ReadonlySet<Addr>,
+): Value | undefined {
   const r = (name: string): Value | undefined => regs[ops[name] ?? -1];
   const k = (name: string): number => ops[name] ?? 0;
   switch (insn.specId) {
@@ -111,7 +120,11 @@ function written(insn: Insn, ops: Readonly<Record<string, number>>, regs: readon
 }
 
 /** The span of a symbol-relative access `insn` makes, as [sym, end offset), or undefined. */
-function accessOf(insn: Insn, ops: Readonly<Record<string, number>>, regs: readonly (Value | undefined)[]): { readonly sym: Addr; readonly start: number; readonly end: number } | undefined {
+function accessOf(
+  insn: Insn,
+  ops: Readonly<Record<string, number>>,
+  regs: readonly (Value | undefined)[],
+): { readonly sym: Addr; readonly start: number; readonly end: number } | undefined {
   const r = (name: string): Value | undefined => regs[ops[name] ?? -1];
   let at: Value | undefined;
   let width: number;
@@ -131,7 +144,8 @@ function accessOf(insn: Insn, ops: Readonly<Record<string, number>>, regs: reado
 /** Decodes the Thumb instruction at `a` inside [a, end): a bl pair as one 4-byte instruction. */
 function thumbAt(rom: Rom, a: Addr, end: Addr): Insn {
   const hw = peek16(rom, a);
-  if (isThumbBlPrefix(hw) && a + 4 <= end && isThumbBlSuffix(peek16(rom, a + 2))) return decode('thumb', peek32(rom, a), a);
+  if (isThumbBlPrefix(hw) && a + 4 <= end && isThumbBlSuffix(peek16(rom, a + 2)))
+    return decode('thumb', peek32(rom, a), a);
   return decode('thumb', hw, a);
 }
 
@@ -173,8 +187,16 @@ export interface InferredExtents {
 }
 
 /** The named starts in work RAM an inferred extent stops at: every symbol, every function's run address, every runs_at range. */
-function namedStarts(symbols: readonly ModelSymbol[], functions: readonly ModelFunction[], relocated: readonly Module[]): Addr[] {
-  const starts = [...symbols.map((s) => s.addr), ...functions.flatMap((f) => (f.runAt === undefined ? [] : [f.runAt])), ...relocated.flatMap((m) => (m.runAt === undefined ? [] : [m.runAt]))];
+function namedStarts(
+  symbols: readonly ModelSymbol[],
+  functions: readonly ModelFunction[],
+  relocated: readonly Module[],
+): Addr[] {
+  const starts = [
+    ...symbols.map((s) => s.addr),
+    ...functions.flatMap((f) => (f.runAt === undefined ? [] : [f.runAt])),
+    ...relocated.flatMap((m) => (m.runAt === undefined ? [] : [m.runAt])),
+  ];
   return sortedKeys(new Set(starts.filter(isRamAddress)));
 }
 
@@ -196,8 +218,12 @@ export function inferSymbolExtents(
   functions: readonly ModelFunction[],
   relocated: readonly Module[],
 ): InferredExtents {
-  const runRanges = relocated.flatMap((m) => (m.runAt === undefined ? [] : [{ start: m.runAt, end: m.runAt + (m.span.end - m.span.start) }]));
-  const unsized = symbols.filter((s) => s.size === undefined && isRamAddress(s.addr) && !runRanges.some((r) => s.addr >= r.start && s.addr < r.end));
+  const runRanges = relocated.flatMap((m) =>
+    m.runAt === undefined ? [] : [{ start: m.runAt, end: m.runAt + (m.span.end - m.span.start) }],
+  );
+  const unsized = symbols.filter(
+    (s) => s.size === undefined && isRamAddress(s.addr) && !runRanges.some((r) => s.addr >= r.start && s.addr < r.end),
+  );
   if (unsized.length === 0) return { symbols, diagnostics: [] };
   const candidates = new Set(unsized.map((s) => s.addr));
   const starts = namedStarts(symbols, functions, relocated);
@@ -239,9 +265,13 @@ export function inferSymbolExtents(
     const entry = past.get(s.addr);
     if (entry === undefined) return [];
     const offsets = sortedKeys(entry.words).map((w) => `${hexAddr(w)} (+${hexSize(w - s.addr)})`);
-    const listed = offsets.length > LISTED ? `${offsets.slice(0, LISTED).join(', ')} and ${offsets.length - LISTED} more` : offsets.join(', ');
+    const listed =
+      offsets.length > LISTED
+        ? `${offsets.slice(0, LISTED).join(', ')} and ${offsets.length - LISTED} more`
+        : offsets.join(', ');
     const inferred = sizes.get(s.addr);
-    const known = inferred === undefined ? 'has no size' : `has no size (its accesses prove at least ${hexSize(inferred)} bytes)`;
+    const known =
+      inferred === undefined ? 'has no size' : `has no size (its accesses prove at least ${hexSize(inferred)} bytes)`;
     const fns = entry.functions.size;
     return [
       diagnostic(

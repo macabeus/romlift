@@ -4,7 +4,8 @@
 // rewritten and any difference fails.
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
-import { gate, type ExecResult } from './gate.ts';
+
+import { type ExecResult, gate } from './gate.ts';
 
 const WRITERS: readonly string[] = ['header', 'crt0', 'function', 'orphan', 'module', 'data', 'ldscript', 'symbols'];
 const ROOT = 'test/golden/writers';
@@ -45,7 +46,12 @@ gate({
         continue;
       }
       for (const fixture of cx.fixtures) {
-        if (!names.some((name) => name === fixture.name || name.startsWith(`${fixture.name}.`) || name.startsWith(`${fixture.name}/`))) {
+        if (
+          !names.some(
+            (name) =>
+              name === fixture.name || name.startsWith(`${fixture.name}.`) || name.startsWith(`${fixture.name}/`),
+          )
+        ) {
           missing.push(`${writer}/${fixture.name}`);
         }
       }
@@ -53,12 +59,19 @@ gate({
     if (missing.length > 0) throw new Error(`missing writer goldens: ${missing.join(', ')}`);
     const tests = await testFiles(path.join(cx.repoRoot, ROOT));
     if (tests === 0) throw new Error(`no golden test file under ${ROOT}`);
-    const run = await cx.exec(process.execPath, ['--conditions=source', '--test', '--test-reporter=tap', `${ROOT}/**/*.test.ts`], {
-      cwd: cx.repoRoot,
-      env: { UPDATE_GOLDEN: '' },
-    });
-    if (run.code !== 0) throw new Error(`the writer goldens differ (node --test ${ROOT} exited ${run.code}):\n${tail(run)}`);
+    const run = await cx.exec(
+      process.execPath,
+      ['--conditions=source', '--test', '--test-reporter=tap', `${ROOT}/**/*.test.ts`],
+      {
+        cwd: cx.repoRoot,
+        env: { UPDATE_GOLDEN: '' },
+      },
+    );
+    if (run.code !== 0)
+      throw new Error(`the writer goldens differ (node --test ${ROOT} exited ${run.code}):\n${tail(run)}`);
     const passed = /^# pass (\d+)$/m.exec(run.stdout)?.[1] ?? '?';
-    cx.note(`${WRITERS.length} writers x ${cx.fixtures.length} fixtures equal their goldens (${tests} test files, ${passed} tests)`);
+    cx.note(
+      `${WRITERS.length} writers x ${cx.fixtures.length} fixtures equal their goldens (${tests} test files, ${passed} tests)`,
+    );
   },
 });

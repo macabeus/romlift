@@ -6,7 +6,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { objdiffConfig, objdiffText, objdiffWriter, OBJDIFF_SCHEMA_URL } from '../../../../src/core/emit/writers/objdiff.ts';
+import {
+  OBJDIFF_SCHEMA_URL,
+  objdiffConfig,
+  objdiffText,
+  objdiffWriter,
+} from '../../../../src/core/emit/writers/objdiff.ts';
 import type { Model } from '../../../../src/core/model/types.ts';
 import { dataItem, modelOf, romWith } from '../../../helpers/model.ts';
 
@@ -18,7 +23,11 @@ function model(): Model {
     modules: [
       { name: 'rom_header', chunks: [{ kind: 'header', name: 'rom_header', items: [dataItem(0x0800_0000, 0xc0)] }] },
       { name: 'main', kind: 'c', chunks: [{ name: 'F', items: [dataItem(0x0800_00c0, 0x40)] }] },
-      { name: 'm4a', library: { name: 'm4a', version: '2001' }, chunks: [{ name: 'SoundMain', items: [dataItem(0x0800_0100, 0x40)] }] },
+      {
+        name: 'm4a',
+        library: { name: 'm4a', version: '2001' },
+        chunks: [{ name: 'SoundMain', items: [dataItem(0x0800_0100, 0x40)] }],
+      },
       { name: 'other', kind: 'c', chunks: [{ name: 'G', items: [dataItem(0x0800_0140, 0x40)] }] },
       { name: 'kept', kind: 'c', generated: false, chunks: [{ name: 'H', items: [dataItem(0x0800_0180, 0x80)] }] },
       { name: 'data', kind: 'data', chunks: [{ kind: 'data', name: 'data', items: [dataItem(0x0800_0200, 0x200)] }] },
@@ -68,6 +77,8 @@ test('one unit per generated C module, in ROM order, and the fixed project keys'
 });
 
 test('a tree without C modules lists no unit', () => {
-  const m = modelOf(rom, { modules: [{ name: 'main', chunks: [{ name: 'F', items: [dataItem(0x0800_0000, 0x400)] }] }] });
+  const m = modelOf(rom, {
+    modules: [{ name: 'main', chunks: [{ name: 'F', items: [dataItem(0x0800_0000, 0x400)] }] }],
+  });
   assert.deepEqual(objdiffConfig(m).units, []);
 });

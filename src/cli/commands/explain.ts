@@ -44,11 +44,26 @@ export function parseAddrArg(text: string): Addr | undefined {
 }
 
 function eventJson(e: TrailEvent): RecordFields {
-  return { kind: e.kind, at: hexAddr(e.at), rule: e.rule, round: e.round, cites: e.cites.map(hexAddr), detail: e.detail };
+  return {
+    kind: e.kind,
+    at: hexAddr(e.at),
+    rule: e.rule,
+    round: e.round,
+    cites: e.cites.map(hexAddr),
+    detail: e.detail,
+  };
 }
 
 function ruleJson(m: RuleMeta): RecordFields {
-  return { id: m.id, summary: m.summary, restsOn: m.restsOn, recovers: m.recovers, reads: [...m.reads], adds: [...m.adds], origin: m.origin };
+  return {
+    id: m.id,
+    summary: m.summary,
+    restsOn: m.restsOn,
+    recovers: m.recovers,
+    reads: [...m.reads],
+    adds: [...m.adds],
+    origin: m.origin,
+  };
 }
 
 function insnJson(insn: Insn): RecordFields {
@@ -84,7 +99,11 @@ export function nameSourceText(name: ExplainName): 'toml' | 'analysis' {
 }
 
 function nameJson(name: ExplainName): RecordFields {
-  return { value: name.value, source: nameSourceText(name), from: name.source.kind === 'toml' ? name.source.from : undefined };
+  return {
+    value: name.value,
+    source: nameSourceText(name),
+    from: name.source.kind === 'toml' ? name.source.from : undefined,
+  };
 }
 
 function signatureJson(signature: ExplainSignature): RecordFields {
@@ -104,7 +123,11 @@ export function explainRecord(report: ExplainReport): RecordFields {
     owner:
       report.owner === undefined
         ? undefined
-        : { entry: hexAddr(report.owner.entry), origin: report.owner.origin, provenance: report.owner.provenance.map(provenanceJson) },
+        : {
+            entry: hexAddr(report.owner.entry),
+            origin: report.owner.origin,
+            provenance: report.owner.provenance.map(provenanceJson),
+          },
     chunk: report.chunk === undefined ? undefined : chunkJson(report.chunk),
     item: report.item === undefined ? undefined : itemJson(report.item),
     name: report.name === undefined ? undefined : nameJson(report.name),
@@ -116,7 +139,9 @@ export function explainRecord(report: ExplainReport): RecordFields {
 
 /** The --json output: the report line, the diagnostics, then the summary. */
 export function explainNdjson(report: ExplainReport, diagnostics: readonly Diagnostic[], summary: RunSummary): string {
-  return [recordLine('explain', explainRecord(report)), ...diagnostics.map(diagnosticLine), summaryLine(summary)].join('');
+  return [recordLine('explain', explainRecord(report)), ...diagnostics.map(diagnosticLine), summaryLine(summary)].join(
+    '',
+  );
 }
 
 /** The event groups of the text output, in order; the always-shown ones print "none" when empty. */
@@ -155,9 +180,18 @@ function itemDetail(item: Item): string {
 
 /** The chunk and item lines of the text output (phase 3). */
 function modelText(report: ExplainReport): string {
-  const chunk = report.chunk === undefined ? 'none (outside the model)' : `${report.chunk.name} (${report.chunk.kind}) in module ${report.chunk.module}`;
-  const item = report.item === undefined ? 'none' : `${report.item.kind} ${hexAddr(report.item.span.start)}..${hexAddr(report.item.span.end)}${itemDetail(report.item)}`;
-  const name = report.name === undefined ? 'none' : `${report.name.value} (${nameSourceText(report.name)}${report.name.source.kind === 'toml' && report.name.source.from !== undefined ? `, from ${report.name.source.from}` : ''})`;
+  const chunk =
+    report.chunk === undefined
+      ? 'none (outside the model)'
+      : `${report.chunk.name} (${report.chunk.kind}) in module ${report.chunk.module}`;
+  const item =
+    report.item === undefined
+      ? 'none'
+      : `${report.item.kind} ${hexAddr(report.item.span.start)}..${hexAddr(report.item.span.end)}${itemDetail(report.item)}`;
+  const name =
+    report.name === undefined
+      ? 'none'
+      : `${report.name.value} (${nameSourceText(report.name)}${report.name.source.kind === 'toml' && report.name.source.from !== undefined ? `, from ${report.name.source.from}` : ''})`;
   const signature = report.signature === undefined ? '' : `  signature: ${signatureText(report.signature)}\n`;
   return `  chunk: ${chunk}\n  item: ${item}\n  name: ${name}\n${signature}`;
 }
@@ -173,7 +207,8 @@ export function explainText(report: ExplainReport, summary: RunSummary): string 
     out += '  owner: none (no function extent covers it)\n';
   } else {
     out += `  owner: ${hexAddr(report.owner.entry)} (origin ${report.owner.origin})\n  provenance:\n`;
-    for (const p of report.owner.provenance) out += `    ${p.rule} round ${p.round}${cites(p.cites)}${p.note === undefined ? '' : `: ${p.note}`}\n`;
+    for (const p of report.owner.provenance)
+      out += `    ${p.rule} round ${p.round}${cites(p.cites)}${p.note === undefined ? '' : `: ${p.note}`}\n`;
   }
   out += modelText(report);
   for (const group of GROUPS) {
@@ -187,7 +222,8 @@ export function explainText(report: ExplainReport, summary: RunSummary): string 
   if (report.rules.length === 0) out += '  rules: none\n';
   else {
     out += `  rules (${report.rules.length}):\n`;
-    for (const m of report.rules) out += `    ${m.id}: ${m.summary}\n      rests on: ${m.restsOn}\n      recovers: ${m.recovers}\n`;
+    for (const m of report.rules)
+      out += `    ${m.id}: ${m.summary}\n      rests on: ${m.restsOn}\n      recovers: ${m.recovers}\n`;
   }
   return `${out}explain: ${formatSummaryText(summary)}\n`;
 }
@@ -196,7 +232,12 @@ export function explainText(report: ExplainReport, summary: RunSummary): string 
  * The explanation of `addr` in the project that holds `io.cwd`, or on the bare ROM at `romPath` with the signature
  * files located there (`signatures`, a directory, in place of $ROMLIFT_SIGNATURES and the package's signatures/).
  */
-async function explainAt(io: CliIo, romPath: string | undefined, addr: Addr, signatures: string | undefined): Promise<ExplainOutcome | { readonly refused: readonly Diagnostic[] }> {
+async function explainAt(
+  io: CliIo,
+  romPath: string | undefined,
+  addr: Addr,
+  signatures: string | undefined,
+): Promise<ExplainOutcome | { readonly refused: readonly Diagnostic[] }> {
   if (romPath === undefined) {
     const read = await readProject(io.cwd, { withoutC: true });
     if (!read.ok) return { refused: read.diagnostics };
@@ -210,26 +251,47 @@ async function explainAt(io: CliIo, romPath: string | undefined, addr: Addr, sig
   // The explanation's own diagnostics first (an image that is not a cartridge), then the notes on the signature files
   // and on a project's romlift.toml left unread.
   const ignored = await projectConfigIgnored(io.cwd, 'explain');
-  return { report: outcome.report, diagnostics: [...outcome.diagnostics, ...located.diagnostics, ...(ignored === undefined ? [] : [ignored])] };
+  return {
+    report: outcome.report,
+    diagnostics: [...outcome.diagnostics, ...located.diagnostics, ...(ignored === undefined ? [] : [ignored])],
+  };
 }
 
 export const explainCommand: CommandSpec = {
   name: 'explain',
-  summary: 'Explains what romlift decided about one address: claim, owner, provenance, chunk, item, rejections, verdicts, rules',
+  summary:
+    'Explains what romlift decided about one address: claim, owner, provenance, chunk, item, rejections, verdicts, rules',
   usage: 'explain <addr> [--rom <rom>] [--signatures <dir>] [--json]',
   positionals: [{ name: '<addr>' }],
   options: [
-    { name: 'rom', kind: 'string', summary: "A bare ROM to analyse (discover mode); default the project's ROM and romlift.toml (confirm mode)", value: '<rom>' },
-    { name: 'signatures', kind: 'string', summary: 'With --rom: the directory of built signature files to place (default $ROMLIFT_SIGNATURES, else the package\'s signatures/)', value: '<dir>' },
+    {
+      name: 'rom',
+      kind: 'string',
+      summary: "A bare ROM to analyse (discover mode); default the project's ROM and romlift.toml (confirm mode)",
+      value: '<rom>',
+    },
+    {
+      name: 'signatures',
+      kind: 'string',
+      summary:
+        "With --rom: the directory of built signature files to place (default $ROMLIFT_SIGNATURES, else the package's signatures/)",
+      value: '<dir>',
+    },
     { name: 'json', kind: 'boolean', summary: 'Prints NDJSON: the report line, the diagnostics, then a summary' },
   ],
   async run(args, io) {
     const json = args.flags['json'] === true;
     const text = args.positionals[0] ?? '';
     const addr = parseAddrArg(text);
-    if (addr === undefined) return usageError(io, 'explain', `'${text}' is not an address (0x and hex digits, or decimal)`);
+    if (addr === undefined)
+      return usageError(io, 'explain', `'${text}' is not an address (0x and hex digits, or decimal)`);
     const signatures = args.options['signatures'];
-    if (signatures !== undefined && args.options['rom'] === undefined) return usageError(io, 'explain', "--signatures goes with --rom; in a project the signature is read from romlift.toml's from key");
+    if (signatures !== undefined && args.options['rom'] === undefined)
+      return usageError(
+        io,
+        'explain',
+        "--signatures goes with --rom; in a project the signature is read from romlift.toml's from key",
+      );
     const outcome = await explainAt(io, args.options['rom'], addr, signatures);
     if ('refused' in outcome) {
       printDiagnosticsOnly(io, json, 'explain', outcome.refused, { ok: false, exitCode: ExitCode.errors });
@@ -240,7 +302,8 @@ export const explainCommand: CommandSpec = {
     if (json) {
       io.stdout(explainNdjson(outcome.report, outcome.diagnostics, summary));
     } else {
-      if (outcome.diagnostics.length > 0) io.stderr(outcome.diagnostics.map((d) => `${formatDiagnosticText(d)}\n`).join(''));
+      if (outcome.diagnostics.length > 0)
+        io.stderr(outcome.diagnostics.map((d) => `${formatDiagnosticText(d)}\n`).join(''));
       io.stdout(explainText(outcome.report, summary));
     }
     return exitCode;

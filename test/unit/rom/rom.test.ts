@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { RomliftInvariantError } from '../../../src/foundation/diagnostics/diagnostic.ts';
-import { checkRom, contains, ROM_BASE, romFromBytes, u16, u32, u8 } from '../../../src/foundation/rom/rom.ts';
+import { ROM_BASE, checkRom, contains, romFromBytes, u8, u16, u32 } from '../../../src/foundation/rom/rom.ts';
 import { syntheticRom } from './synthetic.ts';
 
 test('romFromBytes maps the image at 0x08000000 and parses the header', () => {

@@ -9,7 +9,7 @@ import { after, test } from 'node:test';
 
 import { ExitCode } from '../../../src/cli/exit-codes.ts';
 import { main } from '../../../src/cli/main.ts';
-import { listSyntheticFixtures, SYNTHETIC_ROOT } from '../../helpers/fixtures.ts';
+import { SYNTHETIC_ROOT, listSyntheticFixtures } from '../../helpers/fixtures.ts';
 import { capturingIo } from './fake.ts';
 
 const FAR_JUMP = listSyntheticFixtures().find((f) => f.name === 'far-jump');
@@ -35,13 +35,18 @@ function parseLines(stdout: string): Line[] {
     });
 }
 
-async function run(argv: readonly string[]): Promise<{ readonly code: ExitCode; readonly stdout: string; readonly stderr: string }> {
+async function run(
+  argv: readonly string[],
+): Promise<{ readonly code: ExitCode; readonly stdout: string; readonly stderr: string }> {
   const io = capturingIo();
   const code = await main(argv, io);
   return { code, stdout: io.out.join(''), stderr: io.err.join('') };
 }
 
-async function inProject(argv: readonly string[], cwd: string): Promise<{ readonly code: ExitCode; readonly stdout: string; readonly stderr: string }> {
+async function inProject(
+  argv: readonly string[],
+  cwd: string,
+): Promise<{ readonly code: ExitCode; readonly stdout: string; readonly stderr: string }> {
   const io = { ...capturingIo(), cwd };
   const code = await main(argv, io);
   return { code, stdout: io.out.join(''), stderr: io.err.join('') };
@@ -61,7 +66,10 @@ test('update right after init proposes nothing and leaves romlift.toml as it is'
   const out = await inProject(['update', '--json'], dir);
   assert.equal(out.code, ExitCode.ok, out.stdout);
   const lines = parseLines(out.stdout);
-  assert.deepEqual(lines.find((l) => l.type === 'patch'), { type: 'patch', path: 'romlift.toml', changed: false, written: false, diff: '' });
+  assert.deepEqual(
+    lines.find((l) => l.type === 'patch'),
+    { type: 'patch', path: 'romlift.toml', changed: false, written: false, diff: '' },
+  );
   assert.equal(lines.filter((l) => l.type === 'proposal').length, 0);
   assert.equal(lines.at(-1)?.type, 'summary');
   const write = await inProject(['update', '--write'], dir);
@@ -75,7 +83,11 @@ test('update proposes an entry deleted by hand; --write puts it back and keeps t
   assert.equal((await inProject(['init', 'baserom.gba'], dir)).code, ExitCode.ok);
   const file = join(dir, 'romlift.toml');
   const original = readFileSync(file, 'utf8');
-  const entry = original.split('\n').filter((l) => /^0x0[0-9A-F]{7} = "sub_/.test(l)).at(-1) ?? assert.fail('no entry');
+  const entry =
+    original
+      .split('\n')
+      .filter((l) => /^0x0[0-9A-F]{7} = "sub_/.test(l))
+      .at(-1) ?? assert.fail('no entry');
   const edited = `# kept comment\n${original.replace(`${entry}\n`, '')}`;
   writeFileSync(file, edited);
   const dry = await inProject(['update'], dir);
@@ -119,19 +131,31 @@ test('update with a signature directory: default names renamed with from, the li
   const proposals = parseLines(out.stdout).filter((l) => l.type === 'proposal');
   assert.deepEqual(
     proposals.find((p) => p['addr'] === '0x08000244'),
-    { type: 'proposal', kind: 'function', addr: '0x08000244', mode: 'thumb', name: 'FixAbs', source: 'signature', rule: 'sig.unique-fit', from: 'sig:libfix@1.0' },
+    {
+      type: 'proposal',
+      kind: 'function',
+      addr: '0x08000244',
+      mode: 'thumb',
+      name: 'FixAbs',
+      source: 'signature',
+      rule: 'sig.unique-fit',
+      from: 'sig:libfix@1.0',
+    },
   );
-  assert.deepEqual(proposals.find((p) => p['kind'] === 'symbol'), {
-    type: 'proposal',
-    kind: 'symbol',
-    addr: '0x08000274',
-    name: 'gFixTable',
-    size: 16,
-    symbolType: 'pointers',
-    source: 'signature',
-    rule: 'sig.short-member-window',
-    from: 'sig:libfix@1.0',
-  });
+  assert.deepEqual(
+    proposals.find((p) => p['kind'] === 'symbol'),
+    {
+      type: 'proposal',
+      kind: 'symbol',
+      addr: '0x08000274',
+      name: 'gFixTable',
+      size: 16,
+      symbolType: 'pointers',
+      source: 'signature',
+      rule: 'sig.short-member-window',
+      from: 'sig:libfix@1.0',
+    },
+  );
   assert.deepEqual(
     proposals.filter((p) => p['kind'] === 'module').map((p) => [p['name'], p['library']]),
     [
@@ -143,7 +167,10 @@ test('update with a signature directory: default names renamed with from, the li
   assert.match(text.stdout, /^function 0x08000244 thumb FixAbs, from sig:libfix@1\.0 \(sig\.unique-fit\)$/m);
   assert.match(text.stdout, /^module 0x080001B4 libfix, library libfix@1\.0$/m);
   assert.equal((await withEnv(['update', '--write'], signatures)).code, ExitCode.ok);
-  assert.match(readFileSync(join(dir, 'romlift.toml'), 'utf8'), /^0x08000244 = \{ name = "FixAbs", from = "sig:libfix@1\.0" \}$/m);
+  assert.match(
+    readFileSync(join(dir, 'romlift.toml'), 'utf8'),
+    /^0x08000244 = \{ name = "FixAbs", from = "sig:libfix@1\.0" \}$/m,
+  );
   const again = await withEnv(['update', '--json'], signatures);
   assert.equal(parseLines(again.stdout).find((l) => l.type === 'patch')?.['changed'], false);
 });

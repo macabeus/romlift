@@ -21,7 +21,8 @@ function namesCode(a: Addr, v: AnalysisView): boolean {
 export default defineRule({
   meta: {
     id: 'seed.adr',
-    summary: 'word-aligned ROM addresses above its entry that an ARM function names with adr, unclaimed and read as ARM code, are ARM functions',
+    summary:
+      'word-aligned ROM addresses above its entry that an ARM function names with adr, unclaimed and read as ARM code, are ARM functions',
     restsOn:
       'hand-written ARM startup code stores handler addresses computed with adr (the interrupt vector); an adr onto claimed words (code, its own extent included, a pool or a table) is a label or data, and one onto words that do not decode names data',
     recovers: 'the interrupt entry and the ARM helpers the startup code installs',
@@ -34,7 +35,8 @@ export default defineRule({
     if (f.mode !== 'arm') return [];
     const out: Proposal[] = [];
     for (const a of [...f.adrs].sort(compareNumbers)) {
-      if (contains(v.rom, a) && (a & 3) === 0 && a > f.entry && namesCode(a, v)) out.push({ entry: a, mode: 'arm', cites: [f.entry] });
+      if (contains(v.rom, a) && (a & 3) === 0 && a > f.entry && namesCode(a, v))
+        out.push({ entry: a, mode: 'arm', cites: [f.entry] });
     }
     return out;
   },

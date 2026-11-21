@@ -26,7 +26,13 @@ test('push {.., lr} on a word boundary is a call; off the boundary, or without l
 });
 
 test('a far bl to a prologue that pops more than it pushes is a call; without the rule it reads as a far jump', () => {
-  const rom = romWith([{ at: F, bytes: thumbAt(F)`push {lr}; bl _08000A00; pop {pc}` }, { at: T, bytes: thumbAt(T)`push {lr}; pop {r0}; pop {pc}` }]);
+  const rom = romWith([
+    { at: F, bytes: thumbAt(F)`push {lr}; bl _08000A00; pop {pc}` },
+    { at: T, bytes: thumbAt(T)`push {lr}; pop {r0}; pop {pc}` },
+  ]);
   assert.deepEqual(settle(driverOver(rom), F).blVerdicts, [{ site: F + 2, target: T, verdict: 'call', rule: ID }]);
-  assert.deepEqual(settle(driverOver(rom, ID), F).blVerdicts.map((v) => [v.verdict, v.rule]), [['far', 'bl.target-pops-unpushed-frame']]);
+  assert.deepEqual(
+    settle(driverOver(rom, ID), F).blVerdicts.map((v) => [v.verdict, v.rule]),
+    [['far', 'bl.target-pops-unpushed-frame']],
+  );
 });

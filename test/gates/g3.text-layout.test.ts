@@ -6,7 +6,7 @@
 //
 // The checks run in process through romlift/node (verify-rom.ts, D108).
 import { gate } from './gate.ts';
-import { failedChecks, targets, VERIFY_NEEDS, verifyRom } from './verify-rom.ts';
+import { VERIFY_NEEDS, failedChecks, targets, verifyRom } from './verify-rom.ts';
 
 gate({
   id: 'g3.text-layout',
@@ -23,6 +23,8 @@ gate({
       if (failed.length > 0 || !result.ok) problems.push(`${target.name}: ${failed.join('; ') || 'not ok'}`);
     }
     if (problems.length > 0) throw new Error(`text layout fails: ${problems.join(' | ')}`);
-    cx.note(`the text-layout and paths checks pass on ${list.length} ROMs (${cx.fixtures.length} fixtures${cx.tier === 'real' ? `, ${cx.datasets.length} tuning ROMs` : ''})`);
+    cx.note(
+      `the text-layout and paths checks pass on ${list.length} ROMs (${cx.fixtures.length} fixtures${cx.tier === 'real' ? `, ${cx.datasets.length} tuning ROMs` : ''})`,
+    );
   },
 });

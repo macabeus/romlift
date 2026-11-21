@@ -16,8 +16,10 @@ import { defineRule } from '../define-rule.ts';
 export default defineRule({
   meta: {
     id: 'walk.table-by-register',
-    summary: 'Thumb mov/add pc whose register comes from a pool load naming a base just ahead is a jump table: walk its targets',
-    restsOn: 'agbcc lowers a dense switch to `ldr rB, =table; ...; add rI, rB; ldr rN, [rI]; mov pc, rN` with the table right after the jump, and may hoist other work between the load and the jump',
+    summary:
+      'Thumb mov/add pc whose register comes from a pool load naming a base just ahead is a jump table: walk its targets',
+    restsOn:
+      'agbcc lowers a dense switch to `ldr rB, =table; ...; add rI, rB; ldr rN, [rI]; mov pc, rN` with the table right after the jump, and may hoist other work between the load and the jump',
     recovers: 'switch cases unreached by the walk, and the table words decoded as instructions',
     reads: ['rom', 'readings'],
     adds: ['readings'],

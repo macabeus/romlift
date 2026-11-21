@@ -4,8 +4,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { assembleVerdict, compareObject, firstDifference, linkVerdict, unassemblable } from '../../../src/core/verify/toolchain.ts';
-import { parseElf, relocationsOf, relocationWidth } from '../../../src/foundation/formats/elf.ts';
+import {
+  assembleVerdict,
+  compareObject,
+  firstDifference,
+  linkVerdict,
+  unassemblable,
+} from '../../../src/core/verify/toolchain.ts';
+import { parseElf, relocationWidth, relocationsOf } from '../../../src/foundation/formats/elf.ts';
 import { romFromBytes } from '../../../src/foundation/rom/rom.ts';
 
 /** A relocatable ARM ELF32 with `.text` = `text` and one `.rel.text` holding `rels` ([offset, type] pairs). */
@@ -33,7 +39,15 @@ function objectWith(text: Uint8Array, rels: readonly (readonly [number, number])
     v.setUint32(relOff + 8 * i + 4, (1 << 8) | type, true);
   });
   for (let i = 0; i < names.length; i++) bytes[strOff + i] = names.charCodeAt(i);
-  const section = (i: number, name: number, type: number, offset: number, size: number, info = 0, entsize = 0): void => {
+  const section = (
+    i: number,
+    name: number,
+    type: number,
+    offset: number,
+    size: number,
+    info = 0,
+    entsize = 0,
+  ): void => {
     const o = shOff + 40 * i;
     v.setUint32(o, name, true);
     v.setUint32(o + 4, type, true);
@@ -72,18 +86,37 @@ test('relocationsOf reads every SHT_REL entry of a section with its type, symbol
 });
 
 test('compareObject: equal outside the relocated fields, the first difference otherwise, the span length enforced', () => {
-  const unit = { module: 'main', source: 'asm/main.s', object: 'build/main.o', span: { start: 0x0800_0000, end: 0x0800_0008 } };
+  const unit = {
+    module: 'main',
+    source: 'asm/main.s',
+    object: 'build/main.o',
+    span: { start: 0x0800_0000, end: 0x0800_0008 },
+  };
   const text = ROM_BYTES.slice(0, 8);
   text[1] = 0xee; // inside the relocated word at 0
-  assert.deepEqual(compareObject(objectWith(text, [[0, 2]]), unit, rom), { module: 'main', ok: true, detail: 'equals 0x08000000..0x08000008', masked: 4 });
+  assert.deepEqual(compareObject(objectWith(text, [[0, 2]]), unit, rom), {
+    module: 'main',
+    ok: true,
+    detail: 'equals 0x08000000..0x08000008',
+    masked: 4,
+  });
   text[5] = 0xee;
   assert.equal(compareObject(objectWith(text, [[0, 2]]), unit, rom).detail, 'first difference at 0x08000005');
-  assert.match(compareObject(objectWith(new Uint8Array(6), []), unit, rom).detail, /0x6 bytes of \.text, the module spans 0x8/);
+  assert.match(
+    compareObject(objectWith(new Uint8Array(6), []), unit, rom).detail,
+    /0x6 bytes of \.text, the module spans 0x8/,
+  );
   assert.match(compareObject(Uint8Array.from([1, 2, 3]), unit, rom).detail, /^build\/main\.o: ELF: /);
 });
 
 test('linkVerdict and firstDifference: the SHA-1 decides, the detail says where', () => {
-  assert.deepEqual(linkVerdict(ROM_BYTES, rom.sha1, rom, 3), { id: 'link', ok: true, detail: `3 units link to the ROM's SHA-1 ${rom.sha1}`, diagnostics: [], sha1: rom.sha1 });
+  assert.deepEqual(linkVerdict(ROM_BYTES, rom.sha1, rom, 3), {
+    id: 'link',
+    ok: true,
+    detail: `3 units link to the ROM's SHA-1 ${rom.sha1}`,
+    diagnostics: [],
+    sha1: rom.sha1,
+  });
   const other = ROM_BYTES.slice();
   other[9] = 0;
   const failed = linkVerdict(other, 'b'.repeat(40), rom, 3);
@@ -95,11 +128,20 @@ test('linkVerdict and firstDifference: the SHA-1 decides, the detail says where'
 test('assembleVerdict: ok only with every module ok and no diagnostic', () => {
   const ok = { module: 'a', ok: true, detail: 'equals' };
   assert.equal(assembleVerdict([ok], 8, []).ok, true);
-  assert.match(assembleVerdict([ok], 8, []).detail, /1 modules assemble to their ROM ranges \(8 relocated bytes left to the linker\)/);
-  assert.equal(assembleVerdict([ok, { module: 'b', ok: false, detail: 'first difference at 0x08000004' }], 0, []).detail, '1 of 2 modules differ: b: first difference at 0x08000004');
+  assert.match(
+    assembleVerdict([ok], 8, []).detail,
+    /1 modules assemble to their ROM ranges \(8 relocated bytes left to the linker\)/,
+  );
+  assert.equal(
+    assembleVerdict([ok, { module: 'b', ok: false, detail: 'first difference at 0x08000004' }], 0, []).detail,
+    '1 of 2 modules differ: b: first difference at 0x08000004',
+  );
 });
 
 test('unassemblable: a unit whose source is no assembly file, a C module before phase 4, cannot be assembled (architecture-r1-10)', () => {
   assert.equal(unassemblable({ module: 'main', source: 'asm/main.s', object: 'build/main.o' }), undefined);
-  assert.equal(unassemblable({ module: 'main', source: 'src/main.c', object: 'build/main.o' }), 'src/main.c (module main) is not an assembly source');
+  assert.equal(
+    unassemblable({ module: 'main', source: 'src/main.c', object: 'build/main.o' }),
+    'src/main.c (module main) is not an assembly source',
+  );
 });

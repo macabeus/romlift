@@ -20,7 +20,10 @@ test('no return passes when the entry opens with push {.., lr}, at any alignment
 
 test('no return and no push {.., lr} fails', () => {
   const rom = romWith([{ at: E, bytes: thumbAt(E)`push {r4}; bl _08000400` }]);
-  assert.equal(returnsOrPrologue.check(readingOf(rom, { entry: E }), viewWith({ rom })), 'no return and no push {.., lr}');
+  assert.equal(
+    returnsOrPrologue.check(readingOf(rom, { entry: E }), viewWith({ rom })),
+    'no return and no push {.., lr}',
+  );
   assert.equal(returnsOrPrologue.reason, 'no-return-no-prologue');
   assert.equal(returnsOrPrologue.intrinsic, true);
 });

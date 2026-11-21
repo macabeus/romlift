@@ -28,7 +28,7 @@
 import type { Addr } from '../../../foundation/rom/span.ts';
 import { lowerBound } from '../../../foundation/util/arrays.ts';
 import { sortedKeys } from '../../../foundation/util/sorted.ts';
-import { fixpointLimit, LIMITS } from '../limits.ts';
+import { LIMITS, fixpointLimit } from '../limits.ts';
 import type { Reading } from '../types.ts';
 import { Claim } from '../types.ts';
 import { decodeArmAt } from '../walk/arm.ts';

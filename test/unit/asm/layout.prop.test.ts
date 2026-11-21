@@ -60,7 +60,8 @@ function roundTrip(mode: Mode, start: number, words: readonly number[]): Sample 
   assert.deepEqual(out.errors.slice(0, 5), []);
   assert.equal(out.bytes.length, s.bytes.length);
   for (let i = 0; i < s.bytes.length; i++) {
-    if (out.bytes[i] !== s.bytes[i]) assert.fail(`${mode} byte ${i} (0x${(start + i).toString(16)}): ${out.bytes[i]} !== ${s.bytes[i]}`);
+    if (out.bytes[i] !== s.bytes[i])
+      assert.fail(`${mode} byte ${i} (0x${(start + i).toString(16)}): ${out.bytes[i]} !== ${s.bytes[i]}`);
   }
   return s;
 }
@@ -74,7 +75,10 @@ test('seeded Thumb halfwords lay out to their bytes, at both alignments', () => 
 });
 
 test('seeded bl pairs lay out to their bytes', () => {
-  const words = Array.from(prngSequence(0x0b1b_1b1b, 4096), (r) => (0xf000 | (r & 0x7ff) | ((0xf800 | ((r >>> 11) & 0x7ff)) << 16)) >>> 0);
+  const words = Array.from(
+    prngSequence(0x0b1b_1b1b, 4096),
+    (r) => (0xf000 | (r & 0x7ff) | ((0xf800 | ((r >>> 11) & 0x7ff)) << 16)) >>> 0,
+  );
   const s = roundTrip('thumb', BASE + 0x40_0000, words);
   assert.equal(s.raws, 0);
 });

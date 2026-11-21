@@ -7,11 +7,10 @@
 // table, so a target that is a section symbol (`unnamed-target`) is told apart from a named one.
 import { access, constants, readFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
-
-import { compareCodeUnits, implicitAddend, parseElf, SHT, type ElfSymbol, type ParseResult } from 'romlift';
+import { type ElfSymbol, type ParseResult, SHT, compareCodeUnits, implicitAddend, parseElf } from 'romlift';
 import { findExecutable as findOnPath } from 'romlift/node';
 
-import { objectRelocations, type ObjectRelocation } from './objects.ts';
+import { type ObjectRelocation, objectRelocations } from './objects.ts';
 import { runProcess } from './process.ts';
 
 // ---------------------------------------------------------------------------------------------------
@@ -66,7 +65,8 @@ export async function findObjdiff(
   const named = env[OBJDIFF_ENV];
   if (named !== undefined && named !== '') return { bin: isAbsolute(named) ? named : resolve(named), source: 'env' };
   const candidates: ObjdiffLocation[] = [];
-  if (options.repoRoot !== undefined) candidates.push({ bin: join(options.repoRoot, OBJDIFF_LOCAL_BUILD), source: 'repo-build' });
+  if (options.repoRoot !== undefined)
+    candidates.push({ bin: join(options.repoRoot, OBJDIFF_LOCAL_BUILD), source: 'repo-build' });
   if (options.mainRepoRoot !== undefined && options.mainRepoRoot !== options.repoRoot) {
     candidates.push({ bin: join(options.mainRepoRoot, OBJDIFF_LOCAL_BUILD), source: 'main-repo-build' });
   }
@@ -116,7 +116,19 @@ export const OBJDIFF_DIFF_CONFIG: readonly string[] = ['functionRelocDiffs=name_
 
 /** The arguments of the one-shot diff of `reference` (objdiff's target, left) against `base` (right). */
 export function objdiffDiffArgs(reference: string, base: string): string[] {
-  return ['--no-color', 'diff', '-1', reference, '-2', base, '-o', '-', '--format', 'json', ...OBJDIFF_DIFF_CONFIG.flatMap((c) => ['-c', c])];
+  return [
+    '--no-color',
+    'diff',
+    '-1',
+    reference,
+    '-2',
+    base,
+    '-o',
+    '-',
+    '--format',
+    'json',
+    ...OBJDIFF_DIFF_CONFIG.flatMap((c) => ['-c', c]),
+  ];
 }
 
 /**
@@ -125,12 +137,16 @@ export function objdiffDiffArgs(reference: string, base: string): string[] {
  */
 export async function diffObjects(bin: string, reference: string, base: string): Promise<ParseResult<ObjectDiff>> {
   const run = await runProcess(bin, objdiffDiffArgs(reference, base));
-  if (run.code !== 0) return { ok: false, error: `objdiff-cli exited ${run.code} on ${reference} and ${base}: ${run.stderr.trim()}` };
+  if (run.code !== 0)
+    return { ok: false, error: `objdiff-cli exited ${run.code} on ${reference} and ${base}: ${run.stderr.trim()}` };
   let json: unknown;
   try {
     json = JSON.parse(run.stdout) as unknown;
   } catch (error) {
-    return { ok: false, error: `objdiff-cli printed no JSON: ${error instanceof Error ? error.message : String(error)}` };
+    return {
+      ok: false,
+      error: `objdiff-cli printed no JSON: ${error instanceof Error ? error.message : String(error)}`,
+    };
   }
   const left = objectFacts(new Uint8Array(await readFile(reference)));
   if (!left.ok) return left;
@@ -147,7 +163,13 @@ export function objectFacts(bytes: Uint8Array): ParseResult<ReferenceObject> {
   if (!relocations.ok) return relocations;
   const contents = new Map<string, Uint8Array>();
   for (const section of elf.value.sections) {
-    if (section.type === SHT.NOBITS || section.size === 0 || section.offset + section.size > bytes.length || contents.has(section.name)) continue;
+    if (
+      section.type === SHT.NOBITS ||
+      section.size === 0 ||
+      section.offset + section.size > bytes.length ||
+      contents.has(section.name)
+    )
+      continue;
     contents.set(section.name, bytes.subarray(section.offset, section.offset + section.size));
   }
   return { ok: true, value: { symbols: elf.value.symbols, relocations: relocations.value, contents } };
@@ -293,7 +315,12 @@ function args(instruction: Json | undefined): boolean[] {
  * when objdiff marks no argument, a relocation difference if either side carries a relocation. Every other
  * kind (replace, insert, delete, opcode mismatch) is an instruction difference.
  */
-function rowDifference(kind: RowDiffKind, row: Json, instruction: Json | undefined, hasRelocation: boolean): { readonly reloc: boolean; readonly plain: boolean } {
+function rowDifference(
+  kind: RowDiffKind,
+  row: Json,
+  instruction: Json | undefined,
+  hasRelocation: boolean,
+): { readonly reloc: boolean; readonly plain: boolean } {
   if (kind !== 'arg-mismatch') return { reloc: false, plain: true };
   const kinds = args(instruction);
   let reloc = false;
@@ -318,13 +345,22 @@ function symbolName(s: Side, index: unknown): string | null {
 }
 
 /** The entry of an object's relocation table at `offset` in `section` (any section when undefined). */
-function relocationAt(object: ReferenceObject, section: string | undefined, offset: number): ObjectRelocation | undefined {
+function relocationAt(
+  object: ReferenceObject,
+  section: string | undefined,
+  offset: number,
+): ObjectRelocation | undefined {
   return object.relocations.find((r) => r.offset === offset && (section === undefined || r.section === section));
 }
 
 /** The reference target of the relocation `entry` (the object's own), else objdiff's name for it. */
 function referenceTarget(entry: ObjectRelocation | undefined, fallback: string | null): RelocationTarget | null {
-  if (entry !== undefined) return { name: entry.symbol.name, symbol: entry.symbol.type === 'section' ? 'section' : 'named', ...(entry.addend === undefined ? {} : { addend: entry.addend }) };
+  if (entry !== undefined)
+    return {
+      name: entry.symbol.name,
+      symbol: entry.symbol.type === 'section' ? 'section' : 'named',
+      ...(entry.addend === undefined ? {} : { addend: entry.addend }),
+    };
   return fallback === null ? null : { name: fallback, symbol: 'named' };
 }
 
@@ -335,7 +371,13 @@ function fieldValue(bytes: Uint8Array | undefined, offset: number, type: number)
 }
 
 /** The base side's facts of a relocation difference: its type, and its addend or its field's plain value. */
-function baseFacts(base: ReferenceObject | undefined, section: string | undefined, offset: number | null, refEntry: ObjectRelocation | undefined, hasRelocation: boolean): Pick<RelocationDifference, 'typeCode' | 'baseAddend' | 'baseField'> {
+function baseFacts(
+  base: ReferenceObject | undefined,
+  section: string | undefined,
+  offset: number | null,
+  refEntry: ObjectRelocation | undefined,
+  hasRelocation: boolean,
+): Pick<RelocationDifference, 'typeCode' | 'baseAddend' | 'baseField'> {
   const entry = base === undefined || offset === null ? undefined : relocationAt(base, section, offset);
   const typeCode = refEntry?.type ?? entry?.type;
   const out: { typeCode?: number; baseAddend?: number; baseField?: number } = {};
@@ -348,7 +390,13 @@ function baseFacts(base: ReferenceObject | undefined, section: string | undefine
   return out;
 }
 
-function functionDiff(symbol: Json, left: Side, right: Side, reference: ReferenceObject, base: ReferenceObject | undefined): FunctionDiff {
+function functionDiff(
+  symbol: Json,
+  left: Side,
+  right: Side,
+  reference: ReferenceObject,
+  base: ReferenceObject | undefined,
+): FunctionDiff {
   const name = text(symbol['name']) ?? '';
   const targetIndex = symbol['target_symbol'];
   const paired = typeof targetIndex === 'number';
@@ -376,13 +424,21 @@ function functionDiff(symbol: Json, left: Side, right: Side, reference: Referenc
         offset,
         kind,
         type: text(refReloc?.['type_name']) ?? text(baseReloc?.['type_name']) ?? '',
-        reference: refReloc === undefined || offset === null ? null : referenceTarget(refEntry, symbolName(left, refReloc['target_symbol'])),
+        reference:
+          refReloc === undefined || offset === null
+            ? null
+            : referenceTarget(refEntry, symbolName(left, refReloc['target_symbol'])),
         base: baseReloc === undefined ? null : symbolName(right, baseReloc['target_symbol']),
         ...baseFacts(base, baseSection, baseOffset, refEntry, baseReloc !== undefined),
       });
     }
     if (differs.plain) {
-      instructionDifferences.push({ offset, kind, reference: text(refInsn?.['formatted']) ?? null, base: text(baseInsn?.['formatted']) ?? null });
+      instructionDifferences.push({
+        offset,
+        kind,
+        reference: text(refInsn?.['formatted']) ?? null,
+        base: text(baseInsn?.['formatted']) ?? null,
+      });
     }
   });
   return {
@@ -401,8 +457,13 @@ function functionDiff(symbol: Json, left: Side, right: Side, reference: Referenc
  * base object's facts, gives each relocation difference its base addend or plain value. ok:false when the value has
  * no reference (left) side.
  */
-export function parseObjdiffDiff(json: unknown, reference: ReferenceObject, base?: ReferenceObject): ParseResult<ObjectDiff> {
-  if (!isJson(json) || !isJson(json['left'])) return { ok: false, error: 'objdiff-cli JSON: no left (reference) object' };
+export function parseObjdiffDiff(
+  json: unknown,
+  reference: ReferenceObject,
+  base?: ReferenceObject,
+): ParseResult<ObjectDiff> {
+  if (!isJson(json) || !isJson(json['left']))
+    return { ok: false, error: 'objdiff-cli JSON: no left (reference) object' };
   const left = side(json['left']);
   const right = side(json['right']);
   const functions = left.symbols

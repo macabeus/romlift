@@ -19,18 +19,41 @@ test('edits apply by offset in any given order; insertions at one offset keep th
   assert.equal(applyTextEdits('hello world', edits), 'HELLO 23world!');
   assert.equal(applyTextEdits('abc', []), 'abc');
   assert.equal(applyTextEdits('', [{ start: 0, end: 0, text: 'x', reason: 'add-stub' }]), 'x');
-  assert.equal(applyTextEdits('a\u{1F600}b', [{ start: 3, end: 4, text: 'B', reason: 'add-stub' }]), 'a\u{1F600}B', 'UTF-16 offsets');
+  assert.equal(
+    applyTextEdits('a\u{1F600}b', [{ start: 3, end: 4, text: 'B', reason: 'add-stub' }]),
+    'a\u{1F600}B',
+    'UTF-16 offsets',
+  );
 });
 
 test('an edit outside the text, reversed or overlapping another throws RomliftInvariantError', () => {
-  assert.throws(() => applyTextEdits('abc', [{ start: 2, end: 4, text: '', reason: 'remove-stub' }]), RomliftInvariantError);
-  assert.throws(() => applyTextEdits('abc', [{ start: 2, end: 1, text: '', reason: 'remove-stub' }]), RomliftInvariantError);
-  assert.throws(() => applyTextEdits('abc', [{ start: -1, end: 0, text: '', reason: 'remove-stub' }]), RomliftInvariantError);
-  assert.throws(() => applyTextEdits('abc', [{ start: 0.5, end: 1, text: '', reason: 'remove-stub' }]), RomliftInvariantError);
-  assert.throws(() => applyTextEdits('abc', [{ start: 0, end: 2, text: '', reason: 'remove-stub' }, { start: 1, end: 3, text: '', reason: 'remove-stub' }]), RomliftInvariantError);
+  assert.throws(
+    () => applyTextEdits('abc', [{ start: 2, end: 4, text: '', reason: 'remove-stub' }]),
+    RomliftInvariantError,
+  );
+  assert.throws(
+    () => applyTextEdits('abc', [{ start: 2, end: 1, text: '', reason: 'remove-stub' }]),
+    RomliftInvariantError,
+  );
+  assert.throws(
+    () => applyTextEdits('abc', [{ start: -1, end: 0, text: '', reason: 'remove-stub' }]),
+    RomliftInvariantError,
+  );
+  assert.throws(
+    () => applyTextEdits('abc', [{ start: 0.5, end: 1, text: '', reason: 'remove-stub' }]),
+    RomliftInvariantError,
+  );
+  assert.throws(
+    () =>
+      applyTextEdits('abc', [
+        { start: 0, end: 2, text: '', reason: 'remove-stub' },
+        { start: 1, end: 3, text: '', reason: 'remove-stub' },
+      ]),
+    RomliftInvariantError,
+  );
 });
 
-test('the reconciler\'s TextEdit and core/emit/tree.ts\'s are one shape', () => {
+test("the reconciler's TextEdit and core/emit/tree.ts's are one shape", () => {
   const edit: TextEdit = { start: 0, end: 0, text: 'x', reason: 'add-header' };
   const carried: EmitTextEdit = edit;
   const back: TextEdit = carried;

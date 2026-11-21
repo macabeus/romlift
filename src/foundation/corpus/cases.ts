@@ -16,7 +16,7 @@ import type { ArmCoverage, CorpusFile, CorpusOptions, CorpusSection, Extreme } f
 
 /** A seed for one part of the corpus, derived from the corpus seed (xorshift32 needs it nonzero). */
 function seedFor(seed: number, salt: number): number {
-  return ((seed ^ salt) >>> 0) || 1;
+  return (seed ^ salt) >>> 0 || 1;
 }
 
 function name(prefix: string, index: number): string {
@@ -67,7 +67,14 @@ const THUMB_CONDITIONS: readonly string[] = CONDITIONS.slice(0, 14);
 
 export const EXTREME_FORMS: readonly ExtremeForm[] = [
   { name: 'b', mode: 'thumb', section: 'thumb', min: 0xe400, max: 0xe3ff, step: 2 },
-  ...THUMB_CONDITIONS.map((c, i) => ({ name: `b${c}`, mode: 'thumb' as const, section: 'thumb' as const, min: 0xd080 | (i << 8), max: 0xd07f | (i << 8), step: 2 })),
+  ...THUMB_CONDITIONS.map((c, i) => ({
+    name: `b${c}`,
+    mode: 'thumb' as const,
+    section: 'thumb' as const,
+    min: 0xd080 | (i << 8),
+    max: 0xd07f | (i << 8),
+    step: 2,
+  })),
   { name: 'ldr_pc', mode: 'thumb', section: 'thumb', min: 0x4800, max: 0x48ff, step: 4 },
   { name: 'adr', mode: 'thumb', section: 'thumb', min: 0xa000, max: 0xa0ff, step: 4 },
   // bl: offset -4 MiB (prefix 0x400, suffix 0) and +4 MiB - 2 (prefix 0x3ff, suffix 0x7ff).
@@ -159,7 +166,8 @@ function* armSweepWords(seed: number): Generator<number> {
         }
       }
       yield base;
-      for (const field of spec.fields) for (const value of sweepValues(field, random)) yield withField(base, field, value);
+      for (const field of spec.fields)
+        for (const value of sweepValues(field, random)) yield withField(base, field, value);
     }
   }
 }
@@ -184,12 +192,13 @@ function coverageOf(spec: InsnSpec): { exhaustive: string[]; sampled: string[] }
 const BL_SUFFIX_BOUNDARIES: readonly number[] = [0x000, 0x001, 0x3ff, 0x400, 0x7fe, 0x7ff];
 
 function blWord(hi: number, lo: number): number {
-  return ((0xf000 | hi) | ((0xf800 | lo) << 16)) >>> 0;
+  return (0xf000 | hi | ((0xf800 | lo) << 16)) >>> 0;
 }
 
 function* blWords(options: CorpusOptions): Generator<number> {
   for (let hi = 0; hi < 0x800; hi++) for (const lo of BL_SUFFIX_BOUNDARIES) yield blWord(hi, lo);
-  for (const r of prngSequence(seedFor(options.seed, 0xb1b1_0000), options.blSample)) yield blWord(r & 0x7ff, (r >>> 11) & 0x7ff);
+  for (const r of prngSequence(seedFor(options.seed, 0xb1b1_0000), options.blSample))
+    yield blWord(r & 0x7ff, (r >>> 11) & 0x7ff);
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -206,5 +215,11 @@ export function* corpusFiles(options: CorpusOptions): Generator<CorpusFile> {
   yield* extremeFiles('bl');
   yield* chunked('arm', 'arm', 'arm-sweep', armSweepWords(options.seed), (b, word) => b.add(word));
   yield* extremeFiles('arm');
-  yield* chunked('arm', 'arm', 'arm-sample', prngSequence(seedFor(options.seed, 0xa5a5_0000), options.armSample), (b, word) => b.add(word));
+  yield* chunked(
+    'arm',
+    'arm',
+    'arm-sample',
+    prngSequence(seedFor(options.seed, 0xa5a5_0000), options.armSample),
+    (b, word) => b.add(word),
+  );
 }

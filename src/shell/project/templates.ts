@@ -4,10 +4,10 @@
 // rendering is core/scaffold/render.ts's. A file that cannot be read, is not UTF-8 or does not decode is E_IO_READ.
 import { join } from 'node:path';
 
-import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
-import { compareCodeUnits } from '../../foundation/util/sorted.ts';
 import { decodeAgbccPin, decodeScaffoldManifest } from '../../core/scaffold/vars.ts';
 import type { AgbccPin, Decoded, ScaffoldTemplates } from '../../core/scaffold/vars.ts';
+import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
+import { compareCodeUnits } from '../../foundation/util/sorted.ts';
 import { ShellCodes } from '../codes.ts';
 import { readBytes } from '../fs.ts';
 import type { IoResult } from '../fs.ts';
@@ -53,7 +53,9 @@ async function readDecoded<T>(file: string, decode: (text: string) => Decoded<T>
 export async function readTemplates(packageRoot: string): Promise<IoResult<ScaffoldTemplates>> {
   const manifest = await readDecoded(templateFile(packageRoot, TEMPLATES_MANIFEST), decodeScaffoldManifest);
   if (!manifest.ok) return manifest;
-  const sources = [...new Set(manifest.value.files.flatMap((file) => (file.source === null ? [] : [file.source])))].sort(compareCodeUnits);
+  const sources = [
+    ...new Set(manifest.value.files.flatMap((file) => (file.source === null ? [] : [file.source]))),
+  ].sort(compareCodeUnits);
   const texts = new Map<string, string>();
   for (const source of sources) {
     const text = await readText(templateFile(packageRoot, source));

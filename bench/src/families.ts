@@ -13,20 +13,38 @@ export interface FamilySpec {
 }
 
 export const FAMILIES = {
-  printer: { liveFrom: 1, scope: 'global', summary: '100% round-trip; raw share never rises; both alignments and every offset extreme agree' },
+  printer: {
+    liveFrom: 1,
+    scope: 'global',
+    summary: '100% round-trip; raw share never rises; both alignments and every offset extreme agree',
+  },
   scaffold: { liveFrom: 1, scope: 'rom', summary: 'the scaffold reproduces the SHA-1' },
-  entries: { liveFrom: 2, scope: 'rom', summary: 'every miss and false entry listed; raw precision and true positives hold' },
-  extents: { liveFrom: 2, scope: 'rom', summary: 'no agreeing function stops agreeing; 99.9% of sized functions agree' },
+  entries: {
+    liveFrom: 2,
+    scope: 'rom',
+    summary: 'every miss and false entry listed; raw precision and true positives hold',
+  },
+  extents: {
+    liveFrom: 2,
+    scope: 'rom',
+    summary: 'no agreeing function stops agreeing; 99.9% of sized functions agree',
+  },
   'code-end': { liveFrom: 2, scope: 'rom', summary: 'within 16 bytes of the ELF' },
   'held-out': { liveFrom: 2, scope: 'sealed', summary: 'the sealed held-out gate' },
   determinism: { liveFrom: 2, scope: 'rom', summary: 'two processes with a varied environment give one digest' },
   speed: { liveFrom: 2, scope: 'rom', summary: 'CPU time within the ratchet and the budget' },
   readability: { liveFrom: 3, scope: 'rom', summary: 'readability shares only increase (objdiff: g6.objdiff, D92)' },
-  memory: { liveFrom: 3, scope: 'global', summary: 'each command\'s exit code, peak RSS and heap cap on the 32 MiB synthetic ROM, recorded; g3.large-rom judges them (exit 0 under the 1,024 MiB cap, below 1,536 MiB)' },
+  memory: {
+    liveFrom: 3,
+    scope: 'global',
+    summary:
+      "each command's exit code, peak RSS and heap cap on the 32 MiB synthetic ROM, recorded; g3.large-rom judges them (exit 0 under the 1,024 MiB cap, below 1,536 MiB)",
+  },
   signatures: {
     liveFrom: 6,
     scope: 'rom',
-    summary: "every placement at an ELF FUNC or a listed untyped address, every table an OBJECT of its size or a label, every proposed size and every reference's symbol the ELF's; the PoC's placements as a floor (g6.signatures-judged)",
+    summary:
+      "every placement at an ELF FUNC or a listed untyped address, every table an OBJECT of its size or a label, every proposed size and every reference's symbol the ELF's; the PoC's placements as a floor (g6.signatures-judged)",
   },
 } as const satisfies Record<string, FamilySpec>;
 

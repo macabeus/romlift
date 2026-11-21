@@ -16,7 +16,7 @@
 // that is not UTF-8 text or holds a NUL; the shell lists it, read-inputs.ts readRenameTexts) is W_RENAME_SKIPPED when it
 // does not hold `from` as an identifier's bytes, else the refusal. Pure: the shell reads, hashes and writes.
 import { isSymbolName } from '../../foundation/asm/dialect.ts';
-import { diagnostic, RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
+import { RomliftInvariantError, diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
@@ -76,7 +76,12 @@ export type RenameEdit = Extract<FileEntry, { readonly ownership: 'reconciled' }
 
 /** `rename`'s plan: the patched TOML and the C edits, or the refusal (nothing to write). */
 export type RenamePlan =
-  | { readonly ok: true; readonly tomlText: string; readonly edits: readonly RenameEdit[]; readonly diagnostics: readonly Diagnostic[] }
+  | {
+      readonly ok: true;
+      readonly tomlText: string;
+      readonly edits: readonly RenameEdit[];
+      readonly diagnostics: readonly Diagnostic[];
+    }
   | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
 
 /** A C identifier: a letter or `_`, then letters, digits and `_`. */
@@ -90,7 +95,10 @@ export function isRenameTarget(name: string): boolean {
 /** Every name of the config a new name may not take: functions', entry points', symbols' and their aliases, and modules'. */
 function projectNames(config: RomliftConfig): ReadonlySet<string> {
   const names = new Set<string>(config.modules.map((m) => m.name));
-  for (const entry of [...sortedEntries(listedEntries(config)).map(([, f]) => f), ...sortedEntries(config.symbols).map(([, s]) => s)]) {
+  for (const entry of [
+    ...sortedEntries(listedEntries(config)).map(([, f]) => f),
+    ...sortedEntries(config.symbols).map(([, s]) => s),
+  ]) {
     names.add(entry.name);
     for (const alias of entry.aliases) names.add(alias);
   }
@@ -102,7 +110,9 @@ function projectNames(config: RomliftConfig): ReadonlySet<string> {
  * `__load_<module>` the linker script defines for each runs_at module (correctness-r1-2), by name -> the first address
  * that carries it. A new name among them is one `generate` would refuse (E_NAME_COLLISION).
  */
-export function modelNamesOf(model: Pick<Model, 'chunks' | 'labels' | 'symbols' | 'modules'>): ReadonlyMap<string, Addr> {
+export function modelNamesOf(
+  model: Pick<Model, 'chunks' | 'labels' | 'symbols' | 'modules'>,
+): ReadonlyMap<string, Addr> {
   const uses: { readonly name: string; readonly addr: Addr }[] = [
     ...model.chunks.map((c) => ({ name: c.name, addr: c.span.start })),
     ...model.labels.map((l) => ({ name: l.name, addr: l.addr })),
@@ -116,7 +126,13 @@ export function modelNamesOf(model: Pick<Model, 'chunks' | 'labels' | 'symbols' 
 }
 
 /** The names the model of a project (its ROM and config) emits, or the refusal of another ROM (confirmProject). */
-export function renameModelNames(inputs: { readonly rom: Rom; readonly config: RomliftConfig; readonly profile?: CompilerProfile }): { readonly ok: true; readonly names: ReadonlyMap<string, Addr> } | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] } {
+export function renameModelNames(inputs: {
+  readonly rom: Rom;
+  readonly config: RomliftConfig;
+  readonly profile?: CompilerProfile;
+}):
+  | { readonly ok: true; readonly names: ReadonlyMap<string, Addr> }
+  | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] } {
   const confirmed = confirmProject(inputs);
   return confirmed.ok ? { ok: true, names: modelNamesOf(confirmed.model) } : confirmed;
 }
@@ -124,7 +140,8 @@ export function renameModelNames(inputs: { readonly rom: Rom; readonly config: R
 /** Whether `bytes` hold `name`'s ASCII bytes with no identifier character on either side. */
 function namesIdentifier(bytes: Uint8Array, name: string): boolean {
   const want = new TextEncoder().encode(name);
-  const word = (b: number | undefined): boolean => b !== undefined && ((b >= 0x30 && b <= 0x39) || (b >= 0x41 && b <= 0x5a) || (b >= 0x61 && b <= 0x7a) || b === 0x5f);
+  const word = (b: number | undefined): boolean =>
+    b !== undefined && ((b >= 0x30 && b <= 0x39) || (b >= 0x41 && b <= 0x5a) || (b >= 0x61 && b <= 0x7a) || b === 0x5f);
   outer: for (let i = 0; i + want.length <= bytes.length; i++) {
     for (let k = 0; k < want.length; k++) if (bytes[i + k] !== want[k]) continue outer;
     if (!word(bytes[i - 1]) && !word(bytes[i + want.length])) return true;
@@ -132,16 +149,33 @@ function namesIdentifier(bytes: Uint8Array, name: string): boolean {
   return false;
 }
 
-const SKIP_TEXT: Readonly<Record<RenameSkipReason, string>> = { link: 'a symbolic link, which an edit would replace with a file', 'not-utf8': 'not UTF-8 text', binary: 'holds a NUL byte' };
+const SKIP_TEXT: Readonly<Record<RenameSkipReason, string>> = {
+  link: 'a symbolic link, which an edit would replace with a file',
+  'not-utf8': 'not UTF-8 text',
+  binary: 'holds a NUL byte',
+};
 
 /** W_RENAME_SKIPPED for each skipped file that does not name `from`, E_RENAME_SKIPPED_FILE for each that does (D95 c). */
 export function skippedFileProblems(skipped: readonly RenameSkipped[], from: string): readonly Diagnostic[] {
   return skipped.map((f) => {
     if (f.bytes !== undefined && namesIdentifier(f.bytes, from)) {
-      return diagnostic(WorkflowCodes, 'E_RENAME_SKIPPED_FILE', `${f.path} names ${from}, but rename does not edit it (${SKIP_TEXT[f.reason]}): rename it there by hand first, or rename again once it no longer names ${from}; nothing was changed`, { path: f.path });
+      return diagnostic(
+        WorkflowCodes,
+        'E_RENAME_SKIPPED_FILE',
+        `${f.path} names ${from}, but rename does not edit it (${SKIP_TEXT[f.reason]}): rename it there by hand first, or rename again once it no longer names ${from}; nothing was changed`,
+        { path: f.path },
+      );
     }
-    const what = f.bytes === undefined && f.reason === 'link' ? 'a symbolic link to nothing, or to a directory through which rename reads no file it does not edit by its own path' : SKIP_TEXT[f.reason];
-    return diagnostic(WorkflowCodes, 'W_RENAME_SKIPPED', `${f.path} is not edited (${what})${f.bytes === undefined ? '' : `; it does not name ${from}`}`, { path: f.path });
+    const what =
+      f.bytes === undefined && f.reason === 'link'
+        ? 'a symbolic link to nothing, or to a directory through which rename reads no file it does not edit by its own path'
+        : SKIP_TEXT[f.reason];
+    return diagnostic(
+      WorkflowCodes,
+      'W_RENAME_SKIPPED',
+      `${f.path} is not edited (${what})${f.bytes === undefined ? '' : `; it does not name ${from}`}`,
+      { path: f.path },
+    );
   });
 }
 
@@ -150,9 +184,14 @@ export function skippedFileProblems(skipped: readonly RenameSkipped[], from: str
  * address a pool word holds, D111) that no [functions] or [symbols] entry carries and no [symbols] entry is at: renaming
  * it adds `<ADDR> = "<to>"` to [symbols] (D111), which is what the user would otherwise add by hand first.
  */
-export function defaultDataAddress(config: RomliftConfig, from: string, modelNames: ReadonlyMap<string, Addr>): Addr | undefined {
+export function defaultDataAddress(
+  config: RomliftConfig,
+  from: string,
+  modelNames: ReadonlyMap<string, Addr>,
+): Addr | undefined {
   const at = modelNames.get(from);
-  if (at === undefined || dataName(at) !== from || entriesNamed(config, from).length > 0 || config.symbols.has(at)) return undefined;
+  if (at === undefined || dataName(at) !== from || entriesNamed(config, from).length > 0 || config.symbols.has(at))
+    return undefined;
   return at;
 }
 
@@ -160,10 +199,21 @@ export function defaultDataAddress(config: RomliftConfig, from: string, modelNam
  * The refusals of renaming `from` to `to` in `config`, in a fixed order (invalid, unknown, exists); empty when it may.
  * `modelNames` (renameModelNames) are the names the project's model emits, which `to` may not take either.
  */
-export function renameProblems(config: RomliftConfig, from: string, to: string, modelNames: ReadonlyMap<string, Addr> = new Map()): readonly Diagnostic[] {
+export function renameProblems(
+  config: RomliftConfig,
+  from: string,
+  to: string,
+  modelNames: ReadonlyMap<string, Addr> = new Map(),
+): readonly Diagnostic[] {
   const out: Diagnostic[] = [];
   if (!isRenameTarget(to)) {
-    out.push(diagnostic(WorkflowCodes, 'E_RENAME_INVALID', `${JSON.stringify(to)} cannot be a function or symbol name: it must be a C identifier (a letter or _, then letters, digits and _, not a C keyword) of at most 200 characters; nothing was changed`));
+    out.push(
+      diagnostic(
+        WorkflowCodes,
+        'E_RENAME_INVALID',
+        `${JSON.stringify(to)} cannot be a function or symbol name: it must be a C identifier (a letter or _, then letters, digits and _, not a C keyword) of at most 200 characters; nothing was changed`,
+      ),
+    );
   }
   if (entriesNamed(config, from).length === 0 && defaultDataAddress(config, from, modelNames) === undefined) {
     // A default name of the model (a gUnk_ data or RAM label, a default chunk name) has a fixed remedy (end-to-end-user-r1-2).
@@ -172,13 +222,32 @@ export function renameProblems(config: RomliftConfig, from: string, to: string, 
       at === undefined
         ? ''
         : `; ${from} is a default name of the project's model at ${hexAddr(at)}: add \`${hexAddr(at)} = "${from}"\` to [symbols] (or to [functions] for a function) first, then rename it`;
-    out.push(diagnostic(WorkflowCodes, 'E_RENAME_UNKNOWN', `romlift.toml has no function or symbol named ${from}, nor one with ${from} as an alias; nothing was changed${hint}`));
+    out.push(
+      diagnostic(
+        WorkflowCodes,
+        'E_RENAME_UNKNOWN',
+        `romlift.toml has no function or symbol named ${from}, nor one with ${from} as an alias; nothing was changed${hint}`,
+      ),
+    );
   }
   const emitted = modelNames.get(to);
   if (projectNames(config).has(to)) {
-    out.push(diagnostic(WorkflowCodes, 'E_RENAME_EXISTS', `romlift.toml already has the name ${to} (a function, a symbol, an alias or a module); nothing was changed`));
+    out.push(
+      diagnostic(
+        WorkflowCodes,
+        'E_RENAME_EXISTS',
+        `romlift.toml already has the name ${to} (a function, a symbol, an alias or a module); nothing was changed`,
+      ),
+    );
   } else if (emitted !== undefined) {
-    out.push(diagnostic(WorkflowCodes, 'E_RENAME_EXISTS', `the project's model already names ${hexAddr(emitted)} ${to} (a default chunk, symbol or label name, or the linker script's __load_<module> of a runs_at module), so generate would refuse it as a second definition; nothing was changed`, { addr: emitted }));
+    out.push(
+      diagnostic(
+        WorkflowCodes,
+        'E_RENAME_EXISTS',
+        `the project's model already names ${hexAddr(emitted)} ${to} (a default chunk, symbol or label name, or the linker script's __load_<module> of a runs_at module), so generate would refuse it as a second definition; nothing was changed`,
+        { addr: emitted },
+      ),
+    );
   }
   return out;
 }
@@ -190,13 +259,18 @@ export function renameProblems(config: RomliftConfig, from: string, to: string, 
 export function planRename(inputs: RenameInputs): RenamePlan {
   const { config, from, to } = inputs;
   const skipped = skippedFileProblems(inputs.skipped ?? [], from);
-  const problems = [...renameProblems(config, from, to, inputs.modelNames), ...skipped.filter((d) => d.severity === 'error')];
+  const problems = [
+    ...renameProblems(config, from, to, inputs.modelNames),
+    ...skipped.filter((d) => d.severity === 'error'),
+  ];
   if (problems.length > 0) return { ok: false, diagnostics: problems };
   const at = defaultDataAddress(config, from, inputs.modelNames);
   const patch =
     at === undefined
       ? planRenamePatch(inputs.configText, config, from, to)
-      : planPatch(inputs.configText, config, [{ kind: 'symbol', addr: at, name: to, source: { kind: 'layout', reason: 'data' } }]);
+      : planPatch(inputs.configText, config, [
+          { kind: 'symbol', addr: at, name: to, source: { kind: 'layout', reason: 'data' } },
+        ]);
   if (!patch.ok) return { ok: false, diagnostics: patch.diagnostics };
   const edits: RenameEdit[] = [];
   const asmSources = new Set(config.modules.flatMap((m) => (m.source === undefined ? [] : [m.source])));
@@ -218,7 +292,13 @@ export function planRename(inputs: RenameInputs): RenamePlan {
  */
 export function renameJournalProblems(journal: Journal | null): readonly Diagnostic[] {
   if (journal === null) return [];
-  return [diagnostic(WorkflowCodes, 'E_RENAME_INTERRUPTED', 'the project holds the journal of an interrupted write (.romlift/journal.json): run `romlift generate` to finish it, then rename again; nothing was changed')];
+  return [
+    diagnostic(
+      WorkflowCodes,
+      'E_RENAME_INTERRUPTED',
+      'the project holds the journal of an interrupted write (.romlift/journal.json): run `romlift generate` to finish it, then rename again; nothing was changed',
+    ),
+  ];
 }
 
 /**
@@ -228,5 +308,12 @@ export function renameJournalProblems(journal: Journal | null): readonly Diagnos
 export function staleRenameConfig(path: string, read: string, now: string | undefined): readonly Diagnostic[] {
   if (now === read) return [];
   const state = now === undefined ? 'is gone' : 'changed on disk';
-  return [diagnostic(WorkflowCodes, 'E_STALE_CONFIG', `${path} ${state} since rename read it; it was not saved: run rename again`, { path })];
+  return [
+    diagnostic(
+      WorkflowCodes,
+      'E_STALE_CONFIG',
+      `${path} ${state} since rename read it; it was not saved: run rename again`,
+      { path },
+    ),
+  ];
 }

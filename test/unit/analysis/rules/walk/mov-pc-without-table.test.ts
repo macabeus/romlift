@@ -7,7 +7,7 @@ import { DECODER_FLOW } from '../../../../../src/core/analysis/types.ts';
 import { romWith, viewWith, walkReading, words } from '../../../../helpers/analysis.ts';
 import { armAt } from '../../../../helpers/arm.ts';
 import { thumbAt } from '../../../../helpers/thumb.ts';
-import { cursorOf, insnAt, WALK, walkRule, without } from './support.ts';
+import { WALK, cursorOf, insnAt, walkRule, without } from './support.ts';
 
 const F = 0x0800_0200;
 const ID = 'walk.mov-pc-without-table';
@@ -23,8 +23,15 @@ test('Thumb mov pc, rN and add pc, rN end the path as a register jump, with the 
   assert.equal(r.returns, 1);
   assert.deepEqual(r.balance, [-8]);
   assert.deepEqual(r.errors, []);
-  assert.deepEqual(walkReading(v, F + 0x20, 'thumb', WALK).exits.map((e) => e.rule), [ID]);
-  assert.deepEqual(walkReading(v, F, 'thumb', without(ID)).errors, [{ reason: 'not-code', at: F + 2 }], 'without the rule: not code');
+  assert.deepEqual(
+    walkReading(v, F + 0x20, 'thumb', WALK).exits.map((e) => e.rule),
+    [ID],
+  );
+  assert.deepEqual(
+    walkReading(v, F, 'thumb', without(ID)).errors,
+    [{ reason: 'not-code', at: F + 2 }],
+    'without the rule: not code',
+  );
 });
 
 test('ARM writes to pc: mov, ldr through a register, ldm; a conditional one counts and the path goes on', () => {
@@ -59,6 +66,12 @@ test('declines: bx rN (the decoder ends it), returns, and a table jump the table
   assert.equal(rule.onInsn(insnAt(rom, F + 2, 'thumb'), cursorOf(v, { entry: F, mode: 'thumb' })), undefined);
   assert.deepEqual(walkReading(v, F, 'thumb', WALK).exits, [{ at: F, kind: 'reg-jump', rule: DECODER_FLOW }]);
   const table = walkReading(v, F + 0x20, 'thumb', WALK);
-  assert.deepEqual(table.tables.map((t) => t.targets), [[F + 0x40]]);
-  assert.equal(table.exits.some((e) => e.rule === ID), false);
+  assert.deepEqual(
+    table.tables.map((t) => t.targets),
+    [[F + 0x40]],
+  );
+  assert.equal(
+    table.exits.some((e) => e.rule === ID),
+    false,
+  );
 });

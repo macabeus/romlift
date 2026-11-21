@@ -87,7 +87,9 @@ export function findExecutable(name: string, env: Readonly<Record<string, string
 }
 
 /** The binutils on the PATH of `env`, or E_TOOLCHAIN_MISSING naming the programs it lacks. */
-export function findBinutils(env: Readonly<Record<string, string | undefined>>): Binutils | Diagnostic<'E_TOOLCHAIN_MISSING'> {
+export function findBinutils(
+  env: Readonly<Record<string, string | undefined>>,
+): Binutils | Diagnostic<'E_TOOLCHAIN_MISSING'> {
   const found: Partial<Record<(typeof TOOLS)[number], string>> = {};
   const missing: string[] = [];
   for (const tool of TOOLS) {
@@ -96,7 +98,11 @@ export function findBinutils(env: Readonly<Record<string, string | undefined>>):
     else found[tool] = path;
   }
   if (found.as === undefined || found.ld === undefined || found.objcopy === undefined) {
-    return diagnostic<'E_TOOLCHAIN_MISSING'>(ShellCodes, 'E_TOOLCHAIN_MISSING', `not on the PATH: ${missing.join(', ')}`);
+    return diagnostic<'E_TOOLCHAIN_MISSING'>(
+      ShellCodes,
+      'E_TOOLCHAIN_MISSING',
+      `not on the PATH: ${missing.join(', ')}`,
+    );
   }
   return { as: found.as, ld: found.ld, objcopy: found.objcopy };
 }
@@ -124,8 +130,14 @@ function firstLine(text: string): string {
 
 /** The first line of each program's `--version` (empty when the program cannot run). */
 export async function binutilsVersions(tools: Binutils): Promise<BinutilsVersions> {
-  const [as, ld, objcopy] = await Promise.all([tools.as, tools.ld, tools.objcopy].map((t) => runTool(t, ['--version'])));
-  return { as: firstLine(as?.stdout ?? ''), ld: firstLine(ld?.stdout ?? ''), objcopy: firstLine(objcopy?.stdout ?? '') };
+  const [as, ld, objcopy] = await Promise.all(
+    [tools.as, tools.ld, tools.objcopy].map((t) => runTool(t, ['--version'])),
+  );
+  return {
+    as: firstLine(as?.stdout ?? ''),
+    ld: firstLine(ld?.stdout ?? ''),
+    objcopy: firstLine(objcopy?.stdout ?? ''),
+  };
 }
 
 /** A relative path that stays inside its directory, or undefined. */
@@ -221,7 +233,11 @@ export async function linkWithBinutils(sources: readonly LinkSource[], options: 
       if (as.code !== 0) return failed(as.stderr, `arm-none-eabi-as exited with ${as.code} on ${source.name}.s`);
     }
     await writeFile(join(dir, 'link.ld'), options.script);
-    const ld = await runTool(tools.ld, ['-T', 'link.ld', '-o', 'linked.elf', ...sources.map((s) => `${s.name}.o`)], dir);
+    const ld = await runTool(
+      tools.ld,
+      ['-T', 'link.ld', '-o', 'linked.elf', ...sources.map((s) => `${s.name}.o`)],
+      dir,
+    );
     if (ld.code !== 0) return failed(ld.stderr, `arm-none-eabi-ld exited with ${ld.code}`);
     return await textBytes(tools, dir, 'linked.elf');
   } finally {

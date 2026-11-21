@@ -4,16 +4,20 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
 import type { AnalysisResult, ElfFile, ElfSymbol, FunctionFact, MissReason, Mode, Origin, TrailEvent } from 'romlift';
 import type { MissDiagnosis } from 'romlift/internal';
 
-import { armCoverage, corpusSummary, summarizeCorpus, type CorpusSummary } from '../../../src/foundation/corpus/corpus.ts';
 import type { AnalysisRunner } from '../../../bench/src/analysis-run.ts';
 import type { Results, ResultsMeta } from '../../../bench/src/artifact.ts';
 import type { Dataset } from '../../../bench/src/dataset.ts';
 import type { BenchRow } from '../../../bench/src/row.ts';
-import { analysisDigest, SCORED_SCHEMA, type DumpFunction, type ScoredRun } from '../../../bench/src/scored-run.ts';
+import { type DumpFunction, SCORED_SCHEMA, type ScoredRun, analysisDigest } from '../../../bench/src/scored-run.ts';
+import {
+  type CorpusSummary,
+  armCoverage,
+  corpusSummary,
+  summarizeCorpus,
+} from '../../../src/foundation/corpus/corpus.ts';
 
 export interface SymbolSpec {
   readonly name: string;
@@ -64,16 +68,29 @@ export function dataset(overrides: Partial<Dataset> = {}): Dataset {
   };
 }
 
-export const fn = (entry: string, end: string, origin = 'call', mode: 'thumb' | 'arm' = 'thumb'): DumpFunction => ({ entry, end, origin, mode });
+export const fn = (entry: string, end: string, origin = 'call', mode: 'thumb' | 'arm' = 'thumb'): DumpFunction => ({
+  entry,
+  end,
+  origin,
+  mode,
+});
 
 /** A well-formed (empty) corpus summary for the printer member of an artifact. */
 export function printerSummary(): CorpusSummary {
-  return corpusSummary({ inputsDigest: 'i'.repeat(64), as: 'GNU assembler (test) 2.45', options: { seed: 1, armSample: 0, blSample: 0 } }, summarizeCorpus([], armCoverage()), false);
+  return corpusSummary(
+    { inputsDigest: 'i'.repeat(64), as: 'GNU assembler (test) 2.45', options: { seed: 1, armSample: 0, blSample: 0 } },
+    summarizeCorpus([], armCoverage()),
+    false,
+  );
 }
 
 /** A dump whose two digests are its analysis's own, unless overridden. */
 export function dump(overrides: Partial<ScoredRun> = {}): ScoredRun {
-  const analysis = overrides.analysis ?? { functions: [], startup: { end: '0x08000000', entries: [] }, codeRange: ['0x08000000', '0x08000000'] };
+  const analysis = overrides.analysis ?? {
+    functions: [],
+    startup: { end: '0x08000000', entries: [] },
+    codeRange: ['0x08000000', '0x08000000'],
+  };
   const digest = analysisDigest(analysis);
   return {
     schema: SCORED_SCHEMA,
@@ -143,7 +160,13 @@ export async function withTempDir<T>(prefix: string, body: (dir: string) => Prom
 }
 
 /** A function fact with only its entry, extent, mode and origin set; every other list empty. */
-export function fact(entry: number, end: number, origin: Origin = 'call', mode: Mode = 'thumb', overrides: Partial<FunctionFact> = {}): FunctionFact {
+export function fact(
+  entry: number,
+  end: number,
+  origin: Origin = 'call',
+  mode: Mode = 'thumb',
+  overrides: Partial<FunctionFact> = {},
+): FunctionFact {
   return {
     entry,
     mode,
@@ -170,7 +193,11 @@ export function fact(entry: number, end: number, origin: Origin = 'call', mode: 
 }
 
 /** A discover result holding `functions`, the startup region [0x08000000, startupEnd) and `codeEnd`. */
-export function analysisResult(functions: readonly FunctionFact[], startup: { readonly end: number; readonly entries: readonly number[] }, codeEnd: number): AnalysisResult {
+export function analysisResult(
+  functions: readonly FunctionFact[],
+  startup: { readonly end: number; readonly entries: readonly number[] },
+  codeEnd: number,
+): AnalysisResult {
   return {
     schema: 'romlift/analysis@1',
     mode: 'discover',
@@ -192,7 +219,11 @@ export interface FixedRunnerOptions {
   /** The result of the second run (diagnoseMisses), to fake a non-deterministic analysis. */
   readonly second?: AnalysisResult;
   /** Called with every analyze call, to see what the bench asked for. */
-  readonly onAnalyze?: (call: { readonly trail: string; readonly disabled: readonly string[]; readonly filter?: { readonly start: number; readonly end: number } }) => void;
+  readonly onAnalyze?: (call: {
+    readonly trail: string;
+    readonly disabled: readonly string[];
+    readonly filter?: { readonly start: number; readonly end: number };
+  }) => void;
   /** Trail events streamed to the sink of every analyze call that passes one. */
   readonly events?: readonly TrailEvent[];
   /** The result when a rule is disabled. */
@@ -203,19 +234,30 @@ export interface FixedRunnerOptions {
 export function fixedRunner(result: AnalysisResult, options: FixedRunnerOptions = {}): AnalysisRunner {
   return {
     analyze(_rom, _profile, opts, tuning, sink) {
-      options.onAnalyze?.({ trail: opts.trail, disabled: tuning.disabled, ...(opts.trailFilter === undefined ? {} : { filter: opts.trailFilter }) });
+      options.onAnalyze?.({
+        trail: opts.trail,
+        disabled: tuning.disabled,
+        ...(opts.trailFilter === undefined ? {} : { filter: opts.trailFilter }),
+      });
       if (sink !== undefined) for (const e of options.events ?? []) sink.event(e);
       return (tuning.disabled.length > 0 ? options.ablated?.(tuning.disabled) : undefined) ?? result;
     },
     diagnose(_rom, _profile, _opts, _tuning, misses) {
-      const diagnoses: MissDiagnosis[] = misses.map((m) => ({ addr: m.addr, mode: m.mode, reason: options.reasons?.get(m.addr) ?? 'inside-code', detail: 'test' }));
+      const diagnoses: MissDiagnosis[] = misses.map((m) => ({
+        addr: m.addr,
+        mode: m.mode,
+        reason: options.reasons?.get(m.addr) ?? 'inside-code',
+        detail: 'test',
+      }));
       return { result: options.second ?? result, diagnoses };
     },
   };
 }
 
 /** A runner whose analysis throws, as analyze does while a pipeline rule has no implementation. */
-export function failingRunner(message = 'profile agbcc: pipeline rule seed.rom-entry has no implementation'): AnalysisRunner {
+export function failingRunner(
+  message = 'profile agbcc: pipeline rule seed.rom-entry has no implementation',
+): AnalysisRunner {
   const fail = (): never => {
     throw new Error(message);
   };

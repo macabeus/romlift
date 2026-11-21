@@ -17,7 +17,7 @@
 //
 // initModel and generateFromRom are that config's confirm model and checked generate. Pure.
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
-import { diagnostic, RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
+import { RomliftInvariantError, diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import { checkRom } from '../../foundation/rom/rom.ts';
 import { BASEROM_FILE } from '../../foundation/util/project-files.ts';
@@ -29,10 +29,10 @@ import { ModelCodes } from '../model/codes.ts';
 import type { CompilerProfile } from '../profile/types.ts';
 import type { SignatureFile } from '../signatures/schema.ts';
 import { buildNameOf, configFromDiscover } from './config-from-discover.ts';
-import { droppedRegionNotes, foldSignatures, librariesOf, signatureLayer } from './signature-layer.ts';
 import { discover } from './discover.ts';
 import { confirmModel, generate } from './generate.ts';
 import type { ConfirmedModel, GenerateInputs, GenerateResult } from './generate.ts';
+import { droppedRegionNotes, foldSignatures, librariesOf, signatureLayer } from './signature-layer.ts';
 import type { InitOptions } from './types.ts';
 
 /** What a default build name gets when `<name>.gba` would be the user's ROM file or baserom.gba. */
@@ -50,14 +50,32 @@ export function builtRomCollides(name: string, romFile: string): boolean {
 }
 
 /** The build name of a project, or why the one given cannot be (E_NAME_INVALID). */
-export function initBuildName(rom: Pick<Rom, 'header'>, romFile: string, options: Pick<InitOptions, 'name'>): { readonly ok: true; readonly name: string } | { readonly ok: false; readonly diagnostic: Diagnostic } {
+export function initBuildName(
+  rom: Pick<Rom, 'header'>,
+  romFile: string,
+  options: Pick<InitOptions, 'name'>,
+): { readonly ok: true; readonly name: string } | { readonly ok: false; readonly diagnostic: Diagnostic } {
   const given = options.name;
   if (given !== undefined) {
     if (!isBuildName(given)) {
-      return { ok: false, diagnostic: diagnostic(ModelCodes, 'E_NAME_INVALID', `the build name ${JSON.stringify(given)} is no file name: ${BUILD_NAME_RULE}`) };
+      return {
+        ok: false,
+        diagnostic: diagnostic(
+          ModelCodes,
+          'E_NAME_INVALID',
+          `the build name ${JSON.stringify(given)} is no file name: ${BUILD_NAME_RULE}`,
+        ),
+      };
     }
     if (builtRomCollides(given, romFile)) {
-      return { ok: false, diagnostic: diagnostic(ModelCodes, 'E_NAME_INVALID', `the build name ${given} would make \`make\` write ${given}.gba over the ROM ${baseName(romFile)} or ${BASEROM_FILE}; choose another --name`) };
+      return {
+        ok: false,
+        diagnostic: diagnostic(
+          ModelCodes,
+          'E_NAME_INVALID',
+          `the build name ${given} would make \`make\` write ${given}.gba over the ROM ${baseName(romFile)} or ${BASEROM_FILE}; choose another --name`,
+        ),
+      };
     }
     return { ok: true, name: given };
   }
@@ -79,7 +97,12 @@ export interface InitConfigOptions extends InitOptions {
 
 /** The config `init` writes for a ROM and its canonical TOML, or the diagnostics that refuse it. */
 export type InitConfig =
-  | { readonly ok: true; readonly config: RomliftConfig; readonly tomlText: string; readonly diagnostics: readonly Diagnostic[] }
+  | {
+      readonly ok: true;
+      readonly config: RomliftConfig;
+      readonly tomlText: string;
+      readonly diagnostics: readonly Diagnostic[];
+    }
   | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
 
 /**
@@ -95,7 +118,10 @@ export function initConfigOf(rom: Rom, options: InitConfigOptions = {}): InitCon
   if (!found.ok) return found;
   const tomlText = serializeConfig({ ...found.config, build: { ...found.config.build, name: named.name } });
   const parsed = parseConfig(tomlText);
-  if (!parsed.ok) throw new RomliftInvariantError(`init's romlift.toml does not parse back: ${parsed.diagnostics.map((d) => `${d.code} ${d.message}`).join('; ')}`);
+  if (!parsed.ok)
+    throw new RomliftInvariantError(
+      `init's romlift.toml does not parse back: ${parsed.diagnostics.map((d) => `${d.code} ${d.message}`).join('; ')}`,
+    );
   return { ok: true, config: parsed.value, tomlText, diagnostics: [...found.diagnostics, ...parsed.diagnostics] };
 }
 
@@ -103,28 +129,49 @@ export function initConfigOf(rom: Rom, options: InitConfigOptions = {}): InitCon
 function configBeforeSerialising(
   rom: Rom,
   options: InitConfigOptions,
-): { readonly ok: true; readonly config: RomliftConfig; readonly diagnostics: readonly Diagnostic[] } | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] } {
+):
+  | { readonly ok: true; readonly config: RomliftConfig; readonly diagnostics: readonly Diagnostic[] }
+  | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] } {
   const discovered = discover(rom, options.profile === undefined ? {} : { profile: options.profile });
-  if (discovered.diagnostics.some((d) => d.severity === 'error')) return { ok: false, diagnostics: discovered.diagnostics };
+  if (discovered.diagnostics.some((d) => d.severity === 'error'))
+    return { ok: false, diagnostics: discovered.diagnostics };
   const enabled = options.signatures !== false;
   const layer = signatureLayer(rom, discovered, enabled ? (options.signatureFiles ?? []) : []);
-  const inferred = configFromDiscover(rom, discovered, { ...(options.moduleSize === undefined ? {} : { moduleSize: options.moduleSize }), ...(layer.regions.length === 0 ? {} : { libraries: layer.regions }) });
+  const inferred = configFromDiscover(rom, discovered, {
+    ...(options.moduleSize === undefined ? {} : { moduleSize: options.moduleSize }),
+    ...(layer.regions.length === 0 ? {} : { libraries: layer.regions }),
+  });
   const libraries = librariesOf(layer.proposals);
-  const config = { ...foldSignatures(inferred, layer.proposals), signatures: { enabled, ...(libraries.length === 0 ? {} : { libraries }) } };
+  const config = {
+    ...foldSignatures(inferred, layer.proposals),
+    signatures: { enabled, ...(libraries.length === 0 ? {} : { libraries }) },
+  };
   return { ok: true, config, diagnostics: [...layer.diagnostics, ...droppedRegionNotes(config, layer.regions)] };
 }
 
 /** The model init's config gives a ROM: initConfigOf, then the confirm analysis over that config and its Model. */
-export type InitModel = ({ readonly ok: true; readonly config: RomliftConfig } & ConfirmedModel) | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
+export type InitModel =
+  | ({ readonly ok: true; readonly config: RomliftConfig } & ConfirmedModel)
+  | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
 
 export function initModel(rom: Rom, options: InitConfigOptions = {}): InitModel {
   const init = initConfigOf(rom, options);
   if (!init.ok) return init;
-  return { ok: true, config: init.config, ...confirmModel({ rom, config: init.config, ...(options.profile === undefined ? {} : { profile: options.profile }) }) };
+  return {
+    ok: true,
+    config: init.config,
+    ...confirmModel({
+      rom,
+      config: init.config,
+      ...(options.profile === undefined ? {} : { profile: options.profile }),
+    }),
+  };
 }
 
 /** generate over the config initConfigOf builds: what the gates' tree checks check. */
-export type GenerateFromRom = ({ readonly ok: true; readonly config: RomliftConfig } & GenerateResult) | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
+export type GenerateFromRom =
+  | ({ readonly ok: true; readonly config: RomliftConfig } & GenerateResult)
+  | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
 
 export function generateFromRom(rom: Rom, inputs: Omit<GenerateInputs, 'rom' | 'config'>): GenerateFromRom {
   const init = initConfigOf(rom, inputs.profile === undefined ? {} : { profile: inputs.profile });

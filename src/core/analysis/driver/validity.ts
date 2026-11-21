@@ -21,10 +21,18 @@ export function whyInvalid(s: DriverState, entry: Addr): ValidityFailure | undef
  * a Thumb entry is judged by a rule's `checkEntry` before any reading, as whyInvalid; an ARM one (a part of a listed
  * extent, listed-extent.ts) by every rule's `check` of its ARM reading.
  */
-export function firstInvalid(s: DriverState, entry: Addr, mode: Mode, readingOf: () => Reading): ValidityFailure | undefined {
+export function firstInvalid(
+  s: DriverState,
+  entry: Addr,
+  mode: Mode,
+  readingOf: () => Reading,
+): ValidityFailure | undefined {
   let reading: Reading | undefined;
   for (const { id, rule } of s.rules.validity) {
-    const detail = rule.checkEntry !== undefined && mode === 'thumb' ? rule.checkEntry(entry, s.view) : rule.check((reading ??= readingOf()), s.view);
+    const detail =
+      rule.checkEntry !== undefined && mode === 'thumb'
+        ? rule.checkEntry(entry, s.view)
+        : rule.check((reading ??= readingOf()), s.view);
     if (detail !== undefined) return { rule: id, reason: rule.reason, intrinsic: rule.intrinsic, detail };
   }
   return undefined;

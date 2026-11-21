@@ -18,7 +18,8 @@ export function registerEffect(insn: Insn): RegisterEffect {
 export function effectOf(spec: RegisterSpec, ops: Fields, specId: string): RegisterEffect {
   const op = (name: string): number => {
     const value = ops[name];
-    if (value === undefined) throw new RomliftInvariantError(`${specId}: its RegisterSpec names '${name}', which is not one of its operands`);
+    if (value === undefined)
+      throw new RomliftInvariantError(`${specId}: its RegisterSpec names '${name}', which is not one of its operands`);
     return value;
   };
   let writes = spec.fixed ?? 0;

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { defineCodes, diagnostic, RomliftInvariantError } from '../../../src/foundation/diagnostics/diagnostic.ts';
+import { RomliftInvariantError, defineCodes, diagnostic } from '../../../src/foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../../src/foundation/diagnostics/diagnostic.ts';
 
 const FixtureCodes = defineCodes({
@@ -47,7 +47,12 @@ test('diagnostic copies the given extra fields and omits the absent ones', () =>
   });
   cites.push(1);
   assert.deepEqual(d.cites, [0x0800_0000], 'cites is a copy');
-  assert.deepEqual(Object.keys(diagnostic(FixtureCodes, 'E_FIXTURE', 'm', { path: 'p' })), ['code', 'severity', 'message', 'path']);
+  assert.deepEqual(Object.keys(diagnostic(FixtureCodes, 'E_FIXTURE', 'm', { path: 'p' })), [
+    'code',
+    'severity',
+    'message',
+    'path',
+  ]);
 });
 
 test('RomliftInvariantError is an Error with its own name', () => {

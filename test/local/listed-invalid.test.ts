@@ -13,8 +13,17 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-
-import { analyze, canonicalJson, confirmModel, confirmOptions, initConfigOf, profileById, romFromBytes, type AnalysisResult, type JsonValue } from 'romlift';
+import {
+  type AnalysisResult,
+  type JsonValue,
+  analyze,
+  canonicalJson,
+  confirmModel,
+  confirmOptions,
+  initConfigOf,
+  profileById,
+  romFromBytes,
+} from 'romlift';
 import { sha1Of, sha256Stream } from 'romlift/node';
 
 const REPO = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
@@ -35,41 +44,69 @@ const OTHERS: Readonly<Record<string, readonly string[]>> = {
 const profile = profileById('agbcc');
 if (profile === undefined) throw new Error('the agbcc profile is not registered');
 
-const hex = (a: number | undefined): string => (a === undefined ? '-' : `0x${a.toString(16).toUpperCase().padStart(8, '0')}`);
+const hex = (a: number | undefined): string =>
+  a === undefined ? '-' : `0x${a.toString(16).toUpperCase().padStart(8, '0')}`;
 
 /** The result without listedInvalid, its W_LISTED_INVALID warnings and the seeds' validate flags, as a digest. */
 function digestApartFromValidation(r: AnalysisResult): string {
   const seeds = r.options.seeds.map(({ validate: _validate, ...seed }) => seed);
-  const rest = { ...r, options: { ...r.options, seeds }, diagnostics: r.diagnostics.filter((d) => d.code !== 'W_LISTED_INVALID'), ...(r.mode === 'confirm' ? { listedInvalid: [] } : {}) };
+  const rest = {
+    ...r,
+    options: { ...r.options, seeds },
+    diagnostics: r.diagnostics.filter((d) => d.code !== 'W_LISTED_INVALID'),
+    ...(r.mode === 'confirm' ? { listedInvalid: [] } : {}),
+  };
   return sha256Stream(canonicalJson(rest as unknown as JsonValue));
 }
 
 for (const rom of Object.keys(OTHERS)) {
-  const dataset = JSON.parse(readFileSync(path.join(REPO, 'bench', 'dataset', 'real', `${rom}.json`), 'utf8')) as { readonly rom: string; readonly sha1: string };
+  const dataset = JSON.parse(readFileSync(path.join(REPO, 'bench', 'dataset', 'real', `${rom}.json`), 'utf8')) as {
+    readonly rom: string;
+    readonly sha1: string;
+  };
   const romPath = path.join(BENCH_ROOT, dataset.rom);
   const unavailable = existsSync(romPath) ? undefined : `unavailable: rom ${romPath}`;
-  test(`init without signatures then confirm raises no W_LISTED_INVALID: ${rom}`, { skip: REQUIRE ? false : (unavailable ?? false) }, (t) => {
-    assert.equal(unavailable, undefined, unavailable);
-    const bytes = new Uint8Array(readFileSync(romPath));
-    const sha1 = sha1Of(bytes);
-    assert.equal(sha1, dataset.sha1, `${romPath} is not the dataset's ROM`);
-    const r = romFromBytes(bytes, sha1);
-    const init = initConfigOf(r);
-    assert.ok(init.ok, `${rom}: init refused`);
-    const { analysis } = confirmModel({ rom: r, config: init.config });
-    assert.equal(analysis.mode, 'confirm');
-    if (analysis.mode !== 'confirm') return;
+  test(
+    `init without signatures then confirm raises no W_LISTED_INVALID: ${rom}`,
+    { skip: REQUIRE ? false : (unavailable ?? false) },
+    (t) => {
+      assert.equal(unavailable, undefined, unavailable);
+      const bytes = new Uint8Array(readFileSync(romPath));
+      const sha1 = sha1Of(bytes);
+      assert.equal(sha1, dataset.sha1, `${romPath} is not the dataset's ROM`);
+      const r = romFromBytes(bytes, sha1);
+      const init = initConfigOf(r);
+      assert.ok(init.ok, `${rom}: init refused`);
+      const { analysis } = confirmModel({ rom: r, config: init.config });
+      assert.equal(analysis.mode, 'confirm');
+      if (analysis.mode !== 'confirm') return;
 
-    const listedInvalid = analysis.diagnostics.filter((d) => d.code === 'W_LISTED_INVALID');
-    const others = analysis.diagnostics.filter((d) => d.code !== 'W_LISTED_INVALID').map((d) => `${d.code} ${hex(d.addr)}`);
-    const options = confirmOptions(init.config);
-    const validated = analyze(r, profile, { ...options, seeds: options.seeds.map((s) => ({ ...s, validate: true as const })) });
-    const before = validated.diagnostics.filter((d) => d.code === 'W_LISTED_INVALID').length;
-    t.diagnostic(`${rom}: W_LISTED_INVALID ${listedInvalid.length} (expected 0; ${before} with every listed entry validated); other diagnostics: ${others.length === 0 ? 'none' : others.join(', ')}`);
+      const listedInvalid = analysis.diagnostics.filter((d) => d.code === 'W_LISTED_INVALID');
+      const others = analysis.diagnostics
+        .filter((d) => d.code !== 'W_LISTED_INVALID')
+        .map((d) => `${d.code} ${hex(d.addr)}`);
+      const options = confirmOptions(init.config);
+      const validated = analyze(r, profile, {
+        ...options,
+        seeds: options.seeds.map((s) => ({ ...s, validate: true as const })),
+      });
+      const before = validated.diagnostics.filter((d) => d.code === 'W_LISTED_INVALID').length;
+      t.diagnostic(
+        `${rom}: W_LISTED_INVALID ${listedInvalid.length} (expected 0; ${before} with every listed entry validated); other diagnostics: ${others.length === 0 ? 'none' : others.join(', ')}`,
+      );
 
-    assert.deepEqual(listedInvalid.map((d) => hex(d.addr)), [], `${rom}: W_LISTED_INVALID on functions configFromDiscover listed`);
-    assert.deepEqual(analysis.listedInvalid, [], `${rom}: listedInvalid rows`);
-    assert.deepEqual(others, OTHERS[rom], `${rom}: the other confirm diagnostics`);
-    assert.equal(digestApartFromValidation(analysis), digestApartFromValidation(validated), `${rom}: skipping validation changed a decision other than listedInvalid`);
-  });
+      assert.deepEqual(
+        listedInvalid.map((d) => hex(d.addr)),
+        [],
+        `${rom}: W_LISTED_INVALID on functions configFromDiscover listed`,
+      );
+      assert.deepEqual(analysis.listedInvalid, [], `${rom}: listedInvalid rows`);
+      assert.deepEqual(others, OTHERS[rom], `${rom}: the other confirm diagnostics`);
+      assert.equal(
+        digestApartFromValidation(analysis),
+        digestApartFromValidation(validated),
+        `${rom}: skipping validation changed a decision other than listedInvalid`,
+      );
+    },
+  );
 }

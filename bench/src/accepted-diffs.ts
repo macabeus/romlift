@@ -3,10 +3,9 @@
 // removed, an extent that now agrees, each with the commit that made it and a reason. A regression is
 // fixed in the rules, never accepted, so the reader refuses any other kind.
 import { join } from 'node:path';
-
 import { compareCodeUnits } from 'romlift';
 
-import { baselineDir, type BenchContext } from './context.ts';
+import { type BenchContext, baselineDir } from './context.ts';
 import { BenchError, exists, isRecord, readJson } from './files.ts';
 
 export const ACCEPTED_DIFFS_SCHEMA = 'romlift-bench/accepted-diffs@1';
@@ -46,11 +45,15 @@ export function parseAcceptedDiffs(value: unknown, where: string): AcceptedDiffs
     if (!isRecord(item)) throw new BenchError(`${at} is not an object`);
     const text = (key: string): string => {
       const field = item[key];
-      if (typeof field !== 'string' || field.trim() === '') throw new BenchError(`${at}.${key} must be a non-empty string`);
+      if (typeof field !== 'string' || field.trim() === '')
+        throw new BenchError(`${at}.${key} must be a non-empty string`);
       return field;
     };
     const kind = text('kind');
-    if (!isImprovement(kind)) throw new BenchError(`${at}: '${kind}' is not an improvement (${IMPROVEMENT_KINDS.join(', ')}); a regression is fixed in the rules, never accepted`);
+    if (!isImprovement(kind))
+      throw new BenchError(
+        `${at}: '${kind}' is not an improvement (${IMPROVEMENT_KINDS.join(', ')}); a regression is fixed in the rules, never accepted`,
+      );
     const addr = text('addr');
     if (!ADDR.test(addr)) throw new BenchError(`${at}.addr: ${addr} is not 0x plus eight upper-case hex digits`);
     const entry = { rom: text('rom'), kind, addr, commit: text('commit'), reason: text('reason') };
@@ -73,5 +76,7 @@ export async function readAcceptedDiffs(cx: BenchContext): Promise<AcceptedDiffs
 
 /** The accepted improvements of one ROM, by kind then address. */
 export function acceptedFor(diffs: AcceptedDiffs, rom: string): AcceptedImprovement[] {
-  return diffs.improvements.filter((d) => d.rom === rom).sort((a, b) => compareCodeUnits(a.kind, b.kind) || compareCodeUnits(a.addr, b.addr));
+  return diffs.improvements
+    .filter((d) => d.rom === rom)
+    .sort((a, b) => compareCodeUnits(a.kind, b.kind) || compareCodeUnits(a.addr, b.addr));
 }

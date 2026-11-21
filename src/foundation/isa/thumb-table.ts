@@ -2,7 +2,7 @@
 // first row whose mask matches wins). The 32-bit bl pair is the last row; decode pairs a prefix with
 // a following suffix, and a lone half falls to its raw row. Everything here is GNU as unified syntax
 // as `arm-none-eabi-as -mcpu=arm7tdmi` accepts it.
-import { fieldValue as v, popcount, wrap32 } from './bits.ts';
+import { popcount, fieldValue as v, wrap32 } from './bits.ts';
 import { branchOffset, branchTarget, pcOf, thumbPoolBase } from './pc-relative.ts';
 import { blOff, cond, flag, imm, pcRel, reg, reglist, row } from './row.ts';
 import type { Row, RowOptions } from './row.ts';
@@ -25,8 +25,20 @@ const SWI_CLOBBERS = 0b1111;
 // Shifts, add/sub, immediates and the ALU block.
 
 const shifts: Row[] = [
-  T('movs_reg', { mask: 0xffc0, match: 0x0000, fields: [reg('rm', 3), reg('rd', 0)], syntax: 'movs {rd}, {rm}', registers: { writes: RD, from: ['rm'] } }),
-  T('lsl_imm', { mask: 0xf800, match: 0x0000, fields: [imm('imm', 6, 5), reg('rm', 3), reg('rd', 0)], syntax: 'lsls {rd}, {rm}, {imm}', registers: WRITES_RD }),
+  T('movs_reg', {
+    mask: 0xffc0,
+    match: 0x0000,
+    fields: [reg('rm', 3), reg('rd', 0)],
+    syntax: 'movs {rd}, {rm}',
+    registers: { writes: RD, from: ['rm'] },
+  }),
+  T('lsl_imm', {
+    mask: 0xf800,
+    match: 0x0000,
+    fields: [imm('imm', 6, 5), reg('rm', 3), reg('rd', 0)],
+    syntax: 'lsls {rd}, {rm}, {imm}',
+    registers: WRITES_RD,
+  }),
   ...(['lsr', 'asr'] as const).map((op, i) =>
     T(`${op}_imm`, {
       mask: 0xf800,
@@ -48,7 +60,13 @@ const shifts: Row[] = [
 const imm3Raw = (f: Fields): RawReason | null => (v(f, 'rd') === v(f, 'rn') ? 'as-alias' : null);
 
 const addSub: Row[] = [
-  T('add_reg', { mask: 0xfe00, match: 0x1800, fields: LOW3, syntax: 'adds {rd}, {rn}, {rm}', registers: { writes: RD, from: ['rn', 'rm'] } }),
+  T('add_reg', {
+    mask: 0xfe00,
+    match: 0x1800,
+    fields: LOW3,
+    syntax: 'adds {rd}, {rn}, {rm}',
+    registers: { writes: RD, from: ['rn', 'rm'] },
+  }),
   T('sub_reg', { mask: 0xfe00, match: 0x1a00, fields: LOW3, syntax: 'subs {rd}, {rn}, {rm}', registers: WRITES_RD }),
   T('add_imm3', {
     mask: 0xfe00,
@@ -68,7 +86,13 @@ const addSub: Row[] = [
     raw: imm3Raw,
     registers: WRITES_RD,
   }),
-  T('mov_imm', { mask: 0xf800, match: 0x2000, fields: [reg('rd', 8), imm('imm', 0, 8)], syntax: 'movs {rd}, {imm}', registers: WRITES_RD }),
+  T('mov_imm', {
+    mask: 0xf800,
+    match: 0x2000,
+    fields: [reg('rd', 8), imm('imm', 0, 8)],
+    syntax: 'movs {rd}, {imm}',
+    registers: WRITES_RD,
+  }),
   T('cmp_imm', { mask: 0xf800, match: 0x2800, fields: [reg('rn', 8), imm('imm', 0, 8)], syntax: 'cmp {rn}, {imm}' }),
   T('add_imm8', {
     mask: 0xf800,
@@ -130,7 +154,14 @@ function hiRefused(op: number, f: Fields): boolean {
   return op === 1 && (((v(f, 'hd') << 3) | v(f, 'rd3')) === 15 || ((v(f, 'hm') << 3) | v(f, 'rm3')) === 15);
 }
 
-function hiRow(name: string, op: number, first: 'rd' | 'rn', mnemonic: string, asPriority: number, registers?: RegisterSpec): Row {
+function hiRow(
+  name: string,
+  op: number,
+  first: 'rd' | 'rn',
+  mnemonic: string,
+  asPriority: number,
+  registers?: RegisterSpec,
+): Row {
   return T(name, {
     ...(registers === undefined ? {} : { registers }),
     mask: 0xff00,
@@ -216,7 +247,13 @@ function loadRegisters(op: string, address: readonly string[]): { readonly regis
 }
 
 const regOffset: Row[] = REG_OFFSET.map((op, i) =>
-  T(`${op}_reg`, { mask: 0xfe00, match: 0x5000 | (i << 9), fields: LOW3, syntax: `${op} {rd}, [{rn}, {rm}]`, ...loadRegisters(op, ['rn', 'rm']) }),
+  T(`${op}_reg`, {
+    mask: 0xfe00,
+    match: 0x5000 | (i << 9),
+    fields: LOW3,
+    syntax: `${op} {rd}, [{rn}, {rm}]`,
+    ...loadRegisters(op, ['rn', 'rm']),
+  }),
 );
 
 const IMM_OFFSET: readonly (readonly [string, number, number])[] = [
@@ -229,12 +266,29 @@ const IMM_OFFSET: readonly (readonly [string, number, number])[] = [
 ];
 
 const immOffset: Row[] = IMM_OFFSET.map(([op, match, scale]) =>
-  T(`${op}_imm`, { mask: 0xf800, match, fields: [imm('imm', 6, 5, scale), reg('rn', 3), reg('rd', 0)], syntax: `${op} {rd}, [{rn}{off}]`, ...loadRegisters(op, ['rn']) }),
+  T(`${op}_imm`, {
+    mask: 0xf800,
+    match,
+    fields: [imm('imm', 6, 5, scale), reg('rn', 3), reg('rd', 0)],
+    syntax: `${op} {rd}, [{rn}{off}]`,
+    ...loadRegisters(op, ['rn']),
+  }),
 );
 
 const spRelative: Row[] = [
-  T('str_sp', { mask: 0xf800, match: 0x9000, fields: [reg('rd', 8), imm('imm', 0, 8, 4)], syntax: 'str {rd}, [sp{off}]' }),
-  T('ldr_sp', { mask: 0xf800, match: 0x9800, fields: [reg('rd', 8), imm('imm', 0, 8, 4)], syntax: 'ldr {rd}, [sp{off}]', registers: WRITES_RD }),
+  T('str_sp', {
+    mask: 0xf800,
+    match: 0x9000,
+    fields: [reg('rd', 8), imm('imm', 0, 8, 4)],
+    syntax: 'str {rd}, [sp{off}]',
+  }),
+  T('ldr_sp', {
+    mask: 0xf800,
+    match: 0x9800,
+    fields: [reg('rd', 8), imm('imm', 0, 8, 4)],
+    syntax: 'ldr {rd}, [sp{off}]',
+    registers: WRITES_RD,
+  }),
   T('adr', {
     mask: 0xf800,
     match: 0xa000,
@@ -245,7 +299,13 @@ const spRelative: Row[] = [
     toOps: (f, a) => ({ rd: v(f, 'rd'), target: wrap32(thumbPoolBase(a) + v(f, 'imm') * 4) }),
     fromOps: (o, a) => ({ rd: v(o, 'rd'), imm: (v(o, 'target') - thumbPoolBase(a)) / 4 }),
   }),
-  T('add_sp_rd', { mask: 0xf800, match: 0xa800, fields: [reg('rd', 8), imm('imm', 0, 8, 4)], syntax: 'add {rd}, sp, {imm}', registers: WRITES_RD }),
+  T('add_sp_rd', {
+    mask: 0xf800,
+    match: 0xa800,
+    fields: [reg('rd', 8), imm('imm', 0, 8, 4)],
+    syntax: 'add {rd}, sp, {imm}',
+    registers: WRITES_RD,
+  }),
   T('add_sp', {
     mask: 0xff80,
     match: 0xb000,
@@ -336,8 +396,21 @@ const stack: Row[] = [
 // Branches, swi and the undefined spaces.
 
 const branches: Row[] = [
-  T('b_cond_undefined', { mask: 0xff00, match: 0xde00, fields: [imm('imm', 0, 8)], syntax: 'undefined', rawOnly: 'undefined' }),
-  T('swi', { mask: 0xff00, match: 0xdf00, fields: [imm('imm', 0, 8)], syntax: 'swi {imm}', flow: 'swi', registers: { fixed: SWI_CLOBBERS } }),
+  T('b_cond_undefined', {
+    mask: 0xff00,
+    match: 0xde00,
+    fields: [imm('imm', 0, 8)],
+    syntax: 'undefined',
+    rawOnly: 'undefined',
+  }),
+  T('swi', {
+    mask: 0xff00,
+    match: 0xdf00,
+    fields: [imm('imm', 0, 8)],
+    syntax: 'swi {imm}',
+    flow: 'swi',
+    registers: { fixed: SWI_CLOBBERS },
+  }),
   T('bcc', {
     mask: 0xf000,
     match: 0xd000,

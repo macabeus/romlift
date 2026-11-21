@@ -12,7 +12,10 @@ import { thumbAt } from '../../../../helpers/thumb.ts';
 const E = 0x0800_0200;
 
 /** The veto on the stub `code` at E, anchored at start or not. */
-function vetoes(code: string, opts: { anchored?: boolean; proposedBy?: RuleId; profile?: CompilerProfile } = {}): string | undefined {
+function vetoes(
+  code: string,
+  opts: { anchored?: boolean; proposedBy?: RuleId; profile?: CompilerProfile } = {},
+): string | undefined {
   const rom = romWith([{ at: E, bytes: thumbAt(E)`${code}` }]);
   const claims = opts.anchored === false ? [] : [{ span: { start: E - 0x10, end: E }, kind: Claim.code }];
   const v = viewWith({ rom, claims, ...(opts.profile === undefined ? {} : { profile: opts.profile }) });
@@ -39,7 +42,10 @@ test('a stub opening with b, bcc or bl is vetoed even when anchored', () => {
 
 test('the boundary at tinyFunctionInsns: three instructions are not a stub under agbcc, and are under a profile of four', () => {
   assert.equal(vetoes('movs r0, #0; movs r1, #0; bx lr', { anchored: false }), undefined);
-  assert.notEqual(vetoes('movs r0, #0; movs r1, #0; bx lr', { anchored: false, profile: { ...testProfile(), tinyFunctionInsns: 4 } }), undefined);
+  assert.notEqual(
+    vetoes('movs r0, #0; movs r1, #0; bx lr', { anchored: false, profile: { ...testProfile(), tinyFunctionInsns: 4 } }),
+    undefined,
+  );
 });
 
 test('only forward-chain candidates are judged (thumbCandidate); a tiled hole or an ARM gap candidate is not', () => {

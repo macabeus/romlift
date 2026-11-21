@@ -92,23 +92,55 @@ test('CRLF: the line keeps its terminator', () => {
 });
 
 test('refusals: no entry, two entries, a restructured table, a multi-line value', () => {
-  assert.match(refusal(TEXT, 'NoSuchName', 'X')[0] ?? '', /^E_TOML_PATCH_REFUSED no \[functions\], \[entry_points\] or \[symbols\] entry/);
+  assert.match(
+    refusal(TEXT, 'NoSuchName', 'X')[0] ?? '',
+    /^E_TOML_PATCH_REFUSED no \[functions\], \[entry_points\] or \[symbols\] entry/,
+  );
   const twice = TEXT.replace('aliases = ["ThirdAlias", "Other"]', 'aliases = ["ThirdAlias", "gMain"]');
-  assert.match(refusal(twice, 'gMain', 'X')[0] ?? '', /names more than one entry .*\[functions\] 0x08000300, \[symbols\] 0x03000000/);
-  const table = TEXT.replace('0x08000300 = { name = "Third", aliases = ["ThirdAlias", "Other"] }\n', '').replace('[symbols]', '[functions.0x08000300]\nname = "Third"\n\n[symbols]');
+  assert.match(
+    refusal(twice, 'gMain', 'X')[0] ?? '',
+    /names more than one entry .*\[functions\] 0x08000300, \[symbols\] 0x03000000/,
+  );
+  const table = TEXT.replace('0x08000300 = { name = "Third", aliases = ["ThirdAlias", "Other"] }\n', '').replace(
+    '[symbols]',
+    '[functions.0x08000300]\nname = "Third"\n\n[symbols]',
+  );
   const restructured = refusal(table, 'Third', 'Renamed');
-  assert.match(restructured[0] ?? '', /0x08000300 in \[functions\] is not one single-line entry .* replace it with this line under \[functions\]: 0x08000300 = "Renamed"$/);
-  const multi = TEXT.replace('{ name = "Third", aliases = ["ThirdAlias", "Other"] }', '{ name = "Third", aliases = [\n  "ThirdAlias",\n  "Other",\n] }');
+  assert.match(
+    restructured[0] ?? '',
+    /0x08000300 in \[functions\] is not one single-line entry .* replace it with this line under \[functions\]: 0x08000300 = "Renamed"$/,
+  );
+  const multi = TEXT.replace(
+    '{ name = "Third", aliases = ["ThirdAlias", "Other"] }',
+    '{ name = "Third", aliases = [\n  "ThirdAlias",\n  "Other",\n] }',
+  );
   assert.match(refusal(multi, 'Third', 'Renamed')[0] ?? '', /is not one single-line entry/);
 });
 
 test('a config that is not what the text says is refused by the re-parse', () => {
   const config = parsed(TEXT);
-  const other = { ...config, functions: new Map([...config.functions, [0x08000400, { name: 'Ghost', mode: 'thumb' as const, aliases: [] }]]) };
+  const other = {
+    ...config,
+    functions: new Map([...config.functions, [0x08000400, { name: 'Ghost', mode: 'thumb' as const, aliases: [] }]]),
+  };
   const result = planRenamePatch(TEXT, other, 'Ghost', 'Real');
   assert.equal(result.ok, false);
-  assert.match(result.ok ? '' : (result.diagnostics[0]?.message ?? ''), /not one single-line entry|does not mean the intended config/);
-  const lied = planRenamePatch(TEXT, { ...config, functions: new Map([...config.functions, [0x08000100, { name: 'sub_08000100', mode: 'arm' as const, aliases: [] }]]) }, 'sub_08000100', 'X');
+  assert.match(
+    result.ok ? '' : (result.diagnostics[0]?.message ?? ''),
+    /not one single-line entry|does not mean the intended config/,
+  );
+  const lied = planRenamePatch(
+    TEXT,
+    {
+      ...config,
+      functions: new Map([
+        ...config.functions,
+        [0x08000100, { name: 'sub_08000100', mode: 'arm' as const, aliases: [] }],
+      ]),
+    },
+    'sub_08000100',
+    'X',
+  );
   assert.equal(lied.ok, false);
   assert.match(lied.ok ? '' : (lied.diagnostics[0]?.message ?? ''), /is not what romlift.toml says/);
 });

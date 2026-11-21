@@ -4,12 +4,11 @@ import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
-
 import type { TrailEvent } from 'romlift';
-
-import { main, type BenchIo } from '../../../bench/src/cli.ts';
 import { claimName } from 'romlift';
-import { parseExplainAddr, type ExplainReport } from '../../../bench/src/explain.ts';
+
+import { type BenchIo, main } from '../../../bench/src/cli.ts';
+import { type ExplainReport, parseExplainAddr } from '../../../bench/src/explain.ts';
 import { withTempDir } from './fixtures.ts';
 import { syntheticTier, tinyDeps, tinyResult } from './harness.ts';
 
@@ -19,7 +18,16 @@ function capture(): BenchIo & { readonly lines: string[]; readonly errors: strin
   return { lines, errors, out: (l) => lines.push(l), err: (l) => errors.push(l) };
 }
 
-const EVENTS: readonly TrailEvent[] = [{ kind: 'reject', at: 0x0800_000e, rule: 'valid.dense', round: 2, cites: [0x0800_000e], detail: 'not-dense: 9 holes' }];
+const EVENTS: readonly TrailEvent[] = [
+  {
+    kind: 'reject',
+    at: 0x0800_000e,
+    rule: 'valid.dense',
+    round: 2,
+    cites: [0x0800_000e],
+    detail: 'not-dense: 9 holes',
+  },
+];
 
 test('addresses are hex or decimal; claim kinds have names', () => {
   assert.equal(parseExplainAddr('0x0800000E'), 0x0800_000e);
@@ -44,19 +52,30 @@ test('bench explain re-runs with the filtered full trail and explains the addres
     assert.equal(report.schema, 'romlift/bench-explain@1');
     assert.equal(report.rom, 'tiny');
     assert.equal(report.explanation.addr, 0x0800_0010);
-    assert.deepEqual(report.explanation.owner, { entry: 0x0800_0010, origin: 'gap-scan', provenance: [{ rule: 'seed.call', round: 0, cites: [] }] });
+    assert.deepEqual(report.explanation.owner, {
+      entry: 0x0800_0010,
+      origin: 'gap-scan',
+      provenance: [{ rule: 'seed.call', round: 0, cites: [] }],
+    });
     assert.deepEqual(report.explanation.events, EVENTS);
     assert.match(io.lines[0] ?? '', /^0x08000010 in tiny: free$/);
     assert.match(io.lines[1] ?? '', /^ {2}owner 0x08000010 \(origin gap-scan\)$/);
-    assert.ok(io.lines.some((l) => /reject {2}0x0800000E valid\.dense round 2 cites 0x0800000E: not-dense: 9 holes/.test(l)));
+    assert.ok(
+      io.lines.some((l) => /reject {2}0x0800000E valid\.dense round 2 cites 0x0800000E: not-dense: 9 holes/.test(l)),
+    );
   });
 });
 
 test('a sealed dataset is never explained; an unknown name or a bad address is refused', async () => {
   await withTempDir('romlift-explain-sealed-', async (root) => {
     const cx = await syntheticTier(root);
-    const tiny = JSON.parse(await readFile(join(cx.repoRoot, 'bench', 'dataset', 'real', 'tiny.json'), 'utf8')) as Record<string, unknown>;
-    await writeFile(join(cx.repoRoot, 'bench', 'dataset', 'real', 'held.json'), JSON.stringify({ ...tiny, name: 'held', heldout: true, revealed: [], labels: [], untyped: [] }));
+    const tiny = JSON.parse(
+      await readFile(join(cx.repoRoot, 'bench', 'dataset', 'real', 'tiny.json'), 'utf8'),
+    ) as Record<string, unknown>;
+    await writeFile(
+      join(cx.repoRoot, 'bench', 'dataset', 'real', 'held.json'),
+      JSON.stringify({ ...tiny, name: 'held', heldout: true, revealed: [], labels: [], untyped: [] }),
+    );
     const io = capture();
     assert.equal(await main(['explain', 'held', '0x08000010'], cx, io, tinyDeps()), 1);
     assert.match(io.errors[0] ?? '', /held is sealed: an explanation prints addresses/);

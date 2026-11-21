@@ -3,26 +3,33 @@
 // a refused input, 2 on a usage error. The analysis is reached through BenchDeps.runner (romlift's own
 // by default), so the tests run every command on hand-built analyses.
 import { fileURLToPath } from 'node:url';
-
-import { isRuleId, type RuleId } from 'romlift';
+import { type RuleId, isRuleId } from 'romlift';
 
 import { ablate, isAblatable } from './ablate.ts';
 import { benchAdopt } from './adopt.ts';
-import { benchProfile, ROMLIFT_RUNNER, type AnalysisRunner, type RunTuning } from './analysis-run.ts';
-import { parseArgs, UsageError, type ArgSpec, type BenchArgs } from './args.ts';
+import { type AnalysisRunner, ROMLIFT_RUNNER, type RunTuning, benchProfile } from './analysis-run.ts';
+import { type ArgSpec, type BenchArgs, UsageError, parseArgs } from './args.ts';
 import { readResultsFile } from './artifact.ts';
-import { contextFromEnv, gatesDir, resultsPath, type BenchContext } from './context.ts';
+import { type BenchContext, contextFromEnv, gatesDir, resultsPath } from './context.ts';
 import { datasetCheck } from './dataset-check.ts';
 import { doctorReal } from './doctor-real.ts';
 import { benchExplain, explainText, parseExplainAddr } from './explain.ts';
 import { BenchError, prettyJson } from './files.ts';
-import { runGates, type Tier } from './gates.ts';
+import { type Tier, runGates } from './gates.ts';
 import { gitHead } from './git.ts';
 import { pocCheck, romPasses } from './poc-check.ts';
 import { provenanceChecks, provenanceInputs } from './provenance.ts';
 import { defaultBase, readBase, readFresh, regression, regressionReport } from './regression.ts';
 import { baselineText, diffResults, formatDiff, moved } from './report.ts';
-import { BENCH_RUN_SCHEMA, benchRun, largeRomProcess, revealDataset, summaryText, type BenchRunReport, type RunOptions } from './run.ts';
+import {
+  BENCH_RUN_SCHEMA,
+  type BenchRunReport,
+  type RunOptions,
+  benchRun,
+  largeRomProcess,
+  revealDataset,
+  summaryText,
+} from './run.ts';
 import type { EmissionFamilies } from './scaffold.ts';
 import { serve } from './serve.ts';
 import { benchSignatures, benchSignaturesLoo } from './signatures.ts';
@@ -59,7 +66,14 @@ interface Command {
   readonly repeated?: readonly string[];
   /** The arguments go unparsed to another program, in `raw`. */
   readonly passthrough?: boolean;
-  run(cx: BenchContext, args: BenchArgs, io: BenchIo, deps: BenchDeps, repeated: Readonly<Record<string, readonly string[]>>, raw: readonly string[]): Promise<number>;
+  run(
+    cx: BenchContext,
+    args: BenchArgs,
+    io: BenchIo,
+    deps: BenchDeps,
+    repeated: Readonly<Record<string, readonly string[]>>,
+    raw: readonly string[],
+  ): Promise<number>;
 }
 
 const json = (io: BenchIo, value: unknown): void => io.out(JSON.stringify(value));
@@ -71,7 +85,10 @@ function integer(text: string | undefined, name: string): number | undefined {
 }
 
 /** Takes every `--<name> <value>` of the repeatable options out of argv; values may also be comma-separated. */
-export function takeRepeated(argv: readonly string[], names: readonly string[]): { readonly rest: string[]; readonly values: Record<string, string[]> } {
+export function takeRepeated(
+  argv: readonly string[],
+  names: readonly string[],
+): { readonly rest: string[]; readonly values: Record<string, string[]> } {
   const rest: string[] = [];
   const values: Record<string, string[]> = Object.fromEntries(names.map((n) => [n, []]));
   for (let i = 0; i < argv.length; i++) {
@@ -122,10 +139,12 @@ export const COMMANDS: Readonly<Record<string, Command>> = {
       if (reveal !== undefined) {
         if (reason === undefined || reason.trim() === '') throw new UsageError('--reveal needs --reason <text>');
         if (args.options['only'] !== undefined) throw new UsageError('--reveal names its dataset; drop --only');
-        if (args.flags.has('scaffold') || args.flags.has('write-readability-floor')) throw new UsageError('--reveal scores one dataset; drop --scaffold and --write-readability-floor');
+        if (args.flags.has('scaffold') || args.flags.has('write-readability-floor'))
+          throw new UsageError('--reveal scores one dataset; drop --scaffold and --write-readability-floor');
         const row = await revealDataset(cx, reveal, { reason, runner: deps.runner, at: deps.now(), log: io.out });
         io.out(summaryText(row));
-        if (asJson) json(io, { schema: BENCH_RUN_SCHEMA, roms: [row], sealed: [], failed: [] } satisfies BenchRunReport);
+        if (asJson)
+          json(io, { schema: BENCH_RUN_SCHEMA, roms: [row], sealed: [], failed: [] } satisfies BenchRunReport);
         else io.out(prettyJson(row).trimEnd());
         return 0;
       }
@@ -168,7 +187,8 @@ export const COMMANDS: Readonly<Record<string, Command>> = {
     },
   },
   'large-rom': {
-    summary: 'large-rom [--json] [--rom <path>]  run bench/src/large-rom.ts with these arguments (the memory family, g3.large-rom; each child under the romlift bin\'s heap cap) and relay its output and exit code',
+    summary:
+      "large-rom [--json] [--rom <path>]  run bench/src/large-rom.ts with these arguments (the memory family, g3.large-rom; each child under the romlift bin's heap cap) and relay its output and exit code",
     args: {},
     passthrough: true,
     async run(cx, _args, io, deps, _repeated, raw) {
@@ -178,7 +198,8 @@ export const COMMANDS: Readonly<Record<string, Command>> = {
     },
   },
   speed: {
-    summary: 'speed [--only <rom>] [--json] [--write-baseline]  serial median CPU time of the analysis per tuning ROM against bench/baseline/speed.json, calibrated',
+    summary:
+      'speed [--only <rom>] [--json] [--write-baseline]  serial median CPU time of the analysis per tuning ROM against bench/baseline/speed.json, calibrated',
     args: { options: ['only'], flags: ['json', 'write-baseline'] },
     async run(cx, args, io, deps) {
       const only = args.options['only'];
@@ -195,23 +216,31 @@ export const COMMANDS: Readonly<Record<string, Command>> = {
     },
   },
   ablate: {
-    summary: 'ablate <rule> [--only <name>] [--tier synthetic|real] [--json]  re-run with one rule disabled and print where it was decisive and what moves',
+    summary:
+      'ablate <rule> [--only <name>] [--tier synthetic|real] [--json]  re-run with one rule disabled and print where it was decisive and what moves',
     args: { options: ['only', 'tier'], flags: ['json'], maxPositionals: 1 },
     async run(cx, args, io, deps) {
       const rule = args.positionals[0];
       if (rule === undefined) throw new UsageError('ablate needs a rule id');
-      if (!isAblatable(rule, benchProfile())) throw new UsageError(`${rule} is neither a registered rule nor in the profile's pipeline`);
+      if (!isAblatable(rule, benchProfile()))
+        throw new UsageError(`${rule} is neither a registered rule nor in the profile's pipeline`);
       const tier = args.options['tier'] ?? 'synthetic';
       if (tier !== 'synthetic' && tier !== 'real') throw new UsageError('--tier must be synthetic or real');
       const only = args.options['only'];
-      const report = await ablate(cx, rule, { tier, ...(only === undefined ? {} : { only }), runner: deps.runner, log: io.out });
+      const report = await ablate(cx, rule, {
+        tier,
+        ...(only === undefined ? {} : { only }),
+        runner: deps.runner,
+        log: io.out,
+      });
       io.out(`${rule}: decisive in ${report.decisiveIn.length}, changes ${report.changed.length} ${tier} target(s)`);
       if (args.flags.has('json')) json(io, report);
       return 0;
     },
   },
   explain: {
-    summary: 'explain <rom> <addr> [--json]  what the discover run decided about one address of a tuning ROM or a fixture',
+    summary:
+      'explain <rom> <addr> [--json]  what the discover run decided about one address of a tuning ROM or a fixture',
     args: { flags: ['json'], maxPositionals: 2 },
     async run(cx, args, io, deps) {
       const [rom, text] = args.positionals;
@@ -225,24 +254,30 @@ export const COMMANDS: Readonly<Record<string, Command>> = {
     },
   },
   adopt: {
-    summary: "adopt <rom>  seed a new tuning dataset's labels and untyped lists from its run, as unreviewed rows (refuses a sealed dataset)",
+    summary:
+      "adopt <rom>  seed a new tuning dataset's labels and untyped lists from its run, as unreviewed rows (refuses a sealed dataset)",
     args: { maxPositionals: 1 },
     async run(cx, args, io, deps) {
       const rom = args.positionals[0];
       if (rom === undefined) throw new UsageError('adopt needs a dataset name');
       const outcome = await benchAdopt(cx, rom, deps.runner, (await gitHead(cx.repoRoot)) ?? 'none');
-      io.out(`${outcome.file}: ${outcome.added.length} row(s) added as unreviewed; classify each (bench explain) and commit with these trailers:`);
+      io.out(
+        `${outcome.file}: ${outcome.added.length} row(s) added as unreviewed; classify each (bench explain) and commit with these trailers:`,
+      );
       for (const t of outcome.trailers) io.out(t);
       return 0;
     },
   },
   'poc-check': {
-    summary: 'poc-check [--json]  rescoring the PoC dumps reproduces bench/baseline/poc-2026-10-16.json (g1.bench-harness)',
+    summary:
+      'poc-check [--json]  rescoring the PoC dumps reproduces bench/baseline/poc-2026-10-16.json (g1.bench-harness)',
     args: { flags: ['json'] },
     async run(cx, args, io) {
       const report = await pocCheck(cx);
       for (const r of report.roms) {
-        io.out(`${r.name.padEnd(12)} ${romPasses(r) ? 'OK' : 'FAILED'}  rows ${r.rowsEqual ? 'equal' : 'differ'}, PoC row ${r.pinnedRow === true ? (r.pocRowEqual ? 'equal to the one pinned in poc-dump-rows.json (rows compared with the PoC\'s own row)' : 'differs from the pinned one') : !r.baselineRow ? 'missing (no baseline row, not revealed)' : r.pocRowEqual ? 'equal' : 'differs'}, scaffold ${r.scaffoldOk ? 'OK' : 'FAILED'}, ${r.deterministic ? 'deterministic' : 'NOT deterministic'}, PoC source ${r.pocSourceDigestOk ? 'pinned' : 'NOT pinned'}`);
+        io.out(
+          `${r.name.padEnd(12)} ${romPasses(r) ? 'OK' : 'FAILED'}  rows ${r.rowsEqual ? 'equal' : 'differ'}, PoC row ${r.pinnedRow === true ? (r.pocRowEqual ? "equal to the one pinned in poc-dump-rows.json (rows compared with the PoC's own row)" : 'differs from the pinned one') : !r.baselineRow ? 'missing (no baseline row, not revealed)' : r.pocRowEqual ? 'equal' : 'differs'}, scaffold ${r.scaffoldOk ? 'OK' : 'FAILED'}, ${r.deterministic ? 'deterministic' : 'NOT deterministic'}, PoC source ${r.pocSourceDigestOk ? 'pinned' : 'NOT pinned'}`,
+        );
         for (const d of r.diffs) io.out(`  ${d}`);
       }
       if (args.flags.has('json')) json(io, report);
@@ -250,18 +285,29 @@ export const COMMANDS: Readonly<Record<string, Command>> = {
     },
   },
   'dataset-check': {
-    summary: "dataset-check [--json]  every labels row is an ELF FUNC inside a function romlift's run found, every untyped row is not a FUNC, no stale row (g1.dataset-elf)",
+    summary:
+      "dataset-check [--json]  every labels row is an ELF FUNC inside a function romlift's run found, every untyped row is not a FUNC, no stale row (g1.dataset-elf)",
     args: { flags: ['json'] },
     async run(cx, args, io, deps) {
       const report = await datasetCheck(cx, deps.runner);
       for (const p of report.problems) io.out(`${p.dataset}: ${p.problem}: ${p.detail}`);
       if (report.ok) io.out('every dataset agrees with its ELF and its run');
-      if (args.flags.has('json')) json(io, { ok: report.ok, problems: report.problems.map((p) => ({ dataset: p.dataset, list: p.list, addr: p.addr, problem: p.problem })) });
+      if (args.flags.has('json'))
+        json(io, {
+          ok: report.ok,
+          problems: report.problems.map((p) => ({
+            dataset: p.dataset,
+            list: p.list,
+            addr: p.addr,
+            problem: p.problem,
+          })),
+        });
       return report.ok ? 0 : 1;
     },
   },
   provenance: {
-    summary: 'provenance [--json]  the artifact matches the sources, its gate record, families and dataset rows (architecture §8.6)',
+    summary:
+      'provenance [--json]  the artifact matches the sources, its gate record, families and dataset rows (architecture §8.6)',
     args: { flags: ['json'] },
     async run(cx, args, io) {
       const checks = provenanceChecks(await provenanceInputs(cx));
@@ -283,7 +329,8 @@ export const COMMANDS: Readonly<Record<string, Command>> = {
     },
   },
   'doctor-real': {
-    summary: 'doctor-real [--json]  every ROM, ELF, map, the PoC checkout and the toolchain match their recorded digests',
+    summary:
+      'doctor-real [--json]  every ROM, ELF, map, the PoC checkout and the toolchain match their recorded digests',
     args: { flags: ['json'] },
     async run(cx, args, io) {
       const report = await doctorReal(cx);
@@ -293,7 +340,8 @@ export const COMMANDS: Readonly<Record<string, Command>> = {
     },
   },
   gates: {
-    summary: 'gates [--require <n>] [--tier ci|real] [--dir <dir>]  run the gate tests and print every verdict; --tier real writes the gate record',
+    summary:
+      'gates [--require <n>] [--tier ci|real] [--dir <dir>]  run the gate tests and print every verdict; --tier real writes the gate record',
     args: { options: ['require', 'tier', 'dir'] },
     async run(cx, args, io) {
       const tierText = args.options['tier'] ?? 'ci';
@@ -314,12 +362,16 @@ export const COMMANDS: Readonly<Record<string, Command>> = {
     },
   },
   regression: {
-    summary: 'regression [--base <ref|file>] [--fresh <file>] [--json]  compare with the base artifact (default: git merge-base origin/main HEAD)',
+    summary:
+      'regression [--base <ref|file>] [--fresh <file>] [--json]  compare with the base artifact (default: git merge-base origin/main HEAD)',
     args: { options: ['base', 'fresh'], flags: ['json'] },
     async run(cx, args, io) {
       const base = args.options['base'];
       const fresh = args.options['fresh'];
-      const outcome = await regression(cx, { ...(base === undefined ? {} : { base }), ...(fresh === undefined ? {} : { fresh }) });
+      const outcome = await regression(cx, {
+        ...(base === undefined ? {} : { base }),
+        ...(fresh === undefined ? {} : { fresh }),
+      });
       for (const n of outcome.notes) io.out(`note: ${n}`);
       if (outcome.failures.length > 0) {
         io.out(`REGRESSION against ${outcome.baseLabel}: ${outcome.failures.length} failure(s)`);
@@ -355,7 +407,8 @@ export const COMMANDS: Readonly<Record<string, Command>> = {
       const rom = args.positionals[0];
       if (rom === undefined) throw new UsageError('baseline needs a ROM name');
       const ref = args.options['base'] ?? 'HEAD';
-      const { artifact } = ref === 'file' ? { artifact: await readResultsFile(resultsPath(cx)) } : await readBase(cx, ref);
+      const { artifact } =
+        ref === 'file' ? { artifact: await readResultsFile(resultsPath(cx)) } : await readBase(cx, ref);
       const text = artifact === undefined ? undefined : baselineText(artifact, rom, ref);
       if (text === undefined) {
         io.err(`no row for ${rom} in the artifact at ${ref}`);
@@ -376,10 +429,19 @@ export const COMMANDS: Readonly<Record<string, Command>> = {
 };
 
 export function usage(): string {
-  return ['romlift benchmark: npm run bench -- <command>', '', ...Object.values(COMMANDS).map((c) => `  ${c.summary}`)].join('\n');
+  return [
+    'romlift benchmark: npm run bench -- <command>',
+    '',
+    ...Object.values(COMMANDS).map((c) => `  ${c.summary}`),
+  ].join('\n');
 }
 
-export async function main(argv: readonly string[], cx: BenchContext, io: BenchIo, deps: BenchDeps = DEFAULT_DEPS): Promise<number> {
+export async function main(
+  argv: readonly string[],
+  cx: BenchContext,
+  io: BenchIo,
+  deps: BenchDeps = DEFAULT_DEPS,
+): Promise<number> {
   const [name, ...rest] = argv;
   const command = name === undefined || !Object.hasOwn(COMMANDS, name) ? undefined : COMMANDS[name];
   if (command === undefined) {
@@ -404,13 +466,18 @@ export async function main(argv: readonly string[], cx: BenchContext, io: BenchI
 }
 
 if (process.argv[1] !== undefined && fileURLToPath(import.meta.url) === process.argv[1]) {
-  const io: BenchIo = { out: (line) => process.stdout.write(`${line}\n`), err: (line) => process.stderr.write(`${line}\n`) };
+  const io: BenchIo = {
+    out: (line) => process.stdout.write(`${line}\n`),
+    err: (line) => process.stderr.write(`${line}\n`),
+  };
   main(process.argv.slice(2), contextFromEnv(process.env), io).then(
     (code) => {
       process.exitCode = code;
     },
     (error: unknown) => {
-      process.stderr.write(`internal error: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`);
+      process.stderr.write(
+        `internal error: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`,
+      );
       process.exitCode = 70;
     },
   );

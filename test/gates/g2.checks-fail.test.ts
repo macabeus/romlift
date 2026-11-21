@@ -5,10 +5,13 @@
 // was deleted with the lockstep oracle (D59).
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
-import { gate, type ExecResult } from './gate.ts';
+
+import { type ExecResult, gate } from './gate.ts';
 
 const DIR = 'test/mutation/phase2';
-const FILES: readonly string[] = ['classify', 'seal', 'stale-exception', 'regression'].map((name) => `${DIR}/${name}.test.ts`);
+const FILES: readonly string[] = ['classify', 'seal', 'stale-exception', 'regression'].map(
+  (name) => `${DIR}/${name}.test.ts`,
+);
 
 function tail(run: ExecResult, lines = 40): string {
   return `${run.stdout}${run.stderr}`.trimEnd().split('\n').slice(-lines).join('\n');
@@ -31,9 +34,13 @@ gate({
     const absent: string[] = [];
     for (const file of FILES) if (!(await isFile(path.join(cx.repoRoot, file)))) absent.push(file);
     if (absent.length > 0) throw new Error(`missing mutation tests: ${absent.join(', ')}`);
-    const run = await cx.exec(process.execPath, ['--conditions=source', '--test', '--test-reporter=tap', `${DIR}/**/*.test.ts`], {
-      cwd: cx.repoRoot,
-    });
+    const run = await cx.exec(
+      process.execPath,
+      ['--conditions=source', '--test', '--test-reporter=tap', `${DIR}/**/*.test.ts`],
+      {
+        cwd: cx.repoRoot,
+      },
+    );
     if (run.code !== 0) throw new Error(`node --test ${DIR}/ exited ${run.code}:\n${tail(run)}`);
     const passed = /^# pass (\d+)$/m.exec(run.stdout)?.[1] ?? '?';
     cx.note(`${FILES.length} phase-2 mutation test files, ${passed} tests pass`);

@@ -16,7 +16,13 @@ function byPath(a: FileEntry, b: FileEntry): number {
   return compareCodeUnits(a.path, b.path);
 }
 
-function collect(writers: readonly Writer[], rom: Rom, model: Model, cx: EmitContext, module: number | null): FileEntry[] {
+function collect(
+  writers: readonly Writer[],
+  rom: Rom,
+  model: Model,
+  cx: EmitContext,
+  module: number | null,
+): FileEntry[] {
   const entries: FileEntry[] = [];
   for (const writer of writers) for (const entry of writer.emit(rom, model, cx, module)) entries.push(entry);
   return entries.sort(byPath);

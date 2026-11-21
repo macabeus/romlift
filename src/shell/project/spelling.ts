@@ -12,14 +12,14 @@
 // the first op). The next run puts every such entry that a component of a journalled write or edit path names back
 // under its old name (restoreCaseRenames), so that run's own ops make the case rename again, from the start: the
 // journal records the op, and the temporary name records the old name, so no journal field is needed.
-import { lstat, rename } from 'node:fs/promises';
 import type { Stats } from 'node:fs';
+import { lstat, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import type { Journal } from '../../core/write-plan/journal.ts';
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { foldPath } from '../../foundation/util/fold.ts';
-import type { Journal } from '../../core/write-plan/journal.ts';
 import { ShellCodes } from '../codes.ts';
 import { errorReason, isAbsentError, listDir } from '../fs.ts';
 
@@ -117,11 +117,21 @@ export async function respell(dir: string, path: string, listings: Listings): Pr
       try {
         if (!(await sameEntry(join(at, other), join(at, part)))) return undefined;
       } catch (error) {
-        return diagnostic(ShellCodes, 'E_IO_WRITE', `cannot rename ${join(at, other)} to ${part}: ${errorReason(error)}`, { path: join(at, other) });
+        return diagnostic(
+          ShellCodes,
+          'E_IO_WRITE',
+          `cannot rename ${join(at, other)} to ${part}: ${errorReason(error)}`,
+          { path: join(at, other) },
+        );
       }
       const renamed = await renameCase(at, other, part);
       if (!renamed.ok) {
-        return diagnostic(ShellCodes, 'E_IO_WRITE', `cannot rename ${join(at, other)} to ${part}: ${errorReason(renamed.error)}; it is at ${renamed.at}`, { path: renamed.at });
+        return diagnostic(
+          ShellCodes,
+          'E_IO_WRITE',
+          `cannot rename ${join(at, other)} to ${part}: ${errorReason(renamed.error)}; it is at ${renamed.at}`,
+          { path: renamed.at },
+        );
       }
       listing.names.delete(other);
       listing.names.add(part);
@@ -175,7 +185,12 @@ export async function restoreCaseRenames(dir: string, journal: Journal): Promise
           try {
             await rename(join(at, stranded), join(at, origin));
           } catch (error) {
-            return diagnostic(ShellCodes, 'E_IO_WRITE', `cannot rename ${join(at, stranded)} back to ${origin}: ${errorReason(error)}`, { path: join(at, stranded) });
+            return diagnostic(
+              ShellCodes,
+              'E_IO_WRITE',
+              `cannot rename ${join(at, stranded)} back to ${origin}: ${errorReason(error)}`,
+              { path: join(at, stranded) },
+            );
           }
           names.splice(names.indexOf(stranded), 1, origin);
           listings.delete(join(at, stranded));
@@ -187,7 +202,9 @@ export async function restoreCaseRenames(dir: string, journal: Journal): Promise
       try {
         stats = await statOf(join(at, entry));
       } catch (error) {
-        return diagnostic(ShellCodes, 'E_IO_WRITE', `cannot stat ${join(at, entry)}: ${errorReason(error)}`, { path: join(at, entry) });
+        return diagnostic(ShellCodes, 'E_IO_WRITE', `cannot stat ${join(at, entry)}: ${errorReason(error)}`, {
+          path: join(at, entry),
+        });
       }
       if (stats === undefined || !stats.isDirectory()) break;
       at = join(at, entry);

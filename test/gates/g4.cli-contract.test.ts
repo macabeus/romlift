@@ -20,7 +20,8 @@
 //   `rename <old> <new>` exits 1 when <old> is unknown, 0 for a listed default name (phase 6, D92, D93).
 import { copyFile, mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { gate, type ExecResult, type GateContext } from './gate.ts';
+
+import { type ExecResult, type GateContext, gate } from './gate.ts';
 
 interface CliLine {
   readonly type?: unknown;
@@ -59,7 +60,13 @@ const RECIPES: Readonly<Record<string, readonly Recipe[]>> = {
   init: [
     { label: 'init <rom>', args: () => [ROM], place: 'bare', exits: [0] },
     { label: 'init <rom> in a non-empty directory', args: () => [ROM], place: 'empty', exits: [1] },
-    { label: 'init <rom> --no-signatures', args: () => [ROM, '--no-signatures'], place: 'bare', exits: [0], option: 'no-signatures' },
+    {
+      label: 'init <rom> --no-signatures',
+      args: () => [ROM, '--no-signatures'],
+      place: 'bare',
+      exits: [0],
+      option: 'no-signatures',
+    },
   ],
   generate: [
     { label: 'generate', args: () => [], place: 'project', exits: [0] },
@@ -105,10 +112,12 @@ function ndjsonProblem(run: ExecResult): string | undefined {
     } catch {
       return `stdout line ${i + 1} is not JSON: ${(lines[i] ?? '').slice(0, 120)}`;
     }
-    if (typeof last !== 'object' || last === null || Array.isArray(last)) return `stdout line ${i + 1} is not a JSON object`;
+    if (typeof last !== 'object' || last === null || Array.isArray(last))
+      return `stdout line ${i + 1} is not a JSON object`;
   }
   if (last?.type !== 'summary') return 'the last line is not {"type":"summary",...}';
-  if (last.exitCode !== run.code) return `the summary says exitCode ${String(last.exitCode)}, the process exited ${run.code}`;
+  if (last.exitCode !== run.code)
+    return `the summary says exitCode ${String(last.exitCode)}, the process exited ${run.code}`;
   if (last.ok !== (run.code === 0)) return `the summary says ok ${String(last.ok)} with exit ${run.code}`;
   return undefined;
 }
@@ -138,12 +147,15 @@ gate({
     const usage = await romlift([], base);
     if (usage.code !== 0) throw new Error(`romlift with no arguments exited ${usage.code}:\n${tail(usage)}`);
     const commands = registry(usage.stdout);
-    if ([...commands].sort().join(' ') !== COMMANDS.join(' ')) throw new Error(`the registry lists ${commands.join(', ')}, not exactly ${COMMANDS.join(', ')} (D108)`);
+    if ([...commands].sort().join(' ') !== COMMANDS.join(' '))
+      throw new Error(`the registry lists ${commands.join(', ')}, not exactly ${COMMANDS.join(', ')} (D108)`);
 
     const projectDir = await place('bare');
     const init = await romlift(['init', ROM, '--json'], projectDir);
     if (init.code !== 0) throw new Error(`init of the contract project exited ${init.code}:\n${tail(init)}`);
-    const defaultName = /= "(sub_[0-9A-F]{8})"/.exec(await readFile(path.join(projectDir, 'romlift.toml'), 'utf8'))?.[1];
+    const defaultName = /= "(sub_[0-9A-F]{8})"/.exec(
+      await readFile(path.join(projectDir, 'romlift.toml'), 'utf8'),
+    )?.[1];
     if (defaultName === undefined) throw new Error('the contract project lists no default-named function');
     const project: Project = { dir: projectDir, defaultName };
 
@@ -152,7 +164,8 @@ gate({
     for (const command of commands) {
       const help = await romlift([command, '--help'], base);
       const listed = options(help.stdout);
-      if (help.code !== 0 || !help.stdout.startsWith(`Usage: romlift ${command}`)) problems.push(`${command} --help exited ${help.code} or printed no usage`);
+      if (help.code !== 0 || !help.stdout.startsWith(`Usage: romlift ${command}`))
+        problems.push(`${command} --help exited ${help.code} or printed no usage`);
       else if (!listed.includes('json')) problems.push(`${command} has no --json option`);
       const bad = await romlift([command, '--romlift-gate-no-such-option'], base);
       if (bad.code !== 2) problems.push(`${command} with an unknown option exited ${bad.code}, not 2`);
@@ -170,9 +183,12 @@ gate({
         const cwd = recipe.place === 'project' ? project.dir : await place(recipe.place);
         const run = await romlift([command, ...recipe.args(project), '--json'], cwd);
         runs++;
-        if (run.code === 124) problems.push(`${recipe.label}: did not finish within ${TIME_LIMIT_MS} ms with stdin closed`);
-        else if (!EXIT_CODES.has(run.code) || run.code === 70) problems.push(`${recipe.label}: exit ${run.code}:\n${tail(run, 8)}`);
-        else if (!recipe.exits.includes(run.code)) problems.push(`${recipe.label}: exit ${run.code}, expected ${recipe.exits.join(' or ')}:\n${tail(run, 8)}`);
+        if (run.code === 124)
+          problems.push(`${recipe.label}: did not finish within ${TIME_LIMIT_MS} ms with stdin closed`);
+        else if (!EXIT_CODES.has(run.code) || run.code === 70)
+          problems.push(`${recipe.label}: exit ${run.code}:\n${tail(run, 8)}`);
+        else if (!recipe.exits.includes(run.code))
+          problems.push(`${recipe.label}: exit ${run.code}, expected ${recipe.exits.join(' or ')}:\n${tail(run, 8)}`);
         else {
           const problem = ndjsonProblem(run);
           if (problem !== undefined) problems.push(`${recipe.label} --json: ${problem}`);
@@ -180,6 +196,8 @@ gate({
       }
     }
     if (problems.length > 0) throw new Error(`CLI contract: ${problems.join(' | ')}`);
-    cx.note(`${commands.length} commands (${commands.join(', ')}): help, usage errors and ${runs} --json runs with stdin closed follow §2.1`);
+    cx.note(
+      `${commands.length} commands (${commands.join(', ')}): help, usage errors and ${runs} --json runs with stdin closed follow §2.1`,
+    );
   },
 });

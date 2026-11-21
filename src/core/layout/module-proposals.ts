@@ -43,13 +43,17 @@ export function resumedModule(holder: ModuleAt, at: Addr, taken: Set<string>, re
     name: freeModuleName(`${holder.name}_${hex(at)}`, taken),
     start: at,
     moduleKind: holder.kind,
-    ...(holder.library === undefined || holder.version === undefined ? {} : { library: { name: holder.library, version: holder.version } }),
+    ...(holder.library === undefined || holder.version === undefined
+      ? {}
+      : { library: { name: holder.library, version: holder.version } }),
     source: { kind: 'layout', reason },
   };
 }
 
 /** Why a runs_at range cannot be made its own module. */
-export type RunsAtRefusal = { readonly kind: 'outside-rom' } | { readonly kind: 'c-module-inside'; readonly module: ModuleAt };
+export type RunsAtRefusal =
+  | { readonly kind: 'outside-rom' }
+  | { readonly kind: 'c-module-inside'; readonly module: ModuleAt };
 
 /** What planRunsAtBorders leaves: the border proposals, and the ranges it refuses. */
 export interface RunsAtBorderPlan {
@@ -64,7 +68,11 @@ export interface RunsAtBorderPlan {
  * ranges in one module each split it once. A range outside the ROM, or one a `c` module starts strictly inside, is
  * refused.
  */
-export function planRunsAtBorders(rom: { readonly base: Addr; readonly end: Addr }, modules: readonly ModuleAt[], overrides: readonly RunsAtOverride[]): RunsAtBorderPlan {
+export function planRunsAtBorders(
+  rom: { readonly base: Addr; readonly end: Addr },
+  modules: readonly ModuleAt[],
+  overrides: readonly RunsAtOverride[],
+): RunsAtBorderPlan {
   const proposals: ModuleProposal[] = [];
   const refused: { readonly span: Span; readonly why: RunsAtRefusal }[] = [];
   const taken = new Set(modules.map((m) => m.name));
@@ -83,17 +91,28 @@ export function planRunsAtBorders(rom: { readonly base: Addr; readonly end: Addr
       continue;
     }
     if (!starts.has(span.start) && !proposals.some((p) => p.start === span.start)) {
-      proposals.push({ kind: 'module', name: freeModuleName(runsAtName(o.runsAt), taken), start: span.start, moduleKind: 'asm', source: { kind: 'layout', reason: 'runs-at' } });
+      proposals.push({
+        kind: 'module',
+        name: freeModuleName(runsAtName(o.runsAt), taken),
+        start: span.start,
+        moduleKind: 'asm',
+        source: { kind: 'layout', reason: 'runs-at' },
+      });
     }
     // A range ending where another starts leaves that border to the next range's own module.
-    const holder = span.end < rom.end && !starts.has(span.end) && !rangeStarts.has(span.end) ? moduleHolding(modules, span.end) : undefined;
+    const holder =
+      span.end < rom.end && !starts.has(span.end) && !rangeStarts.has(span.end)
+        ? moduleHolding(modules, span.end)
+        : undefined;
     if (holder !== undefined) proposals.push(resumedModule(holder, span.end, taken, 'runs-at'));
   }
   return { proposals, refused };
 }
 
 /** Why a library region takes no module of a project. */
-export type LibraryModuleDrop = { readonly kind: 'no-legal-border' } | { readonly kind: 'module-inside'; readonly module: ModuleAt; readonly span: Span };
+export type LibraryModuleDrop =
+  | { readonly kind: 'no-legal-border' }
+  | { readonly kind: 'module-inside'; readonly module: ModuleAt; readonly span: Span };
 
 /** What planLibraryModules leaves. */
 export interface LibraryModulePlan {
@@ -143,11 +162,24 @@ export function planLibraryModules(
       const already = starts.get(span.start);
       if (already?.library?.name === library.name) continue;
       if (already !== undefined) replaces.push(span.start);
-      const module: ModuleProposal = { kind: 'module', name: freeModuleName(library.name, taken), start: span.start, moduleKind: 'asm', library, source: { kind: 'layout', reason: 'asm-only' } };
+      const module: ModuleProposal = {
+        kind: 'module',
+        name: freeModuleName(library.name, taken),
+        start: span.start,
+        moduleKind: 'asm',
+        library,
+        source: { kind: 'layout', reason: 'asm-only' },
+      };
       out.push(module);
       starts.set(span.start, module);
       const holder = moduleHolding(modules, span.start);
-      if (holder === undefined || span.end >= romEnd || modules.some((m) => m.start === span.end) || starts.has(span.end)) continue;
+      if (
+        holder === undefined ||
+        span.end >= romEnd ||
+        modules.some((m) => m.start === span.end) ||
+        starts.has(span.end)
+      )
+        continue;
       const resume = resumedModule(holder, span.end, taken, 'asm-only');
       out.push(resume);
       starts.set(span.end, resume);
@@ -161,8 +193,15 @@ export function planLibraryModules(
  * regions init's module inference could give no module (no legal border inside). Regions past the code end (tables)
  * are left out.
  */
-export function regionsWithoutModule(modules: readonly ModuleAt[], regions: readonly LibraryRegion[]): readonly LibraryRegion[] {
+export function regionsWithoutModule(
+  modules: readonly ModuleAt[],
+  regions: readonly LibraryRegion[],
+): readonly LibraryRegion[] {
   const dataStart = modules.find((m) => m.kind === 'data')?.start ?? Number.POSITIVE_INFINITY;
   const spans = modules.map((m, i) => ({ module: m, end: modules[i + 1]?.start ?? Number.POSITIVE_INFINITY }));
-  return regions.filter((r) => r.span.start < dataStart && !spans.some((s) => s.module.library === r.library && s.module.start < r.span.end && r.span.start < s.end));
+  return regions.filter(
+    (r) =>
+      r.span.start < dataStart &&
+      !spans.some((s) => s.module.library === r.library && s.module.start < r.span.end && r.span.start < s.end),
+  );
 }

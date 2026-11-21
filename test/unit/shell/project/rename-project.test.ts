@@ -4,7 +4,7 @@
 // file; and a later `generate` carries the rename into the chunk files.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { hostname, tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
@@ -20,7 +20,10 @@ after(() => rm(TMP, { recursive: true, force: true }));
 const COMPOSITE = listSyntheticFixtures().find((f) => f.name === 'composite') ?? assert.fail('composite');
 let fresh = 0;
 
-async function run(cwd: string, argv: readonly string[]): Promise<{ readonly code: ExitCode; readonly stderr: string }> {
+async function run(
+  cwd: string,
+  argv: readonly string[],
+): Promise<{ readonly code: ExitCode; readonly stderr: string }> {
   const io = { ...capturingIo(), cwd };
   const code = await main(argv, io);
   return { code, stderr: io.err.join('') };
@@ -34,7 +37,9 @@ async function project(): Promise<{ readonly dir: string; readonly name: string 
   const init = await run(dir, ['init', 'baserom.gba']);
   assert.equal(init.code, ExitCode.ok, init.stderr);
   const main = await readFile(path.join(dir, 'src', 'main.c'), 'utf8');
-  const name = /INCLUDE_ASM\("asm\/nonmatchings\/main", (sub_[0-9A-F]{8})\);/.exec(main)?.[1] ?? assert.fail('no stub in src/main.c');
+  const name =
+    /INCLUDE_ASM\("asm\/nonmatchings\/main", (sub_[0-9A-F]{8})\);/.exec(main)?.[1] ??
+    assert.fail('no stub in src/main.c');
   return { dir, name };
 }
 
@@ -43,7 +48,15 @@ async function snapshot(dir: string, prefix = ''): Promise<Map<string, string>> 
   for (const entry of await readdir(path.join(dir, prefix), { withFileTypes: true })) {
     const rel = prefix === '' ? entry.name : `${prefix}/${entry.name}`;
     if (entry.isDirectory()) for (const [k, v] of await snapshot(dir, rel)) out.set(k, v);
-    else out.set(rel, entry.isSymbolicLink() ? 'link' : createHash('sha1').update(await readFile(path.join(dir, rel))).digest('hex'));
+    else
+      out.set(
+        rel,
+        entry.isSymbolicLink()
+          ? 'link'
+          : createHash('sha1')
+              .update(await readFile(path.join(dir, rel)))
+              .digest('hex'),
+      );
   }
   return out;
 }
@@ -54,7 +67,10 @@ test('a rename edits src/ and include/ identifiers and one TOML line, under the 
   const manifest = await readFile(path.join(dir, '.romlift', 'manifest.json'), 'utf8');
   await mkdir(path.join(dir, 'src', 'sub'), { recursive: true });
   await writeFile(path.join(dir, 'src', 'sub', 'helper.h'), `/* ${name} */\nvoid ${name}(void);\n`);
-  await writeFile(path.join(dir, 'include', 'game.h'), `#define CALL_IT ${name}()\nextern const char *gName; // "${name}"\n`);
+  await writeFile(
+    path.join(dir, 'include', 'game.h'),
+    `#define CALL_IT ${name}()\nextern const char *gName; // "${name}"\n`,
+  );
   await writeFile(path.join(dir, 'include', 'blob.bin'), Buffer.from([0, 1, 2, ...Buffer.from(`${name}x`), 0]));
   await writeFile(path.join(TMP, `outside-${fresh}.c`), `void other(void);\n`);
   await symlink(path.join(TMP, `outside-${fresh}.c`), path.join(dir, 'src', 'linked.c'));
@@ -62,26 +78,67 @@ test('a rename edits src/ and include/ identifiers and one TOML line, under the 
 
   const outcome = await renameInProject(path.join(dir, 'src'), name, 'GameInit');
   assert.ok(outcome.ok, outcome.diagnostics.map((d) => `${d.code} ${d.message}`).join('\n'));
-  assert.deepEqual(outcome.diagnostics.map((d) => [d.code, d.path]), [['W_RENAME_SKIPPED', 'include/blob.bin'], ['W_RENAME_SKIPPED', 'src/linked.c']], 'what rename leaves out is said (architecture-5)');
+  assert.deepEqual(
+    outcome.diagnostics.map((d) => [d.code, d.path]),
+    [
+      ['W_RENAME_SKIPPED', 'include/blob.bin'],
+      ['W_RENAME_SKIPPED', 'src/linked.c'],
+    ],
+    'what rename leaves out is said (architecture-5)',
+  );
   assert.ok(outcome.applied && outcome.tomlWritten);
-  assert.deepEqual(outcome.edits.map((e) => [e.path, e.edits.length]), [['include/game.h', 1], ['src/main.c', 1], ['src/sub/helper.h', 1]]);
-  assert.deepEqual(outcome.ops.map((op) => `${op.op} ${op.path}`), ['edit include/game.h', 'edit src/main.c', 'edit src/sub/helper.h']);
+  assert.deepEqual(
+    outcome.edits.map((e) => [e.path, e.edits.length]),
+    [
+      ['include/game.h', 1],
+      ['src/main.c', 1],
+      ['src/sub/helper.h', 1],
+    ],
+  );
+  assert.deepEqual(
+    outcome.ops.map((op) => `${op.op} ${op.path}`),
+    ['edit include/game.h', 'edit src/main.c', 'edit src/sub/helper.h'],
+  );
 
   const after = await readFile(path.join(dir, 'romlift.toml'), 'utf8');
   const a = toml.split('\n');
   const entry = a.find((line) => line.endsWith(` = "${name}"`)) ?? assert.fail(`no plain entry of ${name}`);
-  assert.deepEqual(after.split('\n').filter((line, i) => line !== a[i]), [entry.replace(`"${name}"`, '"GameInit"')]);
-  assert.ok((await readFile(path.join(dir, 'src', 'main.c'), 'utf8')).includes('INCLUDE_ASM("asm/nonmatchings/main", GameInit);'));
-  assert.equal(await readFile(path.join(dir, 'src', 'sub', 'helper.h'), 'utf8'), `/* ${name} */\nvoid GameInit(void);\n`);
-  assert.equal(await readFile(path.join(dir, 'include', 'game.h'), 'utf8'), `#define CALL_IT GameInit()\nextern const char *gName; // "${name}"\n`);
-  assert.equal(await readFile(path.join(TMP, `outside-${fresh}.c`), 'utf8'), `void other(void);\n`, 'a linked file is never edited');
+  assert.deepEqual(
+    after.split('\n').filter((line, i) => line !== a[i]),
+    [entry.replace(`"${name}"`, '"GameInit"')],
+  );
+  assert.ok(
+    (await readFile(path.join(dir, 'src', 'main.c'), 'utf8')).includes(
+      'INCLUDE_ASM("asm/nonmatchings/main", GameInit);',
+    ),
+  );
+  assert.equal(
+    await readFile(path.join(dir, 'src', 'sub', 'helper.h'), 'utf8'),
+    `/* ${name} */\nvoid GameInit(void);\n`,
+  );
+  assert.equal(
+    await readFile(path.join(dir, 'include', 'game.h'), 'utf8'),
+    `#define CALL_IT GameInit()\nextern const char *gName; // "${name}"\n`,
+  );
+  assert.equal(
+    await readFile(path.join(TMP, `outside-${fresh}.c`), 'utf8'),
+    `void other(void);\n`,
+    'a linked file is never edited',
+  );
   const now = await snapshot(dir);
   assert.equal(now.get('src/linked.c'), 'link', 'the link is still a link');
   assert.equal(now.get('include/blob.bin'), before.get('include/blob.bin'), 'a binary is never edited');
   assert.equal(now.get('.romlift/lock'), undefined);
   assert.equal(now.get('.romlift/journal.json'), undefined);
-  assert.equal(await readFile(path.join(dir, '.romlift', 'manifest.json'), 'utf8'), manifest, 'the manifest is unchanged');
-  const changed = [...now].filter(([k, v]) => before.get(k) !== v).map(([k]) => k).sort();
+  assert.equal(
+    await readFile(path.join(dir, '.romlift', 'manifest.json'), 'utf8'),
+    manifest,
+    'the manifest is unchanged',
+  );
+  const changed = [...now]
+    .filter(([k, v]) => before.get(k) !== v)
+    .map(([k]) => k)
+    .sort();
   assert.deepEqual(changed, ['include/game.h', 'romlift.toml', 'src/main.c', 'src/sub/helper.h']);
 
   // generate carries it into the tree: the chunk file takes the new name, the old one goes.
@@ -104,14 +161,20 @@ test('a name the model emits that romlift.toml lacks (a local label) and a link 
   const before = await snapshot(dir);
   const emitted = await renameInProject(dir, name, local);
   assert.equal(emitted.ok, false);
-  assert.deepEqual(emitted.diagnostics.map((d) => d.code), ['E_RENAME_EXISTS']);
+  assert.deepEqual(
+    emitted.diagnostics.map((d) => d.code),
+    ['E_RENAME_EXISTS'],
+  );
   assert.deepEqual(await snapshot(dir), before);
   await writeFile(path.join(TMP, `named-${fresh}.h`), `void ${name}(void);\n`);
   await symlink(path.join(TMP, `named-${fresh}.h`), path.join(dir, 'include', 'named.h'));
   const linked = await snapshot(dir);
   const refused = await renameInProject(dir, name, 'GameInit');
   assert.equal(refused.ok, false);
-  assert.deepEqual(refused.diagnostics.map((d) => [d.code, d.path]), [['E_RENAME_SKIPPED_FILE', 'include/named.h']]);
+  assert.deepEqual(
+    refused.diagnostics.map((d) => [d.code, d.path]),
+    [['E_RENAME_SKIPPED_FILE', 'include/named.h']],
+  );
   assert.deepEqual(await snapshot(dir), linked);
 });
 
@@ -129,12 +192,18 @@ test('refusals change no file: an unknown old name, an existing new name, an inv
   ] as const) {
     const outcome = await renameInProject(dir, from, to);
     assert.equal(outcome.ok, false);
-    assert.deepEqual(outcome.diagnostics.map((d) => d.code), [code]);
+    assert.deepEqual(
+      outcome.diagnostics.map((d) => d.code),
+      [code],
+    );
     assert.deepEqual(await snapshot(dir), before, `${from} -> ${to} changed a file`);
   }
   const nowhere = path.join(TMP, `none-${fresh++}`);
   await mkdir(nowhere);
-  assert.deepEqual((await renameInProject(nowhere, name, 'X')).diagnostics.map((d) => d.code), ['E_PROJECT_NOT_FOUND']);
+  assert.deepEqual(
+    (await renameInProject(nowhere, name, 'X')).diagnostics.map((d) => d.code),
+    ['E_PROJECT_NOT_FOUND'],
+  );
 });
 
 test('a held lock is E_PROJECT_LOCKED, an interrupted write E_RENAME_INTERRUPTED; neither changes a file', async () => {
@@ -142,13 +211,19 @@ test('a held lock is E_PROJECT_LOCKED, an interrupted write E_RENAME_INTERRUPTED
   await writeFile(path.join(dir, '.romlift', 'lock'), `${JSON.stringify({ host: hostname(), pid: process.pid })}\n`);
   let before = await snapshot(dir);
   const locked = await renameInProject(dir, name, 'GameInit');
-  assert.deepEqual(locked.diagnostics.map((d) => d.code), ['E_PROJECT_LOCKED']);
+  assert.deepEqual(
+    locked.diagnostics.map((d) => d.code),
+    ['E_PROJECT_LOCKED'],
+  );
   assert.deepEqual(await snapshot(dir), before);
   await rm(path.join(dir, '.romlift', 'lock'));
   await writeFile(path.join(dir, '.romlift', 'journal.json'), `${JSON.stringify({ schema: 1, ops: [] })}\n`);
   before = await snapshot(dir);
   const interrupted = await renameInProject(dir, name, 'GameInit');
-  assert.deepEqual(interrupted.diagnostics.map((d) => d.code), ['E_RENAME_INTERRUPTED']);
+  assert.deepEqual(
+    interrupted.diagnostics.map((d) => d.code),
+    ['E_RENAME_INTERRUPTED'],
+  );
   assert.deepEqual(await snapshot(dir), before);
 });
 
@@ -159,5 +234,9 @@ test('a name no text holds patches the TOML alone: no edit op, no journal writte
   const outcome = await renameInProject(dir, asmName, 'RomHeader');
   assert.ok(outcome.ok && outcome.tomlWritten && !outcome.applied);
   assert.deepEqual(outcome.edits, []);
-  assert.ok((await readFile(path.join(dir, 'romlift.toml'), 'utf8')).includes('0x08000000 = { name = "RomHeader", mode = "arm" }'));
+  assert.ok(
+    (await readFile(path.join(dir, 'romlift.toml'), 'utf8')).includes(
+      '0x08000000 = { name = "RomHeader", mode = "arm" }',
+    ),
+  );
 });

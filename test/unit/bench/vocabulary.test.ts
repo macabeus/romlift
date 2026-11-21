@@ -1,12 +1,19 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-
 import * as romlift from 'romlift';
-import { isMissReason, isOrigin, MISS_REASONS, ORIGINS } from 'romlift';
+import { MISS_REASONS, ORIGINS, isMissReason, isOrigin } from 'romlift';
 
-import { loadDatasets } from '../../../bench/src/dataset.ts';
 import { contextFromEnv } from '../../../bench/src/context.ts';
-import { CLASSIFIER_CATEGORIES, EXCEPTION_CATEGORIES, isArtifactCategory, isExceptionCategory, isRowCategory, RETIRED_CATEGORIES, UNREVIEWED } from '../../../bench/src/vocabulary.ts';
+import { loadDatasets } from '../../../bench/src/dataset.ts';
+import {
+  CLASSIFIER_CATEGORIES,
+  EXCEPTION_CATEGORIES,
+  RETIRED_CATEGORIES,
+  UNREVIEWED,
+  isArtifactCategory,
+  isExceptionCategory,
+  isRowCategory,
+} from '../../../bench/src/vocabulary.ts';
 
 const ID = /^[a-z][a-z0-9-]*$/;
 
@@ -90,7 +97,8 @@ test('every row of the committed datasets carries a defined category, none the p
   assert.deepEqual(problems, []);
   assert.ok(datasets.length >= 5);
   for (const d of datasets) {
-    for (const row of [...d.labels, ...d.untyped]) assert.ok(isExceptionCategory(row.category), `${d.name} ${row.addr}: ${row.category}`);
+    for (const row of [...d.labels, ...d.untyped])
+      assert.ok(isExceptionCategory(row.category), `${d.name} ${row.addr}: ${row.category}`);
   }
 });
 
@@ -98,7 +106,8 @@ test('every category is carried by a committed dataset row or a sealed classifie
   const { datasets } = await loadDatasets(contextFromEnv({}));
   const carried = new Set<string>(CLASSIFIER_CATEGORIES);
   for (const d of datasets) for (const row of [...d.labels, ...d.untyped]) carried.add(row.category);
-  for (const id of Object.keys(EXCEPTION_CATEGORIES)) assert.ok(carried.has(id), `${id} is carried by no dataset row and no classifier`);
+  for (const id of Object.keys(EXCEPTION_CATEGORIES))
+    assert.ok(carried.has(id), `${id} is carried by no dataset row and no classifier`);
 });
 
 test('a retired category is readable in an artifact committed before M5, never in a dataset', () => {

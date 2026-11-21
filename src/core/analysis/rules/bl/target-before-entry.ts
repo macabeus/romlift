@@ -9,7 +9,7 @@ import { defineRule } from '../define-rule.ts';
 export default defineRule({
   meta: {
     id: 'bl.target-before-entry',
-    summary: 'a bl to an address below the caller\'s entry is a call',
+    summary: "a bl to an address below the caller's entry is a call",
     restsOn: 'agbcc uses bl as a jump only to reach the far tail of the same function, which lies after its entry',
     recovers: 'calls to functions not yet found that sit before the caller, misread as far jumps',
     reads: ['readings'],

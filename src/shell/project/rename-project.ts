@@ -8,16 +8,17 @@
 // `generate`: the chunk file and the stub follow at the next one. A refusal (E_RENAME_*, E_TOML_PATCH_REFUSED,
 // E_RENAME_INTERRUPTED, a stale edit or config found before any write) changes no file. Mechanical: every decision is
 // the workflow's or planEdits'.
-import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
+import { join } from 'node:path';
+
 import { planRename, renameJournalProblems, renameModelNames, staleRenameConfig } from '../../core/workflow/rename.ts';
 import type { RenameEdit } from '../../core/workflow/rename.ts';
 import { planEdits, planHasErrors } from '../../core/write-plan/plan-writes.ts';
 import type { WriteOp } from '../../core/write-plan/types.ts';
+import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { loadConfig } from '../config/load.ts';
 import { saveConfig } from '../config/save.ts';
 import { sha1Of } from '../hash.ts';
 import { readRom } from '../rom.ts';
-import { join } from 'node:path';
 import { applyWrites } from './apply-writes.ts';
 import { locateProject } from './locate.ts';
 import { withProjectLock } from './lock.ts';
@@ -41,7 +42,15 @@ export interface RenameOutcome {
 }
 
 function refusal(diagnostics: readonly Diagnostic[], configPath?: string): RenameOutcome {
-  return { ok: false, ...(configPath === undefined ? {} : { configPath }), edits: [], ops: [], applied: false, tomlWritten: false, diagnostics };
+  return {
+    ok: false,
+    ...(configPath === undefined ? {} : { configPath }),
+    edits: [],
+    ops: [],
+    applied: false,
+    tomlWritten: false,
+    diagnostics,
+  };
 }
 
 /** The rename, once the project's directory is known and its lock is held. */
@@ -49,15 +58,30 @@ async function renameLocked(dir: string, from: string, to: string): Promise<Rena
   const loaded = await loadConfig(dir);
   if (!loaded.ok) return refusal(loaded.diagnostics);
   const configPath = loaded.value.project.config;
-  const read = await readRenameTexts(dir, loaded.value.value.modules.flatMap((m) => (m.source === undefined ? [] : [m.source])));
+  const read = await readRenameTexts(
+    dir,
+    loaded.value.value.modules.flatMap((m) => (m.source === undefined ? [] : [m.source])),
+  );
   if (!read.ok) return refusal(read.diagnostics, configPath);
   const rom = await readRom(join(dir, ...loaded.value.value.rom.path.split('/')));
   if (!rom.ok) return refusal([rom.diagnostic], configPath);
   const names = renameModelNames({ rom: rom.value, config: loaded.value.value });
   if (!names.ok) return refusal(names.diagnostics, configPath);
-  const plan = planRename({ configText: loaded.value.text, config: loaded.value.value, from, to, texts: read.value.texts, sha1s: read.value.sha1s, skipped: read.value.skipped, modelNames: names.names });
+  const plan = planRename({
+    configText: loaded.value.text,
+    config: loaded.value.value,
+    from,
+    to,
+    texts: read.value.texts,
+    sha1s: read.value.sha1s,
+    skipped: read.value.skipped,
+    modelNames: names.names,
+  });
   if (!plan.ok) return refusal(plan.diagnostics, configPath);
-  const state = await readWriteState(dir, plan.edits.map((e) => e.path));
+  const state = await readWriteState(
+    dir,
+    plan.edits.map((e) => e.path),
+  );
   if (!state.ok) return refusal(state.diagnostics, configPath);
   const interrupted = renameJournalProblems(state.value.journal);
   if (interrupted.length > 0) return refusal(interrupted, configPath);
@@ -72,27 +96,56 @@ async function renameLocked(dir: string, from: string, to: string): Promise<Rena
     ...(version.ok ? { romlift: version.value } : {}),
   });
   const base = { configPath, edits: plan.edits, ops: writePlan.ops };
-  if (planHasErrors(writePlan)) return { ...base, ok: false, applied: false, tomlWritten: false, diagnostics: writePlan.diagnostics };
+  if (planHasErrors(writePlan))
+    return { ...base, ok: false, applied: false, tomlWritten: false, diagnostics: writePlan.diagnostics };
   // The config must still be the text the plan was made from, before the first write and again right before its save.
   const before = await currentText(dir, configPath);
   const staleBefore = before.ok ? staleRenameConfig(configPath, loaded.value.text, before.text) : before.diagnostics;
-  if (staleBefore.length > 0) return { ...base, ok: false, applied: false, tomlWritten: false, diagnostics: staleBefore };
+  if (staleBefore.length > 0)
+    return { ...base, ok: false, applied: false, tomlWritten: false, diagnostics: staleBefore };
   let applied = false;
   if (writePlan.ops.some((op) => op.op !== 'keep')) {
     const result = await applyWrites(dir, writePlan);
-    if (!result.ok) return { ...base, ok: false, applied: false, tomlWritten: false, diagnostics: [...writePlan.diagnostics, ...result.diagnostics] };
+    if (!result.ok)
+      return {
+        ...base,
+        ok: false,
+        applied: false,
+        tomlWritten: false,
+        diagnostics: [...writePlan.diagnostics, ...result.diagnostics],
+      };
     applied = true;
   }
   const now = await currentText(dir, configPath);
   const stale = now.ok ? staleRenameConfig(configPath, loaded.value.text, now.text) : now.diagnostics;
-  if (stale.length > 0) return { ...base, ok: false, applied, tomlWritten: false, diagnostics: [...writePlan.diagnostics, ...stale] };
+  if (stale.length > 0)
+    return { ...base, ok: false, applied, tomlWritten: false, diagnostics: [...writePlan.diagnostics, ...stale] };
   const saved = await saveConfig(dir, plan.tomlText, configPath);
-  if (!saved.ok) return { ...base, ok: false, applied, tomlWritten: false, diagnostics: [...writePlan.diagnostics, saved.diagnostic] };
-  return { ...base, ok: true, applied, tomlWritten: true, diagnostics: [...writePlan.diagnostics, ...plan.diagnostics] };
+  if (!saved.ok)
+    return {
+      ...base,
+      ok: false,
+      applied,
+      tomlWritten: false,
+      diagnostics: [...writePlan.diagnostics, saved.diagnostic],
+    };
+  return {
+    ...base,
+    ok: true,
+    applied,
+    tomlWritten: true,
+    diagnostics: [...writePlan.diagnostics, ...plan.diagnostics],
+  };
 }
 
 /** romlift.toml's text as it is on disk now (undefined when it is gone), or the failure to read it. */
-async function currentText(dir: string, configPath: string): Promise<{ readonly ok: true; readonly text: string | undefined } | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] }> {
+async function currentText(
+  dir: string,
+  configPath: string,
+): Promise<
+  | { readonly ok: true; readonly text: string | undefined }
+  | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] }
+> {
   const now = await readProjectTexts(dir, [configPath]);
   return now.ok ? { ok: true, text: now.value.get(configPath) } : now;
 }

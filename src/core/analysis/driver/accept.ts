@@ -12,9 +12,9 @@ import { Claim } from '../types.ts';
 import type { Candidate, ClaimEdit, FunctionFact, Reading } from '../types.ts';
 import { checkListed, isOtherModeOfListed, isUnlisted, recordUnlisted } from './confirm.ts';
 import { factOf, factOfBlock } from './facts.ts';
-import { inSpans, outsideSpans } from './seeds.ts';
 import { touch } from './reuse.ts';
 import { RULES } from './rules.ts';
+import { inSpans, outsideSpans } from './seeds.ts';
 import { analyzeArm, settle } from './settle.ts';
 import { markEntry } from './state.ts';
 import type { DriverState } from './state.ts';
@@ -156,7 +156,17 @@ export function mergeReadings(s: DriverState, g: Reading, f: Reading): Reading {
   const armTails = [...g.armTails, ...f.armTails];
   const shape = { entry: g.entry, codeEnd: Math.max(g.codeEnd, f.codeEnd), pools: addrs, tables, armTails };
   return makeReading(
-    { ...parts, insns, pools, tables, armTails, adrs: [...g.adrs, ...f.adrs], calls: [...g.calls, ...f.calls], steps: [...g.steps, ...f.steps], end: s.rules.extentEnd(shape, s.profile) },
+    {
+      ...parts,
+      insns,
+      pools,
+      tables,
+      armTails,
+      adrs: [...g.adrs, ...f.adrs],
+      calls: [...g.calls, ...f.calls],
+      steps: [...g.steps, ...f.steps],
+      end: s.rules.extentEnd(shape, s.profile),
+    },
     s.rom,
   );
 }

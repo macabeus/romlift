@@ -23,7 +23,7 @@
 // chunk took at its module's end is its last item, a padding item printed `.align 2, 0` like any other.
 import { RomliftInvariantError } from '../../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../../foundation/rom/rom.ts';
-import { contains, u32, u8 } from '../../../foundation/rom/rom.ts';
+import { contains, u8, u32 } from '../../../foundation/rom/rom.ts';
 import type { Addr, Mode, Span } from '../../../foundation/rom/span.ts';
 import { lowerBound, pushAll } from '../../../foundation/util/arrays.ts';
 import { hex } from '../../../foundation/util/hex.ts';
@@ -35,11 +35,11 @@ import { adrResolverFor, compareLabels, resolverFor } from '../../model/resolver
 import { ItemKind } from '../../model/types.ts';
 import type { Chunk, Item, Label, Model } from '../../model/types.ts';
 import { DEFAULT_PRINTER, emptyPrintStats } from '../tree.ts';
-import type { EmitContext, PrintedChunk, Printer, PrintStats } from '../tree.ts';
+import type { EmitContext, PrintStats, PrintedChunk, Printer } from '../tree.ts';
 import { noteLines, paddingLines } from './data.ts';
 import type { InsnContext, PrintedInsn } from './insn.ts';
 import { printInsn, printRawInsn, printUndecodedInsn } from './insn.ts';
-import { poolLine, wordScope, wordText, type WordScope } from './pool.ts';
+import { type WordScope, poolLine, wordScope, wordText } from './pool.ts';
 import { printRawRange } from './raw.ts';
 import type { RawLabel } from './raw.ts';
 import { tableEntryLine } from './table.ts';
@@ -64,10 +64,21 @@ interface StatsCounter {
 }
 
 function counter(): StatsCounter {
-  return { insns: 0, rawInsns: 0, branches: 0, symbolicBranches: 0, poolLoads: 0, symbolicPoolLoads: 0, rawReasons: new Map() };
+  return {
+    insns: 0,
+    rawInsns: 0,
+    branches: 0,
+    symbolicBranches: 0,
+    poolLoads: 0,
+    symbolicPoolLoads: 0,
+    rawReasons: new Map(),
+  };
 }
 
-function count(stats: StatsCounter, printed: { readonly rawReason?: string; readonly branch: boolean; readonly poolLoad: boolean }): void {
+function count(
+  stats: StatsCounter,
+  printed: { readonly rawReason?: string; readonly branch: boolean; readonly poolLoad: boolean },
+): void {
   stats.insns += 1;
   const symbolic = printed.rawReason === undefined;
   if (!symbolic) {
@@ -145,7 +156,8 @@ function hasStartMacro(chunk: Chunk): boolean {
 
 /** The start macro of a function or startup chunk (dialect.ts defines them). */
 export function startMacro(mode: Mode, start: Addr, local: boolean): string {
-  const base = mode === 'arm' ? 'arm_func_start' : (start & 3) === 2 ? 'non_word_aligned_thumb_func_start' : 'thumb_func_start';
+  const base =
+    mode === 'arm' ? 'arm_func_start' : (start & 3) === 2 ? 'non_word_aligned_thumb_func_start' : 'thumb_func_start';
   return local ? `${base}_local` : base;
 }
 
@@ -168,7 +180,11 @@ function opening(chunk: Chunk, head: Label | undefined, at: Addr, prelude: reado
       out.push(`\t${startMacro(mode, at, head?.scope === 'module')} ${chunk.name}`, `${chunk.name}: @ ${hex(at)}`);
       break;
     case 'orphan':
-      out.push(`@ bytes between functions: ${chunk.span.end - chunk.span.start} bytes`, `.global ${chunk.name}`, `${chunk.name}: @ ${hex(at)}`);
+      out.push(
+        `@ bytes between functions: ${chunk.span.end - chunk.span.start} bytes`,
+        `.global ${chunk.name}`,
+        `${chunk.name}: @ ${hex(at)}`,
+      );
       break;
     case 'header':
       out.push('@ GBA cartridge header', `.global ${chunk.name}`, `${chunk.name}:`);
@@ -249,7 +265,10 @@ function insnContext(cx: BodyContext): InsnContext {
 
 function printCode(rom: Rom, item: Item, mode: Mode, icx: InsnContext): PrintedInsn | undefined {
   if (item.kind === 'insn') return printInsn(item.insn, icx);
-  if (item.kind === 'raw-insn') return item.insn === undefined ? printUndecodedInsn(rom, item.span, mode, item.reason) : printRawInsn(item.insn, item.reason);
+  if (item.kind === 'raw-insn')
+    return item.insn === undefined
+      ? printUndecodedInsn(rom, item.span, mode, item.reason)
+      : printRawInsn(item.insn, item.reason);
   return undefined;
 }
 
@@ -277,7 +296,12 @@ function readableItems(cx: BodyContext, first: number, end: number, labels: read
     const here = labelsBefore(item.span.start);
     if (item.kind === 'pool') {
       for (const l of here) pushAll(out, labelLines(l, mode).slice(0, -1));
-      out.push(poolLine(here.map((l) => l.name), wordText(cx.words, item.value)));
+      out.push(
+        poolLine(
+          here.map((l) => l.name),
+          wordText(cx.words, item.value),
+        ),
+      );
       continue;
     }
     for (const l of here) pushAll(out, labelLines(l, mode));
@@ -294,7 +318,10 @@ function readableItems(cx: BodyContext, first: number, end: number, labels: read
         pushAll(out, paddingLines(rom, item.span));
         break;
       case 'data': {
-        const inner = labels.slice(next).map((l) => l.addr - runOffset).filter((a) => a > item.span.start && a < item.span.end);
+        const inner = labels
+          .slice(next)
+          .map((l) => l.addr - runOffset)
+          .filter((a) => a > item.span.start && a < item.span.end);
         for (const piece of splitAt(item.span, inner)) {
           for (const l of labelsBefore(piece.start)) pushAll(out, labelLines(l, mode));
           pushAll(out, noteLines(rom, piece, item.note, chunk.kind === 'function' ? mode : undefined));
@@ -312,7 +339,14 @@ function readableItems(cx: BodyContext, first: number, end: number, labels: read
  * one declared `.global` before the lines. printRawRange leaves a label at the range's start to its caller; with
  * `labelAtStart` it is printed here, as printRawRange prints the others.
  */
-function rawItems(cx: BodyContext, first: number, end: number, span: Span, labels: readonly Label[], labelAtStart: boolean): readonly string[] {
+function rawItems(
+  cx: BodyContext,
+  first: number,
+  end: number,
+  span: Span,
+  labels: readonly Label[],
+  labelAtStart: boolean,
+): readonly string[] {
   const { rom, model, chunk, runOffset, stats } = cx;
   const words = new Set<Addr>();
   for (let i = first; i < end; i++) {
@@ -331,7 +365,13 @@ function rawItems(cx: BodyContext, first: number, end: number, span: Span, label
   const inner = new Set(chunk.innerLabels.map((l) => `${String(l.addr)}:${l.name}`));
   const placed = new Map<Addr, RawLabel>();
   const globals: string[] = [];
-  const ordered = [...labels].sort((a, b) => compareNumbers(inner.has(`${String(b.addr)}:${b.name}`) ? 1 : 0, inner.has(`${String(a.addr)}:${a.name}`) ? 1 : 0) || compareLabels(a, b));
+  const ordered = [...labels].sort(
+    (a, b) =>
+      compareNumbers(
+        inner.has(`${String(b.addr)}:${b.name}`) ? 1 : 0,
+        inner.has(`${String(a.addr)}:${a.name}`) ? 1 : 0,
+      ) || compareLabels(a, b),
+  );
   for (const l of ordered) {
     const isInner = inner.has(`${String(l.addr)}:${l.name}`);
     if ((isInner || l.scope === 'global') && !placed.has(l.addr - runOffset)) {
@@ -344,7 +384,10 @@ function rawItems(cx: BodyContext, first: number, end: number, span: Span, label
   const out = globals.sort(compareCodeUnits).map((n) => `.global ${n}`);
   const head = labelAtStart ? placed.get(span.start) : undefined;
   if (head !== undefined) out.push(`${head.name}: @ ${hex(span.start)}`);
-  pushAll(out, printRawRange(rom, (a) => words.has(a), span.start, span.end, rawLabels));
+  pushAll(
+    out,
+    printRawRange(rom, (a) => words.has(a), span.start, span.end, rawLabels),
+  );
   return out;
 }
 
@@ -362,7 +405,12 @@ function printerOf(how: Printer | EmitContext | undefined): Printer {
  * the readable printer, what printed as a mnemonic and why the rest is raw; with the raw printer every
  * instruction is data, counted raw under its model reason or RAW_PRINTER_REASON.
  */
-export function printChunk(rom: Rom, model: Model, chunk: number, how: Printer | EmitContext = DEFAULT_PRINTER): PrintedChunk {
+export function printChunk(
+  rom: Rom,
+  model: Model,
+  chunk: number,
+  how: Printer | EmitContext = DEFAULT_PRINTER,
+): PrintedChunk {
   const c = model.chunks[chunk];
   if (c === undefined) throw new RomliftInvariantError(`printChunk: no chunk ${chunk} of ${model.chunks.length}`);
   const runOffset = runOffsetOf(c);
@@ -386,9 +434,16 @@ export function printChunk(rom: Rom, model: Model, chunk: number, how: Printer |
     const last = c.items.first + c.items.count;
     const padSpan: Span = { start: c.span.start, end: entry };
     const bodySpan: Span = { start: entry, end: c.span.end };
-    const prelude = pad.printed ? (printer === 'raw' ? rawItems(cx, c.items.first, pad.end, padSpan, before, true) : readableItems(cx, c.items.first, pad.end, before)) : [];
+    const prelude = pad.printed
+      ? printer === 'raw'
+        ? rawItems(cx, c.items.first, pad.end, padSpan, before, true)
+        : readableItems(cx, c.items.first, pad.end, before)
+      : [];
     pushAll(lines, opening(c, head, at, prelude));
-    pushAll(lines, printer === 'raw' ? rawItems(cx, pad.end, last, bodySpan, after, false) : readableItems(cx, pad.end, last, after));
+    pushAll(
+      lines,
+      printer === 'raw' ? rawItems(cx, pad.end, last, bodySpan, after, false) : readableItems(cx, pad.end, last, after),
+    );
   }
   pushAll(lines, closing(c));
   return { lines, stats: finish(stats) };

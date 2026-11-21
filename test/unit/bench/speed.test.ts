@@ -5,15 +5,15 @@ import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
-
-import type { AnalysisRunner } from '../../../bench/src/analysis-run.ts';
-import { main, type BenchIo } from '../../../bench/src/cli.ts';
-import { romFromBytes, type RomliftConfig } from 'romlift';
+import { type RomliftConfig, romFromBytes } from 'romlift';
 import { sha1Of } from 'romlift/node';
 
+import type { AnalysisRunner } from '../../../bench/src/analysis-run.ts';
+import { type BenchIo, main } from '../../../bench/src/cli.ts';
 import type { EmissionRunner } from '../../../bench/src/emission-run.ts';
-import { listSyntheticFixtures, readFixtureRom } from '../../helpers/fixtures.ts';
 import {
+  SPEED_BASELINE_SCHEMA,
+  type SpeedReport,
   analysisRow,
   benchSpeed,
   calibrationRatio,
@@ -25,12 +25,11 @@ import {
   medianTimes,
   parseSpeedBaseline,
   raisedBaseline,
-  SPEED_BASELINE_SCHEMA,
   withinRatchet,
-  type SpeedReport,
 } from '../../../bench/src/speed.ts';
+import { listSyntheticFixtures, readFixtureRom } from '../../helpers/fixtures.ts';
 import { failingRunner, withTempDir } from './fixtures.ts';
-import { syntheticTier, TINY_DEPS } from './harness.ts';
+import { TINY_DEPS, syntheticTier } from './harness.ts';
 
 test('median of odd and even counts, unsorted input', () => {
   assert.equal(median([5, 1, 3]), 3);
@@ -51,8 +50,19 @@ test('analysisRow: g2.speed reads the median of all nine samples, g3.speed-budge
   // Nine known samples in run order: the first five's median is 30, all nine's is 50.
   const cpuSamples = [10, 50, 30, 20, 40, 90, 80, 70, 60];
   const row = analysisRow('sa2', { cpuMs: median(cpuSamples), wallMs: 7, cpuSamples }, 100);
-  assert.deepEqual(row, { name: 'sa2', analysisCpuMs: 50, budgetAnalysisCpuMs: 30, analysisRuns: 9, wallMs: 7, baselineCpuMs: 100 });
-  assert.equal(analysisRow('x', { cpuMs: 1, wallMs: 1, cpuSamples: [3, 1, 2] }, 0).budgetAnalysisCpuMs, 2, 'fewer than five: all of them');
+  assert.deepEqual(row, {
+    name: 'sa2',
+    analysisCpuMs: 50,
+    budgetAnalysisCpuMs: 30,
+    analysisRuns: 9,
+    wallMs: 7,
+    baselineCpuMs: 100,
+  });
+  assert.equal(
+    analysisRow('x', { cpuMs: 1, wallMs: 1, cpuSamples: [3, 1, 2] }, 0).budgetAnalysisCpuMs,
+    2,
+    'fewer than five: all of them',
+  );
   assert.equal(fewest([9, 5, 9]), 5);
   assert.equal(fewest([]), 0, 'no ROM measured: 0, never Infinity');
 });
@@ -73,12 +83,43 @@ test('the ratio and the ratchet: at most 1.5 x baseline x ratio; no baseline nev
 });
 
 test('speed.json: parsed strictly, and raised with the measured ROMs replaced and the others kept, by name', () => {
-  const base = parseSpeedBaseline({ schema: SPEED_BASELINE_SCHEMA, calibration: { cpuMs: 100 }, roms: { sa3: { analysisCpuMs: 900 }, fe7j: { analysisCpuMs: 800 } } }, 'x');
-  assert.throws(() => parseSpeedBaseline({ schema: SPEED_BASELINE_SCHEMA, calibration: { cpuMs: 0 }, roms: {} }, 'x'), /calibration\.cpuMs must be a positive number/);
-  assert.throws(() => parseSpeedBaseline({ schema: SPEED_BASELINE_SCHEMA, calibration: { cpuMs: 1 }, roms: { a: {} } }, 'x'), /roms\.a\.analysisCpuMs/);
-  const report: SpeedReport = { schema: 'romlift/bench-speed@1', runs: { calibration: 5, analysis: 9, emission: 5 }, calibration: { cpuMs: 123.456, baselineCpuMs: 100, ratio: 1.23 }, roms: [{ name: 'fe7j', analysisCpuMs: 700.04, budgetAnalysisCpuMs: 699, analysisRuns: 9, wallMs: 701, baselineCpuMs: 800 }] };
+  const base = parseSpeedBaseline(
+    {
+      schema: SPEED_BASELINE_SCHEMA,
+      calibration: { cpuMs: 100 },
+      roms: { sa3: { analysisCpuMs: 900 }, fe7j: { analysisCpuMs: 800 } },
+    },
+    'x',
+  );
+  assert.throws(
+    () => parseSpeedBaseline({ schema: SPEED_BASELINE_SCHEMA, calibration: { cpuMs: 0 }, roms: {} }, 'x'),
+    /calibration\.cpuMs must be a positive number/,
+  );
+  assert.throws(
+    () => parseSpeedBaseline({ schema: SPEED_BASELINE_SCHEMA, calibration: { cpuMs: 1 }, roms: { a: {} } }, 'x'),
+    /roms\.a\.analysisCpuMs/,
+  );
+  const report: SpeedReport = {
+    schema: 'romlift/bench-speed@1',
+    runs: { calibration: 5, analysis: 9, emission: 5 },
+    calibration: { cpuMs: 123.456, baselineCpuMs: 100, ratio: 1.23 },
+    roms: [
+      {
+        name: 'fe7j',
+        analysisCpuMs: 700.04,
+        budgetAnalysisCpuMs: 699,
+        analysisRuns: 9,
+        wallMs: 701,
+        baselineCpuMs: 800,
+      },
+    ],
+  };
   const raised = raisedBaseline(base, report);
-  assert.deepEqual(raised, { schema: SPEED_BASELINE_SCHEMA, calibration: { cpuMs: 123.46 }, roms: { fe7j: { analysisCpuMs: 700.04 }, sa3: { analysisCpuMs: 900 } } });
+  assert.deepEqual(raised, {
+    schema: SPEED_BASELINE_SCHEMA,
+    calibration: { cpuMs: 123.46 },
+    roms: { fe7j: { analysisCpuMs: 700.04 }, sa3: { analysisCpuMs: 900 } },
+  });
   assert.deepEqual(Object.keys(raised.roms), ['fe7j', 'sa3']);
 });
 
@@ -104,18 +145,35 @@ test('bench speed --json prints the frozen shape, never writes speed.json, and t
     assert.deepEqual(Object.keys(first.calibration), ['cpuMs', 'baselineCpuMs', 'ratio']);
     assert.deepEqual(first.calibration.baselineCpuMs, 0);
     assert.deepEqual(first.calibration.ratio, 0);
-    assert.deepEqual(first.roms.map((r) => [r.name, Object.keys(r), r.baselineCpuMs, r.analysisRuns]), [['tiny', ['name', 'analysisCpuMs', 'budgetAnalysisCpuMs', 'analysisRuns', 'wallMs', 'baselineCpuMs'], 0, 9]]);
+    assert.deepEqual(
+      first.roms.map((r) => [r.name, Object.keys(r), r.baselineCpuMs, r.analysisRuns]),
+      [['tiny', ['name', 'analysisCpuMs', 'budgetAnalysisCpuMs', 'analysisRuns', 'wallMs', 'baselineCpuMs'], 0, 9]],
+    );
     await assert.rejects(readFile(path, 'utf8'), /ENOENT/);
     assert.equal(await main(['speed', '--write-baseline'], cx, (io = capture()), deps), 0);
     const written = parseSpeedBaseline(JSON.parse(await readFile(path, 'utf8')), path);
     assert.deepEqual(Object.keys(written.roms), ['tiny']);
     // A generous baseline passes; a tiny one fails the ratchet.
-    await writeFile(path, JSON.stringify({ schema: SPEED_BASELINE_SCHEMA, calibration: { cpuMs: first.calibration.cpuMs || 1 }, roms: { tiny: { analysisCpuMs: 1e6 } } }));
+    await writeFile(
+      path,
+      JSON.stringify({
+        schema: SPEED_BASELINE_SCHEMA,
+        calibration: { cpuMs: first.calibration.cpuMs || 1 },
+        roms: { tiny: { analysisCpuMs: 1e6 } },
+      }),
+    );
     assert.equal(await main(['speed', '--json', '--only', 'tiny'], cx, (io = capture()), deps), 0);
     const passing = JSON.parse(io.lines.at(-1) ?? '') as SpeedReport;
     assert.equal(passing.roms[0]?.baselineCpuMs, 1e6);
     assert.ok(passing.calibration.ratio > 0);
-    await writeFile(path, JSON.stringify({ schema: SPEED_BASELINE_SCHEMA, calibration: { cpuMs: 1e6 }, roms: { tiny: { analysisCpuMs: 1e-6 } } }));
+    await writeFile(
+      path,
+      JSON.stringify({
+        schema: SPEED_BASELINE_SCHEMA,
+        calibration: { cpuMs: 1e6 },
+        roms: { tiny: { analysisCpuMs: 1e-6 } },
+      }),
+    );
     // The fixed runner can measure 0 ms, which no limit fails; this one always spends some CPU.
     const busy: AnalysisRunner = {
       analyze: (...args) => {
@@ -181,7 +239,11 @@ test('emissionTimes: the config is prepared once, outside the timings; each work
   const failed = await emissionTimes(rom, fakeEmission({ generate: false, init: true }, []), (l) => log.push(l));
   assert.deepEqual(Object.keys(failed.times), ['initCpuMs']);
   assert.equal(failed.runs, 5);
-  assert.equal((await emissionTimes(rom, fakeEmission({ generate: false, init: false }, []), () => {})).runs, 0, 'nothing measured');
+  assert.equal(
+    (await emissionTimes(rom, fakeEmission({ generate: false, init: false }, []), () => {})).runs,
+    0,
+    'nothing measured',
+  );
   assert.equal((await emissionTimes(rom, fakeEmission({ generate: true, init: true }, []), () => {}, 3)).runs, 3);
   assert.match(log.at(-2) ?? '', /generate .* NOT MEASURED, the paths check failed/);
 });
@@ -190,7 +252,10 @@ test('emissionTimes measures nothing on an image that is not a cartridge', async
   const bytes = new Uint8Array(0x40);
   const rom = romFromBytes(bytes, sha1Of(bytes));
   const calls: string[] = [];
-  assert.deepEqual(await emissionTimes(rom, fakeEmission({ generate: true, init: true }, calls), () => {}), { times: {}, runs: 0 });
+  assert.deepEqual(await emissionTimes(rom, fakeEmission({ generate: true, init: true }, calls), () => {}), {
+    times: {},
+    runs: 0,
+  });
   assert.deepEqual(calls, []);
 });
 
@@ -198,8 +263,15 @@ test('bench speed passes its emission runner through; the synthetic tier, which 
   await withTempDir('romlift-speed-emission-', async (root) => {
     const cx = await syntheticTier(root);
     const calls: string[] = [];
-    const report = await benchSpeed(cx, { runner: TINY_DEPS.runner, calibrate: () => calibrationWorkload(1000, 1), emission: fakeEmission({ generate: true, init: true }, calls) });
+    const report = await benchSpeed(cx, {
+      runner: TINY_DEPS.runner,
+      calibrate: () => calibrationWorkload(1000, 1),
+      emission: fakeEmission({ generate: true, init: true }, calls),
+    });
     assert.deepEqual(calls, []);
-    assert.deepEqual(report.roms.map((r) => Object.keys(r)), [['name', 'analysisCpuMs', 'budgetAnalysisCpuMs', 'analysisRuns', 'wallMs', 'baselineCpuMs']]);
+    assert.deepEqual(
+      report.roms.map((r) => Object.keys(r)),
+      [['name', 'analysisCpuMs', 'budgetAnalysisCpuMs', 'analysisRuns', 'wallMs', 'baselineCpuMs']],
+    );
   });
 });

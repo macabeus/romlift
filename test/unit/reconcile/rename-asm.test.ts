@@ -48,7 +48,16 @@ test('a name equal to the new one, an empty name, or one only in comments plans 
 });
 
 test('a hash inside a line is no comment; an unterminated string or comment ends at its line or the text', () => {
-  assert.deepEqual(asmSymbolTokens('\tmovs r0, #Old\n', 'Old').map((t) => t.start), [11]);
-  assert.deepEqual(asmSymbolTokens('\t.ascii "Old\nOld\n', 'Old').map((t) => t.start), [13]);
-  assert.deepEqual(asmSymbolTokens('Old /* Old', 'Old').map((t) => t.start), [0]);
+  assert.deepEqual(
+    asmSymbolTokens('\tmovs r0, #Old\n', 'Old').map((t) => t.start),
+    [11],
+  );
+  assert.deepEqual(
+    asmSymbolTokens('\t.ascii "Old\nOld\n', 'Old').map((t) => t.start),
+    [13],
+  );
+  assert.deepEqual(
+    asmSymbolTokens('Old /* Old', 'Old').map((t) => t.start),
+    [0],
+  );
 });

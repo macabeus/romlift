@@ -2,8 +2,8 @@
 // summary contract (`romlift/corpus-summary@1`). corpus.ts is the entry point; this file holds what
 // every corpus module shares. The corpus holds counts only: whether they meet the phase-1 threshold
 // is decided by foundation/corpus/threshold.ts (corpusOk).
-import type { Mode } from '../rom/span.ts';
 import type { RawReason, SpecId } from '../isa/types.ts';
+import type { Mode } from '../rom/span.ts';
 
 /** The schema id of the persisted summary. */
 export const CORPUS_SUMMARY_SCHEMA = 'romlift/corpus-summary@1';
@@ -73,7 +73,9 @@ export interface CorpusFile {
 }
 
 /** The per-row coverage of the ARM sweep: fields swept through every value, and fields only sampled. */
-export type ArmCoverage = Readonly<Record<string, { readonly exhaustive: readonly string[]; readonly sampled: readonly string[] }>>;
+export type ArmCoverage = Readonly<
+  Record<string, { readonly exhaustive: readonly string[]; readonly sampled: readonly string[] }>
+>;
 
 export interface CorpusExample {
   readonly offset: number;
@@ -100,7 +102,11 @@ export interface CorpusCounts {
     readonly bl: CorpusSectionSummary;
     readonly arm: CorpusSectionSummary & { readonly coverage: ArmCoverage };
   };
-  readonly encoderAgrees: { readonly checked: number; readonly disagree: number; readonly examples: readonly CorpusExample[] };
+  readonly encoderAgrees: {
+    readonly checked: number;
+    readonly disagree: number;
+    readonly examples: readonly CorpusExample[];
+  };
   readonly context: {
     readonly checked: number;
     readonly disagree: number;
@@ -145,4 +151,6 @@ export function zeroRawCounts(): Record<RawReason, number> {
 }
 
 /** What assembling one corpus file produced: the `.text` bytes, or the assembler's error output. */
-export type CorpusAssembly = { readonly ok: true; readonly bytes: Uint8Array } | { readonly ok: false; readonly stderr: string };
+export type CorpusAssembly =
+  | { readonly ok: true; readonly bytes: Uint8Array }
+  | { readonly ok: false; readonly stderr: string };

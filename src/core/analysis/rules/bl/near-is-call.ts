@@ -9,7 +9,8 @@ export default defineRule({
   meta: {
     id: 'bl.near-is-call',
     summary: 'a bl closer than farJump.minDistance to its target (the far-jump idiom fails) is a call',
-    restsOn: 'agbcc emits bl as a jump only when the target is beyond the range of `b`; the shortest far jump in five ROMs is 1,960 bytes',
+    restsOn:
+      'agbcc emits bl as a jump only when the target is beyond the range of `b`; the shortest far jump in five ROMs is 1,960 bytes',
     recovers: 'nearby calls misread as far jumps, which would glue a neighbouring function into the caller',
     reads: ['readings', 'rom'],
     adds: ['bl-verdicts'],

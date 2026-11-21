@@ -9,13 +9,13 @@ import type { Addr } from '../../../foundation/rom/span.ts';
 import { provenance } from '../../provenance/provenance.ts';
 import type { Provenance } from '../../provenance/provenance.ts';
 import type { RuleId } from '../../provenance/rule-id.ts';
-import { candidateBudget, fixpointLimit, LIMITS } from '../limits.ts';
+import { LIMITS, candidateBudget, fixpointLimit } from '../limits.ts';
 import type { Candidate, Reading } from '../types.ts';
 import { accept } from './accept.ts';
 import { beginEpoch } from './epoch.ts';
 import { settle } from './settle.ts';
-import { emit, reject } from './trail.ts';
 import type { DriverState } from './state.ts';
+import { emit, reject } from './trail.ts';
 import { valid } from './validity.ts';
 
 /** One harvest rule's list of a round: the rule and its targets, ascending. */
@@ -83,10 +83,19 @@ export function grow(s: DriverState, budget: number = LIMITS.candidateBudget): n
         if (taken !== undefined) {
           const n = accept(s, c, `accepted by ${taken.rule}`);
           // The accept rule decided: the accept event above names the proposer, this one the rule that took it.
-          if (n > 0 && taken.rule !== proposedBy) emit(s, 'accept', t, taken.rule, taken.cites, `takes the ${proposedBy} candidate`);
+          if (n > 0 && taken.rule !== proposedBy)
+            emit(s, 'accept', t, taken.rule, taken.cites, `takes the ${proposedBy} candidate`);
           added += n;
         } else {
-          reject(s, t, 'thumb', proposedBy, 'unanchored', false, `valid, referenced by ${proposedBy}, but no accept rule takes it (${s.rules.accept.map((a) => a.id).join(', ')})`);
+          reject(
+            s,
+            t,
+            'thumb',
+            proposedBy,
+            'unanchored',
+            false,
+            `valid, referenced by ${proposedBy}, but no accept rule takes it (${s.rules.accept.map((a) => a.id).join(', ')})`,
+          );
         }
       }
     }

@@ -10,7 +10,13 @@ import { prngSequence } from '../../helpers/prng.ts';
 const A = 0x0800_0200;
 
 /** romlift-poc/src/analysis.ts dense(), as a count. */
-function pocHoles(bytes: Uint8Array, base: number, lo: number, hi: number, cover: readonly (readonly [number, number])[]): number {
+function pocHoles(
+  bytes: Uint8Array,
+  base: number,
+  lo: number,
+  hi: number,
+  cover: readonly (readonly [number, number])[],
+): number {
   const extent = hi - lo;
   const cov = new Uint8Array(Math.max(extent, 0));
   for (const [a, n] of cover) if (a >= lo && a + n <= hi) cov.fill(1, a - lo, a - lo + n);
@@ -35,12 +41,37 @@ test('holes equal the PoC count on 3,000 random readings', () => {
     const entry = A + 2 * next(64);
     const insns = Array.from({ length: next(16) }, () => ({ addr: entry + 2 * next(100), len: next(2) === 0 ? 2 : 4 }));
     const pools = Array.from({ length: next(4) }, () => ({ addr: entry + next(200), value: 0 }));
-    const tables = Array.from({ length: next(2) }, () => ({ base: entry + next(200), targets: [0, 0, 0].slice(0, next(4)), thumbBit: false }));
+    const tables = Array.from({ length: next(2) }, () => ({
+      base: entry + next(200),
+      targets: [0, 0, 0].slice(0, next(4)),
+      thumbBit: false,
+    }));
     const reading = makeReading(
-      { entry, mode: 'thumb', insns, pools, tables, calls: [], blSites: [], deadEnd: [], balance: [], returns: 0, errors: [], veneers: [], adrs: [], tails: [], tailExits: 0, end: entry + next(200) },
+      {
+        entry,
+        mode: 'thumb',
+        insns,
+        pools,
+        tables,
+        calls: [],
+        blSites: [],
+        deadEnd: [],
+        balance: [],
+        returns: 0,
+        errors: [],
+        veneers: [],
+        adrs: [],
+        tails: [],
+        tailExits: 0,
+        end: entry + next(200),
+      },
       rom,
     );
-    const cover = [...reading.insns.map((i) => [i.addr, i.len] as const), ...reading.pools.map((p) => [p.addr, 4] as const), ...reading.tables.map((tb) => [tb.base, 4 * tb.targets.length] as const)];
+    const cover = [
+      ...reading.insns.map((i) => [i.addr, i.len] as const),
+      ...reading.pools.map((p) => [p.addr, 4] as const),
+      ...reading.tables.map((tb) => [tb.base, 4 * tb.targets.length] as const),
+    ];
     assert.equal(reading.holeBytes, pocHoles(rom.bytes, rom.base, reading.entry, reading.end, cover), `reading ${t}`);
     assert.equal(reading.holes.reduce((n, h) => n + (h.end - h.start), 0) <= reading.holeBytes, true);
   }

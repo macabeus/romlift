@@ -13,9 +13,9 @@
 //
 // plus a RAM symbol gRam at 0x02000000 that symbols.ld defines.
 import type { FileEntry, WriterId } from '../../../src/core/emit/tree.ts';
+import type { Model } from '../../../src/core/model/types.ts';
 import { DIALECT } from '../../../src/foundation/asm/dialect.ts';
 import type { Rom } from '../../../src/foundation/rom/rom.ts';
-import type { Model } from '../../../src/core/model/types.ts';
 import { armAt } from '../../helpers/arm.ts';
 import { codeItems, dataItem, label, modelOf, poolItem, romWith, words } from '../../helpers/model.ts';
 import { thumbAt } from '../../helpers/thumb.ts';
@@ -51,24 +51,51 @@ export function fixtureModel(rom: Rom): Model {
       { name: 'rom_header', chunks: [{ kind: 'header', name: 'rom_header', items: [dataItem(0x0800_0000, 0xc0)] }] },
       {
         name: 'crt0',
-        chunks: [{ kind: 'startup', name: 'start', mode: 'arm', items: [...codeItems(rom, 0x0800_00c0, 0x0800_00c8, 'arm'), dataItem(0x0800_00c8, 0x38)] }],
+        chunks: [
+          {
+            kind: 'startup',
+            name: 'start',
+            mode: 'arm',
+            items: [...codeItems(rom, 0x0800_00c0, 0x0800_00c8, 'arm'), dataItem(0x0800_00c8, 0x38)],
+          },
+        ],
       },
       {
         name: 'main',
         chunks: [
           {
             name: 'Func',
-            items: [...codeItems(rom, 0x0800_0100, 0x0800_0106, 'thumb'), { kind: 'padding', start: 0x0800_0106, length: 2 }, poolItem(rom, 0x0800_0108)],
+            items: [
+              ...codeItems(rom, 0x0800_0100, 0x0800_0106, 'thumb'),
+              { kind: 'padding', start: 0x0800_0106, length: 2 },
+              poolItem(rom, 0x0800_0108),
+            ],
           },
           { name: 'Veneer', items: codeItems(rom, 0x0800_010c, 0x0800_010e, 'thumb') },
-          { name: 'ArmFunc', mode: 'arm', items: [{ kind: 'padding', start: 0x0800_010e, length: 2 }, ...codeItems(rom, 0x0800_0110, 0x0800_0114, 'arm')] },
+          {
+            name: 'ArmFunc',
+            mode: 'arm',
+            items: [
+              { kind: 'padding', start: 0x0800_010e, length: 2 },
+              ...codeItems(rom, 0x0800_0110, 0x0800_0114, 'arm'),
+            ],
+          },
           { kind: 'orphan', name: 'unk_08000114', items: [dataItem(0x0800_0114, 0x2c)] },
         ],
       },
       {
         name: 'data',
         kind: 'data',
-        chunks: [{ kind: 'data', name: 'gData', items: [{ kind: 'table-entry', start: 0x0800_0140, target: 0x0800_0100, thumbBit: true }, dataItem(0x0800_0144, ROM_SIZE - 0x144)] }],
+        chunks: [
+          {
+            kind: 'data',
+            name: 'gData',
+            items: [
+              { kind: 'table-entry', start: 0x0800_0140, target: 0x0800_0100, thumbBit: true },
+              dataItem(0x0800_0144, ROM_SIZE - 0x144),
+            ],
+          },
+        ],
       },
     ],
     labels: [
@@ -141,7 +168,15 @@ export function entry(path: string, text: string, writer: WriterId = 'function')
 /** The fixture's hand-written files as entries. */
 export function fixtureEntries(): readonly FileEntry[] {
   const writerOf = (path: string): WriterId =>
-    path === 'asm/rom_header.s' ? 'header' : path === 'asm/crt0.s' ? 'crt0' : path === 'asm/main.s' ? 'module' : path.includes('/unk_') ? 'orphan' : 'function';
+    path === 'asm/rom_header.s'
+      ? 'header'
+      : path === 'asm/crt0.s'
+        ? 'crt0'
+        : path === 'asm/main.s'
+          ? 'module'
+          : path.includes('/unk_')
+            ? 'orphan'
+            : 'function';
   return Object.keys(FILES)
     .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
     .map((path) => entry(path, FILES[path] ?? '', writerOf(path)));

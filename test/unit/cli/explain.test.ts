@@ -16,7 +16,7 @@ import { Claim } from '../../../src/core/analysis/types.ts';
 import { explain } from '../../../src/core/workflow/explain.ts';
 import { romFromBytes } from '../../../src/foundation/rom/rom.ts';
 import { sha1Of } from '../../../src/shell/hash.ts';
-import { listSyntheticFixtures, SYNTHETIC_ROOT } from '../../helpers/fixtures.ts';
+import { SYNTHETIC_ROOT, listSyntheticFixtures } from '../../helpers/fixtures.ts';
 import { capturingIo } from './fake.ts';
 
 const FAR_JUMP = listSyntheticFixtures().find((f) => f.name === 'far-jump');
@@ -27,7 +27,9 @@ after(() => rmSync(TMP, { recursive: true, force: true }));
 /** No built signature file, whatever the checkout's signatures/ holds: `--rom` then reports W_SIGNATURES_ABSENT (D95 b). */
 const NO_SIGNATURES = mkdtempSync(join(TMP, 'no-signatures-'));
 
-async function run(argv: readonly string[]): Promise<{ readonly code: ExitCode; readonly stdout: string; readonly stderr: string }> {
+async function run(
+  argv: readonly string[],
+): Promise<{ readonly code: ExitCode; readonly stdout: string; readonly stderr: string }> {
   const io = { ...capturingIo(), env: { ROMLIFT_SIGNATURES: NO_SIGNATURES } };
   const code = await main(argv, io);
   return { code, stdout: io.out.join(''), stderr: io.err.join('') };
@@ -44,7 +46,8 @@ test('parseAddrArg reads 0x-hex and decimal addresses and nothing else', () => {
   assert.equal(parseAddrArg('0x08000104'), 0x0800_0104);
   assert.equal(parseAddrArg('0X8000104'), 0x0800_0104);
   assert.equal(parseAddrArg('134217988'), 0x0800_0104);
-  for (const bad of ['', 'main', '0x', '0x123456789', '08000104h', '-1', '99999999999']) assert.equal(parseAddrArg(bad), undefined, bad);
+  for (const bad of ['', 'main', '0x', '0x123456789', '08000104h', '-1', '99999999999'])
+    assert.equal(parseAddrArg(bad), undefined, bad);
 });
 
 test('claimName names every claim kind', () => {
@@ -69,7 +72,8 @@ test('explain text: claim, owner and provenance, the always-shown groups, the ru
   const out = await run(['explain', '0x08000104', '--rom', ROM]);
   assert.equal(out.code, ExitCode.ok);
   assert.match(out.stdout, /^0x08000104\n {2}claim: code\n {2}owner: 0x08000104 \(origin call\)\n {2}provenance:\n/);
-  for (const label of ['rejections', 'verdicts', 'waits']) assert.match(out.stdout, new RegExp(`\\n {2}${label}(: none| \\(\\d+\\):)\\n`));
+  for (const label of ['rejections', 'verdicts', 'waits'])
+    assert.match(out.stdout, new RegExp(`\\n {2}${label}(: none| \\(\\d+\\):)\\n`));
   assert.match(out.stdout, /\n {6}rests on: /);
   assert.match(out.stdout, /\n {6}recovers: /);
   assert.match(out.stdout, /\nexplain: ok \(exit 0\)\n$/);
@@ -86,7 +90,10 @@ test('phase 3: the record and the text name the chunk and the item of the addres
   assert.equal(insn?.['size'], 2);
   assert.match(String(insn?.['text']), /^\.inst\.n 0x[0-9A-F]{4} @ /);
   const text = (await run(['explain', '0x08000104', '--rom', ROM])).stdout;
-  assert.match(text, /\n {2}chunk: sub_08000104 \(function\) in module main\n {2}item: insn 0x08000104\.\.0x08000106: \.inst\.n 0x[0-9A-F]{4} @ /);
+  assert.match(
+    text,
+    /\n {2}chunk: sub_08000104 \(function\) in module main\n {2}item: insn 0x08000104\.\.0x08000106: \.inst\.n 0x[0-9A-F]{4} @ /,
+  );
   const outside = (await run(['explain', '0x03000000', '--rom', ROM])).stdout;
   assert.match(outside, /\n {2}chunk: none \(outside the model\)\n {2}item: none\n/);
   assert.equal(lines((await run(['explain', '0x03000000', '--rom', ROM, '--json'])).stdout)[0]?.['item'], undefined);
@@ -94,15 +101,26 @@ test('phase 3: the record and the text name the chunk and the item of the addres
 
 test('itemJson spells every item kind with hexAddr addresses', () => {
   const span = { start: 0x0800_0100, end: 0x0800_0104 };
-  assert.deepEqual(itemJson({ kind: 'pool', span, value: 0x0300_0001 }), { kind: 'pool', span: { start: '0x08000100', end: '0x08000104' }, value: '0x03000001' });
+  assert.deepEqual(itemJson({ kind: 'pool', span, value: 0x0300_0001 }), {
+    kind: 'pool',
+    span: { start: '0x08000100', end: '0x08000104' },
+    value: '0x03000001',
+  });
   assert.deepEqual(itemJson({ kind: 'table-entry', span, target: 0x0800_0200, thumbBit: true }), {
     kind: 'table-entry',
     span: { start: '0x08000100', end: '0x08000104' },
     target: '0x08000200',
     thumbBit: true,
   });
-  assert.deepEqual(itemJson({ kind: 'padding', span }), { kind: 'padding', span: { start: '0x08000100', end: '0x08000104' } });
-  assert.deepEqual(itemJson({ kind: 'data', span, note: 'dead' }), { kind: 'data', span: { start: '0x08000100', end: '0x08000104' }, note: 'dead' });
+  assert.deepEqual(itemJson({ kind: 'padding', span }), {
+    kind: 'padding',
+    span: { start: '0x08000100', end: '0x08000104' },
+  });
+  assert.deepEqual(itemJson({ kind: 'data', span, note: 'dead' }), {
+    kind: 'data',
+    span: { start: '0x08000100', end: '0x08000104' },
+    note: 'dead',
+  });
   assert.deepEqual(itemJson({ kind: 'raw-insn', span, reason: 'cross-module-short-branch' }), {
     kind: 'raw-insn',
     span: { start: '0x08000100', end: '0x08000104' },
@@ -114,7 +132,10 @@ test('itemJson spells every item kind with hexAddr addresses', () => {
 test('without --rom outside a project: E_PROJECT_NOT_FOUND (exit 1), with a summary', async () => {
   const out = await run(['explain', '0x08000104', '--json']);
   assert.equal(out.code, ExitCode.errors);
-  const parsed = out.stdout.trimEnd().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>);
+  const parsed = out.stdout
+    .trimEnd()
+    .split('\n')
+    .map((l) => JSON.parse(l) as Record<string, unknown>);
   assert.equal(parsed[0]?.['code'], 'E_PROJECT_NOT_FOUND');
   assert.deepEqual(parsed.at(-1), { type: 'summary', ok: false, exitCode: 1 });
 });
@@ -155,7 +176,13 @@ test('explain names the function holding the address: analysis on a bare ROM, to
   writeFileSync(join(dir, 'baserom.gba'), readFileSync(ROM));
   assert.equal(await main(['init', 'baserom.gba'], { ...capturingIo(), cwd: dir }), ExitCode.ok);
   const file = join(dir, 'romlift.toml');
-  writeFileSync(file, readFileSync(file, 'utf8').replace('0x08000104 = "sub_08000104"', '0x08000104 = { name = "FarJumpCaller", from = "legacy" }'));
+  writeFileSync(
+    file,
+    readFileSync(file, 'utf8').replace(
+      '0x08000104 = "sub_08000104"',
+      '0x08000104 = { name = "FarJumpCaller", from = "legacy" }',
+    ),
+  );
   const io = { ...capturingIo(), cwd: dir };
   assert.equal(await main(['explain', '0x08000106', '--json'], io), ExitCode.ok, io.out.join(''));
   const report = lines(io.out.join(''))[0];
@@ -175,13 +202,21 @@ test('explain --rom --signatures: the placement holding the address, in the reco
   writeFileSync(join(dir, 'libfix.json'), readFileSync(join(SYNTHETIC_ROOT, 'library', 'signatures.golden.json')));
   const json = await run(['explain', '0x08000246', '--rom', game.rom, '--signatures', dir, '--json']);
   assert.equal(json.code, ExitCode.ok, json.stdout);
-  assert.deepEqual(lines(json.stdout)[0]?.['signature'], { library: 'libfix', version: '1.0', name: 'FixAbs', rule: 'sig.unique-fit' });
+  assert.deepEqual(lines(json.stdout)[0]?.['signature'], {
+    library: 'libfix',
+    version: '1.0',
+    name: 'FixAbs',
+    rule: 'sig.unique-fit',
+  });
   const text = await run(['explain', '0x08000246', '--rom', game.rom, '--signatures', dir]);
   assert.match(text.stdout, /^ {2}signature: libfix@1\.0 FixAbs \(sig\.unique-fit\)$/m);
   const empty = mkdtempSync(join(TMP, 'no-signatures-'));
   const none = await run(['explain', '0x08000246', '--rom', game.rom, '--signatures', empty, '--json']);
   assert.equal(lines(none.stdout)[0]?.['signature'], undefined);
-  assert.doesNotMatch((await run(['explain', '0x08000246', '--rom', game.rom, '--signatures', empty])).stdout, /signature:/);
+  assert.doesNotMatch(
+    (await run(['explain', '0x08000246', '--rom', game.rom, '--signatures', empty])).stdout,
+    /signature:/,
+  );
   assert.equal((await run(['explain', '0x08000246', '--signatures', dir])).code, ExitCode.usage);
 });
 
@@ -190,10 +225,20 @@ test('explain in a project reads the signature from the from key, without a rule
   writeFileSync(join(dir, 'baserom.gba'), readFileSync(ROM));
   assert.equal(await main(['init', 'baserom.gba'], { ...capturingIo(), cwd: dir }), ExitCode.ok);
   const file = join(dir, 'romlift.toml');
-  writeFileSync(file, readFileSync(file, 'utf8').replace('0x08000104 = "sub_08000104"', '0x08000104 = { name = "FarJumpCaller", from = "sig:farlib@2" }'));
+  writeFileSync(
+    file,
+    readFileSync(file, 'utf8').replace(
+      '0x08000104 = "sub_08000104"',
+      '0x08000104 = { name = "FarJumpCaller", from = "sig:farlib@2" }',
+    ),
+  );
   const io = { ...capturingIo(), cwd: dir };
   assert.equal(await main(['explain', '0x08000106', '--json'], io), ExitCode.ok, io.out.join(''));
-  assert.deepEqual(lines(io.out.join(''))[0]?.['signature'], { library: 'farlib', version: '2', name: 'FarJumpCaller' });
+  assert.deepEqual(lines(io.out.join(''))[0]?.['signature'], {
+    library: 'farlib',
+    version: '2',
+    name: 'FarJumpCaller',
+  });
   const text = { ...capturingIo(), cwd: dir };
   assert.equal(await main(['explain', '0x08000106'], text), ExitCode.ok);
   assert.match(text.out.join(''), /^ {2}signature: farlib@2 FarJumpCaller$/m);

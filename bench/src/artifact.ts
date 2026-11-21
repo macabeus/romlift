@@ -3,17 +3,26 @@
 // held-out ROM (never a row, D25), and the PoC-parity evidence once milestone M1 records it. It holds no
 // timestamp and no machine data; those go to bench/timings.json.
 import { compareCodeUnits, isMissReason, isOrigin } from 'romlift';
-import { parseCorpusSummary, type CorpusSummary } from 'romlift/internal';
+import { type CorpusSummary, parseCorpusSummary } from 'romlift/internal';
 
 import { BenchError, exists, isRecord, prettyJson, readJson, writeText } from './files.ts';
-import { parseParityEvidence, type ParityEvidence } from './parity-evidence.ts';
 import type { ObjdiffClassSummary, ObjdiffExample, ObjdiffSummary } from './objdiff.ts';
-import { SHARE_NAMES, type ReadabilityMember, type Shares } from './readability.ts';
-import type { BaselineRows, BenchRow, ExtentRow, FalseRow, MissRow, PocSource, RowDiff, StaleException } from './row.ts';
+import { type ParityEvidence, parseParityEvidence } from './parity-evidence.ts';
+import { type ReadabilityMember, SHARE_NAMES, type Shares } from './readability.ts';
+import type {
+  BaselineRows,
+  BenchRow,
+  ExtentRow,
+  FalseRow,
+  MissRow,
+  PocSource,
+  RowDiff,
+  StaleException,
+} from './row.ts';
 import type { InitBuildVerdict } from './scaffold.ts';
-import { assertCountsOnly, type SealedCounts } from './seal.ts';
+import { type SealedCounts, assertCountsOnly } from './seal.ts';
 import type { LibraryPlacements, SignaturesMember } from './signatures.ts';
-import { isArtifactCategory, type ArtifactCategory } from './vocabulary.ts';
+import { type ArtifactCategory, isArtifactCategory } from './vocabulary.ts';
 
 export interface RomInputs {
   readonly sha1: string;
@@ -133,7 +142,14 @@ function missRow(value: unknown, at: string): MissRow {
   const r = rec(value, at);
   const reason = str(r['reason'], `${at}.reason`);
   if (!isMissReason(reason)) fail(`${at}.reason`, `'${reason}' is not a miss reason`);
-  return { addr: str(r['addr'], `${at}.addr`), name: str(r['name'], `${at}.name`), size: num(r['size'], `${at}.size`), reason, listed: bool(r['listed'], `${at}.listed`), ...category(r, at) };
+  return {
+    addr: str(r['addr'], `${at}.addr`),
+    name: str(r['name'], `${at}.name`),
+    size: num(r['size'], `${at}.size`),
+    reason,
+    listed: bool(r['listed'], `${at}.listed`),
+    ...category(r, at),
+  };
 }
 
 function falseRow(value: unknown, at: string): FalseRow {
@@ -152,7 +168,12 @@ function falseRow(value: unknown, at: string): FalseRow {
 
 function extentRow(value: unknown, at: string): ExtentRow {
   const r = rec(value, at);
-  return { addr: str(r['addr'], `${at}.addr`), name: str(r['name'], `${at}.name`), elf: num(r['elf'], `${at}.elf`), found: num(r['found'], `${at}.found`) };
+  return {
+    addr: str(r['addr'], `${at}.addr`),
+    name: str(r['name'], `${at}.name`),
+    elf: num(r['elf'], `${at}.elf`),
+    found: num(r['found'], `${at}.found`),
+  };
 }
 
 function staleRow(value: unknown, at: string): StaleException {
@@ -169,25 +190,45 @@ function diffRow(value: unknown, at: string): RowDiff {
 
 function baselineRows(value: unknown, at: string): BaselineRows {
   const r = rec(value, at);
-  return { diffs: list(r['diffs'], `${at}.diffs`, diffRow), unaccepted: list(r['unaccepted'], `${at}.unaccepted`, diffRow), staleAccepted: list(r['staleAccepted'], `${at}.staleAccepted`, diffRow) };
+  return {
+    diffs: list(r['diffs'], `${at}.diffs`, diffRow),
+    unaccepted: list(r['unaccepted'], `${at}.unaccepted`, diffRow),
+    staleAccepted: list(r['staleAccepted'], `${at}.staleAccepted`, diffRow),
+  };
 }
 
 /** A row's PoC reference: its true positives, and since D60 where they come from (absent in an older artifact). */
-function pocField(p: Readonly<Record<string, unknown>>, at: string): { readonly tp: number; readonly source?: PocSource } {
+function pocField(
+  p: Readonly<Record<string, unknown>>,
+  at: string,
+): { readonly tp: number; readonly source?: PocSource } {
   const source = p['source'];
-  if (source !== undefined && source !== 'baseline' && source !== 'dump' && source !== 'none') throw new BenchError(`${at}.source must be baseline, dump or none`);
+  if (source !== undefined && source !== 'baseline' && source !== 'dump' && source !== 'none')
+    throw new BenchError(`${at}.source must be baseline, dump or none`);
   return { tp: num(p['tp'], `${at}.tp`), ...(source === undefined ? {} : { source }) };
 }
 
 /** The optional phase-2 fields of a romlift row; a PoC-sourced row has none. */
-function romliftFields(r: Readonly<Record<string, unknown>>, at: string): Partial<Pick<BenchRow, 'analysisDigest' | 'poc' | 'staleExceptions' | 'baselineRows' | 'parity'>> {
+function romliftFields(
+  r: Readonly<Record<string, unknown>>,
+  at: string,
+): Partial<Pick<BenchRow, 'analysisDigest' | 'poc' | 'staleExceptions' | 'baselineRows' | 'parity'>> {
   const parity = r['parity'] === undefined ? undefined : rec(r['parity'], `${at}.parity`);
   return {
     ...(r['analysisDigest'] === undefined ? {} : { analysisDigest: str(r['analysisDigest'], `${at}.analysisDigest`) }),
     ...(r['poc'] === undefined ? {} : { poc: pocField(rec(r['poc'], `${at}.poc`), `${at}.poc`) }),
-    ...(r['staleExceptions'] === undefined ? {} : { staleExceptions: list(r['staleExceptions'], `${at}.staleExceptions`, staleRow) }),
+    ...(r['staleExceptions'] === undefined
+      ? {}
+      : { staleExceptions: list(r['staleExceptions'], `${at}.staleExceptions`, staleRow) }),
     ...(r['baselineRows'] === undefined ? {} : { baselineRows: baselineRows(r['baselineRows'], `${at}.baselineRows`) }),
-    ...(parity === undefined ? {} : { parity: { digest: str(parity['digest'], `${at}.parity.digest`), expected: str(parity['expected'], `${at}.parity.expected`) } }),
+    ...(parity === undefined
+      ? {}
+      : {
+          parity: {
+            digest: str(parity['digest'], `${at}.parity.digest`),
+            expected: str(parity['expected'], `${at}.parity.expected`),
+          },
+        }),
   };
 }
 
@@ -204,7 +245,11 @@ function readabilityField(value: unknown, at: string): ReadabilityMember {
 
 function objdiffExample(value: unknown, at: string): ObjdiffExample {
   const r = rec(value, at);
-  return { function: str(r['function'], `${at}.function`), kind: str(r['kind'], `${at}.kind`), detail: str(r['detail'], `${at}.detail`) };
+  return {
+    function: str(r['function'], `${at}.function`),
+    kind: str(r['kind'], `${at}.kind`),
+    detail: str(r['detail'], `${at}.detail`),
+  };
 }
 
 /** A record of counts by name, each a number. */
@@ -217,18 +262,33 @@ function countsOf(value: unknown, at: string): Record<string, number> {
 /** The objdiff member's classes (D102); absent in an artifact written before them. */
 function objdiffClasses(value: unknown, at: string): ObjdiffClassSummary {
   const r = rec(value, at);
-  return { counts: countsOf(r['counts'], `${at}.counts`), gated: num(r['gated'], `${at}.gated`), uncompared: num(r['uncompared'], `${at}.uncompared`), gatedExamples: list(r['gatedExamples'], `${at}.gatedExamples`, objdiffExample) };
+  return {
+    counts: countsOf(r['counts'], `${at}.counts`),
+    gated: num(r['gated'], `${at}.gated`),
+    uncompared: num(r['uncompared'], `${at}.uncompared`),
+    gatedExamples: list(r['gatedExamples'], `${at}.gatedExamples`, objdiffExample),
+  };
 }
 
 function objdiffField(value: unknown, at: string): ObjdiffSummary {
   const r = rec(value, at);
-  const summary = { linked: bool(r['linked'], `${at}.linked`), scored: num(r['scored'], `${at}.scored`), differences: countsOf(r['differences'], `${at}.differences`), examples: list(r['examples'], `${at}.examples`, objdiffExample) };
+  const summary = {
+    linked: bool(r['linked'], `${at}.linked`),
+    scored: num(r['scored'], `${at}.scored`),
+    differences: countsOf(r['differences'], `${at}.differences`),
+    examples: list(r['examples'], `${at}.examples`, objdiffExample),
+  };
   return r['classes'] === undefined ? summary : { ...summary, classes: objdiffClasses(r['classes'], `${at}.classes`) };
 }
 
 function libraryPlacementsAt(value: unknown, at: string): LibraryPlacements {
   const r = rec(value, at);
-  return { library: str(r['library'], `${at}.library`), version: str(r['version'], `${at}.version`), functions: num(r['functions'], `${at}.functions`), objects: num(r['objects'], `${at}.objects`) };
+  return {
+    library: str(r['library'], `${at}.library`),
+    version: str(r['version'], `${at}.version`),
+    functions: num(r['functions'], `${at}.functions`),
+    objects: num(r['objects'], `${at}.objects`),
+  };
 }
 
 /** The counts `keys` names of the record at `at`, each a number. */
@@ -248,12 +308,18 @@ function signaturesField(value: unknown, at: string): SignaturesMember {
     placements: countsAt(r['placements'], `${at}.placements`, ['total', 'atElfFunc', 'atUntyped', 'wrong']),
     tables: countsAt(r['tables'], `${at}.tables`, ['total', 'objectOfSize', 'label', 'wrong']),
     sizes: countsAt(r['sizes'], `${at}.sizes`, ['proposed', 'equal', 'differ', 'unjudged']),
-    names: { reference: bool(names['reference'], `${at}.names.reference`), ...countsAt(names, `${at}.names`, ['total', 'equal', 'differ', 'reviewed']) },
+    names: {
+      reference: bool(names['reference'], `${at}.names.reference`),
+      ...countsAt(names, `${at}.names`, ['total', 'equal', 'differ', 'reviewed']),
+    },
   };
 }
 
 /** The optional phase-3 fields of a romlift row. */
-function emissionFields(r: Readonly<Record<string, unknown>>, at: string): Partial<Pick<BenchRow, 'readability' | 'objdiff' | 'treeDigest'>> {
+function emissionFields(
+  r: Readonly<Record<string, unknown>>,
+  at: string,
+): Partial<Pick<BenchRow, 'readability' | 'objdiff' | 'treeDigest'>> {
   return {
     ...(r['readability'] === undefined ? {} : { readability: readabilityField(r['readability'], `${at}.readability`) }),
     ...(r['objdiff'] === undefined ? {} : { objdiff: objdiffField(r['objdiff'], `${at}.objdiff`) }),
@@ -275,7 +341,11 @@ export function parseRow(value: unknown, where: string): BenchRow {
     elfCommit: r['elfCommit'] === null ? null : str(r['elfCommit'], `${at}.elfCommit`),
     elfFunctions: num(r['elfFunctions'], `${at}.elfFunctions`),
     entries: num(r['entries'], `${at}.entries`),
-    startup: { end: str(startup['end'], `${at}.startup.end`), pieces: num(startup['pieces'], `${at}.startup.pieces`), elfFunctions: num(startup['elfFunctions'], `${at}.startup.elfFunctions`) },
+    startup: {
+      end: str(startup['end'], `${at}.startup.end`),
+      pieces: num(startup['pieces'], `${at}.startup.pieces`),
+      elfFunctions: num(startup['elfFunctions'], `${at}.startup.elfFunctions`),
+    },
     thumb: num(r['thumb'], `${at}.thumb`),
     arm: num(r['arm'], `${at}.arm`),
     tp: num(r['tp'], `${at}.tp`),
@@ -289,11 +359,22 @@ export function parseRow(value: unknown, where: string): BenchRow {
       mismatches: list(extents['mismatches'], `${at}.extents.mismatches`, extentRow),
       ...(extents['lost'] === undefined ? {} : { lost: list(extents['lost'], `${at}.extents.lost`, extentRow) }),
     },
-    codeEnd: { found: str(codeEnd['found'], `${at}.codeEnd.found`), elf: str(codeEnd['elf'], `${at}.codeEnd.elf`), delta: num(codeEnd['delta'], `${at}.codeEnd.delta`) },
+    codeEnd: {
+      found: str(codeEnd['found'], `${at}.codeEnd.found`),
+      elf: str(codeEnd['elf'], `${at}.codeEnd.elf`),
+      delta: num(codeEnd['delta'], `${at}.codeEnd.delta`),
+    },
     deterministic: bool(r['deterministic'], `${at}.deterministic`),
     ...(scaffold === undefined
       ? {}
-      : { scaffold: { ok: bool(scaffold['ok'], `${at}.scaffold.ok`), ...(scaffold['init'] === undefined ? {} : { init: initVerdictField(scaffold['init'], `${at}.scaffold.init`) }) } }),
+      : {
+          scaffold: {
+            ok: bool(scaffold['ok'], `${at}.scaffold.ok`),
+            ...(scaffold['init'] === undefined
+              ? {}
+              : { init: initVerdictField(scaffold['init'], `${at}.scaffold.init`) }),
+          },
+        }),
     ...romliftFields(r, at),
     ...emissionFields(r, at),
     ...(r['signatures'] === undefined ? {} : { signatures: signaturesField(r['signatures'], `${at}.signatures`) }),
@@ -310,7 +391,9 @@ function parseInputs(value: unknown, at: string): Readonly<Record<string, RomInp
       out[key] = {
         sha1: str(r['sha1'], `${at}.${key}.sha1`),
         elfSha256: str(r['elfSha256'], `${at}.${key}.elfSha256`),
-        ...(r['objectsDigest'] === undefined ? {} : { objectsDigest: str(r['objectsDigest'], `${at}.${key}.objectsDigest`) }),
+        ...(r['objectsDigest'] === undefined
+          ? {}
+          : { objectsDigest: str(r['objectsDigest'], `${at}.${key}.objectsDigest`) }),
       };
     }
   }
@@ -329,24 +412,42 @@ function memoryRun(value: unknown, at: string): MemoryRun {
     command: str(r['command'], `${at}.command`),
     exitCode: num(r['exitCode'], `${at}.exitCode`),
     maxRssMiB: num(r['maxRssMiB'], `${at}.maxRssMiB`),
-    ...(r['maxOldSpaceSizeMiB'] === undefined ? {} : { maxOldSpaceSizeMiB: r['maxOldSpaceSizeMiB'] === null ? null : num(r['maxOldSpaceSizeMiB'], `${at}.maxOldSpaceSizeMiB`) }),
+    ...(r['maxOldSpaceSizeMiB'] === undefined
+      ? {}
+      : {
+          maxOldSpaceSizeMiB:
+            r['maxOldSpaceSizeMiB'] === null ? null : num(r['maxOldSpaceSizeMiB'], `${at}.maxOldSpaceSizeMiB`),
+        }),
     ...(r['treeDigest'] === undefined ? {} : { treeDigest: str(r['treeDigest'], `${at}.treeDigest`) }),
   };
 }
 
 export function parseMemory(value: unknown, at: string): MemoryMember {
   const r = rec(value, at);
-  return { romBytes: num(r['romBytes'], `${at}.romBytes`), sha1: str(r['sha1'], `${at}.sha1`), runs: list(r['runs'], `${at}.runs`, memoryRun) };
+  return {
+    romBytes: num(r['romBytes'], `${at}.romBytes`),
+    sha1: str(r['sha1'], `${at}.sha1`),
+    runs: list(r['runs'], `${at}.runs`, memoryRun),
+  };
 }
 
 function gluedWhereOf(r: Record<string, unknown>, at: string): NonNullable<SealedEntry['gluedWhere']> {
-  return { insideExtent: num(r['insideExtent'], `${at}.insideExtent`), outsideExtents: num(r['outsideExtents'], `${at}.outsideExtents`), pastCodeEnd: num(r['pastCodeEnd'], `${at}.pastCodeEnd`) };
+  return {
+    insideExtent: num(r['insideExtent'], `${at}.insideExtent`),
+    outsideExtents: num(r['outsideExtents'], `${at}.outsideExtents`),
+    pastCodeEnd: num(r['pastCodeEnd'], `${at}.pastCodeEnd`),
+  };
 }
 
 /** An init build's verdict (bench run --scaffold, phase 4): three exit codes and whether the built ROM matched. */
 function initVerdictField(value: unknown, at: string): InitBuildVerdict {
   const r = rec(value, at);
-  return { initExit: num(r['initExit'], `${at}.initExit`), setupExit: num(r['setupExit'], `${at}.setupExit`), makeExit: num(r['makeExit'], `${at}.makeExit`), sha1Match: bool(r['sha1Match'], `${at}.sha1Match`) };
+  return {
+    initExit: num(r['initExit'], `${at}.initExit`),
+    setupExit: num(r['setupExit'], `${at}.setupExit`),
+    makeExit: num(r['makeExit'], `${at}.makeExit`),
+    sha1Match: bool(r['sha1Match'], `${at}.sha1Match`),
+  };
 }
 
 /** One sealed entry: counts only (assertCountsOnly) with every count and the verdict present (`other` and `gluedWhere` only from the phase-2 fix round on). */
@@ -365,7 +466,9 @@ function parseSealed(value: unknown, at: string): SealedEntry {
     elfFunctions: num(r['elfFunctions'], `${at}.elfFunctions`),
     tp: num(r['tp'], `${at}.tp`),
     glued: num(r['glued'], `${at}.glued`),
-    ...(r['gluedWhere'] === undefined ? {} : { gluedWhere: gluedWhereOf(rec(r['gluedWhere'], `${at}.gluedWhere`), `${at}.gluedWhere`) }),
+    ...(r['gluedWhere'] === undefined
+      ? {}
+      : { gluedWhere: gluedWhereOf(rec(r['gluedWhere'], `${at}.gluedWhere`), `${at}.gluedWhere`) }),
     labelCandidates: num(r['labelCandidates'], `${at}.labelCandidates`),
     falseEntries: {
       startup: num(falseEntries['startup'], `${at}.falseEntries.startup`),
@@ -374,7 +477,10 @@ function parseSealed(value: unknown, at: string): SealedEntry {
       insideElfFunction: num(falseEntries['insideElfFunction'], `${at}.falseEntries.insideElfFunction`),
       ...(falseEntries['other'] === undefined ? {} : { other: num(falseEntries['other'], `${at}.falseEntries.other`) }),
     },
-    extents: { sized: num(extents['sized'], `${at}.extents.sized`), agree: num(extents['agree'], `${at}.extents.agree`) },
+    extents: {
+      sized: num(extents['sized'], `${at}.extents.sized`),
+      agree: num(extents['agree'], `${at}.extents.agree`),
+    },
     codeEnd: { delta: num(rec(r['codeEnd'], `${at}.codeEnd`)['delta'], `${at}.codeEnd.delta`) },
     pass: bool(r['pass'], `${at}.pass`),
     ...(r['init'] === undefined ? {} : { init: initVerdictField(r['init'], `${at}.init`) }),
@@ -382,10 +488,17 @@ function parseSealed(value: unknown, at: string): SealedEntry {
 }
 
 function parseGateEntry(value: unknown, where: string): GateEntry {
-  if (!isRecord(value) || typeof value['id'] !== 'string' || typeof value['verdict'] !== 'string') fail(where, 'a gate record has no id or verdict');
+  if (!isRecord(value) || typeof value['id'] !== 'string' || typeof value['verdict'] !== 'string')
+    fail(where, 'a gate record has no id or verdict');
   const inputs: Record<string, string> = {};
-  if (isRecord(value['inputs'])) for (const [k, v] of Object.entries(value['inputs'])) if (typeof v === 'string') inputs[k] = v;
-  return { id: value['id'], verdict: value['verdict'], inputs, detail: typeof value['detail'] === 'string' ? value['detail'] : '' };
+  if (isRecord(value['inputs']))
+    for (const [k, v] of Object.entries(value['inputs'])) if (typeof v === 'string') inputs[k] = v;
+  return {
+    id: value['id'],
+    verdict: value['verdict'],
+    inputs,
+    detail: typeof value['detail'] === 'string' ? value['detail'] : '',
+  };
 }
 
 export function parseResults(value: unknown, where: string): Results {
@@ -397,7 +510,8 @@ export function parseResults(value: unknown, where: string): Results {
   if (!isRecord(meta['families'])) fail(where, 'meta.families must be an object');
   const families: Record<string, string[]> = {};
   for (const [rom, list] of Object.entries(meta['families'])) {
-    if (!Array.isArray(list) || !list.every((f) => typeof f === 'string')) fail(where, `meta.families.${rom} must be a list of names`);
+    if (!Array.isArray(list) || !list.every((f) => typeof f === 'string'))
+      fail(where, `meta.families.${rom} must be a list of names`);
     families[rom] = list.filter((f): f is string => typeof f === 'string');
   }
   const toolchain = isRecord(meta['toolchain']) ? meta['toolchain'] : {};
@@ -416,7 +530,12 @@ export function parseResults(value: unknown, where: string): Results {
       nodeMajor: meta['nodeMajor'],
       romliftVersion: typeof meta['romliftVersion'] === 'string' ? meta['romliftVersion'] : '',
       inputs: parseInputs(meta['inputs'], `${where}: meta.inputs`),
-      toolchain: { as: tool('as'), ld: tool('ld'), objcopy: tool('objcopy'), ...('objdiff' in toolchain ? { objdiff: tool('objdiff') } : {}) },
+      toolchain: {
+        as: tool('as'),
+        ld: tool('ld'),
+        objcopy: tool('objcopy'),
+        ...('objdiff' in toolchain ? { objdiff: tool('objdiff') } : {}),
+      },
       families,
       source,
       ...(typeof meta['profile'] === 'string' ? { profile: meta['profile'] } : {}),
@@ -453,7 +572,9 @@ export function resultsText(results: Results): string {
     ...(results.memory === undefined ? {} : { memory: results.memory }),
     gates: { real: [...results.gates.real].sort((a, b) => compareCodeUnits(a.id, b.id)) },
     roms: [...results.roms].sort((a, b) => compareCodeUnits(a.name, b.name)),
-    ...(results.sealed === undefined ? {} : { sealed: [...results.sealed].sort((a, b) => compareCodeUnits(a.name, b.name)) }),
+    ...(results.sealed === undefined
+      ? {}
+      : { sealed: [...results.sealed].sort((a, b) => compareCodeUnits(a.name, b.name)) }),
     ...(results.parity === undefined ? {} : { parity: results.parity }),
   };
   return prettyJson(sorted);

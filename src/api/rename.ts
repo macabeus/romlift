@@ -3,7 +3,13 @@
 // halves (planRenamePatch, renameIdentifiers), the write policy of a run that only edits (planEdits) and the checks
 // the shell asks. Owned by p6-rename (D93).
 export type { RenameEdit, RenameInputs, RenamePlan } from '../core/workflow/rename.ts';
-export { isRenameTarget, planRename, renameJournalProblems, renameProblems, staleRenameConfig } from '../core/workflow/rename.ts';
+export {
+  isRenameTarget,
+  planRename,
+  renameJournalProblems,
+  renameProblems,
+  staleRenameConfig,
+} from '../core/workflow/rename.ts';
 export type { RenamedEntry, RenamePatchResult } from '../core/config/rename-patch.ts';
 export { entriesNamed, planRenamePatch } from '../core/config/rename-patch.ts';
 export { identifierTokens, renameIdentifiers } from '../core/reconcile/rename-tokens.ts';

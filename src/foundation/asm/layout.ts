@@ -36,7 +36,7 @@ import type { Assembled, FlowKind, SymbolResolver } from '../isa/types.ts';
 import type { Addr, Mode } from '../rom/span.ts';
 import { insnAligned, insnUnit } from '../rom/span.ts';
 import { hex, hexSize } from '../util/hex.ts';
-import { abs32Word, type SymbolValue } from './relocation.ts';
+import { type SymbolValue, abs32Word } from './relocation.ts';
 import type { Expr, Statement } from './statements.ts';
 
 /** The number of memo slots: a state (Thumb, ARM) times an address mod 4. */
@@ -56,13 +56,17 @@ export interface LayoutMemo {
 
 /** An empty LayoutMemo, to share across the layouts of one run. */
 export function layoutMemo(): LayoutMemo {
-  return { sizes: Array.from({ length: MEMO_SLOTS }, () => new Map()), words: Array.from({ length: MEMO_SLOTS }, () => new Map()) };
+  return {
+    sizes: Array.from({ length: MEMO_SLOTS }, () => new Map()),
+    words: Array.from({ length: MEMO_SLOTS }, () => new Map()),
+  };
 }
 
 /** Slot `slot` of a memo's maps; a memo without it (not made by layoutMemo) is a caller bug. */
 function slotOf<V>(slots: readonly Map<string, V>[], slot: number): Map<string, V> {
   const map = slots[slot];
-  if (map === undefined) throw new RomliftInvariantError(`layout memo: no slot ${slot} of ${slots.length} (make one with layoutMemo())`);
+  if (map === undefined)
+    throw new RomliftInvariantError(`layout memo: no slot ${slot} of ${slots.length} (make one with layoutMemo())`);
   return map;
 }
 
@@ -131,7 +135,8 @@ const MAX_INCLUDE_DEPTH = 16;
  * current one: binutils 2.45 pads `.arm; bx lr; .thumb; .byte 1; .align 2` with three zeros), which
  * depends on fragment boundaries this layouter does not model. romlift writes `.align p, 0` (D16).
  */
-const UNFILLED_ALIGN = '`.align` without a fill byte pads with no-ops of the fragment\'s state, which the text alone does not fix; write `.align p, 0`';
+const UNFILLED_ALIGN =
+  "`.align` without a fill byte pads with no-ops of the fragment's state, which the text alone does not fix; write `.align p, 0`";
 
 /** The row flows whose target is a branch destination, so ld drops the Thumb bit of the symbol. */
 const BRANCH_FLOWS: ReadonlySet<FlowKind> = new Set<FlowKind>(['branch', 'cond-branch', 'bl']);
@@ -219,7 +224,8 @@ function insnSize(text: string, mode: Mode, addr: Addr): number | undefined {
 /** Why an `.inst` directive cannot stand in `mode`, or undefined when it can. */
 function instRefusal(directive: string, mode: Mode): string | undefined {
   if (mode === 'arm' && directive !== '.inst') return `\`${directive}\` in ARM state (width suffixes are Thumb only)`;
-  if (mode === 'thumb' && directive === '.inst') return '`.inst` without a width suffix in Thumb state (romlift writes `.inst.n` or `.inst.w`)';
+  if (mode === 'thumb' && directive === '.inst')
+    return '`.inst` without a width suffix in Thumb state (romlift writes `.inst.n` or `.inst.w`)';
   return undefined;
 }
 
@@ -292,7 +298,13 @@ function place(w: Walker, stmt: Statement, where: string, depth: number, stack: 
 }
 
 /** Pass 1 for an include statement: the included statements in place. */
-function includeAt(w: Walker, stmt: Statement & { readonly kind: 'include' }, where: string, depth: number, stack: readonly string[]): void {
+function includeAt(
+  w: Walker,
+  stmt: Statement & { readonly kind: 'include' },
+  where: string,
+  depth: number,
+  stack: readonly string[],
+): void {
   const report = (message: string): void => {
     w.errors.push({ line: stmt.line, at: w.addr, message: `${where}${message}` });
   };
@@ -319,7 +331,13 @@ function pass1(input: LayoutInput, memo: LayoutMemo, errors: LayoutError[], alig
     sectionAlign: input.mode === 'thumb' ? 1 : 0,
   };
   for (const stmt of input.statements) place(w, stmt, '', 0, []);
-  return { placed: w.placed, labels: w.labels, functions: w.functions, size: w.addr - input.start, sectionAlign: w.sectionAlign };
+  return {
+    placed: w.placed,
+    labels: w.labels,
+    functions: w.functions,
+    size: w.addr - input.start,
+    sectionAlign: w.sectionAlign,
+  };
 }
 
 /** Writes `size` bytes of `value` little-endian at `offset`. */
@@ -413,7 +431,11 @@ function attempt(
     },
   };
   const parsed = parse(text, p.mode, p.at, resolver);
-  return { lookups, parsed: parsed !== undefined, assembled: parsed === undefined ? undefined : assemble(parsed, p.at) };
+  return {
+    lookups,
+    parsed: parsed !== undefined,
+    assembled: parsed === undefined ? undefined : assemble(parsed, p.at),
+  };
 }
 
 /** Why a branch cannot be linked without an interworking veneer, or undefined. */
@@ -421,7 +443,9 @@ function veneerReason(mode: Mode, lookups: Lookups, symbols: Symbols): string | 
   const names = [...lookups.locals, ...lookups.odd];
   if (mode === 'arm') {
     const thumb = names.find((n) => lookups.odd.includes(n) || symbols.isThumbFunction(n));
-    return thumb === undefined ? undefined : `an ARM branch to the Thumb function \`${thumb}\` needs an interworking veneer`;
+    return thumb === undefined
+      ? undefined
+      : `an ARM branch to the Thumb function \`${thumb}\` needs an interworking veneer`;
   }
   const arm = lookups.locals.find((n) => symbols.isArmFunction(n));
   return arm === undefined ? undefined : `a Thumb branch to the ARM function \`${arm}\` needs an interworking veneer`;
@@ -432,7 +456,9 @@ function encodeInsn(text: string, p: Placed, symbols: Symbols, onName: () => voi
   let result = attempt(text, p, symbols, false, onName);
   if (!result.parsed) {
     const missing = result.lookups.missing;
-    return missing.length > 0 ? `undefined symbol \`${missing.join('`, `')}\`` : `unparsable ${p.mode} instruction \`${text}\``;
+    return missing.length > 0
+      ? `undefined symbol \`${missing.join('`, `')}\``
+      : `unparsable ${p.mode} instruction \`${text}\``;
   }
   let dropped = false;
   if (result.assembled === undefined && result.lookups.odd.length > 0) {
@@ -443,8 +469,10 @@ function encodeInsn(text: string, p: Placed, symbols: Symbols, onName: () => voi
     }
   }
   const assembled = result.assembled;
-  if (assembled === undefined) return `cannot encode \`${text}\` at 0x${hex(p.at)} (operand out of range or unencodable)`;
-  if (assembled.size !== p.size) return `\`${text}\` encodes to ${assembled.size} bytes, not the ${p.size} pass 1 placed`;
+  if (assembled === undefined)
+    return `cannot encode \`${text}\` at 0x${hex(p.at)} (operand out of range or unencodable)`;
+  if (assembled.size !== p.size)
+    return `\`${text}\` encodes to ${assembled.size} bytes, not the ${p.size} pass 1 placed`;
   const flow = specOf(assembled.specId).flow;
   if (dropped || BRANCH_FLOWS.has(flow)) {
     const reason = veneerReason(p.mode, result.lookups, symbols);
@@ -452,7 +480,8 @@ function encodeInsn(text: string, p: Placed, symbols: Symbols, onName: () => voi
   }
   if (PC_RELATIVE_FLOWS.has(flow)) {
     const far = result.lookups.external.find((name) => !symbols.sameObject(name));
-    if (far !== undefined) return `\`${text}\` reaches \`${far}\` PC-relatively in another object, which \`as\` cannot relocate`;
+    if (far !== undefined)
+      return `\`${text}\` reaches \`${far}\` PC-relatively in another object, which \`as\` cannot relocate`;
   }
   return { word: assembled.word };
 }
@@ -468,7 +497,12 @@ function exprValue(expr: Expr, symbols: Symbols): number | string {
  * encodeInsn through the layout's memo of the words of texts that name no symbol (`words`, by memoSlot): such
  * a text consults no resolver, so its word is the same at every address of its word alignment.
  */
-function encodeMemo(text: string, p: Placed, symbols: Symbols, words: readonly Map<string, number>[]): { readonly word: number } | string {
+function encodeMemo(
+  text: string,
+  p: Placed,
+  symbols: Symbols,
+  words: readonly Map<string, number>[],
+): { readonly word: number } | string {
   const slot = slotOf(words, memoSlot(p.mode, p.at));
   const hit = slot.get(text);
   if (hit !== undefined) return { word: hit };
@@ -481,7 +515,13 @@ function encodeMemo(text: string, p: Placed, symbols: Symbols, words: readonly M
 }
 
 /** Pass 2 for one placed statement: writes its bytes, or returns an error message. */
-function emit(p: Placed, symbols: Symbols, input: LayoutInput, bytes: Uint8Array, words: readonly Map<string, number>[]): string | undefined {
+function emit(
+  p: Placed,
+  symbols: Symbols,
+  input: LayoutInput,
+  bytes: Uint8Array,
+  words: readonly Map<string, number>[],
+): string | undefined {
   const offset = p.at - input.start;
   const stmt = p.stmt;
   switch (stmt.kind) {
@@ -501,7 +541,8 @@ function emit(p: Placed, symbols: Symbols, input: LayoutInput, bytes: Uint8Array
         if (expr === undefined) continue;
         const value = exprValue(expr, symbols);
         if (typeof value === 'string') return value;
-        if (value < -(2 ** (bits - 1)) || value >= 2 ** bits) return `value ${value} does not fit ${stmt.width} byte(s)`;
+        if (value < -(2 ** (bits - 1)) || value >= 2 ** bits)
+          return `value ${value} does not fit ${stmt.width} byte(s)`;
         writeLE(bytes, offset + i * stmt.width, value < 0 ? value + 2 ** bits : value, stmt.width);
       }
       return undefined;
@@ -513,7 +554,8 @@ function emit(p: Placed, symbols: Symbols, input: LayoutInput, bytes: Uint8Array
     case 'incbin': {
       const data = input.incbin(stmt.file, stmt.offset, stmt.length);
       if (data === undefined) return `cannot read ${stmt.length} bytes of "${stmt.file}" at ${hexSize(stmt.offset)}`;
-      if (data.length !== stmt.length) return `"${stmt.file}" gave ${data.length} bytes at ${hexSize(stmt.offset)}, not ${stmt.length}`;
+      if (data.length !== stmt.length)
+        return `"${stmt.file}" gave ${data.length} bytes at ${hexSize(stmt.offset)}, not ${stmt.length}`;
       bytes.set(data, offset);
       return undefined;
     }

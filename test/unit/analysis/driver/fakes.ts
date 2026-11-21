@@ -1,10 +1,10 @@
 // Fake rules for the driver tests: small stand-ins for the wave-1 rules, enough to drive seeds,
 // acceptance, readings and claims end to end. Not a test file; the driver tests import it.
-import { u32 } from '../../../../src/foundation/rom/rom.ts';
-import type { RuleId } from '../../../../src/core/provenance/rule-id.ts';
 import { Claim } from '../../../../src/core/analysis/types.ts';
 import type { AnalysisView, Candidate, RegisteredRule } from '../../../../src/core/analysis/types.ts';
-import { BASE, fakeRule, pocExtentEnd, REFERENCE_WALK } from '../../../helpers/analysis.ts';
+import type { RuleId } from '../../../../src/core/provenance/rule-id.ts';
+import { u32 } from '../../../../src/foundation/rom/rom.ts';
+import { BASE, REFERENCE_WALK, fakeRule, pocExtentEnd } from '../../../helpers/analysis.ts';
 
 /** seed.rom-entry: the ROM's first word is an ARM b: 0x08000000, then its target. */
 export const romEntry = fakeRule(
@@ -40,14 +40,30 @@ export const listed = fakeRule(
 );
 
 /** seed.call: every call, in calls order. */
-export const calls = fakeRule('seed.call', { kind: 'queue', queue: (f) => f.calls.map((c) => ({ entry: c.target, mode: c.mode, proposedBy: 'seed.call' as const, cites: [c.site] })) }, 'call');
+export const calls = fakeRule(
+  'seed.call',
+  {
+    kind: 'queue',
+    queue: (f) =>
+      f.calls.map((c) => ({ entry: c.target, mode: c.mode, proposedBy: 'seed.call' as const, cites: [c.site] })),
+  },
+  'call',
+);
 
 /** claim.adjacent-pools: the PoC's Func.end, pools start-free and tables always. */
 export const extent = fakeRule('claim.adjacent-pools', {
   kind: 'claim',
   claims: (_f, r) => [
-    ...r.pools.map((p) => ({ span: { start: p.addr, end: p.addr + 4 }, kind: Claim.pool, when: 'start-free' as const })),
-    ...r.tables.map((t) => ({ span: { start: t.base, end: t.base + 4 * t.targets.length }, kind: Claim.table, when: 'always' as const })),
+    ...r.pools.map((p) => ({
+      span: { start: p.addr, end: p.addr + 4 },
+      kind: Claim.pool,
+      when: 'start-free' as const,
+    })),
+    ...r.tables.map((t) => ({
+      span: { start: t.base, end: t.base + 4 * t.targets.length },
+      kind: Claim.table,
+      when: 'always' as const,
+    })),
   ],
   extentEnd: pocExtentEnd,
 });
@@ -61,7 +77,12 @@ export const inRom = fakeRule('valid.in-rom-unclaimed', {
   reason: 'inside-code',
   intrinsic: true,
   check: () => undefined,
-  checkEntry: (a, v) => (a < v.rom.base || a >= v.rom.end || (a & 1) !== 0 ? 'outside the ROM' : v.claimAt(a) !== Claim.free ? 'inside claimed bytes' : undefined),
+  checkEntry: (a, v) =>
+    a < v.rom.base || a >= v.rom.end || (a & 1) !== 0
+      ? 'outside the ROM'
+      : v.claimAt(a) !== Claim.free
+        ? 'inside claimed bytes'
+        : undefined,
 });
 
 /** valid.decodes */
@@ -69,20 +90,34 @@ export const decodes = fakeRule('valid.decodes', {
   kind: 'valid',
   reason: 'decode-error',
   intrinsic: true,
-  check: (r) => (r.insns.length === 0 ? 'decodes to nothing' : r.errors.length > 0 ? `decode error ${r.errors[0]?.reason}` : undefined),
+  check: (r) =>
+    r.insns.length === 0
+      ? 'decodes to nothing'
+      : r.errors.length > 0
+        ? `decode error ${r.errors[0]?.reason}`
+        : undefined,
 });
 
 /** A validity rule that always fails with `reason`. */
-export function failing(id: RuleId, reason: 'calls-non-code' | 'not-dense', intrinsic: boolean, onCheck: () => void = () => undefined): RegisteredRule {
+export function failing(
+  id: RuleId,
+  reason: 'calls-non-code' | 'not-dense',
+  intrinsic: boolean,
+  onCheck: () => void = () => undefined,
+): RegisteredRule {
   return fakeRule(id, { kind: 'valid', reason, intrinsic, check: () => (onCheck(), 'fails by construction') });
 }
 
 /** bl.self-or-accepted: a call to the entry or to a function. */
-export const selfOrAccepted = fakeRule('bl.self-or-accepted', { kind: 'bl', decide: (site, caller, v) => (site.target === caller.entry || v.isFunction(site.target) ? 'call' : undefined) });
+export const selfOrAccepted = fakeRule('bl.self-or-accepted', {
+  kind: 'bl',
+  decide: (site, caller, v) => (site.target === caller.entry || v.isFunction(site.target) ? 'call' : undefined),
+});
 
 /** accept.tiles-after-accepted, simplified: something is claimed just below the entry. */
 export const tiles = fakeRule('accept.tiles-after-accepted', {
   kind: 'accept',
   reason: 'unanchored',
-  holds: (c, _r, v) => (v.claimAt(c.entry - 1) !== Claim.free ? { cites: [c.entry - 1], note: 'anchored at start' } : undefined),
+  holds: (c, _r, v) =>
+    v.claimAt(c.entry - 1) !== Claim.free ? { cites: [c.entry - 1], note: 'anchored at start' } : undefined,
 });

@@ -10,9 +10,14 @@ import { createHash } from 'node:crypto';
 import { copyFile, mkdir, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { gate, onTargets, reportTargets, type ExecResult, type GateContext, type TargetReport } from './gate.ts';
 
-const VARIED_ENV: Readonly<Record<string, string>> = { TZ: 'Pacific/Kiritimati', LANG: 'tr_TR.UTF-8', LC_ALL: 'tr_TR.UTF-8' };
+import { type ExecResult, type GateContext, type TargetReport, gate, onTargets, reportTargets } from './gate.ts';
+
+const VARIED_ENV: Readonly<Record<string, string>> = {
+  TZ: 'Pacific/Kiritimati',
+  LANG: 'tr_TR.UTF-8',
+  LC_ALL: 'tr_TR.UTF-8',
+};
 
 interface Target {
   readonly name: string;
@@ -25,22 +30,35 @@ function tail(run: ExecResult, lines = 20): string {
 
 /** The child: reads argv[3] relative to its cwd, then prints encodeAnalysis(discover(rom)). */
 const CHILD = [
-  "const [index, node] = await Promise.all([import(process.argv[1]), import(process.argv[2])]);",
+  'const [index, node] = await Promise.all([import(process.argv[1]), import(process.argv[2])]);',
   'const read = await node.readRom(process.argv[3]);',
   "if (!read.ok) { process.stderr.write(read.diagnostic.message + '\\n'); process.exit(1); }",
   'for (const chunk of index.encodeAnalysis(index.discover(read.value))) process.stdout.write(chunk);',
 ].join('\n');
 
 /** Copies the ROM into `<dir>/<project>/` and analyses it there, in a child process, with a relative ROM path. */
-async function analyzeIn(cx: GateContext, target: Target, dir: string, env: Readonly<Record<string, string>>): Promise<{ readonly digest: string; readonly leaked: boolean }> {
+async function analyzeIn(
+  cx: GateContext,
+  target: Target,
+  dir: string,
+  env: Readonly<Record<string, string>>,
+): Promise<{ readonly digest: string; readonly leaked: boolean }> {
   await mkdir(dir, { recursive: true });
   const file = `${target.name}.gba`;
   await copyFile(target.rom, path.join(dir, file));
   const entry = (name: string): string => pathToFileURL(path.join(cx.repoRoot, 'src', name)).href;
-  const run = await cx.exec(process.execPath, ['--conditions=source', '--input-type=module', '-e', CHILD, entry('index.ts'), entry('node.ts'), file], { cwd: dir, env });
-  if (run.code !== 0) throw new Error(`${target.name}: the discover analysis exited ${run.code} in ${dir}:\n${tail(run)}`);
+  const run = await cx.exec(
+    process.execPath,
+    ['--conditions=source', '--input-type=module', '-e', CHILD, entry('index.ts'), entry('node.ts'), file],
+    { cwd: dir, env },
+  );
+  if (run.code !== 0)
+    throw new Error(`${target.name}: the discover analysis exited ${run.code} in ${dir}:\n${tail(run)}`);
   const resolved = await realpath(dir);
-  return { digest: createHash('sha256').update(run.stdout).digest('hex'), leaked: run.stdout.includes(dir) || run.stdout.includes(resolved) };
+  return {
+    digest: createHash('sha256').update(run.stdout).digest('hex'),
+    leaked: run.stdout.includes(dir) || run.stdout.includes(resolved),
+  };
 }
 
 gate({
@@ -52,7 +70,8 @@ gate({
   async run(cx) {
     const fixtures: Target[] = cx.fixtures.map((f) => ({ name: f.name, rom: f.rom }));
     if (fixtures.length === 0) throw new Error('no committed fixture under bench/dataset/synthetic');
-    const datasets: Target[] = cx.tier === 'real' ? cx.datasets.map((d) => ({ name: d.name, rom: path.resolve(cx.benchRoot, d.rom) })) : [];
+    const datasets: Target[] =
+      cx.tier === 'real' ? cx.datasets.map((d) => ({ name: d.name, rom: path.resolve(cx.benchRoot, d.rom) })) : [];
     const targets = [...fixtures, ...datasets];
 
     const base = await cx.tmpDir('romlift-determinism-');

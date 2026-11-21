@@ -12,7 +12,7 @@
 //   - a gate the index marks `(sealed)` reads `cx.sealed`.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -52,7 +52,16 @@ const GATE_FILE = /^g\d.*\.test\.ts$/;
 const ROW = /^\| `(g([1-6])\.[a-z0-9-]+)` \| ([^|]+?) \| (.+) \|$/;
 const TIER_TEXT = /^(ci and real|ci|real)(?: \((?:historical after phase ([1-6])|(sealed))\))?$/;
 const GATE_INPUTS: ReadonlySet<string> = new Set(['roms', 'elfs', 'objects', 'poc', 'toolchain']);
-const SPEC_KEYS: ReadonlySet<string> = new Set(['id', 'phase', 'tier', 'needs', 'inputs', 'realInputs', 'historicalAfter', 'run']);
+const SPEC_KEYS: ReadonlySet<string> = new Set([
+  'id',
+  'phase',
+  'tier',
+  'needs',
+  'inputs',
+  'realInputs',
+  'historicalAfter',
+  'run',
+]);
 
 function architecture(): string {
   return readFileSync(path.join(repoRoot, 'docs', 'architecture.md'), 'utf8');
@@ -100,7 +109,9 @@ function phaseRows(): ReadonlyMap<number, PhaseRow> {
     const phase = /^\| ([1-6]) [A-Z]/.exec(line)?.[1];
     if (phase === undefined) continue;
     const cells = line.split('|');
-    const ids = [...(cells[cells.length - 2] ?? '').matchAll(/`(g[1-6]\.[a-z0-9-]+)`/g)].flatMap((m) => (m[1] === undefined ? [] : [m[1]]));
+    const ids = [...(cells[cells.length - 2] ?? '').matchAll(/`(g[1-6]\.[a-z0-9-]+)`/g)].flatMap((m) =>
+      m[1] === undefined ? [] : [m[1]],
+    );
     out.set(Number(phase), { ids, skipped: /\bskipped\b/.test(line) });
   }
   return out;
@@ -157,12 +168,24 @@ function loadSpecs(files: readonly string[]): readonly Loaded[] {
   try {
     const stub = path.join(dir, 'gate-stub.mjs');
     const real = pathToFileURL(path.join(gatesDir, 'gate.ts')).href;
-    writeFileSync(stub, `export * from ${JSON.stringify(real)};\nexport function gate(spec) {\n  globalThis.__romliftGateSpecs.push(spec);\n}\n`);
-    const env: Record<string, string | undefined> = { ...process.env, ROMLIFT_INDEX_STUB: stub, ROMLIFT_INDEX_FILES: JSON.stringify(files.map((f) => path.join(gatesDir, f))) };
+    writeFileSync(
+      stub,
+      `export * from ${JSON.stringify(real)};\nexport function gate(spec) {\n  globalThis.__romliftGateSpecs.push(spec);\n}\n`,
+    );
+    const env: Record<string, string | undefined> = {
+      ...process.env,
+      ROMLIFT_INDEX_STUB: stub,
+      ROMLIFT_INDEX_FILES: JSON.stringify(files.map((f) => path.join(gatesDir, f))),
+    };
     delete env['ROMLIFT_GATE_TIER'];
     delete env['ROMLIFT_GATE_REPORT'];
     delete env['NODE_TEST_CONTEXT'];
-    const child = spawnSync(process.execPath, ['--conditions=source', '--input-type=module', '--eval', CHILD], { cwd: repoRoot, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawnSync(process.execPath, ['--conditions=source', '--input-type=module', '--eval', CHILD], {
+      cwd: repoRoot,
+      env,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
     assert.equal(child.status, 0, `the loader child failed:\n${child.stderr}`);
     return JSON.parse(child.stdout) as readonly Loaded[];
   } finally {
@@ -182,7 +205,10 @@ test('the §13 gate index parses strictly and agrees with the phase table of §1
   const phases = phaseTableIds();
   for (const phase of [1, 2, 3, 4, 5, 6]) {
     const listed = [...(phases.get(phase) ?? [])].sort(byCodeUnit);
-    const indexed = index.filter((row) => row.phase === phase).map((row) => row.id).sort(byCodeUnit);
+    const indexed = index
+      .filter((row) => row.phase === phase)
+      .map((row) => row.id)
+      .sort(byCodeUnit);
     assert.deepEqual(indexed, listed, `phase ${phase}: §13 and §1 list different gates`);
   }
 });
@@ -192,17 +218,28 @@ test('every phase has its §1 row; a row with no gate id is a skipped phase, and
   for (const phase of [1, 2, 3, 4, 5, 6]) {
     const row = rows.get(phase);
     assert.ok(row, `§1 has no row for phase ${phase}`);
-    if (row.ids.length === 0) assert.ok(row.skipped, `phase ${phase}'s §1 row lists no gate id and does not say the phase was skipped`);
+    if (row.ids.length === 0)
+      assert.ok(row.skipped, `phase ${phase}'s §1 row lists no gate id and does not say the phase was skipped`);
   }
   assert.deepEqual(rows.get(5)?.ids, [], 'phase 5 was skipped by the owner (D92): its row lists no gate');
-  assert.equal(rows.get(5)?.skipped, true, 'phase 5\'s row says it was skipped (D92)');
+  assert.equal(rows.get(5)?.skipped, true, "phase 5's row says it was skipped (D92)");
 });
 
 test('test/gates holds exactly one file per §13 gate and no other gate file', () => {
-  const ids = gateIndex().map((row) => row.id).sort(byCodeUnit);
+  const ids = gateIndex()
+    .map((row) => row.id)
+    .sort(byCodeUnit);
   const files = gateFiles().map((name) => name.slice(0, -'.test.ts'.length));
-  assert.deepEqual(files.filter((id) => !ids.includes(id)), [], 'gate files with no §13 row');
-  assert.deepEqual(ids.filter((id) => !files.includes(id)), [], '§13 gates with no file');
+  assert.deepEqual(
+    files.filter((id) => !ids.includes(id)),
+    [],
+    'gate files with no §13 row',
+  );
+  assert.deepEqual(
+    ids.filter((id) => !files.includes(id)),
+    [],
+    '§13 gates with no file',
+  );
 });
 
 test('every gate file loads and declares the gate() spec §13 gives it', () => {
@@ -228,17 +265,28 @@ test('every gate file loads and declares the gate() spec §13 gives it', () => {
     // code-quality-r0-6), before the harness loads exports or checks inputs, so it may declare neither.
     if (spec.historicalAfter !== undefined) {
       assert.deepEqual(spec.needs, [], `${name}: a historical gate runs frozen, with no exports loaded`);
-      assert.ok(spec.inputs === undefined || (Array.isArray(spec.inputs) && spec.inputs.length === 0), `${name}: a historical gate runs frozen, with no inputs checked`);
+      assert.ok(
+        spec.inputs === undefined || (Array.isArray(spec.inputs) && spec.inputs.length === 0),
+        `${name}: a historical gate runs frozen, with no inputs checked`,
+      );
       assert.equal(spec.realInputs, undefined, `${name}: a historical gate runs frozen, with no inputs checked`);
     }
     assert.ok(isStringArray(spec.needs), `${name}: needs is not a string array`);
     for (const key of ['inputs', 'realInputs'] as const) {
       const value = spec[key];
       if (value === undefined) continue;
-      assert.ok(isStringArray(value) && value.every((v) => GATE_INPUTS.has(v)), `${name}: ${key} holds an input outside the GateInput set`);
+      assert.ok(
+        isStringArray(value) && value.every((v) => GATE_INPUTS.has(v)),
+        `${name}: ${key} holds an input outside the GateInput set`,
+      );
     }
-    if (row.tier === 'ci') assert.equal(spec.realInputs, undefined, `${name}: a ci gate's realInputs are never checked`);
-    assert.deepEqual(spec.keys.filter((k) => !SPEC_KEYS.has(k)), [], `${name}: keys outside GateSpec`);
+    if (row.tier === 'ci')
+      assert.equal(spec.realInputs, undefined, `${name}: a ci gate's realInputs are never checked`);
+    assert.deepEqual(
+      spec.keys.filter((k) => !SPEC_KEYS.has(k)),
+      [],
+      `${name}: keys outside GateSpec`,
+    );
   }
 });
 

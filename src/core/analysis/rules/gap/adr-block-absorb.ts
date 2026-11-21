@@ -18,10 +18,16 @@ function blockAt(c: GapCursor, at: Addr, v: AnalysisView): Absorbed {
   const into = v.adrOwner(at);
   const g = into === undefined ? undefined : v.accepted(into);
   if (into === undefined || g === undefined || g.mode !== 'thumb') return undefined;
-  if (g.end < c.gap.start - profile.anchorSlack || g.entry >= c.gap.start || profile.idioms.isPrologue(rom, at, 'thumb')) return undefined;
+  if (
+    g.end < c.gap.start - profile.anchorSlack ||
+    g.entry >= c.gap.start ||
+    profile.idioms.isPrologue(rom, at, 'thumb')
+  )
+    return undefined;
   const block = v.read(at, 'thumb');
   if (block.insns.length === 0 || block.errors.length > 0 || block.codeEnd > c.end) return undefined;
-  if (block.returns === 0 || block.tailExits !== block.returns || !block.tails.every((t) => g.insnAt.has(t))) return undefined;
+  if (block.returns === 0 || block.tailExits !== block.returns || !block.tails.every((t) => g.insnAt.has(t)))
+    return undefined;
   return { into, span: { start: at, end: block.end } };
 }
 
@@ -30,7 +36,8 @@ const free = (v: AnalysisView, a: Addr): boolean => v.claimAt(a) === Claim.free;
 export default defineRule({
   meta: {
     id: 'gap.adr-block-absorb',
-    summary: "a gap-start block named by the previous Thumb function's add rd, pc, #imm that only branches back into it is merged into that function",
+    summary:
+      "a gap-start block named by the previous Thumb function's add rd, pc, #imm that only branches back into it is merged into that function",
     restsOn:
       'hand-written interrupt handlers store a callback block with add rd, pc, #imm and return through the code of the function that names it; ' +
       'the block may start one halfword on, past a claimed halfword or past one zero halfword of alignment (the PoC absorbRun retry, zero only: ' +

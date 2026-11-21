@@ -11,7 +11,7 @@
 //    runs: [{command: 'init' | 'generate', exitCode, maxRssMiB, maxOldSpaceSizeMiB, treeDigest?}]}
 //   each run is its own process; maxRssMiB is that process's peak resident set (process.resourceUsage), and
 //   maxOldSpaceSizeMiB the --max-old-space-size of its own command line (null without one).
-import { gate, type ExecResult } from './gate.ts';
+import { type ExecResult, gate } from './gate.ts';
 
 interface LargeRomRun {
   readonly command: string;
@@ -54,18 +54,29 @@ gate({
     const run = await cx.npm('bench', ['large-rom', '--json']);
     if (run.code !== 0) throw new Error(`bench large-rom --json exited ${run.code}:\n${tail(run)}`);
     const report = cx.lastJson<LargeRom>(run.stdout);
-    if (report.schema !== 'romlift/bench-large-rom@1') throw new Error(`bench large-rom printed schema '${String(report.schema)}'`);
-    if (report.romBytes !== ROM_BYTES) throw new Error(`the synthetic ROM has ${report.romBytes} bytes, expected ${ROM_BYTES}`);
+    if (report.schema !== 'romlift/bench-large-rom@1')
+      throw new Error(`bench large-rom printed schema '${String(report.schema)}'`);
+    if (report.romBytes !== ROM_BYTES)
+      throw new Error(`the synthetic ROM has ${report.romBytes} bytes, expected ${ROM_BYTES}`);
     cx.digest('large-rom', report.sha1);
     const problems: string[] = [];
     for (const command of COMMANDS) {
       const measured = report.runs.find((r) => r.command === command);
       if (measured === undefined) problems.push(`${command}: not run`);
-      else if (measured.exitCode !== 0) problems.push(`${command}: exited ${measured.exitCode} under the ${HEAP_CAP_MIB} MiB heap cap (${(measured.detail ?? '').slice(0, 160)})`);
-      else if (measured.maxOldSpaceSizeMiB !== HEAP_CAP_MIB) problems.push(`${command}: ran under heap cap ${String(measured.maxOldSpaceSizeMiB)}, not the romlift bin's ${HEAP_CAP_MIB} MiB`);
-      else if (!(measured.maxRssMiB < MAX_RSS_MIB)) problems.push(`${command}: peak RSS ${measured.maxRssMiB.toFixed(1)} MiB >= ${MAX_RSS_MIB} MiB`);
+      else if (measured.exitCode !== 0)
+        problems.push(
+          `${command}: exited ${measured.exitCode} under the ${HEAP_CAP_MIB} MiB heap cap (${(measured.detail ?? '').slice(0, 160)})`,
+        );
+      else if (measured.maxOldSpaceSizeMiB !== HEAP_CAP_MIB)
+        problems.push(
+          `${command}: ran under heap cap ${String(measured.maxOldSpaceSizeMiB)}, not the romlift bin's ${HEAP_CAP_MIB} MiB`,
+        );
+      else if (!(measured.maxRssMiB < MAX_RSS_MIB))
+        problems.push(`${command}: peak RSS ${measured.maxRssMiB.toFixed(1)} MiB >= ${MAX_RSS_MIB} MiB`);
     }
     if (problems.length > 0) throw new Error(`large ROM: ${problems.join('; ')}`);
-    cx.note(`32 MiB ROM ${report.sha1}, heap cap ${HEAP_CAP_MIB} MiB: ${report.runs.map((r) => `${r.command} maxRssMiB ${r.maxRssMiB.toFixed(1)}${r.treeDigest ? ` tree ${r.treeDigest}` : ''}`).join(', ')}`);
+    cx.note(
+      `32 MiB ROM ${report.sha1}, heap cap ${HEAP_CAP_MIB} MiB: ${report.runs.map((r) => `${r.command} maxRssMiB ${r.maxRssMiB.toFixed(1)}${r.treeDigest ? ` tree ${r.treeDigest}` : ''}`).join(', ')}`,
+    );
   },
 });

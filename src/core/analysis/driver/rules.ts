@@ -55,7 +55,11 @@ export interface ResolvedRules {
     readonly absorb?: Resolved<GapAbsorb>;
     readonly head?: Resolved<GapHead>;
     /** The forward pair (absent where disabled) and the proposers after it, in order. */
-    readonly forward: { readonly thumb?: Resolved<GapProposer>; readonly arm?: Resolved<GapProposer>; readonly after: readonly Resolved<GapProposer>[] };
+    readonly forward: {
+      readonly thumb?: Resolved<GapProposer>;
+      readonly arm?: Resolved<GapProposer>;
+      readonly after: readonly Resolved<GapProposer>[];
+    };
     readonly prefer?: Resolved<GapPrefer>;
     readonly skip?: Resolved<GapSkip>;
     readonly endAnchor?: Resolved<GapProposer>;
@@ -85,13 +89,20 @@ function kinds<K extends RuleKind>(...k: K[]): readonly K[] {
 export function resolveRules(profile: CompilerProfile, registry: RuleRegistry, tuning: AnalysisTuning): ResolvedRules {
   const disabled = new Set<RuleId>(tuning.disabled);
   const rank = new Map<RuleId, number>();
-  const one = <K extends RuleKind>(id: RuleId, allowed: readonly K[], index: number): Resolved<RuleOfKind<K>> | undefined => {
+  const one = <K extends RuleKind>(
+    id: RuleId,
+    allowed: readonly K[],
+    index: number,
+  ): Resolved<RuleOfKind<K>> | undefined => {
     rank.set(id, index);
     if (disabled.has(id)) return undefined;
     const rule = Object.hasOwn(registry, id) ? registry[id] : undefined;
-    if (rule === undefined) throw new RomliftInvariantError(`profile ${profile.id}: pipeline rule ${id} has no implementation`);
+    if (rule === undefined)
+      throw new RomliftInvariantError(`profile ${profile.id}: pipeline rule ${id} has no implementation`);
     if (!(allowed as readonly string[]).includes(rule.kind)) {
-      throw new RomliftInvariantError(`profile ${profile.id}: rule ${id} is a '${rule.kind}' rule, not one of ${allowed.join(', ')}`);
+      throw new RomliftInvariantError(
+        `profile ${profile.id}: rule ${id} is a '${rule.kind}' rule, not one of ${allowed.join(', ')}`,
+      );
     }
     return { id, rule: rule as RuleOfKind<K> };
   };

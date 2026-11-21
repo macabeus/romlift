@@ -11,8 +11,7 @@
 // before: parity digest equal to the PoC's, rows equal to the PoC baseline, every lockstep set followed. The
 // scoping is bound to the ROM and ELF it was decided on (dataset-binding.ts): for another build of that
 // name it is stale and fails, and the ROM is judged as without it.
-
-import { bindingMismatch, TMC_AT_D61, type DatasetBinding, type DatasetIdentity } from './dataset-binding.ts';
+import { type DatasetBinding, type DatasetIdentity, TMC_AT_D61, bindingMismatch } from './dataset-binding.ts';
 import { byCodeUnit } from './order.ts';
 
 export interface LockstepSet {
@@ -31,7 +30,17 @@ export interface ParityEvidence {
   readonly dirty: boolean;
   readonly worklist: string;
   readonly pocSourceDigest: string;
-  readonly roms: Readonly<Record<string, { readonly digest: string; readonly expected: string; readonly rowDiffs: number; readonly lockstep: readonly LockstepSet[] }>>;
+  readonly roms: Readonly<
+    Record<
+      string,
+      {
+        readonly digest: string;
+        readonly expected: string;
+        readonly rowDiffs: number;
+        readonly lockstep: readonly LockstepSet[];
+      }
+    >
+  >;
 }
 
 /** bench/baseline/poc-digests.json. */
@@ -49,7 +58,8 @@ export const LOCKSTEP_SETS = ['driver', 'walk+bl+claim', 'seed+valid+accept', 'g
 export const SCOPED_OUT: Readonly<Record<string, ScopedOut>> = {
   tmc: {
     decision: 'D61 c',
-    reason: 'not applicable, no M1 lockstep run (the owner\'s answer to Q1 on 2026-10-18, D61 c: "Keep tmc as 99.94%. It\'s a benchmark row that we can improve later")',
+    reason:
+      'not applicable, no M1 lockstep run (the owner\'s answer to Q1 on 2026-10-18, D61 c: "Keep tmc as 99.94%. It\'s a benchmark row that we can improve later")',
     rom: TMC_AT_D61,
   },
 };
@@ -93,12 +103,21 @@ export function parityCheck(input: ParityInput): ParityOutcome {
   const judged: string[] = [];
   const found: Record<string, string> = {};
   for (const name of Object.keys(scopedOut).sort(byCodeUnit)) {
-    if (!tuning.some((t) => t.name === name)) problems.push(`${name} is scoped out but is not a tuning dataset (the scoping is stale)`);
+    if (!tuning.some((t) => t.name === name))
+      problems.push(`${name} is scoped out but is not a tuning dataset (the scoping is stale)`);
   }
-  if (e === undefined) return { problems: [...problems, 'bench/results.json holds no parity evidence'], notApplicable, judged, digests: found };
-  if (e.schema !== 'romlift-bench/parity-evidence@1' || e.worklist !== 'poc-lifo') problems.push(`the parity evidence is ${e.schema} under ${e.worklist}`);
+  if (e === undefined)
+    return {
+      problems: [...problems, 'bench/results.json holds no parity evidence'],
+      notApplicable,
+      judged,
+      digests: found,
+    };
+  if (e.schema !== 'romlift-bench/parity-evidence@1' || e.worklist !== 'poc-lifo')
+    problems.push(`the parity evidence is ${e.schema} under ${e.worklist}`);
   if (!input.ancestor) problems.push(`the evidence names commit ${e.commit}, which is not an ancestor of HEAD`);
-  if (e.pocSourceDigest !== digests.pocSourceDigest) problems.push(`the evidence pins PoC source ${e.pocSourceDigest}, poc-digests.json ${digests.pocSourceDigest}`);
+  if (e.pocSourceDigest !== digests.pocSourceDigest)
+    problems.push(`the evidence pins PoC source ${e.pocSourceDigest}, poc-digests.json ${digests.pocSourceDigest}`);
   for (const dataset of tuning) {
     const name = dataset.name;
     const scoped = scopedOut[name];
@@ -112,17 +131,26 @@ export function parityCheck(input: ParityInput): ParityOutcome {
     const rom = e.roms[name];
     const want = digests.roms[name];
     if (rom === undefined || want === undefined) {
-      problems.push(`${name}: no ${[rom === undefined ? 'parity evidence' : undefined, want === undefined ? 'committed PoC digest' : undefined].filter((x) => x !== undefined).join(' and no ')}`);
+      problems.push(
+        `${name}: no ${[rom === undefined ? 'parity evidence' : undefined, want === undefined ? 'committed PoC digest' : undefined].filter((x) => x !== undefined).join(' and no ')}`,
+      );
       continue;
     }
     found[name] = rom.digest;
-    if (rom.digest !== want || rom.expected !== want) problems.push(`${name}: parity digest ${rom.digest}, the PoC's is ${want}`);
+    if (rom.digest !== want || rom.expected !== want)
+      problems.push(`${name}: parity digest ${rom.digest}, the PoC's is ${want}`);
     if (rom.rowDiffs !== 0) problems.push(`${name}: ${rom.rowDiffs} rows differed from the PoC baseline`);
     for (const set of LOCKSTEP_SETS) {
       const s = rom.lockstep.find((l) => l.set === set);
       if (s === undefined) problems.push(`${name}: no lockstep ${set}`);
-      else if (s.divergence !== null) problems.push(`${name}: lockstep ${set} diverges at seq ${s.divergence.seq} (${s.divergence.kind}): ${s.divergence.detail}`);
-      else if (s.parityDigest !== want || s.matched + s.skipped !== s.queries) problems.push(`${name}: lockstep ${set} ends at ${s.parityDigest ?? 'none'} with ${s.matched} + ${s.skipped} of ${s.queries} records`);
+      else if (s.divergence !== null)
+        problems.push(
+          `${name}: lockstep ${set} diverges at seq ${s.divergence.seq} (${s.divergence.kind}): ${s.divergence.detail}`,
+        );
+      else if (s.parityDigest !== want || s.matched + s.skipped !== s.queries)
+        problems.push(
+          `${name}: lockstep ${set} ends at ${s.parityDigest ?? 'none'} with ${s.matched} + ${s.skipped} of ${s.queries} records`,
+        );
     }
   }
   return { problems, notApplicable, judged, digests: found };

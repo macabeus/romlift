@@ -98,7 +98,12 @@ function unlistedJson(u: UnlistedFinding) {
     entry: hexAddr(u.entry),
     mode: u.mode,
     origin: u.origin,
-    provenance: { rule: p.rule, round: p.round, cites: p.cites.map(hexAddr), ...(p.note === undefined ? {} : { note: p.note }) },
+    provenance: {
+      rule: p.rule,
+      round: p.round,
+      cites: p.cites.map(hexAddr),
+      ...(p.note === undefined ? {} : { note: p.note }),
+    },
   } satisfies ModelJsonUnlisted;
 }
 
@@ -134,7 +139,13 @@ function headerJson(model: Model) {
 function itemJson(model: Model, i: number): ModelJsonItem {
   const { items } = model;
   const spec = items.spec[i] ?? NO_SPEC;
-  return [(items.kind[i] ?? 0) as ItemKindCode, hexAddr(items.start[i] ?? 0), items.length[i] ?? 0, spec === NO_SPEC ? null : (specIdAt(spec) ?? null), items.aux[i] ?? 0];
+  return [
+    (items.kind[i] ?? 0) as ItemKindCode,
+    hexAddr(items.start[i] ?? 0),
+    items.length[i] ?? 0,
+    spec === NO_SPEC ? null : (specIdAt(spec) ?? null),
+    items.aux[i] ?? 0,
+  ];
 }
 
 /** A chunk line's value, its items inline. */

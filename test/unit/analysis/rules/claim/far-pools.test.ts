@@ -20,19 +20,35 @@ test('only the pools outside [entry, end) are claimed, start-free, in walk order
   const r = readingOf(rom, {
     entry: F + 0x10,
     insns: [{ addr: F + 0x10, len: 2 }],
-    pools: [{ addr: P, value: 1 }, { addr: F + 0x14, value: 2 }, { addr: F, value: 3 }],
+    pools: [
+      { addr: P, value: 1 },
+      { addr: F + 0x14, value: 2 },
+      { addr: F, value: 3 },
+    ],
     end: F + 0x18,
   });
   assert.deepEqual(rule.claims(factOf(r), r, viewWith({ rom })), [
     { span: { start: P, end: P + 4 }, kind: Claim.pool, when: 'start-free' },
     { span: { start: F, end: F + 4 }, kind: Claim.pool, when: 'start-free' },
   ]);
-  const inside = readingOf(rom, { entry: F, insns: [{ addr: F, len: 2 }], pools: [{ addr: F + 4, value: 0 }], end: F + 8 });
-  assert.deepEqual(rule.claims(factOf(inside), inside, viewWith({ rom })), [], 'an adjacent pool is claim.adjacent-pools\'');
+  const inside = readingOf(rom, {
+    entry: F,
+    insns: [{ addr: F, len: 2 }],
+    pools: [{ addr: F + 4, value: 0 }],
+    end: F + 8,
+  });
+  assert.deepEqual(
+    rule.claims(factOf(inside), inside, viewWith({ rom })),
+    [],
+    "an adjacent pool is claim.adjacent-pools'",
+  );
 });
 
 test('through accept: a pool 0xFC bytes away is claimed outside the extent; a taken first byte keeps its claim', () => {
-  const rom = romWith([{ at: F, bytes: thumbAt(F)`ldr r0, _08000300; bx lr` }, { at: P, bytes: words(0x1234_5678) }]);
+  const rom = romWith([
+    { at: F, bytes: thumbAt(F)`ldr r0, _08000300; bx lr` },
+    { at: P, bytes: words(0x1234_5678) },
+  ]);
   const s = driverOver(rom);
   take(s, F);
   assert.equal(s.funcs.get(F)?.reading.end, F + 4, 'the far pool is not in the extent');

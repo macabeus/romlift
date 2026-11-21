@@ -16,7 +16,10 @@ function holds(at: number, text: string, proposedBy: RuleId) {
 }
 
 test('a word-aligned push {.., lr} proposed by seed.pool-pointer holds', () => {
-  assert.deepEqual(holds(E, 'push {r4, lr}; pop {r4, pc}', 'seed.pool-pointer'), { cites: [E, E], note: 'prologue, loaded from a pool' });
+  assert.deepEqual(holds(E, 'push {r4, lr}; pop {r4, pc}', 'seed.pool-pointer'), {
+    cites: [E, E],
+    note: 'prologue, loaded from a pool',
+  });
 });
 
 test('a data pointer, a push off a word boundary or a push without lr does not hold', () => {

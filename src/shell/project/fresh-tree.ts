@@ -3,9 +3,9 @@
 // non-generated modules retained), planWrites decides, applyWrites applies. What the assemble and link checks
 // and the bench's emission runs write their trees with. Mechanical: it hashes and writes, it decides nothing.
 import type { FileEntry } from '../../core/emit/tree.ts';
+import { retainedPrefixes } from '../../core/model/paths.ts';
 import type { Model } from '../../core/model/types.ts';
 import { planWrites } from '../../core/write-plan/plan-writes.ts';
-import { retainedPrefixes } from '../../core/model/paths.ts';
 import { freshTreePlanInputs } from '../../core/write-plan/project-plan.ts';
 import { sha1Of } from '../hash.ts';
 import { applyWrites } from './apply-writes.ts';
@@ -21,6 +21,8 @@ export interface FreshTree {
 
 /** Plans `tree` into the empty directory `dir` and applies the plan (refused, touching nothing, when it has errors). */
 export async function writeFreshTree(dir: string, tree: FreshTree): Promise<ApplyResult> {
-  const plan = planWrites(freshTreePlanInputs(tree.entries, tree.paths, (text) => sha1Of(text), retainedPrefixes(tree.model)));
+  const plan = planWrites(
+    freshTreePlanInputs(tree.entries, tree.paths, (text) => sha1Of(text), retainedPrefixes(tree.model)),
+  );
   return applyWrites(dir, plan);
 }

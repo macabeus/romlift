@@ -10,7 +10,12 @@ const error: Diagnostic = { code: 'E_SELF_CHECK_TEXT', severity: 'error', messag
 const warning: Diagnostic = { code: 'W_CROSS_MODULE_SHORT_BRANCH', severity: 'warning', message: 'raw branch' };
 
 test('a check is ok unless one of its diagnostics is an error', () => {
-  assert.deepEqual(checkResult('tiling', [], 'every byte in one item'), { id: 'tiling', ok: true, detail: 'every byte in one item', diagnostics: [] });
+  assert.deepEqual(checkResult('tiling', [], 'every byte in one item'), {
+    id: 'tiling',
+    ok: true,
+    detail: 'every byte in one item',
+    diagnostics: [],
+  });
   assert.equal(checkResult('reencode', [warning], '').ok, true);
   assert.equal(checkResult('text-layout', [warning, error], '').ok, false);
 });
@@ -18,7 +23,10 @@ test('a check is ok unless one of its diagnostics is an error', () => {
 test('reports combine in CHECK_IDS order and merge one id', () => {
   const model = { ok: true, checks: [checkResult('module-size', [], 'sizes'), checkResult('tiling', [], 'tiling')] };
   const text1 = { ok: false, checks: [checkResult('text-layout', [error], 'asm/main.s:3')] };
-  const text2 = { ok: true, checks: [checkResult('text-layout', [warning], '4 files'), checkResult('paths', [], '5 paths')] };
+  const text2 = {
+    ok: true,
+    checks: [checkResult('text-layout', [warning], '4 files'), checkResult('paths', [], '5 paths')],
+  };
   const combined = combineReports(text1, model, text2);
   assert.deepEqual(
     combined.checks.map((c) => c.id),

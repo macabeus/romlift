@@ -11,11 +11,23 @@ import { gapCursor } from './cursor.ts';
 
 const P = 0x0800_0200;
 const rom = romWith([{ at: P + 0x10, bytes: thumbAt(P + 0x10)`bx lr` }]);
-const head = readingOf(rom, { entry: P, insns: [{ addr: P, len: 2 }, { addr: P + 2, len: 2 }, { addr: P + 4, len: 2 }], end: P + 0x10 });
+const head = readingOf(rom, {
+  entry: P,
+  insns: [
+    { addr: P, len: 2 },
+    { addr: P + 2, len: 2 },
+    { addr: P + 4, len: 2 },
+  ],
+  end: P + 0x10,
+});
 
 test('a head ending within fillSlack of the end is proposed with its origin rule (profile boundary)', () => {
   const v = viewWith({ rom });
-  assert.deepEqual(rule.propose(gapCursor(P, P + 0x13, P, { head }), v), { entry: P, mode: 'thumb', cites: [P, P + 0x10, P + 0x13] });
+  assert.deepEqual(rule.propose(gapCursor(P, P + 0x13, P, { head }), v), {
+    entry: P,
+    mode: 'thumb',
+    cites: [P, P + 0x10, P + 0x13],
+  });
   assert.equal(rule.propose(gapCursor(P, P + 0x10, P, { head }), v)?.entry, P, 'exactly at the end');
   assert.equal(rule.propose(gapCursor(P, P + 0x14, P, { head }), v), undefined, 'agbcc: 4 bytes short');
   const dummy = viewWith({ rom, profile: DUMMY_PROFILE });

@@ -6,16 +6,26 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import type { AnalysisResult } from '../../../src/core/analysis/types.ts';
 import { legalBorders } from '../../../src/core/layout/borders.ts';
 import { codeLayout } from '../../../src/core/layout/borders.ts';
-import { asmOnlyName, inferModules, mainName, placeLibraries, runsAtName } from '../../../src/core/layout/infer-modules.ts';
-import type { AnalysisResult } from '../../../src/core/analysis/types.ts';
-import type { Rom } from '../../../src/foundation/rom/rom.ts';
+import {
+  asmOnlyName,
+  inferModules,
+  mainName,
+  placeLibraries,
+  runsAtName,
+} from '../../../src/core/layout/infer-modules.ts';
 import type { InferModulesOptions } from '../../../src/core/layout/types.ts';
-import { analysisOf, BASE, fact, HEADER_END, romWith, thumbAt } from './hand-made.ts';
+import type { Rom } from '../../../src/foundation/rom/rom.ts';
+import { BASE, HEADER_END, analysisOf, fact, romWith, thumbAt } from './hand-made.ts';
 
 /** [name, start offset from BASE, kind, layout reason] per proposal, after checking every start is a legal border. */
-function modules(rom: Rom, analysis: AnalysisResult, options: InferModulesOptions = {}): [string, number, string, string][] {
+function modules(
+  rom: Rom,
+  analysis: AnalysisResult,
+  options: InferModulesOptions = {},
+): [string, number, string, string][] {
   const proposals = inferModules(rom, analysis, options);
   const borders = legalBorders(rom, analysis);
   // A runs_at range's borders are the user's (§6.7): they are module starts whether legal or not.
@@ -24,12 +34,19 @@ function modules(rom: Rom, analysis: AnalysisResult, options: InferModulesOption
   for (const p of proposals) {
     assert.equal(p.kind, 'module');
     if (p.kind !== 'module') continue;
-    assert.ok(borders.includes(p.start) || ranges.includes(p.start), `${p.name} starts at 0x${p.start.toString(16)}, not a legal border`);
+    assert.ok(
+      borders.includes(p.start) || ranges.includes(p.start),
+      `${p.name} starts at 0x${p.start.toString(16)}, not a legal border`,
+    );
     assert.equal(p.source.kind, 'layout');
     out.push([p.name, p.start - BASE, p.moduleKind, p.source.kind === 'layout' ? p.source.reason : '']);
   }
   const starts = out.map(([, s]) => s);
-  assert.deepEqual([...starts].sort((a, b) => a - b), starts, 'in ROM order');
+  assert.deepEqual(
+    [...starts].sort((a, b) => a - b),
+    starts,
+    'in ROM order',
+  );
   assert.equal(starts[0], 0, 'the first module starts at the ROM base');
   return out;
 }
@@ -37,7 +54,11 @@ function modules(rom: Rom, analysis: AnalysisResult, options: InferModulesOption
 /** A startup function [0xC0, 0xE0) and Thumb functions of 0x10 bytes from 0x100. */
 function layout(count: number, extra: Parameters<typeof fact>[0][] = [], size = 0x400) {
   const rom = romWith([], { size });
-  const functions = [fact({ entry: HEADER_END, end: BASE + 0xe0, mode: 'arm' }), ...Array.from({ length: count }, (_, i) => fact({ entry: BASE + 0x100 + 0x10 * i, end: BASE + 0x110 + 0x10 * i })), ...extra.map(fact)];
+  const functions = [
+    fact({ entry: HEADER_END, end: BASE + 0xe0, mode: 'arm' }),
+    ...Array.from({ length: count }, (_, i) => fact({ entry: BASE + 0x100 + 0x10 * i, end: BASE + 0x110 + 0x10 * i })),
+    ...extra.map(fact),
+  ];
   return { rom, analysis: analysisOf(rom, { functions, startupEnd: BASE + 0xe0 }) };
 }
 
@@ -129,7 +150,11 @@ test('a shared tail is assembly-only, widened to the legal border below the bran
     functions: [
       fact({ entry: HEADER_END, end: BASE + 0xe0, mode: 'arm' }),
       fact({ entry: BASE + 0x100, end: BASE + 0x10a }),
-      fact({ entry: BASE + 0x10c, end: BASE + 0x112, exits: [{ at: BASE + 0x110, rule: 'walk.branch-into-function', kind: 'tail' }] }),
+      fact({
+        entry: BASE + 0x10c,
+        end: BASE + 0x112,
+        exits: [{ at: BASE + 0x110, rule: 'walk.branch-into-function', kind: 'tail' }],
+      }),
       fact({ entry: BASE + 0x114, end: BASE + 0x11a }),
     ],
     startupEnd: BASE + 0xe0,
@@ -146,7 +171,12 @@ test('a shared tail is assembly-only, widened to the legal border below the bran
 
 test('orphan bytes alone make no module: after the header they join the assembly-only module that follows', () => {
   const rom = romWith([], { size: 0x200 });
-  const analysis = analysisOf(rom, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x108, mode: 'arm' }), fact({ entry: BASE + 0x108, end: BASE + 0x110 })] });
+  const analysis = analysisOf(rom, {
+    functions: [
+      fact({ entry: BASE + 0x100, end: BASE + 0x108, mode: 'arm' }),
+      fact({ entry: BASE + 0x108, end: BASE + 0x110 }),
+    ],
+  });
   assert.deepEqual(modules(rom, analysis), [
     ['rom_header', 0, 'asm', 'header'],
     ['asm_080000C0', 0xc0, 'asm', 'asm-only'],
@@ -177,13 +207,29 @@ test('a region ends at the first legal border past its end, unless a function st
   const { rom, analysis } = layout(6);
   const cl = codeLayout(rom, analysis);
   // [0x110, 0x134): its last placement holds the start of the function at 0x130, so the module takes all of it.
-  const tail = placeLibraries(cl, [{ span: { start: BASE + 0x110, end: BASE + 0x134 }, library: 'libgcc', version: 'agbcc' }], BASE + 0xe0, BASE + 0x160);
-  assert.deepEqual(tail.map((p) => p.spans), [[{ start: BASE + 0x110, end: BASE + 0x140 }]]);
+  const tail = placeLibraries(
+    cl,
+    [{ span: { start: BASE + 0x110, end: BASE + 0x134 }, library: 'libgcc', version: 'agbcc' }],
+    BASE + 0xe0,
+    BASE + 0x160,
+  );
+  assert.deepEqual(
+    tail.map((p) => p.spans),
+    [[{ start: BASE + 0x110, end: BASE + 0x140 }]],
+  );
   // The same region where 0x140 is no legal border (a short branch from 0x13E to 0x146 crosses it) and a function
   // starts at 0x140 before the next one at 0x150: the module ends at 0x130, the last legal border at or below its end.
   const crossed = { ...cl, borders: cl.borders.filter((b) => b !== BASE + 0x140) };
-  const shrunk = placeLibraries(crossed, [{ span: { start: BASE + 0x110, end: BASE + 0x134 }, library: 'libgcc', version: 'agbcc' }], BASE + 0xe0, BASE + 0x160);
-  assert.deepEqual(shrunk.map((p) => p.spans), [[{ start: BASE + 0x110, end: BASE + 0x130 }]]);
+  const shrunk = placeLibraries(
+    crossed,
+    [{ span: { start: BASE + 0x110, end: BASE + 0x134 }, library: 'libgcc', version: 'agbcc' }],
+    BASE + 0xe0,
+    BASE + 0x160,
+  );
+  assert.deepEqual(
+    shrunk.map((p) => p.spans),
+    [[{ start: BASE + 0x110, end: BASE + 0x130 }]],
+  );
 });
 
 test('placeLibraries: a region with no legal border inside it and a region past the code end take no module', () => {
@@ -219,7 +265,9 @@ test('a runs_at range is its own module ram_<RUNADDR>, and a library region arou
     ['main_2', 0x150, 'c', 'module-size'],
     ['data', 0x160, 'data', 'data'],
   ]);
-  const libraries = inferModules(rom, analysis, options).flatMap((p) => (p.kind === 'module' && p.library !== undefined ? [p.library] : []));
+  const libraries = inferModules(rom, analysis, options).flatMap((p) =>
+    p.kind === 'module' && p.library !== undefined ? [p.library] : [],
+  );
   assert.deepEqual(libraries, [
     { name: 'm4a', version: '2001' },
     { name: 'm4a', version: '2001' },
@@ -228,12 +276,15 @@ test('a runs_at range is its own module ram_<RUNADDR>, and a library region arou
 
 test('a runs_at range alone in agbcc-shaped code: the code after it starts a module of its own', () => {
   const { rom, analysis } = layout(6);
-  assert.deepEqual(modules(rom, analysis, { runsAt: [{ span: { start: BASE + 0x120, end: BASE + 0x130 }, runAt: 0x0300_0000 }] }), [
-    ['rom_header', 0, 'asm', 'header'],
-    ['crt0', 0xc0, 'asm', 'startup'],
-    ['main', 0xe0, 'c', 'module-size'],
-    ['ram_03000000', 0x120, 'asm', 'runs-at'],
-    ['main_2', 0x130, 'c', 'module-size'],
-    ['data', 0x160, 'data', 'data'],
-  ]);
+  assert.deepEqual(
+    modules(rom, analysis, { runsAt: [{ span: { start: BASE + 0x120, end: BASE + 0x130 }, runAt: 0x0300_0000 }] }),
+    [
+      ['rom_header', 0, 'asm', 'header'],
+      ['crt0', 0xc0, 'asm', 'startup'],
+      ['main', 0xe0, 'c', 'module-size'],
+      ['ram_03000000', 0x120, 'asm', 'runs-at'],
+      ['main_2', 0x130, 'c', 'module-size'],
+      ['data', 0x160, 'data', 'data'],
+    ],
+  );
 });

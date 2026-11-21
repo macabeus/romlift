@@ -32,10 +32,16 @@
 import type { Rom } from '../../../foundation/rom/rom.ts';
 import { ROM_BASE } from '../../../foundation/rom/rom.ts';
 import { hexAddr } from '../../../foundation/util/hex.ts';
-import { cDataAssertLine, cDataSectionLine, cRamDataSectionLine, cRodataAssertLine, cRodataSectionLine } from '../../model/c-data-assert.ts';
 import { isCSource } from '../../../foundation/util/project-files.ts';
-import { loadSymbolOf, modulePieces, ROM_SECTION, runSectionOf } from '../../model/modules.ts';
-import { buildUnits, LDSCRIPT_PATH, SYMBOLS_PATH } from '../../model/paths.ts';
+import {
+  cDataAssertLine,
+  cDataSectionLine,
+  cRamDataSectionLine,
+  cRodataAssertLine,
+  cRodataSectionLine,
+} from '../../model/c-data-assert.ts';
+import { ROM_SECTION, loadSymbolOf, modulePieces, runSectionOf } from '../../model/modules.ts';
+import { LDSCRIPT_PATH, SYMBOLS_PATH, buildUnits } from '../../model/paths.ts';
 import { externalSymbols } from '../../model/symbols.ts';
 import type { Model } from '../../model/types.ts';
 import type { FileEntry, Writer } from '../tree.ts';
@@ -60,20 +66,29 @@ export function ldscriptText(model: Pick<Model, 'modules' | 'chunks' | 'symbols'
     if (module === undefined) continue;
     if (piece.part === 'data') {
       close();
-      lines.push(`${INDENT}${cRodataSectionLine(module.name, object, piece.span)}`, `${INDENT}${cRodataAssertLine(module.name, piece.span)}`);
+      lines.push(
+        `${INDENT}${cRodataSectionLine(module.name, object, piece.span)}`,
+        `${INDENT}${cRodataAssertLine(module.name, piece.span)}`,
+      );
       placed = true;
       continue;
     }
     if (module.runAt !== undefined) {
       close();
-      lines.push(`${INDENT}${runSectionOf(module)} ${hexAddr(module.runAt)} : AT(${hexAddr(module.span.start)}) {`, `${INDENT}${INDENT}${object}(.text);`, `${INDENT}}`);
+      lines.push(
+        `${INDENT}${runSectionOf(module)} ${hexAddr(module.runAt)} : AT(${hexAddr(module.span.start)}) {`,
+        `${INDENT}${INDENT}${object}(.text);`,
+        `${INDENT}}`,
+      );
       lines.push(`${INDENT}${loadSymbolOf(module)} = LOADADDR(${runSectionOf(module)});`);
       placed = true;
       continue;
     }
     if (!open) {
       const load = hexAddr(module.span.start);
-      lines.push(placed ? `${INDENT}${ROM_SECTION}.${module.name} ${load} : AT(${load}) {` : `${INDENT}${ROM_SECTION} : {`);
+      lines.push(
+        placed ? `${INDENT}${ROM_SECTION}.${module.name} ${load} : AT(${load}) {` : `${INDENT}${ROM_SECTION} : {`,
+      );
       open = true;
     }
     lines.push(`${INDENT}${INDENT}${object}(.text);`);
@@ -81,7 +96,10 @@ export function ldscriptText(model: Pick<Model, 'modules' | 'chunks' | 'symbols'
   close();
   model.modules.forEach((module, i) => {
     if (!isCSource(units[i]?.source ?? '')) return;
-    lines.push(`${INDENT}${module.dataRange === undefined ? cDataSectionLine(module.name) : cRamDataSectionLine(module.name)}`, `${INDENT}${cDataAssertLine(module.name)}`);
+    lines.push(
+      `${INDENT}${module.dataRange === undefined ? cDataSectionLine(module.name) : cRamDataSectionLine(module.name)}`,
+      `${INDENT}${cDataAssertLine(module.name)}`,
+    );
   });
   lines.push('}');
   return `${lines.join('\n')}\n`;

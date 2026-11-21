@@ -6,9 +6,12 @@ import { defineRule } from '../define-rule.ts';
 export default defineRule({
   meta: {
     id: 'gap.skip-padding-and-pointers',
-    summary: 'the forward chain steps 4 bytes over a zero word or an odd word pointing into the ROM, and stops at anything else',
-    restsOn: 'between compiled functions sit only alignment zeros and small tables of Thumb code pointers; other bytes are data',
-    recovers: 'functions after padding or a callback table inside a gap, without walking through data that would chain false entries',
+    summary:
+      'the forward chain steps 4 bytes over a zero word or an odd word pointing into the ROM, and stops at anything else',
+    restsOn:
+      'between compiled functions sit only alignment zeros and small tables of Thumb code pointers; other bytes are data',
+    recovers:
+      'functions after padding or a callback table inside a gap, without walking through data that would chain false entries',
     reads: ['rom'],
     adds: [],
     origin: 'gap-scan',

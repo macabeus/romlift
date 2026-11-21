@@ -10,7 +10,8 @@ export default defineRule({
   meta: {
     id: 'bl.target-pops-unpushed-frame',
     summary: 'a bl whose target, read alone, pops a frame it never pushed is a far jump; otherwise a call',
-    restsOn: 'the far tail of an agbcc function ends with the epilogue of the frame its head pushed, so read alone it pops more than it pushes',
+    restsOn:
+      'the far tail of an agbcc function ends with the epilogue of the frame its head pushed, so read alone it pops more than it pushes',
     recovers: 'far tails without a prologue split off as functions, and calls to plain functions misread as jumps',
     reads: ['readings', 'function-set'],
     adds: ['bl-verdicts'],

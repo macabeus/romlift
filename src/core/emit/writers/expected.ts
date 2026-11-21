@@ -28,7 +28,8 @@ function heading(path: string, module: Module, what: string): string {
 /** The text of expected/<module>.s (see the header). */
 export function expectedText(model: Model, cx: EmitContext, module: Module): string {
   const path = expectedSourcePath(module.name);
-  if (module.kind !== 'c') return `${heading(path, module, "as its unit assembles it, objdiff's target")}\n.include "${moduleSource(model, module)}"\n`;
+  if (module.kind !== 'c')
+    return `${heading(path, module, "as its unit assembles it, objdiff's target")}\n.include "${moduleSource(model, module)}"\n`;
   const chunks: string[] = [];
   for (let c = module.chunks.first; c < module.chunks.first + module.chunks.count; c++) {
     const chunk = writtenChunkPath(model, cx, module, c);
@@ -40,7 +41,12 @@ export function expectedText(model: Model, cx: EmitContext, module: Module): str
 function* expectedFiles(_rom: Rom, model: Model, cx: EmitContext, module: number | null): Iterable<FileEntry> {
   const m = module === null ? undefined : model.modules[module];
   if (m === undefined || !hasExpectedTarget(m)) return;
-  yield { ownership: 'generated', path: expectedSourcePath(m.name), text: expectedText(model, cx, m), writer: 'expected' };
+  yield {
+    ownership: 'generated',
+    path: expectedSourcePath(m.name),
+    text: expectedText(model, cx, m),
+    writer: 'expected',
+  };
 }
 
 export const expectedWriter: Writer = {

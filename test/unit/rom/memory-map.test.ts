@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { isRamAddress, isRomAddress, MEMORY_REGIONS, regionOf } from '../../../src/foundation/rom/memory-map.ts';
+import { MEMORY_REGIONS, isRamAddress, isRomAddress, regionOf } from '../../../src/foundation/rom/memory-map.ts';
 
 test('the regions are in address order and do not overlap', () => {
   for (let i = 1; i < MEMORY_REGIONS.length; i++) {

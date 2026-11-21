@@ -16,19 +16,45 @@ const ID = 'bl.target-beyond-callee';
 
 test('a target past a prologue the caller also calls is a call; one before it, or the caller entry, is not', () => {
   const rom = romWith([{ at: P, bytes: thumbAt(P)`push {lr}; pop {pc}` }]);
-  const caller = readingOf(rom, { entry: F, blSites: [{ site: F + 4, target: P }, { site: F + 8, target: D }] });
+  const caller = readingOf(rom, {
+    entry: F,
+    blSites: [
+      { site: F + 4, target: P },
+      { site: F + 8, target: D },
+    ],
+  });
   const v = viewWith({ rom });
   const rule = blRule(ID);
   assert.equal(rule.decide({ site: F + 8, target: D }, caller, v), 'call');
-  assert.equal(rule.decide({ site: F + 4, target: P }, caller, v), undefined, 'the site itself is no boundary for its own target');
-  assert.equal(rule.decide({ site: F + 0x0c, target: P - 8 }, caller, v), undefined, 'before the boundary: may be the caller tail');
-  const noPrologue = readingOf(rom, { entry: F, blSites: [{ site: F + 4, target: P + 2 }, { site: F + 8, target: D }] });
+  assert.equal(
+    rule.decide({ site: F + 4, target: P }, caller, v),
+    undefined,
+    'the site itself is no boundary for its own target',
+  );
+  assert.equal(
+    rule.decide({ site: F + 0x0c, target: P - 8 }, caller, v),
+    undefined,
+    'before the boundary: may be the caller tail',
+  );
+  const noPrologue = readingOf(rom, {
+    entry: F,
+    blSites: [
+      { site: F + 4, target: P + 2 },
+      { site: F + 8, target: D },
+    ],
+  });
   assert.equal(rule.decide({ site: F + 8, target: D }, noPrologue, v), undefined, 'P + 2 is no function start');
 });
 
 test('an accepted function the caller calls is a boundary too', () => {
   const rom = romWith([]);
-  const caller = readingOf(rom, { entry: F, blSites: [{ site: F + 4, target: P + 2 }, { site: F + 8, target: D }] });
+  const caller = readingOf(rom, {
+    entry: F,
+    blSites: [
+      { site: F + 4, target: P + 2 },
+      { site: F + 8, target: D },
+    ],
+  });
   const v = viewWith({ rom, functions: [P + 2] });
   assert.equal(blRule(ID).decide({ site: F + 8, target: D }, caller, v), 'call');
 });
@@ -41,7 +67,8 @@ test('settled before its callee is accepted, a far bl past a called prologue is 
     { at: D, bytes: thumbAt(D)`add sp, #4; bx lr` },
   ]);
   const site = F + 0x0a;
-  const verdict = (r: ReturnType<typeof settle>): unknown => r.blVerdicts.filter((b) => b.site === site).map((b) => [b.verdict, b.rule]);
+  const verdict = (r: ReturnType<typeof settle>): unknown =>
+    r.blVerdicts.filter((b) => b.site === site).map((b) => [b.verdict, b.rule]);
   assert.deepEqual(verdict(settle(driverOver(rom), F)), [['call', ID]]);
   assert.deepEqual(verdict(settle(driverOver(rom, ID), F)), [['far', 'bl.target-pops-unpushed-frame']]);
 });

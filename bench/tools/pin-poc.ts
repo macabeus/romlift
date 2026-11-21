@@ -8,10 +8,10 @@
 // It refuses to overwrite a pin that differs unless given --force: a changed PoC is a decision.
 import { join } from 'node:path';
 
+import { stripSeconds } from '../src/baseline.ts';
 import { baselineDir, contextFromEnv } from '../src/context.ts';
 import { BenchError, exists, isRecord, prettyJson, readJson, readText, writeText } from '../src/files.ts';
 import { computePocSource, pocSourcePath } from '../src/poc-source.ts';
-import { stripSeconds } from '../src/baseline.ts';
 
 async function writePin(path: string, text: string, force: boolean): Promise<void> {
   if (!force && (await exists(path)) && (await readText(path)) !== text) {
@@ -27,7 +27,8 @@ async function main(): Promise<number> {
   const source = await computePocSource(cx.pocRoot);
   await writePin(pocSourcePath(cx), prettyJson(source), force);
   const results = await readJson(join(cx.pocRoot, 'bench', 'results.json'));
-  if (!isRecord(results) || !Array.isArray(results['roms'])) throw new BenchError('the PoC bench/results.json has no roms');
+  if (!isRecord(results) || !Array.isArray(results['roms']))
+    throw new BenchError('the PoC bench/results.json has no roms');
   const baseline = { meta: results['meta'], roms: results['roms'].map(stripSeconds) };
   await writePin(join(baselineDir(cx), 'poc-2026-10-16.json'), prettyJson(baseline), force);
   return 0;

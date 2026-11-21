@@ -5,8 +5,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { specIndex } from '../../../src/core/model/item-table.ts';
-import { romFromBytes } from '../../../src/foundation/rom/rom.ts';
 import { verifyModel } from '../../../src/core/verify/tiling.ts';
+import { romFromBytes } from '../../../src/foundation/rom/rom.ts';
 import { fixtureModel, fixtureRom } from '../../unit/verify/fixture.ts';
 
 test('an instruction item that cannot round-trip fails the re-encode check with E_SELF_CHECK_REENCODE', () => {

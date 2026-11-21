@@ -3,19 +3,11 @@
 // accepted functions and readings, readings built without walking (readingOf) or through the real
 // walker (walkReading), and fake rules with complete metadata. The reference walk policies below follow
 // the PoC's analyzeThumb/analyzeArm so the walker and driver tests can run without the wave-1 rules.
-import { romFromBytes, headerComplement } from '../../src/foundation/rom/rom.ts';
-import type { Rom } from '../../src/foundation/rom/rom.ts';
-import { u16, u32 } from '../../src/foundation/rom/rom.ts';
-import type { Addr, Mode, Span } from '../../src/foundation/rom/span.ts';
-import { AGBCC } from '../../src/core/profile/agbcc.ts';
-import type { CompilerProfile, Pipeline } from '../../src/core/profile/types.ts';
-import type { RuleId, RuleMeta } from '../../src/core/provenance/rule-id.ts';
-import type { Origin } from '../../src/core/provenance/vocabulary.ts';
 import { addressMap } from '../../src/core/analysis/address-map.ts';
+import { RULES } from '../../src/core/analysis/driver/rules.ts';
 import { buildPointerIndex } from '../../src/core/analysis/pointers.ts';
 import { makeReading } from '../../src/core/analysis/reading.ts';
 import type { ReadingParts } from '../../src/core/analysis/reading.ts';
-import { RULES } from '../../src/core/analysis/driver/rules.ts';
 import { Claim } from '../../src/core/analysis/types.ts';
 import type {
   AnalysisTuning,
@@ -33,6 +25,14 @@ import type {
 import { walkArm } from '../../src/core/analysis/walk/arm.ts';
 import type { ResolvedPolicy, WalkEnv } from '../../src/core/analysis/walk/cursor.ts';
 import { walkThumb } from '../../src/core/analysis/walk/thumb.ts';
+import { AGBCC } from '../../src/core/profile/agbcc.ts';
+import type { CompilerProfile, Pipeline } from '../../src/core/profile/types.ts';
+import type { RuleId, RuleMeta } from '../../src/core/provenance/rule-id.ts';
+import type { Origin } from '../../src/core/provenance/vocabulary.ts';
+import { headerComplement, romFromBytes } from '../../src/foundation/rom/rom.ts';
+import type { Rom } from '../../src/foundation/rom/rom.ts';
+import { u16, u32 } from '../../src/foundation/rom/rom.ts';
+import type { Addr, Mode, Span } from '../../src/foundation/rom/span.ts';
 
 export const BASE = 0x0800_0000;
 
@@ -94,18 +94,56 @@ export function testProfile(pipeline: Partial<Pipeline> = {}): CompilerProfile {
 /** Every rule id a pipeline names. */
 export function pipelineIds(p: Pipeline): readonly RuleId[] {
   const g = p.gap;
-  return [...p.seed, ...p.harvest, ...p.queue, ...p.walk, ...p.bl, ...p.validity, ...p.accept, ...p.claim, g.absorb, g.head, g.forward.thumb, g.forward.arm, ...g.forward.after, g.prefer, g.skip, g.endAnchor, g.backward, ...p.region];
+  return [
+    ...p.seed,
+    ...p.harvest,
+    ...p.queue,
+    ...p.walk,
+    ...p.bl,
+    ...p.validity,
+    ...p.accept,
+    ...p.claim,
+    g.absorb,
+    g.head,
+    g.forward.thumb,
+    g.forward.arm,
+    ...g.forward.after,
+    g.prefer,
+    g.skip,
+    g.endAnchor,
+    g.backward,
+    ...p.region,
+  ];
 }
 
 /** Tuning that disables every pipeline id `registry` lacks, plus `extra.disabled`. */
-export function tuningFor(profile: CompilerProfile, registry: RuleRegistry, extra: Partial<AnalysisTuning> = {}): AnalysisTuning {
+export function tuningFor(
+  profile: CompilerProfile,
+  registry: RuleRegistry,
+  extra: Partial<AnalysisTuning> = {},
+): AnalysisTuning {
   const missing = pipelineIds(profile.pipeline).filter((id) => !Object.hasOwn(registry, id));
   return { cache: 'epoch', ...extra, disabled: [...missing, ...(extra.disabled ?? [])] };
 }
 
 /** A fake rule: `contract` with complete test metadata. */
-export function fakeRule<C extends RuleContract>(id: RuleId, contract: C, origin?: Origin): C & { readonly meta: RuleMeta } {
-  return { ...contract, meta: { id, summary: `test rule ${id}`, restsOn: 'the test', recovers: 'the test', reads: [], adds: [], ...(origin === undefined ? {} : { origin }) } };
+export function fakeRule<C extends RuleContract>(
+  id: RuleId,
+  contract: C,
+  origin?: Origin,
+): C & { readonly meta: RuleMeta } {
+  return {
+    ...contract,
+    meta: {
+      id,
+      summary: `test rule ${id}`,
+      restsOn: 'the test',
+      recovers: 'the test',
+      reads: [],
+      adds: [],
+      ...(origin === undefined ? {} : { origin }),
+    },
+  };
 }
 
 /** A registry from fake rules. */
@@ -181,7 +219,8 @@ export function viewWith(setup: ViewSetup): AnalysisView {
     isBoundary: (a) => functions.includes(a),
     boundaryBetween: () => undefined,
     functions: () => functions,
-    accepted: (entry) => (functions.includes(entry) ? (readings.get(`${entry}:thumb`) ?? readings.get(`${entry}:arm`)) : undefined),
+    accepted: (entry) =>
+      functions.includes(entry) ? (readings.get(`${entry}:thumb`) ?? readings.get(`${entry}:arm`)) : undefined,
     read: (entry, mode) => readings.get(`${entry}:${mode}`) ?? walkReading(view, entry, mode, setup.walk),
     valid: (a) => setup.valid?.(a) ?? true,
     whyInvalid: (a) => setup.whyInvalid?.(a),
@@ -196,7 +235,10 @@ export function viewWith(setup: ViewSetup): AnalysisView {
 
 /** The PoC's Func.end: the code end extended by every pool or table that starts within 8 bytes of it. */
 export function pocExtentEnd(shape: ReadingShape): Addr {
-  const items = [...shape.pools.map((p) => [p, p + 4] as const), ...shape.tables.map((t) => [t.base, t.base + 4 * t.targets.length] as const)].sort((x, y) => x[0] - y[0]);
+  const items = [
+    ...shape.pools.map((p) => [p, p + 4] as const),
+    ...shape.tables.map((t) => [t.base, t.base + 4 * t.targets.length] as const),
+  ].sort((x, y) => x[0] - y[0]);
   let e = shape.codeEnd;
   for (;;) {
     const next = items.find(([a, b]) => b > e && a <= e + 8);
@@ -206,7 +248,14 @@ export function pocExtentEnd(shape: ReadingShape): Addr {
 }
 
 /** The reading of `entry` through the real walker; the policies default to REFERENCE_WALK, the extent to the PoC's. */
-export function walkReading(view: AnalysisView, entry: Addr, mode: Mode, policies: readonly ResolvedPolicy[] = REFERENCE_WALK, far: ReadonlySet<Addr> = new Set(), noret: ReadonlyMap<Addr, RuleId> = new Map()): Reading {
+export function walkReading(
+  view: AnalysisView,
+  entry: Addr,
+  mode: Mode,
+  policies: readonly ResolvedPolicy[] = REFERENCE_WALK,
+  far: ReadonlySet<Addr> = new Set(),
+  noret: ReadonlyMap<Addr, RuleId> = new Map(),
+): Reading {
   const env: WalkEnv = { view, policies, extentEnd: pocExtentEnd };
   return mode === 'thumb' ? walkThumb(env, entry, far, noret) : walkArm(env, entry);
 }
@@ -228,20 +277,34 @@ const policy = (id: RuleId, onInsn: WalkPolicy['onInsn']): ResolvedPolicy => ({ 
 
 /** The PoC's walk decisions as policies, in agbcc's walk order. */
 export const REFERENCE_WALK: readonly ResolvedPolicy[] = [
-  policy('walk.pc-load-is-pool', (insn) => (insn.flow.kind === 'pool-load' ? { step: 'pool', addr: insn.flow.pool } : undefined)),
+  policy('walk.pc-load-is-pool', (insn) =>
+    insn.flow.kind === 'pool-load' ? { step: 'pool', addr: insn.flow.pool } : undefined,
+  ),
   policy('walk.table-by-register', (insn, c) => {
-    if (c.mode !== 'thumb' || c.phase !== 'insn' || insn.flow.kind !== 'indirect' || insn.flow.via === 'bx') return undefined;
+    if (c.mode !== 'thumb' || c.phase !== 'insn' || insn.flow.kind !== 'indirect' || insn.flow.via === 'bx')
+      return undefined;
     const m = c.view.profile.idioms.matchTableJump(c.run, c.run.length - 1, c.view.rom);
-    return m === undefined ? undefined : { step: 'table', table: { base: m.base, targets: m.targets, thumbBit: false } };
+    return m === undefined
+      ? undefined
+      : { step: 'table', table: { base: m.base, targets: m.targets, thumbBit: false } };
   }),
   policy('walk.mov-lr-pc-bx-is-call', (insn, c) => {
-    if (c.mode !== 'arm' || (insn.flow.kind !== 'return' && insn.flow.kind !== 'indirect') || !insn.specId.startsWith('arm.bx')) return undefined;
+    if (
+      c.mode !== 'arm' ||
+      (insn.flow.kind !== 'return' && insn.flow.kind !== 'indirect') ||
+      !insn.specId.startsWith('arm.bx')
+    )
+      return undefined;
     return c.run[c.run.length - 2]?.word === MOV_LR_PC ? { step: 'continue' } : undefined;
   }),
   policy('walk.mov-pc-without-table', (insn, c) =>
-    c.phase === 'insn' && insn.flow.kind === 'indirect' && insn.flow.via !== 'bx' ? { step: 'end-path', exit: 'reg-jump' } : undefined,
+    c.phase === 'insn' && insn.flow.kind === 'indirect' && insn.flow.via !== 'bx'
+      ? { step: 'end-path', exit: 'reg-jump' }
+      : undefined,
   ),
-  policy('walk.bx-pc-veneer', (insn) => (insn.flow.kind === 'mode-switch' ? { step: 'switch-mode', target: insn.flow.target } : undefined)),
+  policy('walk.bx-pc-veneer', (insn) =>
+    insn.flow.kind === 'mode-switch' ? { step: 'switch-mode', target: insn.flow.target } : undefined,
+  ),
   policy('walk.branch-into-function', (insn, c) => {
     if (c.phase !== 'insn' || insn.flow.kind !== 'branch') return undefined;
     const t = insn.flow.target;
@@ -251,12 +314,20 @@ export const REFERENCE_WALK: readonly ResolvedPolicy[] = [
         ? t > c.entry
           ? past
           : c.mode === 'arm' || c.view.isBoundary(t) || c.view.claimAt(t) === Claim.code
-        : t !== c.entry && !c.walked(t) && ((c.mode === 'arm' && t < c.entry) || c.view.isFunction(t) || c.view.claimAt(t) === Claim.code);
+        : t !== c.entry &&
+          !c.walked(t) &&
+          ((c.mode === 'arm' && t < c.entry) || c.view.isFunction(t) || c.view.claimAt(t) === Claim.code);
     return foreign ? { step: 'end-path', exit: 'tail' } : undefined;
   }),
-  policy('walk.trailing-zero-padding', (insn, c) => (c.phase === 'stop' && insn.size === 2 && u16(c.view.rom, insn.addr) === 0 ? { step: 'padding' } : undefined)),
-  policy('walk.noreturn-call-before-noncode', (insn, c) => (c.phase === 'stop' && insn.flow.kind === 'bl' ? { step: 'end-path', exit: 'noreturn-call' } : undefined)),
-  policy('walk.swi-before-noncode', (insn, c) => (c.phase === 'stop' && insn.flow.kind === 'swi' ? { step: 'end-path', exit: 'swi-end' } : undefined)),
+  policy('walk.trailing-zero-padding', (insn, c) =>
+    c.phase === 'stop' && insn.size === 2 && u16(c.view.rom, insn.addr) === 0 ? { step: 'padding' } : undefined,
+  ),
+  policy('walk.noreturn-call-before-noncode', (insn, c) =>
+    c.phase === 'stop' && insn.flow.kind === 'bl' ? { step: 'end-path', exit: 'noreturn-call' } : undefined,
+  ),
+  policy('walk.swi-before-noncode', (insn, c) =>
+    c.phase === 'stop' && insn.flow.kind === 'swi' ? { step: 'end-path', exit: 'swi-end' } : undefined,
+  ),
 ];
 
 /** The word at a bus address (for assertions). */

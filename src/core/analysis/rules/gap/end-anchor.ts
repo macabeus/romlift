@@ -36,7 +36,8 @@ function veneerArrayElement(r: Reading, end: Addr, v: AnalysisView): boolean {
  */
 function pushesLrBetweenWords(h: Addr, end: Addr, v: AnalysisView): boolean {
   const { profile } = v;
-  if (v.isFunction(h) || v.claimAt(h) !== Claim.free || !profile.idioms.opensWithPushLr(v.rom, h) || !v.valid(h)) return false;
+  if (v.isFunction(h) || v.claimAt(h) !== Claim.free || !profile.idioms.opensWithPushLr(v.rom, h) || !v.valid(h))
+    return false;
   const r = v.read(h, 'thumb');
   if (r.insns.length < profile.gapScan.minInsns || r.codeEnd > end) return false;
   return fillsTo(r, end, profile.gapScan.fillSlack) || anchoredAtEnd(r, v);
@@ -49,7 +50,8 @@ export default defineRule({
       'the highest valid reading below the gap end that ends at it (fillSlack) or is anchored there, a prologue (or `push {.., lr}` on 2 mod 4) preferred, within backwardWindow; a load-and-jump stub that ends at an accepted stub of the same shape counts below minInsns',
     restsOn:
       'functions tile the ROM, so the code just before an accepted function ends exactly where it starts; a veneer array is a run of two-instruction `ldr rN, [pc, #k]; bx rN` stubs laid end to end, so a stub ending exactly at the next stub of the array is code; hand-written Thumb may start on 2 mod 4, where `push {.., lr}` opens it as it opens a compiled function on a word',
-    recovers: 'unreferenced functions at the end of a gap that the forward chain cannot reach past data (hand-written ones on 2 mod 4 too), and the unreferenced head of a veneer array that follows data',
+    recovers:
+      'unreferenced functions at the end of a gap that the forward chain cannot reach past data (hand-written ones on 2 mod 4 too), and the unreferenced head of a veneer array that follows data',
     reads: ['rom', 'claims', 'function-set', 'readings', 'validity'],
     adds: ['candidates'],
     origin: 'gap-scan',
@@ -67,7 +69,8 @@ export default defineRule({
     // ranked as a prologue) and the word itself. Both go through the one ranking: a prologue wins, and
     // without prologues the highest wins, so the scan stops at the first lower reading without one.
     const word = (q: Addr): boolean | undefined => {
-      if (v.isFunction(q) || v.claimAt(q) !== Claim.free || !contains(rom, q, 4) || u32(rom, q) === 0 || !v.valid(q)) return undefined;
+      if (v.isFunction(q) || v.claimAt(q) !== Claim.free || !contains(rom, q, 4) || u32(rom, q) === 0 || !v.valid(q))
+        return undefined;
       const r = v.read(q, 'thumb');
       if (!veneerArrayElement(r, end, v)) {
         if (r.insns.length < profile.gapScan.minInsns || r.codeEnd > end) return undefined;
@@ -77,7 +80,8 @@ export default defineRule({
     };
     scan: for (let q = (end - 4) & ~3; q >= floor; q -= 4) {
       const candidates: (readonly [Addr, boolean])[] = [];
-      if (halfwords && q + 2 >= floor && q + 4 <= end && pushesLrBetweenWords(q + 2, end, v)) candidates.push([q + 2, true]);
+      if (halfwords && q + 2 >= floor && q + 4 <= end && pushesLrBetweenWords(q + 2, end, v))
+        candidates.push([q + 2, true]);
       const prologue = word(q);
       if (prologue !== undefined) candidates.push([q, prologue]);
       for (const [at, isPrologue] of candidates) {

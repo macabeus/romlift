@@ -15,7 +15,10 @@ export const ROWS: Readonly<Record<Mode, readonly Row[]>> = {
 const BY_ID: ReadonlyMap<SpecId, Row> = new Map([...ROWS.thumb, ...ROWS.arm].map((r) => [r.spec.id, r] as const));
 
 /** The position of each row in its table, which breaks asPriority ties. */
-const ORDER: ReadonlyMap<SpecId, number> = new Map([...ROWS.thumb.map((r, i) => [r.spec.id, i] as const), ...ROWS.arm.map((r, i) => [r.spec.id, i] as const)]);
+const ORDER: ReadonlyMap<SpecId, number> = new Map([
+  ...ROWS.thumb.map((r, i) => [r.spec.id, i] as const),
+  ...ROWS.arm.map((r, i) => [r.spec.id, i] as const),
+]);
 
 if (BY_ID.size !== ROWS.thumb.length + ROWS.arm.length) throw new RomliftInvariantError('isa tables: duplicate row id');
 

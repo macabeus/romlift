@@ -6,12 +6,27 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { asmOnlyRanges, asmOnlyReasons } from '../../../src/core/layout/asm-only.ts';
-import { codeLayout, isLegalStart, legalBorders, legalStartsBetween, nearestBorders, nearestLegalStarts } from '../../../src/core/layout/borders.ts';
-import { coveredEntries, factsByEntry, headerCoveredEntries, isLabelEntry, listedEntriesOf, nestedEntries, placeEntries } from '../../../src/core/layout/entries.ts';
+import {
+  codeLayout,
+  isLegalStart,
+  legalBorders,
+  legalStartsBetween,
+  nearestBorders,
+  nearestLegalStarts,
+} from '../../../src/core/layout/borders.ts';
+import {
+  coveredEntries,
+  factsByEntry,
+  headerCoveredEntries,
+  isLabelEntry,
+  listedEntriesOf,
+  nestedEntries,
+  placeEntries,
+} from '../../../src/core/layout/entries.ts';
 import type { PlacedEntry } from '../../../src/core/layout/entries.ts';
 import { borderRefs } from '../../../src/core/layout/refs.ts';
 import { tileCode } from '../../../src/core/layout/tiling.ts';
-import { analysisOf, armAt, BASE, fact, HEADER_END, romWith, thumbAt } from './hand-made.ts';
+import { BASE, HEADER_END, analysisOf, armAt, fact, romWith, thumbAt } from './hand-made.ts';
 
 function placed(entry: number, end: number | undefined): PlacedEntry {
   return { entry, label: false, end, source: end === undefined ? 'next-listed' : 'analysis' };
@@ -42,10 +57,13 @@ test('tileCode: a chunk ends at the next entry when its extent runs past it, and
       [0x110, 0x150, 0x110],
     ],
   );
-  assert.deepEqual(tileCode([], 0x100, 0x110, [0x108]).map((c) => [c.span.start, c.span.end]), [
-    [0x100, 0x108],
-    [0x108, 0x110],
-  ]);
+  assert.deepEqual(
+    tileCode([], 0x100, 0x110, [0x108]).map((c) => [c.span.start, c.span.end]),
+    [
+      [0x100, 0x108],
+      [0x108, 0x110],
+    ],
+  );
 });
 
 test('nestedEntries: an entry inside an earlier extent is nested; the cartridge entry is clipped to the header', () => {
@@ -171,7 +189,11 @@ function pcRelativeRom() {
     { size: 0x200 },
   );
   const analysis = analysisOf(rom, {
-    functions: [fact({ entry: BASE + 0x100, end: BASE + 0x104 }), fact({ entry: BASE + 0x110, end: BASE + 0x118, mode: 'arm' }), fact({ entry: BASE + 0x120, end: BASE + 0x122 })],
+    functions: [
+      fact({ entry: BASE + 0x100, end: BASE + 0x104 }),
+      fact({ entry: BASE + 0x110, end: BASE + 0x118, mode: 'arm' }),
+      fact({ entry: BASE + 0x120, end: BASE + 0x122 }),
+    ],
   });
   return { rom, analysis };
 }
@@ -193,7 +215,14 @@ test('legalBorders: no PC-relative load or adr crosses a border, since as cannot
   );
   // The load at 0x100 names 0x108, past the orphan's start 0x104; the adr at 0x110 names 0x118, the orphan after
   // its extent. 0x118 itself stays illegal (in (0x110, 0x118]); 0x110 and 0x120 are legal.
-  assert.deepEqual(legalBorders(rom, analysis), [BASE, HEADER_END, BASE + 0x100, BASE + 0x110, BASE + 0x120, BASE + 0x124]);
+  assert.deepEqual(legalBorders(rom, analysis), [
+    BASE,
+    HEADER_END,
+    BASE + 0x100,
+    BASE + 0x110,
+    BASE + 0x120,
+    BASE + 0x124,
+  ]);
 });
 
 test('legalBorders: a chunk start inside an assembly-only range that nothing crosses is legal (D109)', () => {
@@ -208,9 +237,19 @@ test('legalBorders: a chunk start inside an assembly-only range that nothing cro
     pop {r0}
     bx r0
   `;
-  const rom = romWith([{ at: BASE + 0x100, bytes: armCode }, { at: BASE + 0x110, bytes: thumbCode }], { size: 0x200 });
+  const rom = romWith(
+    [
+      { at: BASE + 0x100, bytes: armCode },
+      { at: BASE + 0x110, bytes: thumbCode },
+    ],
+    { size: 0x200 },
+  );
   const analysis = analysisOf(rom, {
-    functions: [fact({ entry: BASE + 0x100, end: BASE + 0x108, mode: 'arm' }), fact({ entry: BASE + 0x108, end: BASE + 0x110, mode: 'arm' }), fact({ entry: BASE + 0x110, end: BASE + 0x116 })],
+    functions: [
+      fact({ entry: BASE + 0x100, end: BASE + 0x108, mode: 'arm' }),
+      fact({ entry: BASE + 0x108, end: BASE + 0x110, mode: 'arm' }),
+      fact({ entry: BASE + 0x110, end: BASE + 0x116 }),
+    ],
   });
   const layout = codeLayout(rom, analysis);
   // Inference still sees one assembly-only run of the two ARM functions; the border between them is legal all the same.
@@ -230,7 +269,9 @@ test('why: an illegal start is named as unaligned, as no chunk start, or by the 
     bx lr
   `;
   const rom = romWith([{ at: BASE + 0x100, bytes: code }], { size: 0x200 });
-  const analysis = analysisOf(rom, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x108 }), fact({ entry: BASE + 0x108, end: BASE + 0x10c })] });
+  const analysis = analysisOf(rom, {
+    functions: [fact({ entry: BASE + 0x100, end: BASE + 0x108 }), fact({ entry: BASE + 0x108, end: BASE + 0x10c })],
+  });
   const layout = codeLayout(rom, analysis);
   assert.ok(!isLegalStart(layout, BASE + 0x108));
   assert.match(layout.why?.(BASE + 0x108) ?? '', /^the short branch at 0x08000102 to 0x0800010A crosses it/);
@@ -243,12 +284,40 @@ test('asmOnlyReasons: ARM code, a Thumb entry at 2 mod 4, a shared tail, a tiled
   assert.deepEqual(asmOnlyReasons(fact({ entry: BASE + 0x100, end: BASE + 0x108 })), []);
   assert.deepEqual(asmOnlyReasons(fact({ entry: BASE + 0x100, end: BASE + 0x108, mode: 'arm' })), ['arm']);
   assert.deepEqual(asmOnlyReasons(fact({ entry: BASE + 0x102, end: BASE + 0x108 })), ['unaligned-entry']);
-  assert.deepEqual(asmOnlyReasons(fact({ entry: BASE + 0x100, end: BASE + 0x108, exits: [{ at: BASE + 0x104, rule: 'walk.branch-into-function', kind: 'tail' }] })), ['shared-tail']);
-  assert.deepEqual(asmOnlyReasons(fact({ entry: BASE + 0x100, end: BASE + 0x108, exits: [{ at: BASE + 0x104, rule: 'walk.decoder-flow', kind: 'return' }] })), []);
-  assert.deepEqual(asmOnlyReasons(fact({ entry: BASE + 0x100, end: BASE + 0x110, holes: [{ start: BASE + 0x104, end: BASE + 0x108 }] })), ['tiled-hole']);
+  assert.deepEqual(
+    asmOnlyReasons(
+      fact({
+        entry: BASE + 0x100,
+        end: BASE + 0x108,
+        exits: [{ at: BASE + 0x104, rule: 'walk.branch-into-function', kind: 'tail' }],
+      }),
+    ),
+    ['shared-tail'],
+  );
+  assert.deepEqual(
+    asmOnlyReasons(
+      fact({
+        entry: BASE + 0x100,
+        end: BASE + 0x108,
+        exits: [{ at: BASE + 0x104, rule: 'walk.decoder-flow', kind: 'return' }],
+      }),
+    ),
+    [],
+  );
+  assert.deepEqual(
+    asmOnlyReasons(
+      fact({ entry: BASE + 0x100, end: BASE + 0x110, holes: [{ start: BASE + 0x104, end: BASE + 0x108 }] }),
+    ),
+    ['tiled-hole'],
+  );
   // A Thumb `bx pc` veneer: agbcc emits no `bx pc`, so the stub stays with its ARM half (final-review end-to-end-user-3).
-  assert.deepEqual(asmOnlyReasons({ ...fact({ entry: BASE + 0x100, end: BASE + 0x102 }), veneers: [BASE + 0x104] }), ['mode-switch']);
-  assert.deepEqual(asmOnlyReasons({ ...fact({ entry: BASE + 0x100, end: BASE + 0x108, mode: 'arm' }), veneers: [BASE + 0x104] }), ['arm']);
+  assert.deepEqual(asmOnlyReasons({ ...fact({ entry: BASE + 0x100, end: BASE + 0x102 }), veneers: [BASE + 0x104] }), [
+    'mode-switch',
+  ]);
+  assert.deepEqual(
+    asmOnlyReasons({ ...fact({ entry: BASE + 0x100, end: BASE + 0x108, mode: 'arm' }), veneers: [BASE + 0x104] }),
+    ['arm'],
+  );
 });
 
 test('asmOnlyRanges: a run of Thumb `bx pc` stubs, their nop orphans and the ARM code behind them is one range', () => {
@@ -295,7 +364,10 @@ test('asmOnlyRanges: consecutive assembly-only functions merge across orphans; a
 test('codeLayout: the startup region ends on a chunk boundary and the data start is the code end rounded up to a word', () => {
   const rom = romWith([], { size: 0x200 });
   const analysis = analysisOf(rom, {
-    functions: [fact({ entry: HEADER_END, end: BASE + 0xe2, mode: 'arm' }), fact({ entry: BASE + 0x100, end: BASE + 0x112 })],
+    functions: [
+      fact({ entry: HEADER_END, end: BASE + 0xe2, mode: 'arm' }),
+      fact({ entry: BASE + 0x100, end: BASE + 0x112 }),
+    ],
     startupEnd: BASE + 0xe4,
   });
   const layout = codeLayout(rom, analysis);
@@ -336,14 +408,32 @@ test('isLegalStart is the whole rule: the code borders, then every word from the
   assert.equal(layout.end, rom.end);
   // Below the data start only the borders; 0x104 is crossed by the branch, 0x10E is no word.
   for (const b of layout.borders) assert.ok(isLegalStart(layout, b), `border ${b.toString(16)}`);
-  assert.deepEqual([BASE + 0x104, BASE + 0x10e, BASE + 0x110, BASE + 0x116].map((a) => isLegalStart(layout, a)), [false, false, false, false]);
+  assert.deepEqual(
+    [BASE + 0x104, BASE + 0x10e, BASE + 0x110, BASE + 0x116].map((a) => isLegalStart(layout, a)),
+    [false, false, false, false],
+  );
   // At or past the data start every word before the ROM end.
-  assert.deepEqual([layout.dataStart, layout.dataStart + 4, layout.dataStart + 2, rom.end - 4, rom.end].map((a) => isLegalStart(layout, a)), [true, true, false, true, false]);
+  assert.deepEqual(
+    [layout.dataStart, layout.dataStart + 4, layout.dataStart + 2, rom.end - 4, rom.end].map((a) =>
+      isLegalStart(layout, a),
+    ),
+    [true, true, false, true, false],
+  );
   const rule = { borders: [BASE, HEADER_END, BASE + 0x100], dataStart: BASE + 0x120, end: BASE + 0x140 };
-  assert.deepEqual(legalStartsBetween(rule, BASE + 0x100, BASE + 0x130), [BASE + 0x120, BASE + 0x124, BASE + 0x128, BASE + 0x12c]);
+  assert.deepEqual(legalStartsBetween(rule, BASE + 0x100, BASE + 0x130), [
+    BASE + 0x120,
+    BASE + 0x124,
+    BASE + 0x128,
+    BASE + 0x12c,
+  ]);
   assert.deepEqual(legalStartsBetween(rule, BASE, BASE + 0x124), [HEADER_END, BASE + 0x100, BASE + 0x120]);
   assert.deepEqual(legalStartsBetween(rule, BASE + 0x13c, BASE + 0x200), [], 'the ROM end starts nothing');
-  for (let a = BASE; a < BASE + 0x150; a += 2) assert.equal(legalStartsBetween(rule, a - 1, a + 1).length === 1, isLegalStart(rule, a), `between agrees with the predicate at ${a.toString(16)}`);
+  for (let a = BASE; a < BASE + 0x150; a += 2)
+    assert.equal(
+      legalStartsBetween(rule, a - 1, a + 1).length === 1,
+      isLegalStart(rule, a),
+      `between agrees with the predicate at ${a.toString(16)}`,
+    );
 });
 
 test('nearestLegalStarts: the nearest borders below the data start, the nearest words past it', () => {
@@ -359,7 +449,10 @@ test('nearestLegalStarts: the nearest borders below the data start, the nearest 
 
 test('listedEntriesOf: discover lists every function, nested ones as labels; confirm lists the listed seeds', () => {
   const rom = romWith([], { size: 0x200 });
-  const functions = [fact({ entry: BASE + 0x100, end: BASE + 0x120 }), fact({ entry: BASE + 0x108, end: BASE + 0x110 })];
+  const functions = [
+    fact({ entry: BASE + 0x100, end: BASE + 0x120 }),
+    fact({ entry: BASE + 0x108, end: BASE + 0x110 }),
+  ];
   assert.deepEqual(listedEntriesOf(analysisOf(rom, { functions }), HEADER_END), [
     { entry: BASE + 0x100, label: false },
     { entry: BASE + 0x108, label: true },
@@ -397,7 +490,13 @@ test('placeEntries: the size first, then the analysis extent, then a code overri
     [
       { entry: BASE + 0x100, label: false, end: BASE + 0x120, source: 'analysis' },
       { entry: BASE + 0x130, label: false, end: BASE + 0x136, source: 'toml-size' },
-      { entry: BASE + 0x144, label: false, end: BASE + 0x150, source: 'override', override: { span: { start: BASE + 0x140, end: BASE + 0x150 }, kind: 'code' } },
+      {
+        entry: BASE + 0x144,
+        label: false,
+        end: BASE + 0x150,
+        source: 'override',
+        override: { span: { start: BASE + 0x140, end: BASE + 0x150 }, kind: 'code' },
+      },
       { entry: BASE + 0x160, label: true, end: undefined, source: 'next-listed' },
     ],
   );

@@ -3,10 +3,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { effectOf, registerEffect } from '../../../src/foundation/isa/registers.ts';
-import { ARM_ROWS } from '../../../src/foundation/isa/arm-table.ts';
-import { THUMB_BL, THUMB_ROWS } from '../../../src/foundation/isa/thumb-table.ts';
 import { RomliftInvariantError } from '../../../src/foundation/diagnostics/diagnostic.ts';
+import { ARM_ROWS } from '../../../src/foundation/isa/arm-table.ts';
+import { effectOf, registerEffect } from '../../../src/foundation/isa/registers.ts';
+import { THUMB_BL, THUMB_ROWS } from '../../../src/foundation/isa/thumb-table.ts';
 import { romWith } from '../../helpers/analysis.ts';
 import { thumbAt } from '../../helpers/thumb.ts';
 import { insnAt } from '../analysis/rules/walk/support.ts';
@@ -26,16 +26,21 @@ function effects(text: string): Array<{ writes: number; from: readonly number[] 
 }
 
 test('moves, adds and word loads are followed to their source registers', () => {
-  assert.deepEqual(effects('movs r1, r2; adds r0, r1, r2; adds r3, r4, #1; adds r5, #8; add r8, r1; mov r9, r2; ldr r0, [r1, r2]; ldr r0, [r3, #4]'), [
-    { writes: 1 << 1, from: [2] },
-    { writes: 1 << 0, from: [1, 2] },
-    { writes: 1 << 3, from: [4] },
-    { writes: 1 << 5, from: [5] },
-    { writes: 1 << 8, from: [8, 1] },
-    { writes: 1 << 9, from: [2] },
-    { writes: 1 << 0, from: [1, 2] },
-    { writes: 1 << 0, from: [3] },
-  ]);
+  assert.deepEqual(
+    effects(
+      'movs r1, r2; adds r0, r1, r2; adds r3, r4, #1; adds r5, #8; add r8, r1; mov r9, r2; ldr r0, [r1, r2]; ldr r0, [r3, #4]',
+    ),
+    [
+      { writes: 1 << 1, from: [2] },
+      { writes: 1 << 0, from: [1, 2] },
+      { writes: 1 << 3, from: [4] },
+      { writes: 1 << 5, from: [5] },
+      { writes: 1 << 8, from: [8, 1] },
+      { writes: 1 << 9, from: [2] },
+      { writes: 1 << 0, from: [1, 2] },
+      { writes: 1 << 0, from: [3] },
+    ],
+  );
 });
 
 test('constants, other arithmetic and byte loads write without being followed; stores, compares and branches write nothing', () => {
@@ -67,9 +72,14 @@ test('pop, ldmia, stmia, a call and a BIOS call write their registers', () => {
 
 test('every Thumb row that writes a general register as data says so in the table: no row writes rd without a RegisterSpec', () => {
   const declared = [...THUMB_ROWS, THUMB_BL].filter((r) => r.spec.registers !== undefined).map((r) => r.spec.id);
-  const writesRd = [...THUMB_ROWS, THUMB_BL].filter((r) => r.spec.fields.some((f) => f.name === 'rd') && !/^thumb\.(str|strb|strh)_/.test(r.spec.id) && r.spec.id !== 'thumb.str_sp');
+  const writesRd = [...THUMB_ROWS, THUMB_BL].filter(
+    (r) =>
+      r.spec.fields.some((f) => f.name === 'rd') &&
+      !/^thumb\.(str|strb|strh)_/.test(r.spec.id) &&
+      r.spec.id !== 'thumb.str_sp',
+  );
   for (const r of writesRd) assert.ok(declared.includes(r.spec.id), `${r.spec.id} has an rd field but no RegisterSpec`);
-  assert.equal(declared.length, 44, "the 38 rows that write rd, pop, pop {.., pc}, ldmia, stmia, bl and swi");
+  assert.equal(declared.length, 44, 'the 38 rows that write rd, pop, pop {.., pc}, ldmia, stmia, bl and swi');
 });
 
 test("every name a row's RegisterSpec uses (writes, list, from) is one of that row's operands", () => {
@@ -79,7 +89,11 @@ test("every name a row's RegisterSpec uses (writes, list, from) is one of that r
     if (spec === undefined) continue;
     const fields = Object.fromEntries(row.spec.fields.map((f) => [f.name, 0]));
     const ops = Object.keys(row.toOps(fields, F));
-    for (const name of [...(spec.writes ?? []), ...(spec.list === undefined ? [] : [spec.list]), ...(spec.from ?? [])]) {
+    for (const name of [
+      ...(spec.writes ?? []),
+      ...(spec.list === undefined ? [] : [spec.list]),
+      ...(spec.from ?? []),
+    ]) {
       assert.ok(ops.includes(name), `${row.spec.id}: '${name}' is not one of its operands (${ops.join(', ')})`);
       checked += 1;
     }
@@ -88,7 +102,10 @@ test("every name a row's RegisterSpec uses (writes, list, from) is one of that r
 });
 
 test('an operand name the row lacks throws RomliftInvariantError instead of reading as r0', () => {
-  assert.deepEqual(effectOf({ writes: ['rd'], from: ['rs'] }, { rd: 1, rs: 2 }, 'thumb.test'), { writes: 2, from: [2] });
+  assert.deepEqual(effectOf({ writes: ['rd'], from: ['rs'] }, { rd: 1, rs: 2 }, 'thumb.test'), {
+    writes: 2,
+    from: [2],
+  });
   assert.throws(() => effectOf({ writes: ['Rd'] }, { rd: 1 }, 'thumb.test'), RomliftInvariantError);
   assert.throws(() => effectOf({ list: 'regs' }, { rlist: 3 }, 'thumb.test'), /names 'regs'/);
   assert.throws(() => effectOf({ from: ['rn'] }, { rd: 0 }, 'thumb.test'), RomliftInvariantError);

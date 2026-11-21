@@ -8,7 +8,18 @@ import type { Addr, Mode, Span } from '../../foundation/rom/span.ts';
 import { compareNumbers } from '../../foundation/util/sorted.ts';
 import type { BlSite } from '../profile/types.ts';
 import { frozenInsnLookup } from './insn-lookup.ts';
-import type { BlVerdictRecord, CallSite, Exit, InsnLookup, InsnSpan, JumpTable, PoolWord, Reading, ReadingError, WalkDecision } from './types.ts';
+import type {
+  BlVerdictRecord,
+  CallSite,
+  Exit,
+  InsnLookup,
+  InsnSpan,
+  JumpTable,
+  PoolWord,
+  Reading,
+  ReadingError,
+  WalkDecision,
+} from './types.ts';
 
 /** Everything a reading is built from; `end` comes from the extent rule (claim.adjacent-pools). */
 export interface ReadingParts {
@@ -65,7 +76,8 @@ function sortedUnique(list: readonly Addr[]): readonly Addr[] {
 function uniqueInsns(insns: readonly InsnSpan[], prepared?: InsnLookup): { list: readonly InsnSpan[]; at: InsnLookup } {
   if (prepared !== undefined && prepared.size === insns.length) return { list: insns, at: frozenInsnLookup(insns) };
   let sorted = true;
-  for (let k = 1; k < insns.length && sorted; k++) if ((insns[k - 1] as InsnSpan).addr >= (insns[k] as InsnSpan).addr) sorted = false;
+  for (let k = 1; k < insns.length && sorted; k++)
+    if ((insns[k - 1] as InsnSpan).addr >= (insns[k] as InsnSpan).addr) sorted = false;
   if (sorted) return { list: insns, at: frozenInsnLookup(insns) };
   const list = [...insns].sort((a, b) => a.addr - b.addr).filter((i, k, all) => k === 0 || all[k - 1]?.addr !== i.addr);
   return { list, at: frozenInsnLookup(list) };
@@ -103,7 +115,13 @@ function sortedVerdicts(verdicts: readonly BlVerdictRecord[]): readonly BlVerdic
 }
 
 /** The covered byte ranges of [entry, end), merged and sorted: instructions, pools and tables inside it. */
-function covered(entry: Addr, end: Addr, insns: readonly InsnSpan[], pools: readonly PoolWord[], tables: readonly JumpTable[]): Span[] {
+function covered(
+  entry: Addr,
+  end: Addr,
+  insns: readonly InsnSpan[],
+  pools: readonly PoolWord[],
+  tables: readonly JumpTable[],
+): Span[] {
   const extra: Span[] = [];
   for (const p of pools) if (p.addr >= entry && p.addr + 4 <= end) extra.push({ start: p.addr, end: p.addr + 4 });
   for (const t of tables) {
@@ -145,7 +163,14 @@ function covered(entry: Addr, end: Addr, insns: readonly InsnSpan[], pools: read
  * one, so all of them are holes, and only the last, when it is zero, may be spared by what follows it. A function
  * whose extent runs over a large uncovered stretch costs no more than one with none.
  */
-function holesOf(rom: Rom, entry: Addr, end: Addr, insns: readonly InsnSpan[], pools: readonly PoolWord[], tables: readonly JumpTable[]): {
+function holesOf(
+  rom: Rom,
+  entry: Addr,
+  end: Addr,
+  insns: readonly InsnSpan[],
+  pools: readonly PoolWord[],
+  tables: readonly JumpTable[],
+): {
   holes: readonly Span[];
   bytes: number;
 } {
@@ -176,7 +201,8 @@ function holesOf(rom: Rom, entry: Addr, end: Addr, insns: readonly InsnSpan[], p
         bytes += 2 * count;
         const stop = lastIsHole ? Math.min(last + 2, end) : last;
         const previous = holes[holes.length - 1];
-        if (previous !== undefined && previous.end === a) holes[holes.length - 1] = { start: previous.start, end: stop };
+        if (previous !== undefined && previous.end === a)
+          holes[holes.length - 1] = { start: previous.start, end: stop };
         else holes.push({ start: a, end: stop });
       }
       a = last + 2;

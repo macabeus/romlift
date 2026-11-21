@@ -5,7 +5,7 @@ import { test } from 'node:test';
 
 import { romWith, viewWith, walkReading } from '../../../../helpers/analysis.ts';
 import { thumbAt } from '../../../../helpers/thumb.ts';
-import { cursorOf, insnAt, WALK, walkRule, without } from './support.ts';
+import { WALK, cursorOf, insnAt, walkRule, without } from './support.ts';
 
 const F = 0x0800_0200;
 const ID = 'walk.swi-before-noncode';
@@ -28,7 +28,10 @@ test('a swi in the middle of a run is an ordinary instruction', () => {
   const rom = romWith([{ at: F, bytes: thumbAt(F)`swi #5; movs r0, #0; bx lr` }]);
   const r = walkReading(viewWith({ rom }), F, 'thumb', WALK);
   assert.equal(r.insns.length, 3);
-  assert.deepEqual(r.exits.map((e) => e.kind), ['return']);
+  assert.deepEqual(
+    r.exits.map((e) => e.kind),
+    ['return'],
+  );
 });
 
 test('declines: the insn phase, an instruction other than swi, and ARM', () => {
@@ -36,8 +39,14 @@ test('declines: the insn phase, an instruction other than swi, and ARM', () => {
   const v = viewWith({ rom });
   const rule = walkRule(ID);
   const swi = insnAt(rom, F, 'thumb');
-  assert.deepEqual(rule.onInsn(swi, cursorOf(v, { entry: F, mode: 'thumb', phase: 'stop', stop: 'invalid' })), { step: 'end-path', exit: 'swi-end' });
+  assert.deepEqual(rule.onInsn(swi, cursorOf(v, { entry: F, mode: 'thumb', phase: 'stop', stop: 'invalid' })), {
+    step: 'end-path',
+    exit: 'swi-end',
+  });
   assert.equal(rule.onInsn(swi, cursorOf(v, { entry: F, mode: 'thumb' })), undefined);
-  assert.equal(rule.onInsn(insnAt(rom, F + 2, 'thumb'), cursorOf(v, { entry: F, mode: 'thumb', phase: 'stop', stop: 'invalid' })), undefined);
+  assert.equal(
+    rule.onInsn(insnAt(rom, F + 2, 'thumb'), cursorOf(v, { entry: F, mode: 'thumb', phase: 'stop', stop: 'invalid' })),
+    undefined,
+  );
   assert.equal(rule.onInsn(swi, cursorOf(v, { entry: F, mode: 'arm', phase: 'stop' })), undefined);
 });

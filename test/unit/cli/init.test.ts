@@ -4,16 +4,16 @@
 // second run in the project changing nothing, the directory rule (E_DIR_NOT_EMPTY, nothing written), a changed TOML
 // refused, and the usage and input errors.
 import assert from 'node:assert/strict';
-import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
 
+import { parseModuleSize } from '../../../src/cli/commands/init.ts';
 import { ExitCode } from '../../../src/cli/exit-codes.ts';
 import { main } from '../../../src/cli/main.ts';
-import { parseModuleSize } from '../../../src/cli/commands/init.ts';
 import { parseConfig } from '../../../src/core/config/parse.ts';
-import { listSyntheticFixtures, SYNTHETIC_ROOT } from '../../helpers/fixtures.ts';
+import { SYNTHETIC_ROOT, listSyntheticFixtures } from '../../helpers/fixtures.ts';
 import { capturingIo } from './fake.ts';
 
 const TMP = await mkdtemp(path.join(tmpdir(), 'romlift-cli-init-'));
@@ -21,7 +21,10 @@ after(() => rm(TMP, { recursive: true, force: true }));
 const COMPOSITE = listSyntheticFixtures().find((f) => f.name === 'composite') ?? assert.fail('composite');
 let fresh = 0;
 
-async function run(cwd: string, argv: readonly string[]): Promise<{ readonly code: ExitCode; readonly stdout: string; readonly stderr: string }> {
+async function run(
+  cwd: string,
+  argv: readonly string[],
+): Promise<{ readonly code: ExitCode; readonly stdout: string; readonly stderr: string }> {
   const io = { ...capturingIo(), cwd };
   const code = await main(argv, io);
   return { code, stdout: io.out.join(''), stderr: io.err.join('') };
@@ -47,7 +50,11 @@ async function snapshot(dir: string, prefix = ''): Promise<Map<string, string>> 
   for (const entry of await readdir(path.join(dir, prefix), { withFileTypes: true })) {
     const relative = prefix === '' ? entry.name : `${prefix}/${entry.name}`;
     if (entry.isDirectory()) for (const [k, v] of await snapshot(dir, relative)) out.set(k, v);
-    else out.set(relative, `${(await readFile(path.join(dir, relative))).toString('base64')} ${(await stat(path.join(dir, relative))).mtimeMs}`);
+    else
+      out.set(
+        relative,
+        `${(await readFile(path.join(dir, relative))).toString('base64')} ${(await stat(path.join(dir, relative))).mtimeMs}`,
+      );
   }
   return out;
 }
@@ -60,7 +67,10 @@ test('init in a directory holding only the ROM writes the whole project; the loc
   const summary = parsed.at(-1);
   assert.equal(summary?.['type'], 'summary');
   assert.equal(summary?.['exitCode'], 0);
-  assert.ok(parsed.some((l) => l['code'] === 'W_LOCKFILE_DEFERRED'), 'capturingIo has no PATH, so npm is not found');
+  assert.ok(
+    parsed.some((l) => l['code'] === 'W_LOCKFILE_DEFERRED'),
+    'capturingIo has no PATH, so npm is not found',
+  );
   const rom = await readFile(COMPOSITE.rom);
   assert.deepEqual(await readFile(path.join(dir, 'baserom.gba')), rom);
   assert.deepEqual(await readFile(path.join(dir, 'composite.gba')), rom, 'the original stays');
@@ -68,7 +78,24 @@ test('init in a directory holding only the ROM writes the whole project; the loc
   const config = parseConfig(toml);
   assert.ok(config.ok);
   const name = config.value.build.name;
-  for (const file of ['decomp.yaml', 'Makefile', 'setup.sh', 'AGENTS.md', '.gitignore', '.gitmodules', `${name}.sha1`, 'package.json', 'include/include_asm.h', 'include/macros.inc', 'mk/agbcc.mk', 'ldscript.txt', 'symbols.ld', 'modules.mk', 'src/main.c', '.romlift/manifest.json']) {
+  for (const file of [
+    'decomp.yaml',
+    'Makefile',
+    'setup.sh',
+    'AGENTS.md',
+    '.gitignore',
+    '.gitmodules',
+    `${name}.sha1`,
+    'package.json',
+    'include/include_asm.h',
+    'include/macros.inc',
+    'mk/agbcc.mk',
+    'ldscript.txt',
+    'symbols.ld',
+    'modules.mk',
+    'src/main.c',
+    '.romlift/manifest.json',
+  ]) {
     assert.ok((await stat(path.join(dir, file))).isFile(), file);
   }
   assert.equal((await stat(path.join(dir, 'setup.sh'))).mode & 0o111, 0o111, 'setup.sh is executable');
@@ -94,9 +121,15 @@ test('init into a named directory, created when absent; text mode says what to r
   const dir = path.join(TMP, `new-${fresh++}`, 'project');
   const out = await run(TMP, ['init', COMPOSITE.rom, dir, '--name', 'demo']);
   assert.equal(out.code, ExitCode.ok, out.stderr);
-  assert.match(out.stdout, /initialised demo in .*: romlift\.toml, decomp\.yaml, the scaffold and the tree; run \.\/setup\.sh, then make\n/);
+  assert.match(
+    out.stdout,
+    /initialised demo in .*: romlift\.toml, decomp\.yaml, the scaffold and the tree; run \.\/setup\.sh, then make\n/,
+  );
   assert.match(out.stdout, /^init: ok \(exit 0\): /m);
-  assert.equal(await readFile(path.join(dir, 'demo.sha1'), 'utf8'), `${(await readFile(path.join(dir, 'decomp.yaml'), 'utf8')).match(/sha1: "([0-9a-f]{40})"/)?.[1] ?? '?'}  demo.gba\n`);
+  assert.equal(
+    await readFile(path.join(dir, 'demo.sha1'), 'utf8'),
+    `${(await readFile(path.join(dir, 'decomp.yaml'), 'utf8')).match(/sha1: "([0-9a-f]{40})"/)?.[1] ?? '?'}  demo.gba\n`,
+  );
 });
 
 test('a directory with another file is E_DIR_NOT_EMPTY (exit 1) and nothing is written', async () => {
@@ -105,7 +138,10 @@ test('a directory with another file is E_DIR_NOT_EMPTY (exit 1) and nothing is w
   const before = await snapshot(dir);
   const out = await run(dir, ['init', 'composite.gba', '--json']);
   assert.equal(out.code, ExitCode.errors);
-  assert.deepEqual(lines(out.stdout).map((l) => l['code'] ?? l['type']), ['E_DIR_NOT_EMPTY', 'summary']);
+  assert.deepEqual(
+    lines(out.stdout).map((l) => l['code'] ?? l['type']),
+    ['E_DIR_NOT_EMPTY', 'summary'],
+  );
   assert.deepEqual(await snapshot(dir), before);
 });
 
@@ -146,7 +182,8 @@ test('usage errors exit 2; a colliding --name, a missing file and an image that 
 test('parseModuleSize: 0x… or decimal, a positive multiple of 4 up to 32 MiB', () => {
   assert.equal(parseModuleSize('0x200'), 0x200);
   assert.equal(parseModuleSize('4096'), 4096);
-  for (const bad of ['0', '0x0', '6', '0x201', 'x200', '-4', '0x4000000', '']) assert.equal(parseModuleSize(bad), undefined, bad);
+  for (const bad of ['0', '0x0', '6', '0x201', 'x200', '-4', '0x4000000', ''])
+    assert.equal(parseModuleSize(bad), undefined, bad);
 });
 
 // ---------------------------------------------------------------------------------------------------
@@ -160,7 +197,11 @@ await mkdir(NO_SIGNATURES, { recursive: true });
 await mkdir(WITH_LIBFIX, { recursive: true });
 await copyFile(path.join(SYNTHETIC_ROOT, 'library', 'signatures.golden.json'), path.join(WITH_LIBFIX, 'libfix.json'));
 
-async function runWith(cwd: string, argv: readonly string[], signatures: string): Promise<{ readonly code: ExitCode; readonly stdout: string }> {
+async function runWith(
+  cwd: string,
+  argv: readonly string[],
+  signatures: string,
+): Promise<{ readonly code: ExitCode; readonly stdout: string }> {
   const io = { ...capturingIo(), cwd, env: { ROMLIFT_SIGNATURES: signatures } };
   const code = await main(argv, io);
   return { code, stdout: io.out.join('') };
@@ -183,7 +224,10 @@ test('init with a signature directory: the libraries it places are named, with f
   assert.match(toml, /\[signatures\]\nenabled = true\nlibraries = \["libfix"\]\n/);
   assert.match(toml, /^0x08000244 = \{ name = "FixAbs", from = "sig:libfix@1\.0" \}$/m);
   assert.match(toml, /name = "libfix"\nstart = 0x080001B4\nkind = "asm"\nlibrary = "libfix"\nversion = "1\.0"/);
-  assert.ok((await stat(path.join(dir, 'asm', 'nonmatchings', 'libfix', 'FixAbs.s'))).isFile(), 'the tree names the library function');
+  assert.ok(
+    (await stat(path.join(dir, 'asm', 'nonmatchings', 'libfix', 'FixAbs.s'))).isFile(),
+    'the tree names the library function',
+  );
 });
 
 test('init with no built signature file: W_SIGNATURES_ABSENT, a warning, and the project is written; --no-signatures: enabled = false', async () => {
@@ -198,7 +242,9 @@ test('init with no built signature file: W_SIGNATURES_ABSENT, a warning, and the
   const off = await gameDir();
   const quiet = await runWith(off, ['init', 'game.gba', '--no-signatures', '--json'], WITH_LIBFIX);
   assert.equal(quiet.code, ExitCode.ok, quiet.stdout);
-  assert.ok(!lines(quiet.stdout).some((l) => typeof l['code'] === 'string' && String(l['code']).startsWith('W_SIGNATURE')));
+  assert.ok(
+    !lines(quiet.stdout).some((l) => typeof l['code'] === 'string' && String(l['code']).startsWith('W_SIGNATURE')),
+  );
   const offToml = await readFile(path.join(off, 'romlift.toml'), 'utf8');
   assert.match(offToml, /\[signatures\]\nenabled = false\n/);
   assert.doesNotMatch(offToml, /from = /);

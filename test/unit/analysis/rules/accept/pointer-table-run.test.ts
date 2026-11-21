@@ -36,7 +36,11 @@ function run(s: Setup): { held: ReturnType<typeof pointerTableRun.holds>; asked:
     ...(s.profile === undefined ? {} : { profile: s.profile }),
   });
   const origins = s.origins;
-  const v: AnalysisView = { ...base, valid: (a) => (asked.push(a), (s.valid ?? []).includes(a)), ...(origins === undefined ? {} : { originOf: (rule: RuleId) => origins[rule] }) };
+  const v: AnalysisView = {
+    ...base,
+    valid: (a) => (asked.push(a), (s.valid ?? []).includes(a)),
+    ...(origins === undefined ? {} : { originOf: (rule: RuleId) => origins[rule] }),
+  };
   const c: Candidate = { entry: E, mode: 'thumb', proposedBy: s.proposedBy ?? 'seed.data-pointer', cites: [E] };
   return { held: pointerTableRun.holds(c, readingOf(rom, { entry: E }), v), asked };
 }
@@ -49,12 +53,31 @@ test('a data pointer in a run of three pointers to code holds; the run grows bel
 
 test('the boundary at pointerTableRun: a run of two does not hold under agbcc, and holds when the profile asks for two', () => {
   assert.equal(run({ table: [X, E, B], functions: [B] }).held, undefined);
-  assert.notEqual(run({ table: [X, E, B], functions: [B], profile: { ...testProfile(), pointerTableRun: 2 } }).held, undefined);
+  assert.notEqual(
+    run({ table: [X, E, B], functions: [B], profile: { ...testProfile(), pointerTableRun: 2 } }).held,
+    undefined,
+  );
 });
 
 test('the rule keys on the candidate origin, not on a proposer id: a renamed data-pointer harvest still holds', () => {
-  assert.notEqual(run({ table: [A, E, B], functions: [A, B], proposedBy: 'seed.renamed-harvest', origins: { 'seed.renamed-harvest': 'data-pointer' } }).held, undefined);
-  assert.equal(run({ table: [A, E, B], functions: [A, B], proposedBy: 'seed.data-pointer', origins: { 'seed.data-pointer': 'pool-pointer' } }).held, undefined);
+  assert.notEqual(
+    run({
+      table: [A, E, B],
+      functions: [A, B],
+      proposedBy: 'seed.renamed-harvest',
+      origins: { 'seed.renamed-harvest': 'data-pointer' },
+    }).held,
+    undefined,
+  );
+  assert.equal(
+    run({
+      table: [A, E, B],
+      functions: [A, B],
+      proposedBy: 'seed.data-pointer',
+      origins: { 'seed.data-pointer': 'pool-pointer' },
+    }).held,
+    undefined,
+  );
 });
 
 test('a referring word claimed as code, or a candidate of another origin, does not hold', () => {

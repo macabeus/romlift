@@ -24,7 +24,10 @@ const COMPOSITE = listSyntheticFixtures().find((f) => f.name === 'composite') ??
 const AS_ROOT = process.getuid?.() === 0;
 let fresh = 0;
 
-async function run(cwd: string, argv: readonly string[]): Promise<{ readonly code: ExitCode; readonly stdout: string }> {
+async function run(
+  cwd: string,
+  argv: readonly string[],
+): Promise<{ readonly code: ExitCode; readonly stdout: string }> {
   const io = { ...capturingIo(), cwd };
   const code = await main(argv, io);
   return { code, stdout: io.out.join('') };
@@ -57,7 +60,10 @@ function stubIn(module: string, name: string): string {
 }
 
 /** The layouts: each lays out the defining header (`own`, which includes macros.inc itself) and returns the line main_3.c includes it by. */
-const LAYOUTS: readonly { readonly name: string; readonly lay: (outer: string, dir: string, own: string) => Promise<string> }[] = [
+const LAYOUTS: readonly {
+  readonly name: string;
+  readonly lay: (outer: string, dir: string, own: string) => Promise<string>;
+}[] = [
   {
     // "../defs.h" in a header behind include/gba -> <outer>/shared/gba is <outer>/shared/defs.h, as cpp opens it; the
     // link's own path names include/defs.h, a header of types alone.
@@ -76,7 +82,8 @@ const LAYOUTS: readonly { readonly name: string; readonly lay: (outer: string, d
     // include -> .: the headers live at the project's top, which cpp -I include reads through the link.
     name: 'include -> .',
     lay: async (_outer, dir, own) => {
-      for (const name of ['include_asm.h', 'macros.inc']) await rename(path.join(dir, 'include', name), path.join(dir, name));
+      for (const name of ['include_asm.h', 'macros.inc'])
+        await rename(path.join(dir, 'include', name), path.join(dir, name));
       await rm(path.join(dir, 'include'), { recursive: true });
       await symlink('.', path.join(dir, 'include'));
       await writeFile(path.join(dir, 'global.h'), own);
@@ -131,40 +138,59 @@ const LAYOUTS: readonly { readonly name: string; readonly lay: (outer: string, d
 
 for (const layout of LAYOUTS) {
   const locks = layout.name.endsWith('-> ../..');
-  test(`a c module renamed with git mv whose INCLUDE_ASM comes from a header reached through ${layout.name}: no second header, no diagnostic, idempotent`, { skip: locks && AS_ROOT ? 'root reads through mode 000' : false }, async () => {
-    const { outer, dir } = await initProject();
-    try {
-      const toml = await readFile(path.join(dir, 'romlift.toml'), 'utf8');
-      const main3 = await readFile(path.join(dir, 'src', 'main_3.c'), 'utf8');
-      const header = await readFile(path.join(dir, 'include', 'include_asm.h'), 'utf8');
-      assert.ok(main3.startsWith('#include "include_asm.h"\n') && main3.includes(stubIn('main_3', 'sub_08000508')) && header.includes('macros.inc'), 'the composite as this test knows it');
-      // The reviewers' klonoa layouts: a header that defines INCLUDE_ASM and includes macros.inc under its own guard.
-      const own = header.replace(/GUARD_INCLUDE_ASM_H/g, 'GUARD_GLOBAL_H');
-      const include = await layout.lay(outer, dir, own);
-      const text = main3.replace('#include "include_asm.h"\n', include).replace(stubIn('main_3', 'sub_08000508'), 'void sub_08000508(void) {\n}');
-      await writeFile(path.join(dir, 'src', 'main_3.c'), text);
-      const first = await run(dir, ['generate', '--json']);
-      assert.equal(first.code, ExitCode.ok, first.stdout);
-      assert.deepEqual(diagnostics(first.stdout), [], first.stdout);
-      assert.equal(await readFile(path.join(dir, 'src', 'main_3.c'), 'utf8'), text, 'a file that needs no stub inserted is kept');
-      // `git mv src/main_3.c src/boot.c` and the TOML rename: every stub of the file is replaced.
-      await writeFile(path.join(dir, 'romlift.toml'), toml.replace('name = "main_3"', 'name = "boot"'));
-      await writeFile(path.join(dir, 'src', 'boot.c'), text);
-      await rm(path.join(dir, 'src', 'main_3.c'));
-      const out = await run(dir, ['generate', '--json']);
-      assert.equal(out.code, ExitCode.ok, out.stdout);
-      assert.deepEqual(diagnostics(out.stdout), [], out.stdout);
-      assert.equal(await readFile(path.join(dir, 'src', 'boot.c'), 'utf8'), text.replaceAll('asm/nonmatchings/main_3', 'asm/nonmatchings/boot'), 'no #include "include_asm.h" added');
-      const again = await run(dir, ['generate', '--json']);
-      assert.equal(again.code, ExitCode.ok, again.stdout);
-      assert.deepEqual(diagnostics(again.stdout), [], 'idempotent');
-    } finally {
-      if (locks) await chmod(path.join(outer, 'locked.h'), 0o644);
-    }
-  });
+  test(
+    `a c module renamed with git mv whose INCLUDE_ASM comes from a header reached through ${layout.name}: no second header, no diagnostic, idempotent`,
+    { skip: locks && AS_ROOT ? 'root reads through mode 000' : false },
+    async () => {
+      const { outer, dir } = await initProject();
+      try {
+        const toml = await readFile(path.join(dir, 'romlift.toml'), 'utf8');
+        const main3 = await readFile(path.join(dir, 'src', 'main_3.c'), 'utf8');
+        const header = await readFile(path.join(dir, 'include', 'include_asm.h'), 'utf8');
+        assert.ok(
+          main3.startsWith('#include "include_asm.h"\n') &&
+            main3.includes(stubIn('main_3', 'sub_08000508')) &&
+            header.includes('macros.inc'),
+          'the composite as this test knows it',
+        );
+        // The reviewers' klonoa layouts: a header that defines INCLUDE_ASM and includes macros.inc under its own guard.
+        const own = header.replace(/GUARD_INCLUDE_ASM_H/g, 'GUARD_GLOBAL_H');
+        const include = await layout.lay(outer, dir, own);
+        const text = main3
+          .replace('#include "include_asm.h"\n', include)
+          .replace(stubIn('main_3', 'sub_08000508'), 'void sub_08000508(void) {\n}');
+        await writeFile(path.join(dir, 'src', 'main_3.c'), text);
+        const first = await run(dir, ['generate', '--json']);
+        assert.equal(first.code, ExitCode.ok, first.stdout);
+        assert.deepEqual(diagnostics(first.stdout), [], first.stdout);
+        assert.equal(
+          await readFile(path.join(dir, 'src', 'main_3.c'), 'utf8'),
+          text,
+          'a file that needs no stub inserted is kept',
+        );
+        // `git mv src/main_3.c src/boot.c` and the TOML rename: every stub of the file is replaced.
+        await writeFile(path.join(dir, 'romlift.toml'), toml.replace('name = "main_3"', 'name = "boot"'));
+        await writeFile(path.join(dir, 'src', 'boot.c'), text);
+        await rm(path.join(dir, 'src', 'main_3.c'));
+        const out = await run(dir, ['generate', '--json']);
+        assert.equal(out.code, ExitCode.ok, out.stdout);
+        assert.deepEqual(diagnostics(out.stdout), [], out.stdout);
+        assert.equal(
+          await readFile(path.join(dir, 'src', 'boot.c'), 'utf8'),
+          text.replaceAll('asm/nonmatchings/main_3', 'asm/nonmatchings/boot'),
+          'no #include "include_asm.h" added',
+        );
+        const again = await run(dir, ['generate', '--json']);
+        assert.equal(again.code, ExitCode.ok, again.stdout);
+        assert.deepEqual(diagnostics(again.stdout), [], 'idempotent');
+      } finally {
+        if (locks) await chmod(path.join(outer, 'locked.h'), 0o644);
+      }
+    },
+  );
 }
 
-test('a header behind a linked directory that does not define INCLUDE_ASM: the renamed module gains the header, from the link target\'s directory', async () => {
+test("a header behind a linked directory that does not define INCLUDE_ASM: the renamed module gains the header, from the link target's directory", async () => {
   // The control of the first layout: "../defs.h" from the target is a header of types alone, while the link's own path
   // names a defining include/defs.h; cpp reads the target's, so the file needs include_asm.h.
   const { outer, dir } = await initProject();
@@ -177,12 +203,17 @@ test('a header behind a linked directory that does not define INCLUDE_ASM: the r
   await writeFile(path.join(dir, 'include', 'defs.h'), header.replace(/GUARD_INCLUDE_ASM_H/g, 'GUARD_GLOBAL_H'));
   await symlink(path.join(outer, 'shared', 'gba'), path.join(dir, 'include', 'gba'));
   await writeFile(path.join(dir, 'include', 'global.h'), '#include "gba/macro.h"\n');
-  const text = main3.replace('#include "include_asm.h"\n', '#include "global.h"\n').replace(stubIn('main_3', 'sub_08000508'), 'void sub_08000508(void) {\n}');
+  const text = main3
+    .replace('#include "include_asm.h"\n', '#include "global.h"\n')
+    .replace(stubIn('main_3', 'sub_08000508'), 'void sub_08000508(void) {\n}');
   await writeFile(path.join(dir, 'romlift.toml'), toml.replace('name = "main_3"', 'name = "boot"'));
   await writeFile(path.join(dir, 'src', 'boot.c'), text);
   await rm(path.join(dir, 'src', 'main_3.c'));
   const out = await run(dir, ['generate', '--json']);
   assert.equal(out.code, ExitCode.ok, out.stdout);
   assert.deepEqual(diagnostics(out.stdout), [], out.stdout);
-  assert.equal(await readFile(path.join(dir, 'src', 'boot.c'), 'utf8'), `#include "include_asm.h"\n\n${text.replaceAll('asm/nonmatchings/main_3', 'asm/nonmatchings/boot')}`);
+  assert.equal(
+    await readFile(path.join(dir, 'src', 'boot.c'), 'utf8'),
+    `#include "include_asm.h"\n\n${text.replaceAll('asm/nonmatchings/main_3', 'asm/nonmatchings/boot')}`,
+  );
 });

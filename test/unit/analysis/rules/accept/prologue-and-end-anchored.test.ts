@@ -14,9 +14,20 @@ const c: Candidate = { entry: E, mode: 'thumb', proposedBy: 'seed.data-pointer',
 /** The verdict when the next accepted function (its bytes claimed as code) starts `gap` zero bytes after the extent. */
 function holds(gap: number, code = 'push {r4, lr}; movs r4, #0; pop {r4, pc}') {
   const rom = romWith([{ at: E, bytes: thumbAt(E)`${code}` }]);
-  const r = readingOf(rom, { entry: E, insns: [{ addr: E, len: 2 }, { addr: E + 2, len: 2 }, { addr: E + 4, len: 2 }] });
+  const r = readingOf(rom, {
+    entry: E,
+    insns: [
+      { addr: E, len: 2 },
+      { addr: E + 2, len: 2 },
+      { addr: E + 4, len: 2 },
+    ],
+  });
   const next = END + gap;
-  return prologueAndEndAnchored.holds(c, r, viewWith({ rom, functions: [next], claims: [{ span: { start: next, end: next + 4 }, kind: Claim.code }] }));
+  return prologueAndEndAnchored.holds(
+    c,
+    r,
+    viewWith({ rom, functions: [next], claims: [{ span: { start: next, end: next + 4 }, kind: Claim.code }] }),
+  );
 }
 
 test('a prologue whose extent ends at an accepted function holds', () => {

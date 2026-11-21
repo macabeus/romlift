@@ -47,23 +47,44 @@ export interface AnalysisLimits {
   readonly epochReadingBytes: number;
 }
 
-export const LIMITS: AnalysisLimits = { settleRounds: 600, fixpointRounds: 10_000, candidateBudget: 262_144, walkInsns: 65_536, zeroRun: 64, epochReadingBytes: 256 * 1024 * 1024 };
+export const LIMITS: AnalysisLimits = {
+  settleRounds: 600,
+  fixpointRounds: 10_000,
+  candidateBudget: 262_144,
+  walkInsns: 65_536,
+  zeroRun: 64,
+  epochReadingBytes: 256 * 1024 * 1024,
+};
 
 /** W_SETTLE_LIMIT for the function at `entry`. */
 export function settleLimit(entry: Addr, rounds: number): Diagnostic<AnalysisCode> {
-  return diagnostic(AnalysisCodes, 'W_SETTLE_LIMIT', `the bl verdicts of ${hexAddr(entry)} did not settle in ${rounds} rounds; the last reading is kept`, {
-    addr: entry,
-  });
+  return diagnostic(
+    AnalysisCodes,
+    'W_SETTLE_LIMIT',
+    `the bl verdicts of ${hexAddr(entry)} did not settle in ${rounds} rounds; the last reading is kept`,
+    {
+      addr: entry,
+    },
+  );
 }
 
 /** W_FIXPOINT_LIMIT for the loop named `loop`. */
 export function fixpointLimit(loop: string, rounds: number): Diagnostic<AnalysisCode> {
-  return diagnostic(AnalysisCodes, 'W_FIXPOINT_LIMIT', `${loop} did not reach its fixpoint in ${rounds} rounds; what was accepted is kept`);
+  return diagnostic(
+    AnalysisCodes,
+    'W_FIXPOINT_LIMIT',
+    `${loop} did not reach its fixpoint in ${rounds} rounds; what was accepted is kept`,
+  );
 }
 
 /** W_WALK_LIMIT for the walk of `entry` in `mode`. */
 export function walkLimit(entry: Addr, mode: 'thumb' | 'arm', at: Addr): Diagnostic<AnalysisCode> {
-  return diagnostic(AnalysisCodes, 'W_WALK_LIMIT', `the ${mode} walk of ${hexAddr(entry)} reached the walk limit at ${hexAddr(at)}; it is not code`, { addr: entry });
+  return diagnostic(
+    AnalysisCodes,
+    'W_WALK_LIMIT',
+    `the ${mode} walk of ${hexAddr(entry)} reached the walk limit at ${hexAddr(at)}; it is not code`,
+    { addr: entry },
+  );
 }
 
 /** W_READING_BUDGET: the readings held in one epoch passed `budget` bytes and were dropped. */
@@ -77,5 +98,9 @@ export function readingBudget(round: number, budget: number): Diagnostic<Analysi
 
 /** W_CANDIDATE_BUDGET: from grow round `round` on, fresh targets past the run's budget of `budget` were not judged. */
 export function candidateBudget(round: number, budget: number): Diagnostic<AnalysisCode> {
-  return diagnostic(AnalysisCodes, 'W_CANDIDATE_BUDGET', `the run judged ${budget} distinct candidates, its budget; from grow round ${round} on, fresh candidates were not judged`);
+  return diagnostic(
+    AnalysisCodes,
+    'W_CANDIDATE_BUDGET',
+    `the run judged ${budget} distinct candidates, its budget; from grow round ${round} on, fresh candidates were not judged`,
+  );
 }

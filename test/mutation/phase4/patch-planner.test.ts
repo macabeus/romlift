@@ -65,7 +65,13 @@ name = "sub_08000010"
 
 type Planner = (text: string, config: RomliftConfig, proposals: readonly Proposal[]) => ConfigPatchResult;
 
-const rename = (addr: number, name: string): Proposal => ({ kind: 'function', addr, mode: 'thumb', name, source: { kind: 'signature', library: 'gate', version: '0', rule: 'sig.unique-fit' } });
+const rename = (addr: number, name: string): Proposal => ({
+  kind: 'function',
+  addr,
+  mode: 'thumb',
+  name,
+  source: { kind: 'signature', library: 'gate', version: '0', rule: 'sig.unique-fit' },
+});
 
 /** The planner with the re-parse comparison skipped: the mutant g4.checks-fail requires this test to catch. */
 const skipsComparison: Planner = (text, config, proposals) => {
@@ -76,7 +82,8 @@ const skipsComparison: Planner = (text, config, proposals) => {
 /** The planner's contract: an accepted patch re-parses to applyProposals(config, proposals). */
 function honours(planner: Planner, text: string, config: RomliftConfig, proposals: readonly Proposal[]): boolean {
   const result = planner(text, config, proposals);
-  if (!result.ok) return result.diagnostics.length > 0 && result.diagnostics.every((d) => d.code === 'E_TOML_PATCH_REFUSED');
+  if (!result.ok)
+    return result.diagnostics.length > 0 && result.diagnostics.every((d) => d.code === 'E_TOML_PATCH_REFUSED');
   const reparsed = parseConfig(result.text);
   return reparsed.ok && serializeConfig(reparsed.value) === serializeConfig(applyProposals(config, proposals));
 }
@@ -90,7 +97,10 @@ function config(text: string): RomliftConfig {
 async function project(toml: string): Promise<string> {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'romlift-patch-mutation-')));
   roots.push(dir);
-  await writeFile(join(dir, 'decomp.yaml'), renderDecompYaml({ name: 'rlfx', title: 'RLFX', gameCode: 'RLFX', sha1: SHA1 }));
+  await writeFile(
+    join(dir, 'decomp.yaml'),
+    renderDecompYaml({ name: 'rlfx', title: 'RLFX', gameCode: 'RLFX', sha1: SHA1 }),
+  );
   await writeFile(join(dir, 'romlift.toml'), toml);
   return dir;
 }
@@ -108,7 +118,10 @@ test('a clean patch of the canonical file is accepted and saved, comments kept',
   const dir = await project(TOML);
   const result = await updateWrite(dir, [rename(0x0800_0010, 'Main')]);
   assert.ok(result.ok);
-  assert.equal(await readFile(join(dir, 'romlift.toml'), 'utf8'), TOML.replace('0x08000010 = "sub_08000010"', '0x08000010 = { name = "Main", from = "sig:gate@0" }'));
+  assert.equal(
+    await readFile(join(dir, 'romlift.toml'), 'utf8'),
+    TOML.replace('0x08000010 = "sub_08000010"', '0x08000010 = { name = "Main", from = "sig:gate@0" }'),
+  );
 });
 
 test('a hand-restructured table is E_TOML_PATCH_REFUSED and romlift.toml is left as it was', async () => {
@@ -116,11 +129,13 @@ test('a hand-restructured table is E_TOML_PATCH_REFUSED and romlift.toml is left
   const before = await readFile(join(dir, 'romlift.toml'));
   const result = await updateWrite(dir, [rename(0x0800_0010, 'Main')]);
   assert.equal(result.ok, false);
-  assert.deepEqual(
-    result.ok ? [] : result.diagnostics.map((d) => [d.code, d.addr]),
-    [['E_TOML_PATCH_REFUSED', 0x0800_0010]],
+  assert.deepEqual(result.ok ? [] : result.diagnostics.map((d) => [d.code, d.addr]), [
+    ['E_TOML_PATCH_REFUSED', 0x0800_0010],
+  ]);
+  assert.match(
+    result.ok ? '' : (result.diagnostics[0]?.message ?? ''),
+    /replace it with this line under \[functions\]: 0x08000010 = \{ name = "Main", from = "sig:gate@0" \}$/,
   );
-  assert.match(result.ok ? '' : (result.diagnostics[0]?.message ?? ''), /replace it with this line under \[functions\]: 0x08000010 = \{ name = "Main", from = "sig:gate@0" \}$/);
   assert.deepEqual(await readFile(join(dir, 'romlift.toml')), before);
 });
 
@@ -132,7 +147,11 @@ test('a planner that skips the re-parse comparison is caught: it accepts a text 
   assert.equal(honours(planPatch, TOML, stale, proposals), true, 'the real planner refuses');
   const real = planPatch(TOML, stale, proposals);
   assert.equal(real.ok ? 'accepted' : real.diagnostics[0]?.code, 'E_TOML_PATCH_REFUSED');
-  assert.equal(honours(skipsComparison, TOML, stale, proposals), false, 'the mutant accepts a wrong text, and the contract check sees it');
+  assert.equal(
+    honours(skipsComparison, TOML, stale, proposals),
+    false,
+    'the mutant accepts a wrong text, and the contract check sees it',
+  );
   // On a sound input both agree, so the check is not trivially false.
   assert.equal(honours(skipsComparison, TOML, config(TOML), proposals), true);
   assert.equal(honours(planPatch, RESTRUCTURED, config(RESTRUCTURED), proposals), true);

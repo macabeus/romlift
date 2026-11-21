@@ -3,7 +3,7 @@
 // (`--json`), string options (`--rom <path>` or `--rom=<path>`), repeatable options (`--disable <rule>`,
 // kept in order) and positionals, as many as the command declares; `--` ends the options. `--help` (or `-h`) is accepted by every
 // command and sets `flags.help`. Parsing never throws: a bad command line is a precise message.
-import { findCommand, HELP_FLAG } from './registry.ts';
+import { HELP_FLAG, findCommand } from './registry.ts';
 import type { CommandSpec, OptionSpec, ParsedArgs } from './registry.ts';
 
 /** The parser's answer: the command and its arguments, or why the command line is not usable. */

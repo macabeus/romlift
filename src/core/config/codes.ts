@@ -12,14 +12,25 @@ export const ConfigCodes = defineCodes({
   E_DUPLICATE_ADDRESS: { severity: 'error', meaning: 'an address is listed twice in [functions] or in [symbols]' },
   E_FUNCTION_MISALIGNED: {
     severity: 'error',
-    meaning: 'a [functions] key is no instruction address of its mode: odd for Thumb (a pointer value, bit 0 set), or not word-aligned for ARM (keys.ts; core/model raised it in fix round 5)',
+    meaning:
+      'a [functions] key is no instruction address of its mode: odd for Thumb (a pointer value, bit 0 set), or not word-aligned for ARM (keys.ts; core/model raised it in fix round 5)',
   },
-  E_TOML_SCHEMA: { severity: 'error', meaning: 'romlift.toml is TOML but not schema 1: an unknown key, a missing one or a wrong value' },
-  E_UNKNOWN_COMPILER: { severity: 'error', meaning: '[build] compiler or a module\'s compiler names no registered build compiler (core/config/compilers.ts)' },
-  E_ROM_SHA1_MISMATCH: { severity: 'error', meaning: 'the ROM is not the one the project\'s romlift.toml records in [rom] sha1' },
+  E_TOML_SCHEMA: {
+    severity: 'error',
+    meaning: 'romlift.toml is TOML but not schema 1: an unknown key, a missing one or a wrong value',
+  },
+  E_UNKNOWN_COMPILER: {
+    severity: 'error',
+    meaning: "[build] compiler or a module's compiler names no registered build compiler (core/config/compilers.ts)",
+  },
+  E_ROM_SHA1_MISMATCH: {
+    severity: 'error',
+    meaning: "the ROM is not the one the project's romlift.toml records in [rom] sha1",
+  },
   E_TOML_PATCH_REFUSED: {
     severity: 'error',
-    meaning: 'the patch planner cannot edit an entry line by line (a hand-restructured table, a block entry); paste the entries it prints',
+    meaning:
+      'the patch planner cannot edit an entry line by line (a hand-restructured table, a block entry); paste the entries it prints',
   },
   E_DECOMP_YAML_INVALID: {
     severity: 'error',

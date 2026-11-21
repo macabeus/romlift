@@ -14,10 +14,23 @@ export interface Manifest {
 }
 
 export type WriteOp =
-  | { readonly op: 'write'; readonly path: string; readonly text: string; readonly sha1: string; readonly writer: WriterId; readonly executable?: true }
+  | {
+      readonly op: 'write';
+      readonly path: string;
+      readonly text: string;
+      readonly sha1: string;
+      readonly writer: WriterId;
+      readonly executable?: true;
+    }
   /** A scaffold file that must be executable (setup.sh) and is not on disk: its executable bits are set. */
   | { readonly op: 'mode'; readonly path: string; readonly executable: true }
-  | { readonly op: 'edit'; readonly path: string; readonly baseSha1: string; readonly resultSha1: string; readonly text: string }
+  | {
+      readonly op: 'edit';
+      readonly path: string;
+      readonly baseSha1: string;
+      readonly resultSha1: string;
+      readonly text: string;
+    }
   | { readonly op: 'delete'; readonly path: string }
   | { readonly op: 'keep'; readonly path: string; readonly sha1: string };
 
@@ -76,4 +89,3 @@ export const MANIFEST_PATH = '.romlift/manifest.json';
 export const JOURNAL_PATH = '.romlift/journal.json';
 /** Taken with O_EXCL by the shell; holds the pid and host (§6.4). */
 export const LOCK_PATH = '.romlift/lock';
-

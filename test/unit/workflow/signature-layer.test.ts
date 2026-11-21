@@ -12,7 +12,7 @@ import { discover } from '../../../src/core/workflow/discover.ts';
 import { signatureNotes, signaturesOver } from '../../../src/core/workflow/signature-layer.ts';
 import { diagnostic } from '../../../src/foundation/diagnostics/diagnostic.ts';
 import { RomCodes } from '../../../src/foundation/rom/codes.ts';
-import { listSyntheticFixtures, readFixtureRom, SYNTHETIC_ROOT } from '../../helpers/fixtures.ts';
+import { SYNTHETIC_ROOT, listSyntheticFixtures, readFixtureRom } from '../../helpers/fixtures.ts';
 
 function fixture(name: string): ReturnType<typeof readFixtureRom> {
   const found = listSyntheticFixtures().find((f) => f.name === name);
@@ -21,7 +21,9 @@ function fixture(name: string): ReturnType<typeof readFixtureRom> {
 }
 
 const LIBFIX = ((): SignatureFile => {
-  const parsed = parseSignatureFile(JSON.parse(readFileSync(join(SYNTHETIC_ROOT, 'library', 'signatures.golden.json'), 'utf8')));
+  const parsed = parseSignatureFile(
+    JSON.parse(readFileSync(join(SYNTHETIC_ROOT, 'library', 'signatures.golden.json'), 'utf8')),
+  );
   assert.ok(parsed.ok);
   return parsed.value;
 })();
@@ -30,12 +32,20 @@ test('signaturesOver: an analysis with an error diagnostic places nothing; no fi
   const rom = fixture('library-game');
   const analysis = discover(rom);
   assert.ok(signaturesOver(rom, analysis, [LIBFIX]).placements.length > 0);
-  const failed = { ...analysis, diagnostics: [...analysis.diagnostics, diagnostic(RomCodes, 'E_ROM_NOT_GBA', 'a planted error')] };
-  assert.deepEqual(signaturesOver(rom, failed, [LIBFIX]), { placements: [], regions: [], proposals: [], diagnostics: [] });
+  const failed = {
+    ...analysis,
+    diagnostics: [...analysis.diagnostics, diagnostic(RomCodes, 'E_ROM_NOT_GBA', 'a planted error')],
+  };
+  assert.deepEqual(signaturesOver(rom, failed, [LIBFIX]), {
+    placements: [],
+    regions: [],
+    proposals: [],
+    diagnostics: [],
+  });
   assert.deepEqual(signaturesOver(rom, analysis, []).placements, []);
 });
 
-test('signatureNotes: the locator\'s notes for a run that uses signatures, none for one that does not', () => {
+test("signatureNotes: the locator's notes for a run that uses signatures, none for one that does not", () => {
   const notes = [diagnostic(RomCodes, 'E_ROM_NOT_GBA', 'a note')];
   assert.deepEqual(signatureNotes(true, notes), notes);
   assert.deepEqual(signatureNotes(true, undefined), []);

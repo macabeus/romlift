@@ -12,10 +12,12 @@ const rom = romWith([], { size: 0x1000 });
 test('the free bytes from the greatest extent end to the ROM end are data', () => {
   const facts = [fact(BASE + 0x200, BASE + 0x280, 'call'), fact(BASE + 0x100, BASE + 0x180, 'call')];
   const v = viewWith({ rom, functions: [BASE + 0x100, BASE + 0x200], owner: ownerOver(facts) });
-  assert.deepEqual(rule.classify(v), [{ span: { start: BASE + 0x280, end: rom.end }, kind: Claim.data, when: 'free-bytes' }]);
+  assert.deepEqual(rule.classify(v), [
+    { span: { start: BASE + 0x280, end: rom.end }, kind: Claim.data, when: 'free-bytes' },
+  ]);
 });
 
-test('a function with an empty extent counts its accepted reading\'s end', () => {
+test("a function with an empty extent counts its accepted reading's end", () => {
   const r = readingOf(rom, { entry: BASE + 0x300 });
   const v = viewWith({ rom, functions: [BASE + 0x300], readings: [r], owner: () => undefined });
   assert.deepEqual(rule.classify(v)[0]?.span, { start: BASE + 0x300, end: rom.end });

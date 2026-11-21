@@ -1,10 +1,10 @@
 // The agbcc profile: the proof of concept's numbers (romlift-poc/src/analysis.ts) and its call order of
 // every rule slot (D12, D48). Changing a number or an order here is a reviewed diff with its bench diff.
+import { registerEffect } from '../../foundation/isa/registers.ts';
+import type { Insn } from '../../foundation/isa/types.ts';
 import { contains, u16, u32 } from '../../foundation/rom/rom.ts';
 import type { Rom, RomBytes } from '../../foundation/rom/rom.ts';
 import type { Addr, Mode } from '../../foundation/rom/span.ts';
-import type { Insn } from '../../foundation/isa/types.ts';
-import { registerEffect } from '../../foundation/isa/registers.ts';
 import type { BlSite, CompilerProfile, JumpTableMatch, Pipeline, ReadingSummary } from './types.ts';
 
 /** The proof of concept's call order of every rule (§4.1): each analysis rule id in exactly one slot. */
@@ -84,7 +84,7 @@ function pushLr(rom: Rom, a: Addr): boolean {
 
 function isPrologue(rom: Rom, a: Addr, mode: Mode): boolean {
   if (mode === 'thumb') return pushLr(rom, a) && (a & 3) === 0;
-  return (a & 3) === 0 && contains(rom, a, 4) && ((u32(rom, a) & 0xffff4000) >>> 0) === 0xe92d4000;
+  return (a & 3) === 0 && contains(rom, a, 4) && (u32(rom, a) & 0xffff4000) >>> 0 === 0xe92d4000;
 }
 
 /** The proof of concept's padding: a zero byte, or a byte of a 0x46C0 halfword (`mov r8, r8`). */
@@ -108,7 +108,11 @@ function isTableBase(rom: RomBytes, v: number, pc: Addr): boolean {
  * whose word is a table base names the table; a register written any other way (a constant, other
  * arithmetic, a call) is no longer followed, and the search ends when no register is.
  */
-function tableBase(insns: readonly Insn[], cursor: number, rom: RomBytes): { readonly base: Addr; readonly load: Addr } | undefined {
+function tableBase(
+  insns: readonly Insn[],
+  cursor: number,
+  rom: RomBytes,
+): { readonly base: Addr; readonly load: Addr } | undefined {
   const jump = insns[cursor];
   if (jump === undefined || jump.flow.kind !== 'indirect') return undefined;
   let tracked = 1 << jump.flow.reg;
@@ -119,7 +123,8 @@ function tableBase(insns: readonly Insn[], cursor: number, rom: RomBytes): { rea
       const rd = insn.flow.rd;
       if ((tracked & (1 << rd)) === 0) continue;
       tracked &= ~(1 << rd);
-      if (contains(rom, insn.flow.pool, 4) && isTableBase(rom, u32(rom, insn.flow.pool), jump.addr)) return { base: u32(rom, insn.flow.pool), load: insn.addr };
+      if (contains(rom, insn.flow.pool, 4) && isTableBase(rom, u32(rom, insn.flow.pool), jump.addr))
+        return { base: u32(rom, insn.flow.pool), load: insn.addr };
       continue;
     }
     const effect = registerEffect(insn);

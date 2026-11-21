@@ -26,7 +26,12 @@ export interface ToolchainOutcome {
 export type ToolchainPlan =
   | { readonly kind: 'none' }
   | { readonly kind: 'not-run'; readonly outcome: ToolchainOutcome }
-  | { readonly kind: 'run'; readonly ids: readonly CheckId[]; readonly assemble?: readonly AssembleUnit[]; readonly link?: readonly BuildUnit[] };
+  | {
+      readonly kind: 'run';
+      readonly ids: readonly CheckId[];
+      readonly assemble?: readonly AssembleUnit[];
+      readonly link?: readonly BuildUnit[];
+    };
 
 /** The toolchain checks a run asks for, in CHECK_IDS order. */
 export function toolchainIds(flags: ToolchainFlags): readonly CheckId[] {
@@ -39,7 +44,11 @@ export function notRun(id: CheckId, detail: string, diagnostics: readonly Diagno
 }
 
 /** Every one of `ids` reported as not run, with one detail and the diagnostics that stopped it. */
-export function notRunOutcome(ids: readonly CheckId[], detail: string, diagnostics: readonly Diagnostic[] = []): ToolchainOutcome {
+export function notRunOutcome(
+  ids: readonly CheckId[],
+  detail: string,
+  diagnostics: readonly Diagnostic[] = [],
+): ToolchainOutcome {
   return { checks: ids.map((id) => notRun(id, detail, diagnostics)) };
 }
 
@@ -47,10 +56,17 @@ export function notRunOutcome(ids: readonly CheckId[], detail: string, diagnosti
  * The toolchain plan of a generate result: none asked for; not run while a self-check or the model fails (a write
  * follows a passing check pass, §6.4); else the model's units, in link order, for each check asked for.
  */
-export function toolchainPlan(result: Pick<GenerateResult, 'model' | 'report' | 'diagnostics'>, flags: ToolchainFlags): ToolchainPlan {
+export function toolchainPlan(
+  result: Pick<GenerateResult, 'model' | 'report' | 'diagnostics'>,
+  flags: ToolchainFlags,
+): ToolchainPlan {
   const ids = toolchainIds(flags);
   if (ids.length === 0) return { kind: 'none' };
-  if (!writable(result)) return { kind: 'not-run', outcome: notRunOutcome(ids, 'not run: nothing is written while a self-check or the model fails') };
+  if (!writable(result))
+    return {
+      kind: 'not-run',
+      outcome: notRunOutcome(ids, 'not run: nothing is written while a self-check or the model fails'),
+    };
   return {
     kind: 'run',
     ids,

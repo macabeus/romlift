@@ -4,7 +4,20 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { assembleUnits, buildUnits, cAssemblyPath, chunkNamesOf, chunkPaths, cObjectPath, CRT0_PATH, HEADER_PATH, MODULES_MK_PATH, modulePathPrefixes, moduleSource, objectPath } from '../../../src/core/model/paths.ts';
+import {
+  CRT0_PATH,
+  HEADER_PATH,
+  MODULES_MK_PATH,
+  assembleUnits,
+  buildUnits,
+  cAssemblyPath,
+  cObjectPath,
+  chunkNamesOf,
+  chunkPaths,
+  modulePathPrefixes,
+  moduleSource,
+  objectPath,
+} from '../../../src/core/model/paths.ts';
 import { isCSource, isHeaderPath } from '../../../src/foundation/util/project-files.ts';
 import { dataItem, modelOf, romWith } from '../../helpers/model.ts';
 
@@ -25,7 +38,12 @@ function model() {
         ],
       },
       { name: 'other', chunks: [{ name: 'InitBGs', items: [dataItem(0x0800_0150, 0x10)] }] },
-      { name: 'data', kind: 'data', generated: false, chunks: [{ kind: 'data', name: 'data', items: [dataItem(0x0800_0160, 0x1ea0)] }] },
+      {
+        name: 'data',
+        kind: 'data',
+        generated: false,
+        chunks: [{ kind: 'data', name: 'data', items: [dataItem(0x0800_0160, 0x1ea0)] }],
+      },
     ],
   });
 }
@@ -62,8 +80,14 @@ test('module sources and build units, in ROM order', () => {
 test('assembleUnits: each build unit with its own module span, built from the module (architecture-r1-10)', () => {
   const m = model();
   const units = assembleUnits(m);
-  assert.deepEqual(units.map(({ span: _span, ...unit }) => unit), buildUnits(m));
-  assert.deepEqual(units.map((u) => u.span), m.modules.map((x) => x.span));
+  assert.deepEqual(
+    units.map(({ span: _span, ...unit }) => unit),
+    buildUnits(m),
+  );
+  assert.deepEqual(
+    units.map((u) => u.span),
+    m.modules.map((x) => x.span),
+  );
 });
 
 test('the path prefixes of a module: its source, and its nonmatchings directory when it has files there', () => {
@@ -75,16 +99,38 @@ test('the path prefixes of a module: its source, and its nonmatchings directory 
 
 test('a C module builds src/<m>.c through build/src/<m>.s to build/src/<m>.o; its prefixes are its stub and its directory (D74 f)', () => {
   const m = model();
-  const c = { ...m, modules: m.modules.map((x) => (x.name === 'main' ? { ...x, kind: 'c' as const, compiler: 'old_agbcc' } : x)) };
-  assert.deepEqual(buildUnits(c)[2], { module: 'main', source: 'src/main.c', object: 'build/src/main.o', compiler: 'old_agbcc' }, 'a C unit carries its module\'s compiler');
-  assert.deepEqual(assembleUnits(c)[2], { module: 'main', source: 'src/main.c', object: 'build/src/main.o', compiler: 'old_agbcc', span: c.modules[2]!.span });
-  assert.deepEqual(buildUnits(c).filter((_, i) => i !== 2), buildUnits(m).filter((_, i) => i !== 2), 'the other units keep build/<m>.o');
+  const c = {
+    ...m,
+    modules: m.modules.map((x) => (x.name === 'main' ? { ...x, kind: 'c' as const, compiler: 'old_agbcc' } : x)),
+  };
+  assert.deepEqual(
+    buildUnits(c)[2],
+    { module: 'main', source: 'src/main.c', object: 'build/src/main.o', compiler: 'old_agbcc' },
+    "a C unit carries its module's compiler",
+  );
+  assert.deepEqual(assembleUnits(c)[2], {
+    module: 'main',
+    source: 'src/main.c',
+    object: 'build/src/main.o',
+    compiler: 'old_agbcc',
+    span: c.modules[2]!.span,
+  });
+  assert.deepEqual(
+    buildUnits(c).filter((_, i) => i !== 2),
+    buildUnits(m).filter((_, i) => i !== 2),
+    'the other units keep build/<m>.o',
+  );
   assert.equal(cObjectPath('main'), 'build/src/main.o');
   assert.equal(cAssemblyPath('main'), 'build/src/main.s');
   assert.equal(objectPath('main'), 'build/main.o');
   assert.deepEqual(['src/main.c', 'asm/main.s', 'data/data.s'].map(isCSource), [true, false, false]);
   // The one header predicate of the shell's src/*.h listing and the reconciler's unread includes (architecture-d1-3).
-  assert.deepEqual(['src/local.h', 'global.h', 'src/main.c', 'include/macros.inc'].map(isHeaderPath), [true, true, false, false]);
+  assert.deepEqual(['src/local.h', 'global.h', 'src/main.c', 'include/macros.inc'].map(isHeaderPath), [
+    true,
+    true,
+    false,
+    false,
+  ]);
   assert.deepEqual(modulePathPrefixes(c, c.modules[2]!), ['src/main.c', 'asm/nonmatchings/main/']);
   assert.equal(MODULES_MK_PATH, 'modules.mk');
   // The header's module keeps its file and object whatever its kind says.
@@ -103,14 +149,31 @@ test('chunkNamesOf reads the chunk names back from chunk files: base names, and 
     'asm/main.s',
     'asm/nonmatchings/main/notes.txt',
   ];
-  assert.deepEqual(chunkNamesOf(files), ['AgbMain', 'Solo_08000300', 'VBlankCB', 'VBlankCB_080000C0', 'VblankCB', 'VblankCB_080000E0', 'sub_08000100', 'sub_08000200']);
+  assert.deepEqual(chunkNamesOf(files), [
+    'AgbMain',
+    'Solo_08000300',
+    'VBlankCB',
+    'VBlankCB_080000C0',
+    'VblankCB',
+    'VblankCB_080000E0',
+    'sub_08000100',
+    'sub_08000200',
+  ]);
   assert.deepEqual(chunkNamesOf([]), []);
   // The inverse of chunkPaths: every chunk name of a model is among the names its files give back.
   const rom = romWith([], { size: 0x200 });
   const model = modelOf(rom, {
     modules: [
       { name: 'rom_header', chunks: [{ kind: 'header', name: 'rom_header', items: [dataItem(0x0800_0000, 0xc0)] }] },
-      { name: 'main', kind: 'c', chunks: [{ name: 'VBlankCB', items: [dataItem(0x0800_00c0, 0x20)] }, { name: 'VblankCB', items: [dataItem(0x0800_00e0, 0x20)] }, { kind: 'orphan', name: 'unk_08000100', items: [dataItem(0x0800_0100, 0x100)] }] },
+      {
+        name: 'main',
+        kind: 'c',
+        chunks: [
+          { name: 'VBlankCB', items: [dataItem(0x0800_00c0, 0x20)] },
+          { name: 'VblankCB', items: [dataItem(0x0800_00e0, 0x20)] },
+          { kind: 'orphan', name: 'unk_08000100', items: [dataItem(0x0800_0100, 0x100)] },
+        ],
+      },
     ],
   });
   const names = chunkNamesOf(chunkPaths(model).flatMap((p) => (p === undefined ? [] : [p])));

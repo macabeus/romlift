@@ -12,7 +12,8 @@ import { createHash } from 'node:crypto';
 import { copyFile, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { CHECKOUT_CLI_ENV, FIXTURE_PARALLELISM, gate, pooled, type ExecResult, type GateContext } from './gate.ts';
+
+import { CHECKOUT_CLI_ENV, type ExecResult, FIXTURE_PARALLELISM, type GateContext, gate, pooled } from './gate.ts';
 
 interface CliLine {
   readonly type: string;
@@ -75,16 +76,35 @@ function tail(run: ExecResult, lines = 30): string {
 
 async function identify(file: string): Promise<FileId> {
   const info = await stat(file);
-  return { sha1: createHash('sha1').update(await readFile(file)).digest('hex'), ino: info.ino, mtimeMs: info.mtimeMs };
+  return {
+    sha1: createHash('sha1')
+      .update(await readFile(file))
+      .digest('hex'),
+    ino: info.ino,
+    mtimeMs: info.mtimeMs,
+  };
 }
 
-async function romlift(cx: GateContext, cwd: string, args: readonly string[], preload?: { readonly url: string; readonly report: string }): Promise<void> {
+async function romlift(
+  cx: GateContext,
+  cwd: string,
+  args: readonly string[],
+  preload?: { readonly url: string; readonly report: string },
+): Promise<void> {
   const cli = path.join(cx.repoRoot, 'src', 'cli', 'main.ts');
   const flags = preload === undefined ? ['--conditions=source'] : ['--conditions=source', '--import', preload.url];
-  const env = preload === undefined ? CHECKOUT_CLI_ENV : { ...CHECKOUT_CLI_ENV, ROMLIFT_WATCH_FILE: path.join(cwd, 'romlift.toml'), ROMLIFT_WATCH_REPORT: preload.report };
+  const env =
+    preload === undefined
+      ? CHECKOUT_CLI_ENV
+      : {
+          ...CHECKOUT_CLI_ENV,
+          ROMLIFT_WATCH_FILE: path.join(cwd, 'romlift.toml'),
+          ROMLIFT_WATCH_REPORT: preload.report,
+        };
   const run = await cx.exec(process.execPath, [...flags, cli, ...args, '--json'], { cwd, env });
   const last = cx.jsonLines<CliLine>(run.stdout).at(-1);
-  if (run.code !== 0 || last?.type !== 'summary' || last.exitCode !== 0) throw new Error(`romlift ${args.join(' ')} --json exited ${run.code}:\n${tail(run)}`);
+  if (run.code !== 0 || last?.type !== 'summary' || last.exitCode !== 0)
+    throw new Error(`romlift ${args.join(' ')} --json exited ${run.code}:\n${tail(run)}`);
 }
 
 gate({
@@ -108,9 +128,17 @@ gate({
       await romlift(cx, dir, ['init', `${fixture.name}.gba`]);
       const toml = path.join(dir, 'romlift.toml');
       const before = await identify(toml);
-      const scenarios: readonly { readonly label: string; readonly args: readonly string[]; readonly prepare?: () => Promise<void> }[] = [
+      const scenarios: readonly {
+        readonly label: string;
+        readonly args: readonly string[];
+        readonly prepare?: () => Promise<void>;
+      }[] = [
         { label: 'tree current', args: ['generate'] },
-        { label: 'asm/ deleted', args: ['generate'], prepare: () => rm(path.join(dir, 'asm'), { recursive: true, force: true }) },
+        {
+          label: 'asm/ deleted',
+          args: ['generate'],
+          prepare: () => rm(path.join(dir, 'asm'), { recursive: true, force: true }),
+        },
         { label: 'dry run', args: ['generate', '--dry-run'] },
       ];
       for (const scenario of scenarios) {
@@ -119,11 +147,15 @@ gate({
         await romlift(cx, dir, scenario.args, { url, report });
         runs++;
         const hits = JSON.parse(await readFile(report, 'utf8')) as readonly string[];
-        if (hits.length > 0) problems.push(`${fixture.name} (${scenario.label}): generate called ${[...new Set(hits)].join(', ')} on romlift.toml`);
+        if (hits.length > 0)
+          problems.push(
+            `${fixture.name} (${scenario.label}): generate called ${[...new Set(hits)].join(', ')} on romlift.toml`,
+          );
       }
       const after = await identify(toml);
       if (after.sha1 !== before.sha1) problems.push(`${fixture.name}: romlift.toml content changed`);
-      else if (after.ino !== before.ino || after.mtimeMs !== before.mtimeMs) problems.push(`${fixture.name}: romlift.toml was replaced or touched`);
+      else if (after.ino !== before.ino || after.mtimeMs !== before.mtimeMs)
+        problems.push(`${fixture.name}: romlift.toml was replaced or touched`);
       return { problems, runs };
     });
     const problems = outcomes.flatMap((o) => o.problems);

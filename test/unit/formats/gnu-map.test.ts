@@ -25,7 +25,19 @@ test('tiny.map: output sections with addresses, sizes and load addresses', () =>
   const map = parsed(fixture('tiny.map'));
   assert.deepEqual(
     map.sections.map((s) => s.name),
-    ['.text', '.glue_7', '.glue_7t', '.vfp11_veneer', '.v4_bx', '.iplt', '.rodata', '.rel.dyn', '.data', '.igot.plt', '.bss'],
+    [
+      '.text',
+      '.glue_7',
+      '.glue_7t',
+      '.vfp11_veneer',
+      '.v4_bx',
+      '.iplt',
+      '.rodata',
+      '.rel.dyn',
+      '.data',
+      '.igot.plt',
+      '.bss',
+    ],
   );
   const text = section(map, '.text');
   assert.equal(text.address, 0x0800_0000);
@@ -74,7 +86,11 @@ test('tiny.map: a long input section name wrapped onto two lines', () => {
     },
   ]);
   const data = section(map, '.data');
-  assert.deepEqual(data.inputs.map((i) => i.symbols.map((s) => s.name)), [['tiny_counter'], []], 'PROVIDE and ASSERT skipped');
+  assert.deepEqual(
+    data.inputs.map((i) => i.symbols.map((s) => s.name)),
+    [['tiny_counter'], []],
+    'PROVIDE and ASSERT skipped',
+  );
 });
 
 test('tiny.map: LOAD lines in order', () => {
@@ -83,7 +99,11 @@ test('tiny.map: LOAD lines in order', () => {
 
 test('archive-members.txt: wrapped output and input names, members with paths, COMMON, cross reference ignored', () => {
   const map = parsed(fixture('archive-members.txt'));
-  assert.deepEqual(map.sections.map((s) => s.name), ['iwram', 'rom_text_with_a_long_output_name'], 'ewram and /DISCARD/ have no address');
+  assert.deepEqual(
+    map.sections.map((s) => s.name),
+    ['iwram', 'rom_text_with_a_long_output_name'],
+    'ewram and /DISCARD/ have no address',
+  );
   const iwram = section(map, 'iwram');
   assert.deepEqual(iwram.inputs, [
     {
@@ -125,8 +145,15 @@ test('CRLF line endings parse the same', () => {
 test('text without the memory map part is ok:false; garbage after the marker is skipped', () => {
   const missing = parseGnuMap('Memory Configuration\n\nName Origin\n');
   assert.equal(missing.ok, false);
-  assert.deepEqual(parsed('Linker script and memory map\n\u0000\u0001 ))) 0xZZ\n   \t\n(((\n'), { sections: [], loads: [] });
-  assert.deepEqual(parsed('Linker script and memory map\n .orphan  0x10  0x4 x.o\n').sections, [], 'an input outside any section');
+  assert.deepEqual(parsed('Linker script and memory map\n\u0000\u0001 ))) 0xZZ\n   \t\n(((\n'), {
+    sections: [],
+    loads: [],
+  });
+  assert.deepEqual(
+    parsed('Linker script and memory map\n .orphan  0x10  0x4 x.o\n').sections,
+    [],
+    'an input outside any section',
+  );
 });
 
 test('parseGnuMap is deterministic', () => {

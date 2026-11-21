@@ -26,7 +26,10 @@ function editScript(a: readonly string[], b: readonly string[]): readonly LineOp
   for (let d = 0; d <= max && !done; d++) {
     trace.push(v.slice());
     for (let k = -d; k <= d; k += 2) {
-      let x = k === -d || (k !== d && (v[offset + k - 1] ?? 0) < (v[offset + k + 1] ?? 0)) ? (v[offset + k + 1] ?? 0) : (v[offset + k - 1] ?? 0) + 1;
+      let x =
+        k === -d || (k !== d && (v[offset + k - 1] ?? 0) < (v[offset + k + 1] ?? 0))
+          ? (v[offset + k + 1] ?? 0)
+          : (v[offset + k - 1] ?? 0) + 1;
       let y = x - k;
       while (x < n && y < m && a[x] === b[y]) {
         x++;
@@ -106,4 +109,3 @@ export function unifiedDiff(before: string, after: string, path: string): string
   }
   return out;
 }
-

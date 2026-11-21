@@ -114,7 +114,16 @@ function skipLine(cx: Cursor): void {
   cx.pos = nl < 0 ? cx.text.length : nl + 1;
 }
 
-const ESCAPES: Readonly<Record<string, string>> = { b: '\b', t: '\t', n: '\n', f: '\f', r: '\r', e: '\u001b', '"': '"', '\\': '\\' };
+const ESCAPES: Readonly<Record<string, string>> = {
+  b: '\b',
+  t: '\t',
+  n: '\n',
+  f: '\f',
+  r: '\r',
+  e: '\u001b',
+  '"': '"',
+  '\\': '\\',
+};
 
 /** A one-line basic string starting at the cursor's `"`; the decoded text, or undefined if it never closes. */
 function basicString(cx: Cursor): string | undefined {
@@ -348,7 +357,10 @@ export function addressKeyUses(outline: TomlOutline): AddressKeyUse[] {
     const [table, spelling] = header.path;
     if (header.array || !isAddressTable(table) || spelling === undefined) continue;
     const shape: AddressShape = header.path.length === 2 ? 'table' : 'part';
-    uses.push({ at: header.line, use: { table, spelling, addr: addressOfKey(spelling), line: header.line, shape, singleLine: true } });
+    uses.push({
+      at: header.line,
+      use: { table, spelling, addr: addressOfKey(spelling), line: header.line, shape, singleLine: true },
+    });
   }
   for (const statement of outline.keys) {
     if (statement.tableIndex >= 0) continue;
@@ -448,12 +460,19 @@ export function checkAddressKeys(outline: TomlOutline): Diagnostic<ConfigCode>[]
     const times = TIMES[list.length] ?? `${list.length} times`;
     out.push({
       line: again,
-      d: diagnostic(ConfigCodes, 'E_DUPLICATE_ADDRESS', `line ${again}: [${first.table}] lists ${addressKey(first.addr)} ${times}, at ${lineList(lines)}`, {
-        addr: first.addr,
-      }),
+      d: diagnostic(
+        ConfigCodes,
+        'E_DUPLICATE_ADDRESS',
+        `line ${again}: [${first.table}] lists ${addressKey(first.addr)} ${times}, at ${lineList(lines)}`,
+        {
+          addr: first.addr,
+        },
+      ),
     });
   }
-  return out.sort((a, b) => compareNumbers(a.line, b.line) || (a.d.code < b.d.code ? -1 : a.d.code > b.d.code ? 1 : 0)).map((o) => o.d);
+  return out
+    .sort((a, b) => compareNumbers(a.line, b.line) || (a.d.code < b.d.code ? -1 : a.d.code > b.d.code ? 1 : 0))
+    .map((o) => o.d);
 }
 
 /**
@@ -462,20 +481,41 @@ export function checkAddressKeys(outline: TomlOutline): Diagnostic<ConfigCode>[]
  * 5, correctness-b0-4; raised here since fix round 6, architecture-b1-1, so every command that loads romlift.toml
  * refuses it before any analysis, as it refuses a misspelt key). The pointer-value hint for an odd Thumb key.
  */
-export function misalignedFunctionKeys(config: Pick<RomliftConfig, 'functions' | 'entryPoints'>, outline: TomlOutline): Diagnostic<ConfigCode>[] {
-  return [...misalignedIn('functions', config.functions, outline), ...misalignedIn('entry_points', config.entryPoints, outline)];
+export function misalignedFunctionKeys(
+  config: Pick<RomliftConfig, 'functions' | 'entryPoints'>,
+  outline: TomlOutline,
+): Diagnostic<ConfigCode>[] {
+  return [
+    ...misalignedIn('functions', config.functions, outline),
+    ...misalignedIn('entry_points', config.entryPoints, outline),
+  ];
 }
 
-function misalignedIn(table: 'functions' | 'entry_points', entries: ReadonlyMap<Addr, { readonly name: string; readonly mode: Mode }>, outline: TomlOutline): Diagnostic<ConfigCode>[] {
+function misalignedIn(
+  table: 'functions' | 'entry_points',
+  entries: ReadonlyMap<Addr, { readonly name: string; readonly mode: Mode }>,
+  outline: TomlOutline,
+): Diagnostic<ConfigCode>[] {
   const lines = new Map<Addr, number>();
-  for (const use of addressKeyUses(outline)) if (use.table === table && use.addr !== undefined && !lines.has(use.addr)) lines.set(use.addr, use.line);
+  for (const use of addressKeyUses(outline))
+    if (use.table === table && use.addr !== undefined && !lines.has(use.addr)) lines.set(use.addr, use.line);
   const out: Diagnostic<ConfigCode>[] = [];
   for (const [entry, f] of sortedEntries(entries)) {
     if (insnAligned(f.mode, entry)) continue;
     const line = lines.get(entry);
-    const hint = f.mode === 'thumb' ? `; a Thumb function's pointer value has bit 0 set, its entry is ${addressKey(entry - 1)}` : '';
+    const hint =
+      f.mode === 'thumb'
+        ? `; a Thumb function's pointer value has bit 0 set, its entry is ${addressKey(entry - 1)}`
+        : '';
     const what = f.mode === 'arm' ? 'word-aligned ARM' : 'halfword-aligned Thumb';
-    out.push(diagnostic(ConfigCodes, 'E_FUNCTION_MISALIGNED', `${line === undefined ? '' : `line ${line}: `}the [${table}] key ${addressKey(entry)} (${f.name}) is not a ${what} instruction address${hint}`, { addr: entry }));
+    out.push(
+      diagnostic(
+        ConfigCodes,
+        'E_FUNCTION_MISALIGNED',
+        `${line === undefined ? '' : `line ${line}: `}the [${table}] key ${addressKey(entry)} (${f.name}) is not a ${what} instruction address${hint}`,
+        { addr: entry },
+      ),
+    );
   }
   return out;
 }

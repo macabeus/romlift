@@ -56,16 +56,28 @@ test('loadConfig reads decomp.yaml, then the romlift.toml it names, and returns 
   assert.equal(loaded.value.decompYaml, join(dir, 'decomp.yaml'));
   assert.equal(loaded.value.configPath, join(dir, 'romlift.toml'));
   assert.equal(loaded.value.text, TOML);
-  assert.equal(loaded.value.sha1, createHash('sha1').update(TOML).digest('hex'), 'the SHA-1 of the bytes read, for modules.mk (architecture-b2-2)');
+  assert.equal(
+    loaded.value.sha1,
+    createHash('sha1').update(TOML).digest('hex'),
+    'the SHA-1 of the bytes read, for modules.mk (architecture-b2-2)',
+  );
   assert.deepEqual(loaded.value.value, CONFIG);
-  assert.deepEqual(loaded.value.project, { config: 'romlift.toml', version: 'us', target: 'baserom.gba', sha1: SHA1, buildName: 'akle' });
+  assert.deepEqual(loaded.value.project, {
+    config: 'romlift.toml',
+    version: 'us',
+    target: 'baserom.gba',
+    sha1: SHA1,
+    buildName: 'akle',
+  });
   assert.deepEqual(loaded.value.diagnostics, []);
 });
 
 test('decomp.yaml naming another config path is refused before the file is read (fix round 7, architecture-b2-1); a relative project directory is resolved', async () => {
   const yaml = YAML.replace('config: "romlift.toml"', 'config: "config/project.toml"');
   const other = await loadConfig(await project({ 'decomp.yaml': yaml, 'config/project.toml': TOML }));
-  assert.deepEqual(other.ok ? [] : other.diagnostics.map((d) => [d.code, d.path]), [['E_DECOMP_YAML_INVALID', 'decomp.yaml']]);
+  assert.deepEqual(other.ok ? [] : other.diagnostics.map((d) => [d.code, d.path]), [
+    ['E_DECOMP_YAML_INVALID', 'decomp.yaml'],
+  ]);
   const dir = await project({ 'decomp.yaml': YAML, 'romlift.toml': TOML });
   const cwd = process.cwd();
   process.chdir(dirname(dir));
@@ -87,23 +99,43 @@ test('the refusals carry the file they are about', async () => {
   const missing = await loadConfig(await project({ 'decomp.yaml': YAML }));
   assert.deepEqual(missing.ok ? [] : missing.diagnostics.map((d) => [d.code, d.path]), [['E_IO_READ', 'romlift.toml']]);
 
-  const badYaml = await loadConfig(await project({ 'decomp.yaml': YAML.replace('  romlift:\n    config: "romlift.toml"\n', ''), 'romlift.toml': TOML }));
-  assert.deepEqual(badYaml.ok ? [] : badYaml.diagnostics.map((d) => [d.code, d.path]), [['E_DECOMP_YAML_INVALID', 'decomp.yaml']]);
+  const badYaml = await loadConfig(
+    await project({
+      'decomp.yaml': YAML.replace('  romlift:\n    config: "romlift.toml"\n', ''),
+      'romlift.toml': TOML,
+    }),
+  );
+  assert.deepEqual(badYaml.ok ? [] : badYaml.diagnostics.map((d) => [d.code, d.path]), [
+    ['E_DECOMP_YAML_INVALID', 'decomp.yaml'],
+  ]);
 
   const ymlOnly = await loadConfig(await project({ 'decomp.yml': 'name: x\n' }));
-  assert.deepEqual(ymlOnly.ok ? [] : [...new Set(ymlOnly.diagnostics.map((d) => `${d.code} ${d.path ?? ''}`))], ['E_DECOMP_YAML_INVALID decomp.yml']);
+  assert.deepEqual(ymlOnly.ok ? [] : [...new Set(ymlOnly.diagnostics.map((d) => `${d.code} ${d.path ?? ''}`))], [
+    'E_DECOMP_YAML_INVALID decomp.yml',
+  ]);
 
-  const duplicate = TOML.replace('0x08000000 = { name = "sub_08000000", mode = "arm" }', '0x08000000 = { name = "sub_08000000", mode = "arm" }\n0x08000000 = "again"');
+  const duplicate = TOML.replace(
+    '0x08000000 = { name = "sub_08000000", mode = "arm" }',
+    '0x08000000 = { name = "sub_08000000", mode = "arm" }\n0x08000000 = "again"',
+  );
   const dup = await loadConfig(await project({ 'decomp.yaml': YAML, 'romlift.toml': duplicate }));
   assert.equal(dup.ok, false);
   const lines = duplicate.split('\n');
   const second = lines.indexOf('0x08000000 = "again"') + 1;
   assert.deepEqual(dup.ok ? [] : dup.diagnostics.map((d) => [d.code, d.path, d.message]), [
-    ['E_DUPLICATE_ADDRESS', 'romlift.toml', `line ${second}: [functions] lists 0x08000000 twice, at lines ${second - 1} and ${second}`],
+    [
+      'E_DUPLICATE_ADDRESS',
+      'romlift.toml',
+      `line ${second}: [functions] lists 0x08000000 twice, at lines ${second - 1} and ${second}`,
+    ],
   ]);
 
-  const binary = await loadConfig(await project({ 'decomp.yaml': YAML, 'romlift.toml': new Uint8Array([0x73, 0x63, 0xff, 0xfe]) }));
-  assert.deepEqual(binary.ok ? [] : binary.diagnostics.map((d) => [d.code, d.path, d.message]), [['E_IO_READ', 'romlift.toml', 'cannot read romlift.toml: it is not UTF-8 text']]);
+  const binary = await loadConfig(
+    await project({ 'decomp.yaml': YAML, 'romlift.toml': new Uint8Array([0x73, 0x63, 0xff, 0xfe]) }),
+  );
+  assert.deepEqual(binary.ok ? [] : binary.diagnostics.map((d) => [d.code, d.path, d.message]), [
+    ['E_IO_READ', 'romlift.toml', 'cannot read romlift.toml: it is not UTF-8 text'],
+  ]);
 });
 
 test('what loadConfig returns is what parseConfig gives for the same text', async () => {

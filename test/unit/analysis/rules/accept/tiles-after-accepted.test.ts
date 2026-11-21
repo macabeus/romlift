@@ -31,5 +31,9 @@ test('non-padding bytes before the entry break the anchor', () => {
   const rom = romWith([{ at: E - 2, bytes: Uint8Array.of(0x01, 0x20) }]);
   const v = viewWith({ rom, claims: [{ span: { start: E - 0x20, end: E - 2 }, kind: Claim.code }] });
   assert.equal(tilesAfterAccepted.holds(c, readingOf(rom, { entry: E }), v), undefined);
-  assert.equal(tilesAfterAccepted.holds(c, readingOf(rom, { entry: E }), viewWith({ rom })), undefined, 'nothing claimed');
+  assert.equal(
+    tilesAfterAccepted.holds(c, readingOf(rom, { entry: E }), viewWith({ rom })),
+    undefined,
+    'nothing claimed',
+  );
 });

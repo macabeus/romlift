@@ -2,13 +2,12 @@
 // its recorded digests, and the two authored exception lists. The loader reads every file in code-unit
 // order; the structural check reports every problem it finds rather than stopping at the first.
 import { join } from 'node:path';
-
 import { parseHexAddr } from 'romlift';
 import { isSealedDataset } from 'romlift/internal';
 
-import { datasetDir, type BenchContext } from './context.ts';
+import { type BenchContext, datasetDir } from './context.ts';
 import { isDirectory, isRecord, listFiles, readJson } from './files.ts';
-import { isArtifactCategory, isRowCategory, type ArtifactCategory } from './vocabulary.ts';
+import { type ArtifactCategory, isArtifactCategory, isRowCategory } from './vocabulary.ts';
 
 /** A FUNC symbol that is not a function start: a miss of it is expected. */
 export interface LabelRow {
@@ -141,8 +140,10 @@ export function parseDataset(value: unknown, file: string, options: { readonly r
     family: text('family'),
     buildNote: text('buildNote'),
   };
-  if (fields.sha1 !== undefined && !/^[0-9a-f]{40}$/.test(fields.sha1)) fileProblem(`${file}: 'sha1' must be 40 lower-case hex digits`);
-  if (fields.elfSha256 !== undefined && !/^[0-9a-f]{64}$/.test(fields.elfSha256)) fileProblem(`${file}: 'elfSha256' must be 64 lower-case hex digits`);
+  if (fields.sha1 !== undefined && !/^[0-9a-f]{40}$/.test(fields.sha1))
+    fileProblem(`${file}: 'sha1' must be 40 lower-case hex digits`);
+  if (fields.elfSha256 !== undefined && !/^[0-9a-f]{64}$/.test(fields.elfSha256))
+    fileProblem(`${file}: 'elfSha256' must be 64 lower-case hex digits`);
   const heldout = value['heldout'];
   if (typeof heldout !== 'boolean') fileProblem(`${file}: 'heldout' must be a boolean`);
   const revealed = value['revealed'];
@@ -150,7 +151,12 @@ export function parseDataset(value: unknown, file: string, options: { readonly r
   if (!Array.isArray(revealed)) fileProblem(`${file}: 'revealed' must be an array`);
   else {
     for (const r of revealed) {
-      if (isRecord(r) && typeof r['at'] === 'string' && typeof r['commit'] === 'string' && typeof r['reason'] === 'string') {
+      if (
+        isRecord(r) &&
+        typeof r['at'] === 'string' &&
+        typeof r['commit'] === 'string' &&
+        typeof r['reason'] === 'string'
+      ) {
         reveals.push({ at: r['at'], commit: r['commit'], reason: r['reason'] });
       } else fileProblem(`${file}: every 'revealed' item is {at, commit, reason}`);
     }
@@ -174,7 +180,11 @@ export function parseDataset(value: unknown, file: string, options: { readonly r
       const addr = row['addr'];
       let ok = true;
       if (!ADDR.test(addr)) {
-        rowProblem(addr, 'malformed-address', `${name}.${list}: address ${addr} is not 0x plus eight upper-case hex digits`);
+        rowProblem(
+          addr,
+          'malformed-address',
+          `${name}.${list}: address ${addr} is not 0x plus eight upper-case hex digits`,
+        );
         ok = false;
       }
       if (seen.has(addr)) {
@@ -210,7 +220,16 @@ export function parseDataset(value: unknown, file: string, options: { readonly r
   }
   if (problems.length > 0 || typeof heldout !== 'boolean') return { problems };
   const { name: n, rom, elf, sha1, elfCommit, elfSha256, family, buildNote } = fields;
-  if (n === undefined || rom === undefined || elf === undefined || sha1 === undefined || elfCommit === undefined || elfSha256 === undefined || family === undefined || buildNote === undefined) {
+  if (
+    n === undefined ||
+    rom === undefined ||
+    elf === undefined ||
+    sha1 === undefined ||
+    elfCommit === undefined ||
+    elfSha256 === undefined ||
+    family === undefined ||
+    buildNote === undefined
+  ) {
     return { problems };
   }
   const dataset: Dataset = {
@@ -251,7 +270,13 @@ export async function loadDatasets(cx: BenchContext): Promise<LoadedDatasets> {
     try {
       value = await readJson(join(dir, file));
     } catch (error) {
-      problems.push({ dataset: file.replace(/\.json$/, ''), list: 'dataset', addr: '', problem: 'unreadable', detail: error instanceof Error ? error.message : String(error) });
+      problems.push({
+        dataset: file.replace(/\.json$/, ''),
+        list: 'dataset',
+        addr: '',
+        problem: 'unreadable',
+        detail: error instanceof Error ? error.message : String(error),
+      });
       continue;
     }
     const parsed = parseDataset(value, `bench/dataset/real/${file}`);

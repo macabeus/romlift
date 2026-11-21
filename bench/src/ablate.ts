@@ -6,12 +6,31 @@
 // bench/dataset/synthetic (each directory with build/<name>.gba), and also says which expect.json stops
 // holding; the real tier runs the tuning datasets, never a sealed one.
 import { join } from 'node:path';
-
-import { compareCodeUnits, isRuleId, parseHexAddr, romFromBytes, type AnalysisResult, type CompilerProfile, type Pipeline, type Rom, type RuleId, type TrailEvent, type TrailKind, type TrailSink } from 'romlift';
+import {
+  type AnalysisResult,
+  type CompilerProfile,
+  type Pipeline,
+  type Rom,
+  type RuleId,
+  type TrailEvent,
+  type TrailKind,
+  type TrailSink,
+  compareCodeUnits,
+  isRuleId,
+  parseHexAddr,
+  romFromBytes,
+} from 'romlift';
 import { RULES } from 'romlift/internal';
 import { sha1Of } from 'romlift/node';
 
-import { analysisTuning, benchProfile, DEFAULT_RUN_TUNING, discoverOptions, readRealInputs, type AnalysisRunner } from './analysis-run.ts';
+import {
+  type AnalysisRunner,
+  DEFAULT_RUN_TUNING,
+  analysisTuning,
+  benchProfile,
+  discoverOptions,
+  readRealInputs,
+} from './analysis-run.ts';
 import type { BenchContext } from './context.ts';
 import { loadDatasets, tuningDatasets } from './dataset.ts';
 import { BenchError, exists, isRecord, listFiles, readFileBytes, readJson } from './files.ts';
@@ -31,7 +50,13 @@ export interface AblationReport {
 }
 
 /** The trail kinds that make a rule decisive (a proposal or a wait decides nothing). */
-export const DECISIVE_KINDS: ReadonlySet<TrailKind> = new Set<TrailKind>(['accept', 'reject', 'verdict', 'claim', 'absorb']);
+export const DECISIVE_KINDS: ReadonlySet<TrailKind> = new Set<TrailKind>([
+  'accept',
+  'reject',
+  'verdict',
+  'claim',
+  'absorb',
+]);
 
 /** A sink that remembers only whether some decision cited `rule`. */
 export function decisionSink(rule: RuleId): TrailSink & { readonly decisive: () => boolean } {
@@ -46,13 +71,35 @@ export function decisionSink(rule: RuleId): TrailSink & { readonly decisive: () 
 
 /** What ablation compares: every entry with its mode and extent, and the code end. */
 export function outcomeOf(result: Pick<AnalysisResult, 'functions' | 'codeEnd'>): string {
-  return JSON.stringify({ functions: result.functions.map((f) => [f.entry, f.mode, f.extent.start, f.extent.end]), codeEnd: result.codeEnd });
+  return JSON.stringify({
+    functions: result.functions.map((f) => [f.entry, f.mode, f.extent.start, f.extent.end]),
+    codeEnd: result.codeEnd,
+  });
 }
 
 /** Every rule id the profile's pipeline names. */
 export function pipelineIds(p: Pipeline): RuleId[] {
   const g = p.gap;
-  return [...p.seed, ...p.harvest, ...p.queue, ...p.walk, ...p.bl, ...p.validity, ...p.accept, ...p.claim, g.absorb, g.head, g.forward.thumb, g.forward.arm, ...g.forward.after, g.prefer, g.skip, g.endAnchor, g.backward, ...p.region];
+  return [
+    ...p.seed,
+    ...p.harvest,
+    ...p.queue,
+    ...p.walk,
+    ...p.bl,
+    ...p.validity,
+    ...p.accept,
+    ...p.claim,
+    g.absorb,
+    g.head,
+    g.forward.thumb,
+    g.forward.arm,
+    ...g.forward.after,
+    g.prefer,
+    g.skip,
+    g.endAnchor,
+    g.backward,
+    ...p.region,
+  ];
 }
 
 /** Whether `rule` is one ablation can disable: a registered rule or one the profile's pipeline names. */
@@ -76,7 +123,8 @@ export interface FixtureExpect {
 
 function expectAddr(value: unknown, where: string): number {
   const n = typeof value === 'number' ? value : typeof value === 'string' ? parseHexAddr(value) : undefined;
-  if (n === undefined || !Number.isInteger(n) || n < 0) throw new BenchError(`${where}: '${String(value)}' is not an address`);
+  if (n === undefined || !Number.isInteger(n) || n < 0)
+    throw new BenchError(`${where}: '${String(value)}' is not an address`);
   return n;
 }
 
@@ -90,10 +138,20 @@ export function parseFixtureExpect(value: unknown, where: string): FixtureExpect
     const extent = e['extent'];
     const base: ExpectEntry = { addr: expectAddr(e['addr'], `${at}.addr`), mode };
     if (!isRecord(extent)) return base;
-    return { ...base, extent: { start: expectAddr(extent['start'], `${at}.extent.start`), end: expectAddr(extent['end'], `${at}.extent.end`) } };
+    return {
+      ...base,
+      extent: {
+        start: expectAddr(extent['start'], `${at}.extent.start`),
+        end: expectAddr(extent['end'], `${at}.extent.end`),
+      },
+    };
   });
   const codeEnd = value['codeEnd'];
-  return { negative: value['negative'] === true, entries, ...(codeEnd === undefined ? {} : { codeEnd: expectAddr(codeEnd, `${where}: codeEnd`) }) };
+  return {
+    negative: value['negative'] === true,
+    entries,
+    ...(codeEnd === undefined ? {} : { codeEnd: expectAddr(codeEnd, `${where}: codeEnd`) }),
+  };
 }
 
 /** Whether a result meets a fixture's expectation (as g2.synthetic-analysis judges it). */
@@ -165,7 +223,10 @@ async function targets(cx: BenchContext, options: AblateOptions): Promise<Target
   }
   const { datasets, problems } = await loadDatasets(cx);
   if (problems.length > 0) throw new BenchError(`malformed datasets: ${problems.map((p) => p.detail).join('; ')}`);
-  return tuningDatasets(datasets, options.only).map((d) => ({ name: d.name, rom: async () => (await readRealInputs(cx, d)).rom }));
+  return tuningDatasets(datasets, options.only).map((d) => ({
+    name: d.name,
+    rom: async () => (await readRealInputs(cx, d)).rom,
+  }));
 }
 
 /** Runs every target with and without `rule`. */
@@ -173,7 +234,12 @@ export async function ablate(cx: BenchContext, rule: RuleId, options: AblateOpti
   const log = options.log ?? (() => {});
   const profile = benchProfile();
   const all = await targets(cx, options);
-  if (all.length === 0) throw new BenchError(options.only === undefined ? `no ${options.tier} target to ablate` : `no ${options.tier} target named ${options.only}`);
+  if (all.length === 0)
+    throw new BenchError(
+      options.only === undefined
+        ? `no ${options.tier} target to ablate`
+        : `no ${options.tier} target named ${options.only}`,
+    );
   const on = analysisTuning(DEFAULT_RUN_TUNING);
   const off = analysisTuning({ ...DEFAULT_RUN_TUNING, disabled: [rule] });
   const decisiveIn: string[] = [];
@@ -198,9 +264,14 @@ export async function ablate(cx: BenchContext, rule: RuleId, options: AblateOpti
       const expect = await t.expect();
       const before = expectHolds(expect, withRule);
       const after = expectHolds(expect, without);
-      expectNote = before === after ? `, expect.json ${before ? 'holds' : 'fails'} either way` : `, expect.json ${before ? 'holds' : 'fails'} with the rule and ${after ? 'holds' : 'fails'} without`;
+      expectNote =
+        before === after
+          ? `, expect.json ${before ? 'holds' : 'fails'} either way`
+          : `, expect.json ${before ? 'holds' : 'fails'} with the rule and ${after ? 'holds' : 'fails'} without`;
     }
-    log(`${t.name.padEnd(32)} ${decisive ? 'decisive' : 'not decisive'}, ${moves ? 'outcome moves' : 'outcome unchanged'}${expectNote}`);
+    log(
+      `${t.name.padEnd(32)} ${decisive ? 'decisive' : 'not decisive'}, ${moves ? 'outcome moves' : 'outcome unchanged'}${expectNote}`,
+    );
   }
   return { schema: ABLATE_SCHEMA, rule, tier: options.tier, decisiveIn, changed };
 }

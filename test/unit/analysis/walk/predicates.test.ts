@@ -3,7 +3,14 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { Claim } from '../../../../src/core/analysis/types.ts';
-import { anchoredAtEnd, anchoredAtStart, fillsTo, isDense, popsCallersFrame, readingSummary } from '../../../../src/core/analysis/walk/predicates.ts';
+import {
+  anchoredAtEnd,
+  anchoredAtStart,
+  fillsTo,
+  isDense,
+  popsCallersFrame,
+  readingSummary,
+} from '../../../../src/core/analysis/walk/predicates.ts';
 import { AGBCC } from '../../../../src/core/profile/agbcc.ts';
 import { readingOf, romWith, viewWith } from '../../../helpers/analysis.ts';
 import { thumbAt } from '../../../helpers/thumb.ts';
@@ -29,13 +36,26 @@ test('anchored at end: a function starts within three padding bytes of the exten
 
 test('density, frame balance, filling and the far-jump summary', () => {
   const rom = romWith([{ at: A, bytes: thumbAt(A)`push {lr}; pop {pc}` }]);
-  const r = readingOf(rom, { entry: A, insns: [{ addr: A, len: 2 }, { addr: A + 2, len: 2 }], balance: [0, 4] });
+  const r = readingOf(rom, {
+    entry: A,
+    insns: [
+      { addr: A, len: 2 },
+      { addr: A + 2, len: 2 },
+    ],
+    balance: [0, 4],
+  });
   assert.equal(isDense(r, AGBCC), true);
   assert.equal(popsCallersFrame(r), true);
   assert.equal(fillsTo(r, A + 7, 3), true);
   assert.equal(fillsTo(r, A + 8, 3), false);
   assert.equal(fillsTo(r, A + 3, 3), false);
-  assert.deepEqual(readingSummary(r, rom, AGBCC), { entry: A, mode: 'thumb', codeEnd: A + 4, end: A + 4, prologue: true });
+  assert.deepEqual(readingSummary(r, rom, AGBCC), {
+    entry: A,
+    mode: 'thumb',
+    codeEnd: A + 4,
+    end: A + 4,
+    prologue: true,
+  });
   const sparse = readingOf(rom, { entry: A, insns: [{ addr: A, len: 2 }], end: A + 0x40 });
   assert.equal(isDense(sparse, AGBCC), false);
 });

@@ -4,7 +4,7 @@
 // canonical/*.toml round-trips: serializeConfig(parseConfig(text).value) === text. UPDATE_GOLDEN=1 rewrites the
 // generated ones (example and fixtures); every-key.toml is written by hand.
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -128,7 +128,10 @@ test('every canonical/*.toml round-trips through parseConfig and serializeConfig
   for (const file of files) {
     const text = readFileSync(join(DIR, file), 'utf8');
     const parsed = parseConfig(text);
-    assert.ok(parsed.ok, `${file}: ${parsed.ok ? '' : parsed.diagnostics.map((d) => `${d.code} ${d.message}`).join('; ')}`);
+    assert.ok(
+      parsed.ok,
+      `${file}: ${parsed.ok ? '' : parsed.diagnostics.map((d) => `${d.code} ${d.message}`).join('; ')}`,
+    );
     assert.equal(serializeConfig(parsed.value), text, file);
   }
 });

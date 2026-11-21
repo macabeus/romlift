@@ -7,12 +7,12 @@ import { join } from 'node:path';
 
 import type { Results } from './artifact.ts';
 import { readResultsFile } from './artifact.ts';
-import { gatesDir, resultsPath, type BenchContext } from './context.ts';
-import { isSealed, loadDatasets, type Dataset } from './dataset.ts';
+import { type BenchContext, gatesDir, resultsPath } from './context.ts';
+import { type Dataset, isSealed, loadDatasets } from './dataset.ts';
 import { currentNodeMajor, sourceDigest } from './digest.ts';
-import { liveFamilies, type Family } from './families.ts';
+import { type Family, liveFamilies } from './families.ts';
 import { BenchError, isRecord, readJson } from './files.ts';
-import { discoverGateFiles, type GateFile } from './gate-files.ts';
+import { type GateFile, discoverGateFiles } from './gate-files.ts';
 import type { BenchRow } from './row.ts';
 
 export type ProvenanceCheckId = 'source-digest' | 'gate-record' | 'families' | 'dataset-rows' | 'heldout-rows';
@@ -37,7 +37,8 @@ const NO_ARTIFACT = 'there is no bench/results.json: re-run the real tier';
 
 export function checkSourceDigest(artifact: Results | undefined, recomputed: string): ProvenanceCheck {
   if (artifact === undefined) return { id: 'source-digest', ok: false, detail: NO_ARTIFACT };
-  if (artifact.meta.sourceDigest === recomputed) return { id: 'source-digest', ok: true, detail: `source digest ${recomputed} (Node ${artifact.meta.nodeMajor})` };
+  if (artifact.meta.sourceDigest === recomputed)
+    return { id: 'source-digest', ok: true, detail: `source digest ${recomputed} (Node ${artifact.meta.nodeMajor})` };
   return {
     id: 'source-digest',
     ok: false,
@@ -45,7 +46,11 @@ export function checkSourceDigest(artifact: Results | undefined, recomputed: str
   };
 }
 
-export function checkGateRecord(artifact: Results | undefined, landed: number, gates: readonly GateFile[]): ProvenanceCheck {
+export function checkGateRecord(
+  artifact: Results | undefined,
+  landed: number,
+  gates: readonly GateFile[],
+): ProvenanceCheck {
   const problems: string[] = [];
   const required = gates.filter((g) => g.phase <= landed);
   const record = new Map((artifact?.gates.real ?? []).map((g) => [g.id, g]));
@@ -63,10 +68,18 @@ export function checkGateRecord(artifact: Results | undefined, landed: number, g
   }
   if (artifact === undefined && checked > 0) problems.unshift(NO_ARTIFACT);
   if (problems.length > 0) return { id: 'gate-record', ok: false, detail: problems.join('; ') };
-  return { id: 'gate-record', ok: true, detail: `${checked} real-tier gate(s) of phase <= ${landed} pass or are historical` };
+  return {
+    id: 'gate-record',
+    ok: true,
+    detail: `${checked} real-tier gate(s) of phase <= ${landed} pass or are historical`,
+  };
 }
 
-export function checkFamilies(artifact: Results | undefined, landed: number, datasets: readonly Dataset[]): ProvenanceCheck {
+export function checkFamilies(
+  artifact: Results | undefined,
+  landed: number,
+  datasets: readonly Dataset[],
+): ProvenanceCheck {
   const romFamilies = liveFamilies(landed, 'rom');
   const globalFamilies = liveFamilies(landed, 'global');
   if (artifact === undefined) {
@@ -79,13 +92,19 @@ export function checkFamilies(artifact: Results | undefined, landed: number, dat
     const row = artifact.roms.find((r) => r.name === d.name);
     for (const f of romFamilies) {
       if (!ran.has(f)) problems.push(`${d.name}: family ${f} did not run`);
-      else if (row !== undefined && !romMemberPresent(row, f)) problems.push(`${d.name}: family ${f} ran but its row holds no ${f} member`);
+      else if (row !== undefined && !romMemberPresent(row, f))
+        problems.push(`${d.name}: family ${f} ran but its row holds no ${f} member`);
     }
   }
-  for (const f of globalFamilies) if (!globalFamilyPresent(artifact, f)) problems.push(`the ${f} family is absent from the artifact`);
+  for (const f of globalFamilies)
+    if (!globalFamilyPresent(artifact, f)) problems.push(`the ${f} family is absent from the artifact`);
   if (problems.length > 0) return { id: 'families', ok: false, detail: problems.join('; ') };
   const live = [...romFamilies, ...globalFamilies];
-  return { id: 'families', ok: true, detail: live.length === 0 ? `no family is live at phase ${landed}` : `live: ${live.join(', ')}` };
+  return {
+    id: 'families',
+    ok: true,
+    detail: live.length === 0 ? `no family is live at phase ${landed}` : `live: ${live.join(', ')}`,
+  };
 }
 
 /**
@@ -127,7 +146,12 @@ export function checkDatasetRows(artifact: Results | undefined, datasets: readon
 export function checkHeldoutRows(artifact: Results | undefined, datasets: readonly Dataset[]): ProvenanceCheck {
   const sealed = new Set(datasets.filter(isSealed).map((d) => d.name));
   const leaked = (artifact?.roms ?? []).filter((r) => sealed.has(r.name)).map((r) => r.name);
-  if (leaked.length > 0) return { id: 'heldout-rows', ok: false, detail: `the artifact holds rows of sealed datasets: ${leaked.join(', ')}` };
+  if (leaked.length > 0)
+    return {
+      id: 'heldout-rows',
+      ok: false,
+      detail: `the artifact holds rows of sealed datasets: ${leaked.join(', ')}`,
+    };
   return { id: 'heldout-rows', ok: true, detail: `no row of the ${sealed.size} sealed dataset(s)` };
 }
 
@@ -145,7 +169,8 @@ export function provenanceChecks(inputs: ProvenanceInputs): ProvenanceCheck[] {
 export async function readLanded(dir: string): Promise<number> {
   const value = await readJson(join(dir, 'phase.json'));
   const landed = isRecord(value) ? value['landed'] : undefined;
-  if (typeof landed !== 'number' || !Number.isInteger(landed)) throw new BenchError('test/gates/phase.json must hold {"landed": <integer>}');
+  if (typeof landed !== 'number' || !Number.isInteger(landed))
+    throw new BenchError('test/gates/phase.json must hold {"landed": <integer>}');
   return landed;
 }
 

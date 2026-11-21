@@ -42,9 +42,18 @@
 //   setup.sh runs romlift as `$ROMLIFT_CLI` when it is set (the source CLI here); the first target builds agbcc through
 //   its duty (2) and later targets get a copy of that tools/agbcc, as g4.e2e-fixtures does.
 import { createHash } from 'node:crypto';
-import { copyFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { CHECKOUT_CLI_ENV, copyAgbcc, gate, pooled, withSharedAgbcc, type ExecResult, type GateContext } from './gate.ts';
+
+import {
+  CHECKOUT_CLI_ENV,
+  type ExecResult,
+  type GateContext,
+  copyAgbcc,
+  gate,
+  pooled,
+  withSharedAgbcc,
+} from './gate.ts';
 
 type Addr = number;
 type Mode = 'thumb' | 'arm';
@@ -75,7 +84,11 @@ interface RomliftConfig {
   readonly overrides: readonly OverrideConfig[];
 }
 
-type ParseConfig = (text: string) => { readonly ok: true; readonly value: RomliftConfig } | { readonly ok: false; readonly diagnostics: readonly { readonly code: string; readonly message: string }[] };
+type ParseConfig = (
+  text: string,
+) =>
+  | { readonly ok: true; readonly value: RomliftConfig }
+  | { readonly ok: false; readonly diagnostics: readonly { readonly code: string; readonly message: string }[] };
 type SerializeConfig = (config: RomliftConfig) => string;
 
 interface Rom {
@@ -96,7 +109,10 @@ interface AnalysisResult {
 
 /** What add-override compares of a model (core/model's Model): its functions' extents and its chunks. */
 interface Model {
-  readonly functions: readonly { readonly entry: Addr; readonly extent: { readonly start: Addr; readonly end: Addr } }[];
+  readonly functions: readonly {
+    readonly entry: Addr;
+    readonly extent: { readonly start: Addr; readonly end: Addr };
+  }[];
   readonly chunks: readonly { readonly span: { readonly start: Addr; readonly end: Addr }; readonly kind: string }[];
 }
 type BuildModel = (rom: Rom, analysis: AnalysisResult, config: RomliftConfig) => Model;
@@ -104,7 +120,14 @@ type BuildModel = (rom: Rom, analysis: AnalysisResult, config: RomliftConfig) =>
 type RomFromBytes = (bytes: Uint8Array, sha1: string) => Rom;
 type Sha1Of = (data: Uint8Array) => string;
 type ProfileById = (id: string) => object | undefined;
-type AnalysisOptions = { readonly mode: 'discover'; readonly seeds: readonly never[]; readonly overrides: readonly never[]; readonly trail: 'off' } | ConfirmOptions;
+type AnalysisOptions =
+  | {
+      readonly mode: 'discover';
+      readonly seeds: readonly never[];
+      readonly overrides: readonly never[];
+      readonly trail: 'off';
+    }
+  | ConfirmOptions;
 /** The confirm options confirmOptions returns: opaque here, passed back to analyze. */
 interface ConfirmOptions {
   readonly mode: 'confirm';
@@ -153,7 +176,14 @@ interface Facts {
 
 type LegalKind = 'move-start' | 'rename' | 'delete-function' | 'add-override' | 'split-module' | 'split-asm-module';
 // split-asm-module is last, so the seeded draws of the others are what they were before it (D109).
-const LEGAL_KINDS: readonly LegalKind[] = ['move-start', 'rename', 'delete-function', 'add-override', 'split-module', 'split-asm-module'];
+const LEGAL_KINDS: readonly LegalKind[] = [
+  'move-start',
+  'rename',
+  'delete-function',
+  'add-override',
+  'split-module',
+  'split-asm-module',
+];
 const SEED = 0x6734_0001;
 const DEFAULT_NAME = /^(sub|unk|gUnk)_[0-9A-F]{8}$|^_[0-9A-F]{8}$/;
 const FUNCTION_LINE = /^(0x)0([0-9A-F]{7})(\s*=.*)$/;
@@ -191,7 +221,11 @@ function nameSeed(name: string): number {
 }
 
 /** One legal edit of `kind`, or undefined when the config offers no place for it. */
-function legalEdit(kind: LegalKind, facts: Facts, random: () => number): { readonly config: RomliftConfig; readonly what: string } | undefined {
+function legalEdit(
+  kind: LegalKind,
+  facts: Facts,
+  random: () => number,
+): { readonly config: RomliftConfig; readonly what: string } | undefined {
   const { config, legalBetween } = facts;
   const modules = config.modules;
   const starts = new Set(modules.map((m) => m.start));
@@ -199,14 +233,23 @@ function legalEdit(kind: LegalKind, facts: Facts, random: () => number): { reado
   const cModules = modules.map((m, i) => ({ m, i })).filter(({ m, i }) => m.kind === 'c' && i > 0);
   switch (kind) {
     case 'move-start': {
-      const options = cModules.flatMap(({ m, i }) => legalBetween(modules[i - 1]?.start ?? 0, nextStart(i)).filter((b) => b !== m.start).map((b) => ({ i, b })));
+      const options = cModules.flatMap(({ m, i }) =>
+        legalBetween(modules[i - 1]?.start ?? 0, nextStart(i))
+          .filter((b) => b !== m.start)
+          .map((b) => ({ i, b })),
+      );
       const choice = pick(random, options);
       if (choice === undefined) return undefined;
       const moved = modules[choice.i];
-      return { config: { ...config, modules: modules.map((m, i) => (i === choice.i ? { ...m, start: choice.b } : m)) }, what: `move ${moved?.name ?? '?'} to ${hex(choice.b)}` };
+      return {
+        config: { ...config, modules: modules.map((m, i) => (i === choice.i ? { ...m, start: choice.b } : m)) },
+        what: `move ${moved?.name ?? '?'} to ${hex(choice.b)}`,
+      };
     }
     case 'rename': {
-      const entries = [...config.functions.keys()].sort((a, b) => a - b).filter((a) => DEFAULT_NAME.test(config.functions.get(a)?.name ?? ''));
+      const entries = [...config.functions.keys()]
+        .sort((a, b) => a - b)
+        .filter((a) => DEFAULT_NAME.test(config.functions.get(a)?.name ?? ''));
       const addr = pick(random, entries);
       const fn = addr === undefined ? undefined : config.functions.get(addr);
       if (addr === undefined || fn === undefined) return undefined;
@@ -240,41 +283,76 @@ function legalEdit(kind: LegalKind, facts: Facts, random: () => number): { reado
         if (c === undefined) break;
         const override: OverrideConfig = { start: c.start, size: c.end - c.start, kind: 'data' };
         const edited = { ...config, overrides: [...config.overrides, override].sort((a, b) => a.start - b.start) };
-        if (facts.modelShape(edited) !== original) return { config: edited, what: `data override over ${hex(c.start)}..${hex(c.end)}, the pool words of ${hex(c.entry)}` };
+        if (facts.modelShape(edited) !== original)
+          return {
+            config: edited,
+            what: `data override over ${hex(c.start)}..${hex(c.end)}, the pool words of ${hex(c.entry)}`,
+          };
       }
       return undefined;
     }
     case 'split-module': {
-      const options = cModules.flatMap(({ m, i }) => legalBetween(m.start, nextStart(i)).filter((b) => !starts.has(b)).map((b) => ({ i, b })));
+      const options = cModules.flatMap(({ m, i }) =>
+        legalBetween(m.start, nextStart(i))
+          .filter((b) => !starts.has(b))
+          .map((b) => ({ i, b })),
+      );
       const choice = pick(random, options);
       if (choice === undefined) return undefined;
       const parent = modules[choice.i];
       if (parent === undefined) return undefined;
-      const added: ModuleConfig = { ...parent, name: `${parent.name}_split_${hex(choice.b).slice(2)}`, start: choice.b };
-      return { config: { ...config, modules: [...modules.slice(0, choice.i + 1), added, ...modules.slice(choice.i + 1)] }, what: `split ${parent.name} at ${hex(choice.b)}` };
+      const added: ModuleConfig = {
+        ...parent,
+        name: `${parent.name}_split_${hex(choice.b).slice(2)}`,
+        start: choice.b,
+      };
+      return {
+        config: { ...config, modules: [...modules.slice(0, choice.i + 1), added, ...modules.slice(choice.i + 1)] },
+        what: `split ${parent.name} at ${hex(choice.b)}`,
+      };
     }
     case 'split-asm-module': {
       // An assembly-only or library module split at a legal start inside it (D109: no longer refused inside a run of
       // code agbcc cannot have produced). The header's and the startup region's modules are left whole.
-      const asmModules = modules.map((m, i) => ({ m, i })).filter(({ m, i }) => m.kind === 'asm' && i > 0 && m.name !== 'crt0');
-      const options = asmModules.flatMap(({ i }) => legalBetween(modules[i]?.start ?? 0, nextStart(i)).filter((b) => !starts.has(b) && b < facts.dataStart).map((b) => ({ i, b })));
+      const asmModules = modules
+        .map((m, i) => ({ m, i }))
+        .filter(({ m, i }) => m.kind === 'asm' && i > 0 && m.name !== 'crt0');
+      const options = asmModules.flatMap(({ i }) =>
+        legalBetween(modules[i]?.start ?? 0, nextStart(i))
+          .filter((b) => !starts.has(b) && b < facts.dataStart)
+          .map((b) => ({ i, b })),
+      );
       const choice = pick(random, options);
       if (choice === undefined) return undefined;
       const parent = modules[choice.i];
       if (parent === undefined) return undefined;
-      const added: ModuleConfig = { ...parent, name: `${parent.name}_split_${hex(choice.b).slice(2)}`, start: choice.b };
-      return { config: { ...config, modules: [...modules.slice(0, choice.i + 1), added, ...modules.slice(choice.i + 1)] }, what: `split asm module ${parent.name} at ${hex(choice.b)}` };
+      const added: ModuleConfig = {
+        ...parent,
+        name: `${parent.name}_split_${hex(choice.b).slice(2)}`,
+        start: choice.b,
+      };
+      return {
+        config: { ...config, modules: [...modules.slice(0, choice.i + 1), added, ...modules.slice(choice.i + 1)] },
+        what: `split asm module ${parent.name} at ${hex(choice.b)}`,
+      };
     }
   }
 }
 
 /** The illegal edits, each from the original text, with the code it must give. */
-function illegalEdits(text: string, api: Api, facts: Facts): readonly { readonly text: string; readonly code: string; readonly what: string }[] {
+function illegalEdits(
+  text: string,
+  api: Api,
+  facts: Facts,
+): readonly { readonly text: string; readonly code: string; readonly what: string }[] {
   const out: { text: string; code: string; what: string }[] = [];
   const moved = facts.config.modules.findIndex((m, i) => i > 0 && m.kind === 'c');
   const module = facts.config.modules[moved];
   if (module !== undefined) {
-    const config = { ...facts.config, modules: facts.config.modules.map((m, i) => (i === moved ? { ...m, start: m.start + 2 } : m)) };
+    const config = {
+      ...facts.config,
+      modules: facts.config.modules.map((m, i) => (i === moved ? { ...m, start: m.start + 2 } : m)),
+    };
     out.push({ text: api.serialize(config), code: 'E_MODULE_BORDER', what: `${module.name} start + 2` });
   }
   const lines = text.split('\n');
@@ -282,14 +360,31 @@ function illegalEdits(text: string, api: Api, facts: Facts): readonly { readonly
   const at = header < 0 ? -1 : lines.findIndex((l, i) => i > header && FUNCTION_LINE.test(l));
   const line = lines[at];
   if (line === undefined) throw new Error('romlift.toml has no [functions] entry in the canonical layout');
-  out.push({ text: [...lines.slice(0, at + 1), line, ...lines.slice(at + 1)].join('\n'), code: 'E_DUPLICATE_ADDRESS', what: 'a repeated [functions] line' });
-  out.push({ text: [...lines.slice(0, at), line.replace(FUNCTION_LINE, '$1$2$3'), ...lines.slice(at + 1)].join('\n'), code: 'E_TOML_KEY_SPELLING', what: 'a key with seven hex digits' });
+  out.push({
+    text: [...lines.slice(0, at + 1), line, ...lines.slice(at + 1)].join('\n'),
+    code: 'E_DUPLICATE_ADDRESS',
+    what: 'a repeated [functions] line',
+  });
+  out.push({
+    text: [...lines.slice(0, at), line.replace(FUNCTION_LINE, '$1$2$3'), ...lines.slice(at + 1)].join('\n'),
+    code: 'E_TOML_KEY_SPELLING',
+    what: 'a key with seven hex digits',
+  });
   // An odd key on a Thumb [functions] line (Q11 option a, D98 d): no instruction address of its mode.
   const thumb = [...facts.config.functions].sort((a, b) => a[0] - b[0]).find(([, f]) => f.mode === 'thumb');
   const oddAt = thumb === undefined ? -1 : lines.findIndex((l, i) => i > header && l.startsWith(`${hex(thumb[0])} =`));
   const oddLine = lines[oddAt];
-  if (thumb === undefined || oddLine === undefined) throw new Error('romlift.toml lists no Thumb function in the canonical layout');
-  out.push({ text: [...lines.slice(0, oddAt), `${hex(thumb[0] + 1)}${oddLine.slice(hex(thumb[0]).length)}`, ...lines.slice(oddAt + 1)].join('\n'), code: 'E_FUNCTION_MISALIGNED', what: `the Thumb key ${hex(thumb[0])} made odd` });
+  if (thumb === undefined || oddLine === undefined)
+    throw new Error('romlift.toml lists no Thumb function in the canonical layout');
+  out.push({
+    text: [
+      ...lines.slice(0, oddAt),
+      `${hex(thumb[0] + 1)}${oddLine.slice(hex(thumb[0]).length)}`,
+      ...lines.slice(oddAt + 1),
+    ].join('\n'),
+    code: 'E_FUNCTION_MISALIGNED',
+    what: `the Thumb key ${hex(thumb[0])} made odd`,
+  });
   return out;
 }
 
@@ -311,12 +406,20 @@ async function sourceCli(cx: GateContext): Promise<string> {
   return shim;
 }
 
-async function romlift(cx: GateContext, cwd: string, args: readonly string[]): Promise<{ readonly run: ExecResult; readonly lines: readonly CliLine[] }> {
+async function romlift(
+  cx: GateContext,
+  cwd: string,
+  args: readonly string[],
+): Promise<{ readonly run: ExecResult; readonly lines: readonly CliLine[] }> {
   const cli = path.join(cx.repoRoot, 'src', 'cli', 'main.ts');
-  const run = await cx.exec(process.execPath, ['--conditions=source', cli, ...args, '--json'], { cwd, env: CHECKOUT_CLI_ENV });
+  const run = await cx.exec(process.execPath, ['--conditions=source', cli, ...args, '--json'], {
+    cwd,
+    env: CHECKOUT_CLI_ENV,
+  });
   const lines = cx.jsonLines<CliLine>(run.stdout);
   const last = lines[lines.length - 1];
-  if (last?.type !== 'summary' || last.exitCode !== run.code) throw new Error(`romlift ${args.join(' ')} --json exited ${run.code} without a matching summary:\n${tail(run)}`);
+  if (last?.type !== 'summary' || last.exitCode !== run.code)
+    throw new Error(`romlift ${args.join(' ')} --json exited ${run.code} without a matching summary:\n${tail(run)}`);
   return { run, lines };
 }
 
@@ -326,7 +429,13 @@ async function snapshot(dir: string, prefix = ''): Promise<Map<string, string>> 
     const relative = prefix === '' ? entry.name : `${prefix}/${entry.name}`;
     if (relative === '.git' || relative === 'tools/agbcc' || relative === 'romlift.toml') continue;
     if (entry.isDirectory()) for (const [key, value] of await snapshot(dir, relative)) out.set(key, value);
-    else if (entry.isFile()) out.set(relative, createHash('sha1').update(await readFile(path.join(dir, relative))).digest('hex'));
+    else if (entry.isFile())
+      out.set(
+        relative,
+        createHash('sha1')
+          .update(await readFile(path.join(dir, relative)))
+          .digest('hex'),
+      );
   }
   return out;
 }
@@ -351,9 +460,26 @@ gate({
   tier: 'both',
   inputs: ['toolchain'],
   realInputs: ['roms'],
-  needs: ['init', 'generate', 'parseConfig', 'serializeConfig', 'codeLayout', 'isLegalStart', 'legalStartsBetween', 'confirmOptions', 'romFromBytes', 'sha1Of', 'profileById', 'analyze', 'buildModel'],
+  needs: [
+    'init',
+    'generate',
+    'parseConfig',
+    'serializeConfig',
+    'codeLayout',
+    'isLegalStart',
+    'legalStartsBetween',
+    'confirmOptions',
+    'romFromBytes',
+    'sha1Of',
+    'profileById',
+    'analyze',
+    'buildModel',
+  ],
   async run(cx) {
-    const api: Api = { parse: cx.need<ParseConfig>('parseConfig'), serialize: cx.need<SerializeConfig>('serializeConfig') };
+    const api: Api = {
+      parse: cx.need<ParseConfig>('parseConfig'),
+      serialize: cx.need<SerializeConfig>('serializeConfig'),
+    };
     const codeLayout = cx.need<CodeLayoutOf>('codeLayout');
     const isLegalStart = cx.need<IsLegalStart>('isLegalStart');
     const legalStartsBetween = cx.need<LegalStartsBetween>('legalStartsBetween');
@@ -367,7 +493,8 @@ gate({
 
     const fixtures: Target[] = cx.fixtures.map((f) => ({ name: f.name, rom: f.rom }));
     if (fixtures.length === 0) throw new Error('no committed fixture under bench/dataset/synthetic');
-    const datasets: Target[] = cx.tier === 'real' ? cx.datasets.map((d) => ({ name: d.name, rom: path.resolve(cx.benchRoot, d.rom) })) : [];
+    const datasets: Target[] =
+      cx.tier === 'real' ? cx.datasets.map((d) => ({ name: d.name, rom: path.resolve(cx.benchRoot, d.rom) })) : [];
     const base = await cx.tmpDir('romlift-toml-mutations-');
     const cli = await sourceCli(cx);
     const env = { ROMLIFT_CLI: cli };
@@ -386,7 +513,10 @@ gate({
       const tomlPath = path.join(dir, 'romlift.toml');
       const text = await readFile(tomlPath, 'utf8');
       const parsed = api.parse(text);
-      if (!parsed.ok) throw new Error(`${target.name}: init's romlift.toml does not parse: ${parsed.diagnostics.map((d) => d.code).join(', ')}`);
+      if (!parsed.ok)
+        throw new Error(
+          `${target.name}: init's romlift.toml does not parse: ${parsed.diagnostics.map((d) => d.code).join(', ')}`,
+        );
       const bytes = new Uint8Array(await readFile(target.rom));
       const rom = romFromBytes(bytes, sha1Of(bytes));
       const analysis = analyze(rom, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' });
@@ -396,19 +526,33 @@ gate({
       const legalBetween = (after: Addr, before: Addr): readonly Addr[] => {
         const starts = legalStartsBetween(rule, after, before);
         const wrong = starts.find((a) => !isLegalStart(rule, a));
-        if (wrong !== undefined) throw new Error(`${target.name}: legalStartsBetween names ${hex(wrong)}, which isLegalStart refuses`);
+        if (wrong !== undefined)
+          throw new Error(`${target.name}: legalStartsBetween names ${hex(wrong)}, which isLegalStart refuses`);
         return starts;
       };
       const modelShape = (config: RomliftConfig): string => {
         const model = buildModel(rom, analyze(rom, profile, confirmOptions(config)), config);
-        return JSON.stringify([model.functions.map((f) => [f.entry, f.extent.start, f.extent.end]), model.chunks.map((c) => [c.span.start, c.span.end, c.kind])]);
+        return JSON.stringify([
+          model.functions.map((f) => [f.entry, f.extent.start, f.extent.end]),
+          model.chunks.map((c) => [c.span.start, c.span.end, c.kind]),
+        ]);
       };
-      const facts: Facts = { config: parsed.value, legalBetween, analysis, modelShape, dataStart: rule.dataStart, end: rom.end };
+      const facts: Facts = {
+        config: parsed.value,
+        legalBetween,
+        analysis,
+        modelShape,
+        dataStart: rule.dataStart,
+        end: rom.end,
+      };
       const random = prng(nameSeed(target.name));
       if (agbcc !== undefined) await copyAgbcc(agbcc, dir);
       const setup = await cx.exec('./setup.sh', [], { cwd: dir, env });
       if (setup.code !== 0) throw new Error(`${target.name}: ./setup.sh exited ${setup.code}:\n${tail(setup)}`);
-      const built = agbcc === undefined && (await exists(path.join(dir, 'tools', 'agbcc', 'bin', 'agbcc'))) ? path.join(dir, 'tools', 'agbcc') : undefined;
+      const built =
+        agbcc === undefined && (await exists(path.join(dir, 'tools', 'agbcc', 'bin', 'agbcc')))
+          ? path.join(dir, 'tools', 'agbcc')
+          : undefined;
 
       for (const kind of LEGAL_KINDS) {
         const edit = legalEdit(kind, facts, random);
@@ -419,12 +563,24 @@ gate({
         await writeFile(tomlPath, api.serialize(edit.config));
         const generate = await romlift(cx, dir, ['generate']);
         const make = generate.run.code === 0 ? await cx.exec('make', [], { cwd: dir, env }) : undefined;
-        const ignored = kind === 'add-override' && generate.lines.some((l) => l.type === 'diagnostic' && l.code === 'W_OVERRIDE_IGNORED');
-        if (ignored) problems.push(`${target.name}: ${edit.what}: generate warns W_OVERRIDE_IGNORED, so the override changes nothing`);
+        const ignored =
+          kind === 'add-override' &&
+          generate.lines.some((l) => l.type === 'diagnostic' && l.code === 'W_OVERRIDE_IGNORED');
+        if (ignored)
+          problems.push(
+            `${target.name}: ${edit.what}: generate warns W_OVERRIDE_IGNORED, so the override changes nothing`,
+          );
         else if (generate.run.code !== 0 || make?.code !== 0) {
           const codes = generate.lines.filter((l) => l.type === 'diagnostic').map((l) => l.code ?? '?');
-          const built = make === undefined ? 'not run' : make.code === 0 ? '0' : `${make.code}: ${tail(make, 4).replace(/\n/g, ' / ')}`;
-          problems.push(`${target.name}: ${edit.what}: generate exit ${generate.run.code}, make exit ${built}, codes [${codes.join(', ')}]`);
+          const built =
+            make === undefined
+              ? 'not run'
+              : make.code === 0
+                ? '0'
+                : `${make.code}: ${tail(make, 4).replace(/\n/g, ' / ')}`;
+          problems.push(
+            `${target.name}: ${edit.what}: generate exit ${generate.run.code}, make exit ${built}, codes [${codes.join(', ')}]`,
+          );
         } else {
           byKind.set(kind, (byKind.get(kind) ?? 0) + 1);
         }
@@ -435,8 +591,12 @@ gate({
         const before = await snapshot(dir);
         const generate = await romlift(cx, dir, ['generate']);
         const codes = generate.lines.filter((l) => l.type === 'diagnostic').map((l) => l.code ?? '?');
-        if (generate.run.code !== 1 || !codes.includes(edit.code)) problems.push(`${target.name}: ${edit.what}: exit ${generate.run.code}, codes [${codes.join(', ')}], expected exit 1 with ${edit.code}`);
-        else if (!sameTree(before, await snapshot(dir))) problems.push(`${target.name}: ${edit.what}: the refused generate wrote files`);
+        if (generate.run.code !== 1 || !codes.includes(edit.code))
+          problems.push(
+            `${target.name}: ${edit.what}: exit ${generate.run.code}, codes [${codes.join(', ')}], expected exit 1 with ${edit.code}`,
+          );
+        else if (!sameTree(before, await snapshot(dir)))
+          problems.push(`${target.name}: ${edit.what}: the refused generate wrote files`);
         else illegal++;
       }
       await writeFile(tomlPath, text);
@@ -451,13 +611,21 @@ gate({
     const problems = outcomes.flatMap((o) => o.problems);
     for (const o of outcomes) for (const note of o.notes) cx.note(note);
     /** The legal edits that built, by kind (the note reports each count). */
-    const byKind = new Map<LegalKind, number>(LEGAL_KINDS.map((k) => [k, outcomes.reduce((n, o) => n + (o.byKind.get(k) ?? 0), 0)]));
+    const byKind = new Map<LegalKind, number>(
+      LEGAL_KINDS.map((k) => [k, outcomes.reduce((n, o) => n + (o.byKind.get(k) ?? 0), 0)]),
+    );
     const legal = [...byKind.values()].reduce((a, b) => a + b, 0);
     const illegal = outcomes.reduce((n, o) => n + o.illegal, 0);
-    if ((byKind.get('add-override') ?? 0) === 0) problems.push('no target took an add-override edit that changes the model');
+    if ((byKind.get('add-override') ?? 0) === 0)
+      problems.push('no target took an add-override edit that changes the model');
     if ((byKind.get('split-asm-module') ?? 0) === 0) problems.push('no target took a split-asm-module edit');
     if (problems.length > 0) throw new Error(`TOML mutations: ${problems.join(' | ')}`);
-    const kinds = LEGAL_KINDS.map((k) => `${k} ${byKind.get(k) ?? 0}${k === 'add-override' ? ' (each a data override that changes the model, no W_OVERRIDE_IGNORED, D98 d, D104 a)' : ''}`).join(', ');
-    cx.note(`${legal} legal edits link to the SHA-1 and build with make to it (${kinds}), and ${illegal} illegal edits give their codes, on ${outcomes.length} ROMs`);
+    const kinds = LEGAL_KINDS.map(
+      (k) =>
+        `${k} ${byKind.get(k) ?? 0}${k === 'add-override' ? ' (each a data override that changes the model, no W_OVERRIDE_IGNORED, D98 d, D104 a)' : ''}`,
+    ).join(', ');
+    cx.note(
+      `${legal} legal edits link to the SHA-1 and build with make to it (${kinds}), and ${illegal} illegal edits give their codes, on ${outcomes.length} ROMs`,
+    );
   },
 });

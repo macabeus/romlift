@@ -5,7 +5,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { poolLine, poolLoadComment, visibleLabelsAt, wordScope, wordText } from '../../../../src/core/emit/print/pool.ts';
+import {
+  poolLine,
+  poolLoadComment,
+  visibleLabelsAt,
+  wordScope,
+  wordText,
+} from '../../../../src/core/emit/print/pool.ts';
 import { dataItem, label, modelOf, romWith } from '../../../helpers/model.ts';
 
 const A = 0x0800_1000;
@@ -36,7 +42,11 @@ test('an odd word equal to a Thumb function + 1 names it; the even word stays nu
 
 test('ARM functions, pools, tables and data labels name their exact address; a local label never names a word', () => {
   assert.equal(wordText(wordScope(model, 'alpha'), A + 0x20), 'ArmFn');
-  assert.equal(wordText(wordScope(model, 'alpha'), A + 0x21), '0x08001021', 'an ARM function + 1 is not what .4byte ArmFn links to');
+  assert.equal(
+    wordText(wordScope(model, 'alpha'), A + 0x21),
+    '0x08001021',
+    'an ARM function + 1 is not what .4byte ArmFn links to',
+  );
   assert.equal(wordText(wordScope(model, 'alpha'), A + 0x30), '_08001030');
   assert.equal(wordText(wordScope(model, 'alpha'), A + 0x40), '_08001040');
   assert.equal(wordText(wordScope(model, 'alpha'), A + 0x51), 'gData', 'an odd data address names its label');
@@ -54,7 +64,10 @@ test('a module-scoped label of another module is not a candidate; a global one i
   assert.equal(wordText(wordScope(model, 'alpha'), B + 0x11), '0x08002011');
   assert.equal(wordText(wordScope(model, 'beta'), B + 0x11), 'BetaStatic');
   assert.equal(wordText(wordScope(model, 'alpha'), B + 0x21), 'BetaGlobal');
-  assert.deepEqual(visibleLabelsAt(wordScope(model, 'alpha'), B + 0x20).map((l) => l.name), ['BetaGlobal', '_08002020']);
+  assert.deepEqual(
+    visibleLabelsAt(wordScope(model, 'alpha'), B + 0x20).map((l) => l.name),
+    ['BetaGlobal', '_08002020'],
+  );
   assert.deepEqual(visibleLabelsAt(wordScope(model, 'alpha'), B + 0x10), []);
 });
 
@@ -87,7 +100,14 @@ const sizedModel = modelOf(sizedRom, {
     { addr: C + 0x10, name: 'gHidden', size: 0x10 },
   ],
   functions: [
-    { entry: A + 0x200, extent: { start: A + 0x200, end: A + 0x220 }, mode: 'thumb', name: 'SizedFn', aliases: [], source: { name: { kind: 'toml' }, extent: 'toml-size' } },
+    {
+      entry: A + 0x200,
+      extent: { start: A + 0x200, end: A + 0x220 },
+      mode: 'thumb',
+      name: 'SizedFn',
+      aliases: [],
+      source: { name: { kind: 'toml' }, extent: 'toml-size' },
+    },
   ],
 });
 
@@ -99,7 +119,11 @@ test('a word inside a named, sized entry prints name + offset; a named entry exa
   assert.equal(wordText(alpha, A + 0x100), 'gTable');
   assert.equal(wordText(alpha, A + 0x120), '0x08001120', 'the end of the entry is not inside it');
   assert.equal(wordText(alpha, 0x0300_0010), 'gRam + 16', 'a RAM symbol symbols.ld defines');
-  assert.equal(wordText(alpha, A + 0x205), 'SizedFn + 4', 'inside a function sized by the TOML: from the word SizedFn links to');
+  assert.equal(
+    wordText(alpha, A + 0x205),
+    'SizedFn + 4',
+    'inside a function sized by the TOML: from the word SizedFn links to',
+  );
   assert.equal(wordText(alpha, A + 0x201), 'SizedFn');
   assert.equal(wordText(alpha, C + 0x14), '0x08003014', 'a module-scoped entry of another module is not visible');
   assert.equal(wordText(wordScope(sizedModel, 'gamma'), C + 0x14), 'gHidden + 4');

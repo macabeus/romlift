@@ -12,7 +12,7 @@
 // Upper-case hex throughout, as the PoC. Labels at `start` or outside the range are not printed (the caller
 // prints the chunk's own label); two labels at one address keep the later one, as the PoC's Map does.
 import type { Rom } from '../../../foundation/rom/rom.ts';
-import { u16, u32, u8 } from '../../../foundation/rom/rom.ts';
+import { u8, u16, u32 } from '../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../foundation/rom/span.ts';
 import { hex } from '../../../foundation/util/hex.ts';
 
@@ -30,9 +30,17 @@ const RUN_LENGTH = 8;
  * The bytes of [start, end) as data lines, exactly as the PoC's rawLines prints them. `isWord(a)` says
  * whether the byte at `a` belongs to a pool word or a table entry.
  */
-export function printRawRange(rom: Rom, isWord: (addr: Addr) => boolean, start: Addr, end: Addr, labels: readonly RawLabel[]): readonly string[] {
+export function printRawRange(
+  rom: Rom,
+  isWord: (addr: Addr) => boolean,
+  start: Addr,
+  end: Addr,
+  labels: readonly RawLabel[],
+): readonly string[] {
   const out: string[] = [];
-  const marks = new Map<Addr, RawLabel>(labels.filter((l) => l.addr > start && l.addr < end).map((l) => [l.addr, l] as const));
+  const marks = new Map<Addr, RawLabel>(
+    labels.filter((l) => l.addr > start && l.addr < end).map((l) => [l.addr, l] as const),
+  );
   let run: string[] = [];
   const flush = (): void => {
     if (run.length > 0) {

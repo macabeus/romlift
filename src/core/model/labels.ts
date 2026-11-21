@@ -26,14 +26,23 @@ import { contains, peek16, peek32 } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { insnAligned } from '../../foundation/rom/span.ts';
-import { compareCodeUnits, compareNumbers, sortedEntries } from '../../foundation/util/sorted.ts';
 import { lowerBound } from '../../foundation/util/arrays.ts';
+import { dataName, localName } from '../../foundation/util/project-files.ts';
+import { compareCodeUnits, compareNumbers, sortedEntries } from '../../foundation/util/sorted.ts';
 import type { FunctionConfig } from '../config/schema.ts';
 import type { ChunkPlan } from './chunks.ts';
-import type { Segments } from './segments.ts';
 import { loadAddressOf, loadModuleAt, moduleIndexAt, runOffsetAt } from './modules.ts';
-import { dataName, localName } from '../../foundation/util/project-files.ts';
-import { addendTo, compareLabels, entryLabelOf, isExactLabel, wordNameOf, wordValueOf, type SizedEntries, type SizedEntry } from './resolver.ts';
+import {
+  type SizedEntries,
+  type SizedEntry,
+  addendTo,
+  compareLabels,
+  entryLabelOf,
+  isExactLabel,
+  wordNameOf,
+  wordValueOf,
+} from './resolver.ts';
+import type { Segments } from './segments.ts';
 import type { Label, LabelKind, ModelSymbol, Module } from './types.ts';
 
 // ---------------------------------------------------------------------------------------------------
@@ -58,7 +67,15 @@ export interface CodeRef {
 
 function refOf(insn: Insn, site: Addr): CodeRef | undefined {
   const flow = insn.flow;
-  const ref = (target: Addr, kind: CodeRefKind): CodeRef => ({ site, target, kind, specId: insn.specId, size: insn.size, word: insn.word, run: insn.addr });
+  const ref = (target: Addr, kind: CodeRefKind): CodeRef => ({
+    site,
+    target,
+    kind,
+    specId: insn.specId,
+    size: insn.size,
+    word: insn.word,
+    run: insn.addr,
+  });
   switch (flow.kind) {
     case 'branch':
       return ref(flow.target, insn.mode === 'thumb' && insn.size === 2 ? 'short-branch' : 'branch');
@@ -211,7 +228,10 @@ function insideAnItem(segments: Segments, refs: readonly CodeRef[]): (a: Addr) =
 }
 
 /** Every label candidate, in load address order, and the symbols inside the ROM no label can stand for. */
-function candidatesOf(inputs: LabelInputs): { readonly candidates: Candidate[]; readonly unplaced: readonly ModelSymbol[] } {
+function candidatesOf(inputs: LabelInputs): {
+  readonly candidates: Candidate[];
+  readonly unplaced: readonly ModelSymbol[];
+} {
   const { rom, modules, segments } = inputs;
   const out: Candidate[] = [];
   const unplaced: ModelSymbol[] = [];
@@ -221,8 +241,10 @@ function candidatesOf(inputs: LabelInputs): { readonly candidates: Candidate[]; 
     out.push(c);
     named.add(c.load);
   };
-  for (const [entry, f] of sortedEntries(inputs.functions)) add({ load: entry, name: f.name, kind: 'func', thumb: f.mode === 'thumb' });
-  for (const c of inputs.chunks) if (c.entry === undefined) add({ load: c.span.start, name: c.name, kind: 'data', thumb: false });
+  for (const [entry, f] of sortedEntries(inputs.functions))
+    add({ load: entry, name: f.name, kind: 'func', thumb: f.mode === 'thumb' });
+  for (const c of inputs.chunks)
+    if (c.entry === undefined) add({ load: c.span.start, name: c.name, kind: 'data', thumb: false });
   for (const s of inputs.symbols) {
     if (contains(rom, s.addr) && inside(s.addr)) unplaced.push(s);
     else add({ load: s.addr, name: s.name, kind: 'data', thumb: false });
@@ -237,8 +259,10 @@ function candidatesOf(inputs: LabelInputs): { readonly candidates: Candidate[]; 
   // the printer finds there (phase-6 fix round 6, architecture-o1-5).
   const byLoad = new Map<Addr, Candidate[]>();
   for (const c of out) byLoad.set(c.load, [...(byLoad.get(c.load) ?? []), c]);
-  const candidateLabelsAt = (addr: Addr): Pick<Label, 'addr' | 'name' | 'kind' | 'thumb'>[] => (byLoad.get(addr) ?? []).map((c) => ({ addr, name: c.name, kind: c.kind, thumb: c.thumb }));
-  const entryLabel = (entry: SizedEntry): Pick<Label, 'addr' | 'name' | 'kind' | 'thumb'> | undefined => entryLabelOf(entry, candidateLabelsAt);
+  const candidateLabelsAt = (addr: Addr): Pick<Label, 'addr' | 'name' | 'kind' | 'thumb'>[] =>
+    (byLoad.get(addr) ?? []).map((c) => ({ addr, name: c.name, kind: c.kind, thumb: c.thumb }));
+  const entryLabel = (entry: SizedEntry): Pick<Label, 'addr' | 'name' | 'kind' | 'thumb'> | undefined =>
+    entryLabelOf(entry, candidateLabelsAt);
   const heldByEntry = (a: Addr): boolean => wordNameOf(inputs.entries, a, [], entryLabel)?.kind === 'inside';
   const data: Addr[] = [];
   const targets: Addr[] = [];
@@ -263,7 +287,9 @@ function candidatesOf(inputs: LabelInputs): { readonly candidates: Candidate[]; 
   }
   // A data or local label only where no other label names the address yet, once per address.
   for (const a of data) if (!named.has(a)) add({ load: a, name: dataName(a), kind: 'data', thumb: false });
-  for (const a of targets) if (!named.has(a) && contains(rom, a) && !inside(a)) add({ load: a, name: localName(a), kind: 'local', thumb: false });
+  for (const a of targets)
+    if (!named.has(a) && contains(rom, a) && !inside(a))
+      add({ load: a, name: localName(a), kind: 'local', thumb: false });
   // Such a target named only by Thumb functions: its local label too, which the adr or the table entry names.
   const exact = new Set(out.filter(isExact).map((c) => c.load));
   for (const a of exactTargets) {
@@ -310,7 +336,11 @@ function scopes(inputs: LabelInputs, index: LabelIndex): boolean[] {
     if (label === undefined || global[i] === true) return;
     if (loadModuleAt(modules, site) !== moduleIndexAt(modules, label.addr, inputs.relocated)) global[i] = true;
   };
-  const exact = (site: Addr, run: Addr): void => reference(site, preferredAt(index, run, () => true));
+  const exact = (site: Addr, run: Addr): void =>
+    reference(
+      site,
+      preferredAt(index, run, () => true),
+    );
   const position = new Map(index.byAddr.map((l, i) => [l, i] as const));
   const word = (site: Addr, value: number): void => {
     const at = [...(insnAligned('thumb', value) ? [] : labelsAt(index, value - 1)), ...labelsAt(index, value)];
@@ -318,12 +348,17 @@ function scopes(inputs: LabelInputs, index: LabelIndex): boolean[] {
       const l = index.byAddr[i];
       return l !== undefined && l.kind !== 'local' && wordValueOf(l) === value ? [l] : [];
     });
-    const entryLabel = (entry: SizedEntry): Label | undefined => entryLabelOf(entry, (a) => labelsAt(index, a).flatMap((i) => index.byAddr[i] ?? []));
+    const entryLabel = (entry: SizedEntry): Label | undefined =>
+      entryLabelOf(entry, (a) => labelsAt(index, a).flatMap((i) => index.byAddr[i] ?? []));
     const named = wordNameOf(inputs.entries, value, linking, entryLabel);
     if (named !== undefined) reference(site, position.get(named.label) ?? -1);
   };
   for (const r of inputs.refs) {
-    if (r.kind === 'short-branch' && loadModuleAt(modules, r.site) !== moduleIndexAt(modules, r.target, inputs.relocated)) continue;
+    if (
+      r.kind === 'short-branch' &&
+      loadModuleAt(modules, r.site) !== moduleIndexAt(modules, r.target, inputs.relocated)
+    )
+      continue;
     if (r.kind === 'adr') reference(r.site, preferredAt(index, r.target, isExactLabel));
     else exact(r.site, r.target);
   }
@@ -333,7 +368,10 @@ function scopes(inputs: LabelInputs, index: LabelIndex): boolean[] {
       // The label the entry prints (core/emit/print/table.ts): the preferred one some addend of which links to the entry.
       const run = s.target + runOffsetAt(inputs.relocated, s.target);
       const stored = (run | (s.thumbBit ? 1 : 0)) >>> 0;
-      reference(s.start, preferredAt(index, run, (l) => addendTo(l, stored) !== undefined));
+      reference(
+        s.start,
+        preferredAt(index, run, (l) => addendTo(l, stored) !== undefined),
+      );
     }
   }
   return global;
@@ -373,15 +411,31 @@ export function buildLabels(inputs: LabelInputs): LabelsResult {
     kept.push(...keep(candidates.slice(i, j)));
     i = j;
   }
-  const pairs = kept.map((c) => ({ load: c.load, label: { addr: c.load + runOffsetAt(inputs.relocated, c.load), name: c.name, kind: c.kind, thumb: c.thumb, scope: 'module' } satisfies Label }));
+  const pairs = kept.map((c) => ({
+    load: c.load,
+    label: {
+      addr: c.load + runOffsetAt(inputs.relocated, c.load),
+      name: c.name,
+      kind: c.kind,
+      thumb: c.thumb,
+      scope: 'module',
+    } satisfies Label,
+  }));
   // The candidates are in (load address, kind, name) order, which is compareLabels' order unless a run address moved.
   if (inputs.relocated.length > 0) pairs.sort((a, b) => compareLabels(a.label, b.label));
   const index: LabelIndex = { byAddr: pairs.map((p) => p.label) };
   const global = scopes(inputs, index);
-  const unique = uniqueFunctionNames(inputs, pairs.map((p) => p.load), index);
+  const unique = uniqueFunctionNames(
+    inputs,
+    pairs.map((p) => p.load),
+    index,
+  );
   const functions = new Map<Addr, Label>();
   const labels = pairs.map((p, i): Label => {
-    const label: Label = global[i] === true || unique[i] === true || !contains(inputs.rom, p.load) ? { ...p.label, scope: 'global' } : p.label;
+    const label: Label =
+      global[i] === true || unique[i] === true || !contains(inputs.rom, p.load)
+        ? { ...p.label, scope: 'global' }
+        : p.label;
     if (label.kind === 'func' && inputs.functions.get(p.load)?.name === label.name) functions.set(p.load, label);
     return label;
   });

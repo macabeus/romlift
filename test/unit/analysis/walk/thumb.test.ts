@@ -31,7 +31,10 @@ test('stack balance: push and pop {pc} cancel; a pop of more than was pushed sho
 test('bl: a call goes on, a far site is walked as a jump, a noret site ends its path', () => {
   const code = thumbAt(F)`push {lr}; bl _08000280; pop {pc}`;
   const target = thumbAt(F + 0x80)`movs r0, #0; bx lr`;
-  const rom = romWith([{ at: F, bytes: code }, { at: F + 0x80, bytes: target }]);
+  const rom = romWith([
+    { at: F, bytes: code },
+    { at: F + 0x80, bytes: target },
+  ]);
   const v = viewWith({ rom });
   const call = walkReading(v, F, 'thumb');
   assert.deepEqual(call.blSites, [{ site: F + 2, target: F + 0x80 }]);
@@ -48,14 +51,21 @@ test('bl: a call goes on, a far site is walked as a jump, a noret site ends its 
 
 test('a pool load records the word; walking into it stops, dropping padding, and a bl before it never returns', () => {
   const code = thumbAt(F)`ldr r0, _08000208; bl _08000280; lsls r0, r0, #0`;
-  const rom = romWith([{ at: F, bytes: code }, { at: F + 8, bytes: words(0x1234_5678) }, { at: F + 0x80, bytes: thumbAt(F + 0x80)`bx lr` }]);
+  const rom = romWith([
+    { at: F, bytes: code },
+    { at: F + 8, bytes: words(0x1234_5678) },
+    { at: F + 0x80, bytes: thumbAt(F + 0x80)`bx lr` },
+  ]);
   const r = walkReading(viewWith({ rom }), F, 'thumb');
   assert.deepEqual(r.pools, [{ addr: F + 8, value: 0x1234_5678 }]);
   assert.equal(r.insnAt.has(F + 6), false, 'the zero halfword before the pool is padding');
   assert.deepEqual(r.deadEnd, [F + 2]);
   assert.deepEqual(r.errors, []);
   assert.equal(r.end, F + 12, 'the adjacent pool is in the extent');
-  assert.deepEqual(r.exits.map((e) => e.rule), ['walk.noreturn-call-before-noncode']);
+  assert.deepEqual(
+    r.exits.map((e) => e.rule),
+    ['walk.noreturn-call-before-noncode'],
+  );
 });
 
 test('without a bl or swi before it, non-code is a decode error; a swi before it ends the path', () => {
@@ -68,12 +78,18 @@ test('without a bl or swi before it, non-code is a decode error; a swi before it
   const swi = walkReading(v, F + 0x10, 'thumb');
   assert.deepEqual(swi.errors, []);
   assert.equal(swi.returns, 1);
-  assert.deepEqual(swi.exits.map((e) => e.kind), ['swi-end']);
+  assert.deepEqual(
+    swi.exits.map((e) => e.kind),
+    ['swi-end'],
+  );
   assert.deepEqual(walkReading(v, F, 'thumb', []).errors, [{ reason: 'not-code', at: F + 2 }], 'no policies: the same');
 });
 
 test('the walk falls into the next function without an error, and a branch into one is a tail exit', () => {
-  const rom = romWith([{ at: F, bytes: thumbAt(F)`movs r0, #0; movs r1, #1; beq _08000240; bx lr` }, { at: F + 0x40, bytes: thumbAt(F + 0x40)`bx lr` }]);
+  const rom = romWith([
+    { at: F, bytes: thumbAt(F)`movs r0, #0; movs r1, #1; beq _08000240; bx lr` },
+    { at: F + 0x40, bytes: thumbAt(F + 0x40)`bx lr` },
+  ]);
   const v = viewWith({ rom, functions: [F + 2, F + 0x40] });
   const r = walkReading(v, F, 'thumb');
   assert.deepEqual(r.insns, [{ addr: F, len: 2 }]);
@@ -101,11 +117,26 @@ test('a jump table behind mov pc is walked; bx pc is a veneer; an unexplained mo
   assert.deepEqual(r.tables, [{ base: F + 0x10, targets: [F + 0x20, F + 0x24], thumbBit: false }]);
   assert.equal(r.returns, 2);
   assert.equal(r.end, F + 0x26, 'the pool and the table lie below the code end');
-  assert.deepEqual(r.holes.map((h) => [h.start - F, h.end - F]), [[6, 10], [0x18, 0x1e], [0x22, 0x24]], "the bx lr between the two targets is never reached");
+  assert.deepEqual(
+    r.holes.map((h) => [h.start - F, h.end - F]),
+    [
+      [6, 10],
+      [0x18, 0x1e],
+      [0x22, 0x24],
+    ],
+    'the bx lr between the two targets is never reached',
+  );
   assert.equal(isDense(r, v.profile), false);
   assert.deepEqual(walkReading(v, F + 0x40, 'thumb').veneers, [F + 0x44]);
-  assert.deepEqual(walkReading(v, F + 0x60, 'thumb').exits.map((e) => [e.kind, e.rule]), [['reg-jump', 'walk.mov-pc-without-table']]);
-  assert.deepEqual(walkReading(v, F + 0x60, 'thumb', []).errors, [{ reason: 'not-code', at: F + 0x60 }], 'no policy: not code');
+  assert.deepEqual(
+    walkReading(v, F + 0x60, 'thumb').exits.map((e) => [e.kind, e.rule]),
+    [['reg-jump', 'walk.mov-pc-without-table']],
+  );
+  assert.deepEqual(
+    walkReading(v, F + 0x60, 'thumb', []).errors,
+    [{ reason: 'not-code', at: F + 0x60 }],
+    'no policy: not code',
+  );
 });
 
 test('out of the ROM and a bl out of the ROM are decode errors', () => {

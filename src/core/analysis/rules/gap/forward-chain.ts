@@ -17,10 +17,12 @@ function pointsAtFunction(at: Addr, v: AnalysisView): boolean {
 export default defineRule({
   meta: {
     id: 'gap.forward-chain',
-    summary: 'a valid Thumb reading at the cursor, first word nonzero and no pointer to an accepted function, extent inside [gap start, end), chained forward from the gap start',
+    summary:
+      'a valid Thumb reading at the cursor, first word nonzero and no pointer to an accepted function, extent inside [gap start, end), chained forward from the gap start',
     restsOn:
-      'compiled functions are laid out back to back, so an unreferenced one starts where the previous one ends, give or take alignment; a literal pool word holding an accepted Thumb function + 1 is that function\'s address, not code',
-    recovers: 'functions reached only through computed addresses or not at all (dead code, callbacks named in data the harvest missed)',
+      "compiled functions are laid out back to back, so an unreferenced one starts where the previous one ends, give or take alignment; a literal pool word holding an accepted Thumb function + 1 is that function's address, not code",
+    recovers:
+      'functions reached only through computed addresses or not at all (dead code, callbacks named in data the harvest missed)',
     reads: ['rom', 'function-set', 'readings', 'validity'],
     adds: ['candidates'],
     origin: 'gap-scan',
@@ -28,7 +30,8 @@ export default defineRule({
   kind: 'gap',
   propose(c, v) {
     const at = c.at;
-    if (v.isFunction(at) || !contains(v.rom, at, 4) || u32(v.rom, at) === 0 || !v.valid(at) || pointsAtFunction(at, v)) return undefined;
+    if (v.isFunction(at) || !contains(v.rom, at, 4) || u32(v.rom, at) === 0 || !v.valid(at) || pointsAtFunction(at, v))
+      return undefined;
     const r = v.read(at, 'thumb');
     if (at < c.gap.start || r.end > c.end) return undefined;
     return { entry: at, mode: 'thumb', cites: [at, r.end] };

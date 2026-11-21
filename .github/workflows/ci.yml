@@ -41,6 +41,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y binutils-arm-none-eabi
       - name: Install exactly the lock file
         run: npm ci --ignore-scripts
+      - name: Formatting (Prettier, .prettierrc.json, D119)
+        run: npm run format:check
       # No separate `npm run typecheck`: npm test's test/architecture.test.ts typechecks tsconfig.json (its "the
       # repository typechecks"), and g1.architecture below runs and requires it again.
       - name: Test (unit, golden, architecture with tsc and ESLint, mutation; includes the no-ROM-tracked check)

@@ -41,6 +41,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "lint": "eslint --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test": "node --conditions=source --test \"test/*.test.ts\" \"test/{unit,golden,mutation}/**/*.test.ts\"",
     "test:local": "node --conditions=source --test \"test/local/**/*.test.ts\"",
     "bench": "node --conditions=source bench/src/cli.ts",
@@ -56,10 +58,12 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@trivago/prettier-plugin-sort-imports": "6.0.2",
     "@types/node": "~24.7.0",
     "@typescript-eslint/utils": "8.72.1",
     "eslint": "10.14.0",
     "eslint-plugin-boundaries": "7.4.0",
+    "prettier": "3.8.1",
     "typescript": "~6.0.3",
     "typescript-eslint": "8.72.1"
   }

@@ -12,7 +12,7 @@
 // baseline neither misses nor lists as a mismatch. Pure: rows in, diffs out.
 import { compareCodeUnits } from 'romlift';
 
-import { isImprovement, type AcceptedImprovement } from './accepted-diffs.ts';
+import { type AcceptedImprovement, isImprovement } from './accepted-diffs.ts';
 import type { JsonRecord } from './baseline.ts';
 import { BenchError, isRecord } from './files.ts';
 import type { BaselineRows, BenchRow, ExtentRow, RowDiff } from './row.ts';
@@ -40,7 +40,8 @@ export interface BaselineRow {
 
 function list(row: JsonRecord, key: string, where: string): readonly JsonRecord[] {
   const value = row[key];
-  if (!Array.isArray(value) || !value.every(isRecord)) throw new BenchError(`${where}.${key} must be a list of objects`);
+  if (!Array.isArray(value) || !value.every(isRecord))
+    throw new BenchError(`${where}.${key} must be a list of objects`);
   return value;
 }
 
@@ -71,17 +72,27 @@ export function parseBaselineRow(row: JsonRecord, where: string): BaselineRow {
       size: num(f, 'size', at),
       ...(typeof f['owner'] === 'string' ? { owner: f['owner'] } : {}),
     })),
-    mismatches: list(extents, 'mismatches', `${at}.extents`).map((m) => ({ addr: str(m, 'addr', at), name: str(m, 'name', at), elf: num(m, 'elf', at), found: num(m, 'found', at) })),
+    mismatches: list(extents, 'mismatches', `${at}.extents`).map((m) => ({
+      addr: str(m, 'addr', at),
+      name: str(m, 'name', at),
+      elf: num(m, 'elf', at),
+      found: num(m, 'found', at),
+    })),
   };
 }
 
-const byAddrThenKind = (a: RowDiff, b: RowDiff): number => compareCodeUnits(a.addr, b.addr) || compareCodeUnits(a.kind, b.kind);
+const byAddrThenKind = (a: RowDiff, b: RowDiff): number =>
+  compareCodeUnits(a.addr, b.addr) || compareCodeUnits(a.kind, b.kind);
 
 /**
  * Every row of `row` that differs from `base`. `found` holds the hex entries the run found (startup
  * included), to tell an extent that now agrees from one whose function is no longer found.
  */
-export function rowDiffs(base: BaselineRow, row: Pick<BenchRow, 'misses' | 'falseEntries' | 'extents'>, found: ReadonlySet<string>): RowDiff[] {
+export function rowDiffs(
+  base: BaselineRow,
+  row: Pick<BenchRow, 'misses' | 'falseEntries' | 'extents'>,
+  found: ReadonlySet<string>,
+): RowDiff[] {
   const diffs: RowDiff[] = [];
   const misses = new Map(row.misses.map((m) => [m.addr, m]));
   const baseMisses = new Map(base.misses.map((m) => [m.addr, m]));
@@ -97,9 +108,11 @@ export function rowDiffs(base: BaselineRow, row: Pick<BenchRow, 'misses' | 'fals
   for (const f of base.falseEntries) {
     const now = falses.get(f.addr);
     if (now === undefined) diffs.push({ kind: 'false-entry-removed', addr: f.addr });
-    else if (now.origin !== f.origin || now.size !== f.size || now.owner !== f.owner) diffs.push({ kind: 'false-entry-changed', addr: f.addr });
+    else if (now.origin !== f.origin || now.size !== f.size || now.owner !== f.owner)
+      diffs.push({ kind: 'false-entry-changed', addr: f.addr });
   }
-  for (const f of row.falseEntries) if (!baseFalses.has(f.addr)) diffs.push({ kind: 'false-entry-added', addr: f.addr });
+  for (const f of row.falseEntries)
+    if (!baseFalses.has(f.addr)) diffs.push({ kind: 'false-entry-added', addr: f.addr });
 
   const mismatches = new Map(row.extents.mismatches.map((m) => [m.addr, m]));
   const baseMismatches = new Map(base.mismatches.map((m) => [m.addr, m]));
@@ -108,7 +121,8 @@ export function rowDiffs(base: BaselineRow, row: Pick<BenchRow, 'misses' | 'fals
     if (now === undefined) diffs.push({ kind: found.has(m.addr) ? 'extent-agrees' : 'extent-unscored', addr: m.addr });
     else if (now.elf !== m.elf || now.found !== m.found) diffs.push({ kind: 'extent-changed', addr: m.addr });
   }
-  for (const m of row.extents.mismatches) if (!baseMismatches.has(m.addr)) diffs.push({ kind: 'extent-mismatch-added', addr: m.addr });
+  for (const m of row.extents.mismatches)
+    if (!baseMismatches.has(m.addr)) diffs.push({ kind: 'extent-mismatch-added', addr: m.addr });
   return diffs.sort(byAddrThenKind);
 }
 
@@ -119,7 +133,10 @@ export function lostExtents(base: BaselineRow, row: Pick<BenchRow, 'extents'>): 
 }
 
 /** The diffs against the accepted improvements of one ROM: what is not accepted, and what is accepted but no longer differs. */
-export function judgeDiffs(diffs: readonly RowDiff[], accepted: readonly Pick<AcceptedImprovement, 'kind' | 'addr'>[]): BaselineRows {
+export function judgeDiffs(
+  diffs: readonly RowDiff[],
+  accepted: readonly Pick<AcceptedImprovement, 'kind' | 'addr'>[],
+): BaselineRows {
   const key = (d: Pick<RowDiff, 'kind' | 'addr'>): string => `${d.kind} ${d.addr}`;
   const listed = new Set(accepted.map(key));
   const present = new Set(diffs.map(key));
@@ -146,5 +163,9 @@ export function compareWithBaseline(
   found: ReadonlySet<string>,
   accepted: readonly Pick<AcceptedImprovement, 'kind' | 'addr'>[],
 ): BaselineComparison {
-  return { poc: { tp: base.tp }, lost: lostExtents(base, row), baselineRows: judgeDiffs(rowDiffs(base, row, found), accepted) };
+  return {
+    poc: { tp: base.tp },
+    lost: lostExtents(base, row),
+    baselineRows: judgeDiffs(rowDiffs(base, row, found), accepted),
+  };
 }

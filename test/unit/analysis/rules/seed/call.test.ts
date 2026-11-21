@@ -7,7 +7,7 @@ import { factOf } from './fact.ts';
 
 const F = 0x0800_0100;
 
-test('every callee, in the reading\'s calls order (target, then ARM before Thumb, then site), with its mode', () => {
+test("every callee, in the reading's calls order (target, then ARM before Thumb, then site), with its mode", () => {
   const rom = romWith([]);
   const r = readingOf(rom, {
     entry: F,

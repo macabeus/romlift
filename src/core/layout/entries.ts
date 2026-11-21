@@ -52,7 +52,10 @@ export function factsByEntry(analysis: Pick<AnalysisResult, 'functions'>): Reado
  * override containing it (the override recorded on the entry: the one use of an override without runs_at), else the
  * next chunk start ('next-listed'). `listed` is sorted by entry.
  */
-export function placeEntries(listed: readonly ListedEntry[], analysis: Pick<AnalysisResult, 'functions' | 'options'>): PlacedEntry[] {
+export function placeEntries(
+  listed: readonly ListedEntry[],
+  analysis: Pick<AnalysisResult, 'functions' | 'options'>,
+): PlacedEntry[] {
   const facts = factsByEntry(analysis);
   const codeOverrides = analysis.options.overrides.filter((o) => o.kind === 'code');
   return listed.map((l): PlacedEntry => {
@@ -60,7 +63,8 @@ export function placeEntries(listed: readonly ListedEntry[], analysis: Pick<Anal
     const fact = facts.get(l.entry);
     if (fact !== undefined) return { entry: l.entry, label: l.label, end: fact.extent.end, source: 'analysis' };
     const override = codeOverrides.find((o) => l.entry >= o.span.start && l.entry < o.span.end);
-    if (override !== undefined) return { entry: l.entry, label: l.label, end: override.span.end, source: 'override', override };
+    if (override !== undefined)
+      return { entry: l.entry, label: l.label, end: override.span.end, source: 'override', override };
     return { entry: l.entry, label: l.label, end: undefined, source: 'next-listed' };
   });
 }
@@ -120,13 +124,18 @@ export function listedEntriesOf(analysis: AnalysisResult, headerEnd: Addr): List
     const nested = nestedEntries(analysis.functions, headerEnd);
     return analysis.functions.map((f) => ({ entry: f.entry, label: nested.has(f.entry) }));
   }
-  const seeds = analysis.options.seeds.filter((s) => s.rule === 'seed.listed').sort((a, b) => compareNumbers(a.entry, b.entry));
+  const seeds = analysis.options.seeds
+    .filter((s) => s.rule === 'seed.listed')
+    .sort((a, b) => compareNumbers(a.entry, b.entry));
   const headerCovered = headerCoveredEntries(analysis.functions, headerEnd);
   return seeds
     .filter((s, i) => i === 0 || seeds[i - 1]?.entry !== s.entry)
-    .map((s) => ({ entry: s.entry, label: isLabelEntry(s.entry, s.label, headerCovered), ...(s.size === undefined ? {} : { size: s.size }) }));
+    .map((s) => ({
+      entry: s.entry,
+      label: isLabelEntry(s.entry, s.label, headerCovered),
+      ...(s.size === undefined ? {} : { size: s.size }),
+    }));
 }
-
 
 /** Whether a claim run of kind data overlaps `span` (`claims` in address order, as the analysis result holds them). */
 function claimsData(claims: readonly ClaimRun[], span: OverrideFact['span']): boolean {

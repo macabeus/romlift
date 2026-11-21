@@ -1,15 +1,26 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { decode } from '../../../src/foundation/isa/decode.ts';
 import { AGBCC, AGBCC_PIPELINE } from '../../../src/core/profile/agbcc.ts';
 import { PROFILES, profileById } from '../../../src/core/profile/registry.ts';
+import { decode } from '../../../src/foundation/isa/decode.ts';
 import { pipelineIds, romWith, words } from '../../helpers/analysis.ts';
 import { thumbAt } from '../../helpers/thumb.ts';
 
 /** Every analysis rule id of architecture §4.1, by family, with the rules the phase-2 milestones added (walk.inline-arm-switch, bl.target-beyond-callee) and the owner decision's tmc tuning added (seed.ram-copy, accept.prologue-and-calls-accepted, D60). */
 const SECTION_4_1 = {
-  seed: ['seed.rom-entry', 'seed.startup-pointer', 'seed.listed', 'seed.override', 'seed.pool-pointer', 'seed.data-pointer', 'seed.call', 'seed.veneer', 'seed.adr', 'seed.ram-copy'],
+  seed: [
+    'seed.rom-entry',
+    'seed.startup-pointer',
+    'seed.listed',
+    'seed.override',
+    'seed.pool-pointer',
+    'seed.data-pointer',
+    'seed.call',
+    'seed.veneer',
+    'seed.adr',
+    'seed.ram-copy',
+  ],
   walk: [
     'walk.pc-load-is-pool',
     'walk.table-by-register',
@@ -32,8 +43,25 @@ const SECTION_4_1 = {
     'bl.target-pops-unpushed-frame',
     'bl.noreturn-before-noncode',
   ],
-  valid: ['valid.in-rom-unclaimed', 'valid.decodes', 'valid.balanced-stack', 'valid.returns-or-prologue', 'valid.no-claimed-code', 'valid.pool-not-code', 'valid.not-pointer-table', 'valid.dense', 'valid.calls-code'],
-  accept: ['accept.tiles-after-accepted', 'accept.prologue-and-loaded', 'accept.prologue-and-end-anchored', 'accept.pointer-table-run', 'accept.prologue-and-calls-accepted', 'accept.tiny-anchored-at-start'],
+  valid: [
+    'valid.in-rom-unclaimed',
+    'valid.decodes',
+    'valid.balanced-stack',
+    'valid.returns-or-prologue',
+    'valid.no-claimed-code',
+    'valid.pool-not-code',
+    'valid.not-pointer-table',
+    'valid.dense',
+    'valid.calls-code',
+  ],
+  accept: [
+    'accept.tiles-after-accepted',
+    'accept.prologue-and-loaded',
+    'accept.prologue-and-end-anchored',
+    'accept.pointer-table-run',
+    'accept.prologue-and-calls-accepted',
+    'accept.tiny-anchored-at-start',
+  ],
   gap: [
     'gap.adr-block-absorb',
     'gap.tiled-hole',
@@ -68,7 +96,11 @@ test('the orders reproduce the PoC call order', () => {
   assert.deepEqual(AGBCC_PIPELINE.harvest, ['seed.pool-pointer', 'seed.data-pointer']);
   assert.deepEqual(AGBCC_PIPELINE.queue, ['seed.call', 'seed.veneer', 'seed.adr', 'seed.ram-copy']);
   assert.deepEqual(AGBCC_PIPELINE.seed.slice(0, 2), ['seed.rom-entry', 'seed.startup-pointer']);
-  assert.deepEqual(AGBCC_PIPELINE.gap.forward, { thumb: 'gap.forward-chain', arm: 'gap.arm-scan', after: ['gap.tiled-hole-inner'] });
+  assert.deepEqual(AGBCC_PIPELINE.gap.forward, {
+    thumb: 'gap.forward-chain',
+    arm: 'gap.arm-scan',
+    after: ['gap.tiled-hole-inner'],
+  });
   assert.equal(AGBCC_PIPELINE.bl[AGBCC_PIPELINE.bl.length - 1], 'bl.noreturn-before-noncode');
   assert.equal(AGBCC_PIPELINE.accept[AGBCC_PIPELINE.accept.length - 1], 'accept.tiny-anchored-at-start');
   const walk = AGBCC_PIPELINE.walk;
@@ -85,7 +117,14 @@ test("agbcc holds the PoC's numbers", () => {
   assert.deepEqual(AGBCC.pointerWords, { minPointers: 4, minShare: 0.25 });
   assert.equal(AGBCC.anchorSlack, 3);
   assert.equal(AGBCC.extentPoolGap, 8);
-  assert.deepEqual(AGBCC.gapScan, { backwardWindow: 4096, fillSlack: 3, armFrontPoolWords: 16, armMinInsnsForSkip: 16, prologueDistance: 4096, minInsns: 3 });
+  assert.deepEqual(AGBCC.gapScan, {
+    backwardWindow: 4096,
+    fillSlack: 3,
+    armFrontPoolWords: 16,
+    armMinInsnsForSkip: 16,
+    prologueDistance: 4096,
+    minInsns: 3,
+  });
   assert.deepEqual(AGBCC.alignment, { thumbFunction: 2, armFunction: 4, cFunction: 4, pool: 4, object: 4 });
 });
 
@@ -98,7 +137,10 @@ test('the registry holds agbcc only', () => {
 
 test('the prologue idioms: isPrologue needs a word boundary, opensWithPushLr does not', () => {
   const push = thumbAt(0x0800_0200)`push {r4, lr}; push {lr}`;
-  const rom = romWith([{ at: 0x0800_0200, bytes: push }, { at: 0x0800_0300, bytes: words(0xe92d4010) }]);
+  const rom = romWith([
+    { at: 0x0800_0200, bytes: push },
+    { at: 0x0800_0300, bytes: words(0xe92d4010) },
+  ]);
   assert.equal(AGBCC.idioms.isPrologue(rom, 0x0800_0200, 'thumb'), true);
   assert.equal(AGBCC.idioms.isPrologue(rom, 0x0800_0202, 'thumb'), false, 'not word-aligned');
   assert.equal(AGBCC.idioms.opensWithPushLr(rom, 0x0800_0202), true);
@@ -124,7 +166,9 @@ test('matchTableJump: the pool load the jump register comes from names the base;
     { at: 0x0800_020c, bytes: words(0x0800_0210) },
     { at: 0x0800_0210, bytes: words(0x0800_0220, 0x0800_0224, 0) },
   ]);
-  const insns = [0, 2, 4].map((k) => decode('thumb', rom.bytes[at - rom.base + k]! | (rom.bytes[at - rom.base + k + 1]! << 8), at + k));
+  const insns = [0, 2, 4].map((k) =>
+    decode('thumb', rom.bytes[at - rom.base + k]! | (rom.bytes[at - rom.base + k + 1]! << 8), at + k),
+  );
   const m = AGBCC.idioms.matchTableJump(insns, 2, rom);
   assert.deepEqual(m, { base: 0x0800_0210, targets: [0x0800_0220, 0x0800_0224], load: at });
   assert.equal(AGBCC.idioms.matchTableJump(insns, 0, rom), undefined, 'no load before the cursor');

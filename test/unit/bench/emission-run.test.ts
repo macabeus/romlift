@@ -6,10 +6,9 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { type Rom, type RomliftConfig, configFromDiscover, discover, generate, generatedEntries } from 'romlift';
 
-import { configFromDiscover, discover, generate, generatedEntries, type Rom, type RomliftConfig } from 'romlift';
-
-import { configOf, generateInto, ROMLIFT_EMISSION } from '../../../bench/src/emission-run.ts';
+import { ROMLIFT_EMISSION, configOf, generateInto } from '../../../bench/src/emission-run.ts';
 import { listSyntheticFixtures, readFixtureRom } from '../../helpers/fixtures.ts';
 
 const FAR_JUMP = listSyntheticFixtures().find((f) => f.name === 'far-jump');
@@ -60,7 +59,9 @@ test('generateInto writes every file of the stream and digests it in stream orde
 test('a failing check pass writes nothing and says which check failed', async () => {
   const rom = readFixtureRom(FAR_JUMP);
   const config = configOf(rom);
-  const failed = generate({ rom, config, decomp: { defined: [] }, printer: 'readable' }).report.checks.find((c) => !c.ok);
+  const failed = generate({ rom, config, decomp: { defined: [] }, printer: 'readable' }).report.checks.find(
+    (c) => !c.ok,
+  );
   await inTemp(async (dir) => {
     const outcome = await generateInto(rom, config, dir);
     if (failed === undefined) {

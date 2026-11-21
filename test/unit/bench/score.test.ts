@@ -1,13 +1,20 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-
 import { parseElf } from 'romlift';
-
 import type { MissDiagnosis } from 'romlift/internal';
 
 import { missQueries } from '../../../bench/src/analysis-run.ts';
-import { agreeingFunctions, dumpFunctions, extentAgrees, extentJudgement, insideFoundFunction, scoreAnalysis, scoreRun, staleExceptions } from '../../../bench/src/score.ts';
+import {
+  agreeingFunctions,
+  dumpFunctions,
+  extentAgrees,
+  extentJudgement,
+  insideFoundFunction,
+  scoreAnalysis,
+  scoreRun,
+  staleExceptions,
+} from '../../../bench/src/score.ts';
 import { elfTruth, pocCodeEnd } from '../../../bench/src/truth.ts';
 import { analysisResult, dataset, dump, elfFile, fact, fn } from './fixtures.ts';
 
@@ -145,15 +152,26 @@ test('scoreRun counts from the startup end and classifies every miss and false e
 });
 
 test('scoreRun reports two different digests as non-deterministic and carries the scaffold verdict', () => {
-  const row = scoreRun({ dump: { ...DUMP, digests: ['a', 'b'], scaffold: { ok: false, summary: 'make failed' } }, truth: elfTruth(ELF, ROM_SIZE), dataset: DATASET, sha1: '' });
+  const row = scoreRun({
+    dump: { ...DUMP, digests: ['a', 'b'], scaffold: { ok: false, summary: 'make failed' } },
+    truth: elfTruth(ELF, ROM_SIZE),
+    dataset: DATASET,
+    sha1: '',
+  });
   assert.equal(row.deterministic, false);
   assert.deepEqual(row.scaffold, { ok: false });
 });
 
 test('scoreRun refuses a dump without a diagnosis for a miss or with an unknown origin', () => {
   const truth = elfTruth(ELF, ROM_SIZE);
-  assert.throws(() => scoreRun({ dump: { ...DUMP, misses: DUMP.misses.slice(1) }, truth, dataset: DATASET, sha1: '' }), /no miss diagnosis for 0x08000400 missed/);
-  const odd = { ...DUMP, analysis: { ...DUMP.analysis, functions: [...DUMP.analysis.functions, fn('0x08000800', '0x08000804', 'magic')] } };
+  assert.throws(
+    () => scoreRun({ dump: { ...DUMP, misses: DUMP.misses.slice(1) }, truth, dataset: DATASET, sha1: '' }),
+    /no miss diagnosis for 0x08000400 missed/,
+  );
+  const odd = {
+    ...DUMP,
+    analysis: { ...DUMP.analysis, functions: [...DUMP.analysis.functions, fn('0x08000800', '0x08000804', 'magic')] },
+  };
   assert.throws(() => scoreRun({ dump: odd, truth, dataset: DATASET, sha1: '' }), /unknown PoC origin 'magic'/);
 });
 
@@ -187,7 +205,15 @@ const DIAGNOSES: readonly MissDiagnosis[] = [
 
 test("scoreAnalysis scores romlift's result exactly as scoreRun scores the same PoC run", () => {
   const truth = elfTruth(ELF, ROM_SIZE);
-  const row = scoreAnalysis({ result: RESULT, diagnoses: DIAGNOSES, truth, dataset: DATASET, sha1: 'f'.repeat(40), deterministic: true, scaffold: { ok: true } });
+  const row = scoreAnalysis({
+    result: RESULT,
+    diagnoses: DIAGNOSES,
+    truth,
+    dataset: DATASET,
+    sha1: 'f'.repeat(40),
+    deterministic: true,
+    scaffold: { ok: true },
+  });
   // Equal, the ELF code end included: both end the unsized last function ('label', 0x08000500) at the next
   // code-ending symbol, the OBJECT 'table' at 0x08000600 (truth.ts elfCodeEnd, the owner's answer to Q5,
   // "in every scorer", D61 a); the PoC's convention would end it where it starts.
@@ -199,16 +225,40 @@ test("scoreAnalysis scores romlift's result exactly as scoreRun scores the same 
   assert.equal(row.entries, 5);
   assert.equal(row.tp, 3);
   assert.equal(row.falseEntries[0]?.owner, 'big');
-  assert.deepEqual(row.misses.map((m) => [m.addr, m.reason]), [['0x08000400', 'inside-code'], ['0x08000500', 'unanchored']]);
+  assert.deepEqual(
+    row.misses.map((m) => [m.addr, m.reason]),
+    [
+      ['0x08000400', 'inside-code'],
+      ['0x08000500', 'unanchored'],
+    ],
+  );
   // Without a dump the row has no scaffold verdict; a second run that differs is recorded.
-  const bare = scoreAnalysis({ result: RESULT, diagnoses: DIAGNOSES, truth, dataset: DATASET, sha1: '', deterministic: false });
+  const bare = scoreAnalysis({
+    result: RESULT,
+    diagnoses: DIAGNOSES,
+    truth,
+    dataset: DATASET,
+    sha1: '',
+    deterministic: false,
+  });
   assert.equal(bare.scaffold, undefined);
   assert.ok(!('scaffold' in bare));
   assert.equal(bare.deterministic, false);
 });
 
 test('scoreAnalysis refuses a miss without a diagnosis', () => {
-  assert.throws(() => scoreAnalysis({ result: RESULT, diagnoses: DIAGNOSES.slice(1), truth: elfTruth(ELF, ROM_SIZE), dataset: DATASET, sha1: '', deterministic: true }), /no miss diagnosis for 0x08000400 missed/);
+  assert.throws(
+    () =>
+      scoreAnalysis({
+        result: RESULT,
+        diagnoses: DIAGNOSES.slice(1),
+        truth: elfTruth(ELF, ROM_SIZE),
+        dataset: DATASET,
+        sha1: '',
+        deterministic: true,
+      }),
+    /no miss diagnosis for 0x08000400 missed/,
+  );
 });
 
 test('missQueries asks about the ELF functions from the startup end the run did not report, with their modes', () => {
@@ -220,7 +270,14 @@ test('missQueries asks about the ELF functions from the startup end the run did 
 
 test('staleExceptions lists the labels the run no longer misses and the untyped rows it no longer reports', () => {
   const truth = elfTruth(ELF, ROM_SIZE);
-  const row = scoreAnalysis({ result: RESULT, diagnoses: DIAGNOSES, truth, dataset: DATASET, sha1: '', deterministic: true });
+  const row = scoreAnalysis({
+    result: RESULT,
+    diagnoses: DIAGNOSES,
+    truth,
+    dataset: DATASET,
+    sha1: '',
+    deterministic: true,
+  });
   assert.deepEqual(staleExceptions(DATASET, row), []);
   const grown = dataset({
     labels: [...DATASET.labels, { addr: '0x08000200', name: 'main', category: 'loop-label', note: 'n' }],

@@ -12,8 +12,9 @@ export default defineRule({
   meta: {
     id: 'bl.target-beyond-callee',
     summary: 'a bl to an address beyond the entry of another function the caller calls is a call',
-    restsOn: 'a far jump reaches the caller\'s own tail, and a function never contains the entry of a function it calls',
-    recovers: 'callees that pop a frame they never pushed, misread as the caller\'s tail when the caller is settled before them',
+    restsOn: "a far jump reaches the caller's own tail, and a function never contains the entry of a function it calls",
+    recovers:
+      "callees that pop a frame they never pushed, misread as the caller's tail when the caller is settled before them",
     reads: ['readings', 'rom', 'function-set'],
     adds: ['bl-verdicts'],
   },

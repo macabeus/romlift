@@ -68,7 +68,9 @@ async function holder(dir: string): Promise<Holder> {
     `}));`,
     `if (!held.ok) process.stdout.write('refused\\n');`,
   ].join('\n');
-  const child = spawn(process.execPath, ['--conditions=source', '--input-type=module', '-e', code], { stdio: ['pipe', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, ['--conditions=source', '--input-type=module', '-e', code], {
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
   const first = await new Promise<string>((resolve) => {
     let out = '';
     child.stdout.on('data', (d: Buffer) => {
@@ -105,7 +107,10 @@ test(SECOND_RUN, async () => {
     });
     assert.equal(second.ok, false);
     assert.equal(ran, false, 'the second run never runs its work');
-    assert.deepEqual(second.diagnostics.map((d) => [d.code, d.severity]), [['E_PROJECT_LOCKED', 'error']]);
+    assert.deepEqual(
+      second.diagnostics.map((d) => [d.code, d.severity]),
+      [['E_PROJECT_LOCKED', 'error']],
+    );
     assert.equal(ShellCodes.E_PROJECT_LOCKED.severity, 'error');
     assert.equal(exitFor(second.diagnostics), ExitCode.errors);
     assert.match(second.diagnostics[0]?.message ?? '', new RegExp(`held by pid ${other.pid} on `));
@@ -127,8 +132,14 @@ test(STALE, async () => {
   const outcome = await withProjectLock(dir, async () => parseLock((await lockFile(dir)) ?? ''));
   assert.ok(outcome.ok, JSON.stringify(outcome.diagnostics));
   assert.deepEqual(outcome.value, { pid: process.pid, host: hostname() }, 'the run holds the lock it took over');
-  assert.deepEqual(outcome.diagnostics.map((d) => [d.code, d.severity]), [['W_STALE_LOCK', 'warning']]);
-  assert.match(outcome.diagnostics[0]?.message ?? '', new RegExp(`pid ${pid} on ${hostname().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+  assert.deepEqual(
+    outcome.diagnostics.map((d) => [d.code, d.severity]),
+    [['W_STALE_LOCK', 'warning']],
+  );
+  assert.match(
+    outcome.diagnostics[0]?.message ?? '',
+    new RegExp(`pid ${pid} on ${hostname().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`),
+  );
   assert.equal(exitFor(outcome.diagnostics), ExitCode.ok, 'a warning does not fail the command');
   assert.equal(await lockFile(dir), undefined);
 });
@@ -144,7 +155,10 @@ test(OTHER_HOST, async () => {
   });
   assert.equal(outcome.ok, false);
   assert.equal(ran, false);
-  assert.deepEqual(outcome.diagnostics.map((d) => [d.code, d.severity]), [['E_PROJECT_LOCKED', 'error']]);
+  assert.deepEqual(
+    outcome.diagnostics.map((d) => [d.code, d.severity]),
+    [['E_PROJECT_LOCKED', 'error']],
+  );
   assert.equal(exitFor(outcome.diagnostics), ExitCode.errors);
   assert.equal(await lockFile(dir), text, 'the other host keeps its lock');
 });
@@ -160,10 +174,18 @@ test(RACE, async () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     running--;
   };
-  const outcomes = await Promise.all([withProjectLock(dir, work), withProjectLock(dir, work), withProjectLock(dir, work)]);
+  const outcomes = await Promise.all([
+    withProjectLock(dir, work),
+    withProjectLock(dir, work),
+    withProjectLock(dir, work),
+  ]);
   assert.equal(most, 1, 'never two runs at once');
   assert.equal(outcomes.filter((o) => o.ok).length, 1);
-  for (const o of outcomes.filter((x) => !x.ok)) assert.deepEqual(o.diagnostics.map((d) => d.code), ['E_PROJECT_LOCKED']);
+  for (const o of outcomes.filter((x) => !x.ok))
+    assert.deepEqual(
+      o.diagnostics.map((d) => d.code),
+      ['E_PROJECT_LOCKED'],
+    );
   assert.equal(await lockFile(dir), undefined);
 });
 
@@ -175,27 +197,49 @@ const MUTANTS: readonly Mutant[] = [
   },
   {
     name: 'the stale check ignores the host',
-    mutations: [{ file: LOCK_SOURCE, from: 'if (holder.host !== self?.host || processAlive(holder.pid)) {', to: 'if (processAlive(holder.pid)) {' }],
+    mutations: [
+      {
+        file: LOCK_SOURCE,
+        from: 'if (holder.host !== self?.host || processAlive(holder.pid)) {',
+        to: 'if (processAlive(holder.pid)) {',
+      },
+    ],
     caughtBy: [OTHER_HOST],
   },
   {
     name: 'a stale lock is never taken over',
-    mutations: [{ file: LOCK_SOURCE, from: 'if (holder.host !== self?.host || processAlive(holder.pid)) {', to: 'if (holder.host !== self?.host || processAlive(holder.pid) || true) {' }],
+    mutations: [
+      {
+        file: LOCK_SOURCE,
+        from: 'if (holder.host !== self?.host || processAlive(holder.pid)) {',
+        to: 'if (holder.host !== self?.host || processAlive(holder.pid) || true) {',
+      },
+    ],
     caughtBy: [STALE],
   },
   {
     name: 'a stale lock is taken over without W_STALE_LOCK',
-    mutations: [{ file: LOCK_SOURCE, from: 'notes.push(diagnostic(', to: 'void (diagnostic(' }],
+    // The diagnostic is built and dropped: pushed onto a throwaway array (a call, so the argument list's trailing comma
+    // stays legal).
+    mutations: [{ file: LOCK_SOURCE, from: 'notes.push(', to: 'void [].push(' }],
     caughtBy: [STALE],
   },
 ];
 
-test('control: the tests pass with lock.ts loaded through the mutant harness unchanged', { skip: underMutation() }, async () => {
-  const from = "handle = await open(file, 'wx');";
-  const run = await runUnderMutant(THIS_FILE, { name: 'identity', mutations: [{ file: LOCK_SOURCE, from, to: from }], caughtBy: [] });
-  assert.equal(run.code, 0, run.output.split('\n').slice(-40).join('\n'));
-  assert.deepEqual(run.failed, []);
-});
+test(
+  'control: the tests pass with lock.ts loaded through the mutant harness unchanged',
+  { skip: underMutation() },
+  async () => {
+    const from = "handle = await open(file, 'wx');";
+    const run = await runUnderMutant(THIS_FILE, {
+      name: 'identity',
+      mutations: [{ file: LOCK_SOURCE, from, to: from }],
+      caughtBy: [],
+    });
+    assert.equal(run.code, 0, run.output.split('\n').slice(-40).join('\n'));
+    assert.deepEqual(run.failed, []);
+  },
+);
 
 for (const mutant of MUTANTS) {
   test(`mutant caught: ${mutant.name}`, { skip: underMutation() }, async (t) => {

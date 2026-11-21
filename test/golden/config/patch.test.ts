@@ -5,7 +5,7 @@
 // applyProposals of the input's config, and the only lines it adds are those of the entries the proposals change.
 // UPDATE_GOLDEN=1 rewrites the outputs.
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -81,7 +81,11 @@ for (const name of CASES) {
       writeFileSync(result.ok ? okFile : refusedFile, result.ok ? result.text : refusedText);
     }
     if (!result.ok) {
-      assert.equal(refusedText, readFileSync(refusedFile, 'utf8'), `${name}/refused.txt differs; UPDATE_GOLDEN=1 rewrites it`);
+      assert.equal(
+        refusedText,
+        readFileSync(refusedFile, 'utf8'),
+        `${name}/refused.txt differs; UPDATE_GOLDEN=1 rewrites it`,
+      );
       assert.ok(result.diagnostics.every((d) => d.code === 'E_TOML_PATCH_REFUSED'));
       return;
     }

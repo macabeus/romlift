@@ -3,13 +3,17 @@
 // signatures/specs/*.json must name a dataset under bench/dataset/real/ that is tuning data (not held out,
 // or revealed); a reference to a sealed or an unknown dataset fails. The sealed names are read from the
 // dataset files at run time; no held-out name is written here.
-import { readdir, readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
+
 import { gate } from './gate.ts';
 
 interface Spec {
   readonly library?: string;
-  readonly versions?: readonly { readonly id?: string; readonly references?: readonly { readonly dataset?: string }[] }[];
+  readonly versions?: readonly {
+    readonly id?: string;
+    readonly references?: readonly { readonly dataset?: string }[];
+  }[];
 }
 
 gate({
@@ -19,7 +23,9 @@ gate({
   needs: ['buildSignatures', 'locateSignatures'],
   async run(cx) {
     const specDir = path.join(cx.repoRoot, 'signatures', 'specs');
-    const names = (await readdir(specDir).catch(() => [] as string[])).filter((n) => n.endsWith('.json')).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    const names = (await readdir(specDir).catch(() => [] as string[]))
+      .filter((n) => n.endsWith('.json'))
+      .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
     if (names.length === 0) throw new Error('signatures/specs holds no spec');
     const tuning = new Set(cx.datasets.map((d) => d.name));
     const sealed = new Set(cx.sealed.map((d) => d.name));
@@ -33,12 +39,18 @@ gate({
         for (const ref of version.references ?? []) {
           references++;
           const dataset = ref.dataset ?? '';
-          if (sealed.has(dataset)) problems.push(`${name} ${version.id ?? '?'}: names a sealed held-out dataset as a reference`);
-          else if (!tuning.has(dataset)) problems.push(`${name} ${version.id ?? '?'}: names '${dataset}', which is no dataset under bench/dataset/real`);
+          if (sealed.has(dataset))
+            problems.push(`${name} ${version.id ?? '?'}: names a sealed held-out dataset as a reference`);
+          else if (!tuning.has(dataset))
+            problems.push(
+              `${name} ${version.id ?? '?'}: names '${dataset}', which is no dataset under bench/dataset/real`,
+            );
         }
       }
     }
     if (problems.length > 0) throw new Error(`signature references: ${problems.join('; ')}`);
-    cx.note(`${names.length} specs, ${references} references, all to tuning datasets (${cx.sealed.length} sealed datasets excluded)`);
+    cx.note(
+      `${names.length} specs, ${references} references, all to tuning datasets (${cx.sealed.length} sealed datasets excluded)`,
+    );
   },
 });

@@ -21,8 +21,8 @@ import { sha1Of } from '../../../../src/shell/hash.ts';
 import {
   packageRoot,
   packageVersion,
-  readChunkFiles,
   readCTexts,
+  readChunkFiles,
   readDigests,
   readHeaderTexts,
   readInitDir,
@@ -56,7 +56,12 @@ async function project(): Promise<{ readonly dir: string; readonly toml: string 
   const toml = serializeConfig(config);
   const dir = await dirWith({
     'romlift.toml': toml,
-    'decomp.yaml': renderDecompYaml({ name: config.build.name, title: rom.header.title, gameCode: rom.header.gameCode, sha1: rom.sha1 }),
+    'decomp.yaml': renderDecompYaml({
+      name: config.build.name,
+      title: rom.header.title,
+      gameCode: rom.header.gameCode,
+      sha1: rom.sha1,
+    }),
     'src/main.c': '#include "include_asm.h"\n',
     'src/notes.txt': 'not C',
     'src/deep/other.c': 'not read',
@@ -72,15 +77,25 @@ async function listing(dir: string, rom: string): Promise<InitDirListing> {
   return read.value;
 }
 
-test("readInitDir: an absent path, an empty directory, the ROM inside with .git and dot-files, other entries, a file", async () => {
+test('readInitDir: an absent path, an empty directory, the ROM inside with .git and dot-files, other entries, a file', async () => {
   const absentDir = path.join(TMP, 'not-yet');
   assert.deepEqual(await listing(absentDir, path.join(TMP, 'x.gba')), { dir: absentDir, state: 'absent', names: [] });
   const emptyDir = await dirWith({});
   assert.deepEqual(await listing(emptyDir, '/elsewhere/rom.gba'), { dir: emptyDir, state: 'directory', names: [] });
   const romDir = await dirWith({ 'game.gba': 'x', '.DS_Store': '', '.git/HEAD': 'ref' });
-  assert.deepEqual(await listing(romDir, path.join(romDir, 'game.gba')), { dir: romDir, romInside: 'game.gba', state: 'directory', names: ['.DS_Store', '.git', 'game.gba'] });
+  assert.deepEqual(await listing(romDir, path.join(romDir, 'game.gba')), {
+    dir: romDir,
+    romInside: 'game.gba',
+    state: 'directory',
+    names: ['.DS_Store', '.git', 'game.gba'],
+  });
   const crowded = await dirWith({ 'game.gba': 'x', 'another.gba': 'y' });
-  assert.deepEqual(await listing(crowded, path.join(crowded, 'game.gba')), { dir: crowded, romInside: 'game.gba', state: 'directory', names: ['another.gba', 'game.gba'] });
+  assert.deepEqual(await listing(crowded, path.join(crowded, 'game.gba')), {
+    dir: crowded,
+    romInside: 'game.gba',
+    state: 'directory',
+    names: ['another.gba', 'game.gba'],
+  });
   const file = path.join(crowded, 'game.gba');
   assert.deepEqual(await listing(file, file), { dir: file, state: 'not-directory', names: [] });
   // A path under a file (ENOTDIR) and a link loop (ELOOP) are absent, read through isAbsentError (fix round 6,
@@ -90,7 +105,11 @@ test("readInitDir: an absent path, an empty directory, the ROM inside with .git 
   const loop = await dirWith({});
   await symlink(path.join(loop, 'loopB'), path.join(loop, 'loopA'));
   await symlink(path.join(loop, 'loopA'), path.join(loop, 'loopB'));
-  assert.deepEqual(await listing(path.join(loop, 'loopA'), '/elsewhere/rom.gba'), { dir: path.join(loop, 'loopA'), state: 'absent', names: [] });
+  assert.deepEqual(await listing(path.join(loop, 'loopA'), '/elsewhere/rom.gba'), {
+    dir: path.join(loop, 'loopA'),
+    state: 'absent',
+    names: [],
+  });
 });
 
 test("readInitDir: a romlift project's entries, with the ROM inside", async () => {
@@ -128,16 +147,23 @@ test('readProject: --rom reads another file; a missing ROM is E_IO_READ; outside
 test('readCTexts: no src/ is no C; readProjectTexts reads the paths that exist', async () => {
   const empty = await readCTexts(await dirWith({}));
   assert.ok(empty.ok && empty.value.size === 0);
-  const dir = await dirWith({ 'Makefile': 'all:\n' });
+  const dir = await dirWith({ Makefile: 'all:\n' });
   const texts = await readProjectTexts(dir, ['Makefile', 'README.md']);
   assert.ok(texts.ok);
   assert.deepEqual([...texts.value], [['Makefile', 'all:\n']]);
 });
 
 test('readWriteState: the manifest, no journal, and the digest of the given paths, the manifest paths and the generated roots', async () => {
-  const dir = await dirWith({ 'asm/a.s': 'a\n', 'asm/stray.s': 's\n', 'Makefile': 'm\n' });
+  const dir = await dirWith({ 'asm/a.s': 'a\n', 'asm/stray.s': 's\n', Makefile: 'm\n' });
   await mkdir(path.join(dir, '.romlift'));
-  const manifest = { schema: 1 as const, romlift: '0.0.0', files: { 'asm/a.s': { sha1: sha1Of('a\n'), writer: 'function' as const }, 'asm/gone.s': { sha1: sha1Of('g'), writer: 'function' as const } } };
+  const manifest = {
+    schema: 1 as const,
+    romlift: '0.0.0',
+    files: {
+      'asm/a.s': { sha1: sha1Of('a\n'), writer: 'function' as const },
+      'asm/gone.s': { sha1: sha1Of('g'), writer: 'function' as const },
+    },
+  };
   await writeFile(path.join(dir, '.romlift', 'manifest.json'), [...encodeManifest(manifest)].join(''));
   const state = await readWriteState(dir, ['Makefile', 'ldscript.txt']);
   assert.ok(state.ok);
@@ -168,7 +194,14 @@ test('readDigests: the sha1 of each file that exists, absent for one that does n
   const dir = await dirWith({ 'romlift.toml': 'a = 1\n', 'baserom.gba': 'ROM' });
   const current = await readDigests(dir, ['romlift.toml', 'decomp.yaml', 'baserom.gba']);
   assert.ok(current.ok);
-  assert.deepEqual([...current.value], [['romlift.toml', { kind: 'present', sha1: sha1Of('a = 1\n') }], ['decomp.yaml', { kind: 'absent' }], ['baserom.gba', { kind: 'present', sha1: sha1Of('ROM') }]]);
+  assert.deepEqual(
+    [...current.value],
+    [
+      ['romlift.toml', { kind: 'present', sha1: sha1Of('a = 1\n') }],
+      ['decomp.yaml', { kind: 'absent' }],
+      ['baserom.gba', { kind: 'present', sha1: sha1Of('ROM') }],
+    ],
+  );
 });
 
 // Fix round 4 (architecture-a2-4): the reader of the previous tree, which the C reconciliation keys on (D78 a, D80 a).
@@ -187,14 +220,18 @@ test('readChunkFiles: no asm/nonmatchings is no tree; only the .s files of each 
   });
   const read = await readChunkFiles(dir);
   assert.ok(read.ok);
-  assert.deepEqual(read.value, ['asm/nonmatchings/main/Foo.s', 'asm/nonmatchings/main/sub_08000100.s', 'asm/nonmatchings/main_2/sub_08000300.s']);
+  assert.deepEqual(read.value, [
+    'asm/nonmatchings/main/Foo.s',
+    'asm/nonmatchings/main/sub_08000100.s',
+    'asm/nonmatchings/main_2/sub_08000300.s',
+  ]);
   const file = await dirWith({ 'asm/nonmatchings': 'a file, not a directory' });
   const notDir = await readChunkFiles(file);
   assert.ok(notDir.ok);
   assert.deepEqual(notDir.value, []);
 });
 
-test('readChunkFiles lists asm/matchings too, the decompiled functions\' chunk files (phase 6, D92), in code-unit order', async () => {
+test("readChunkFiles lists asm/matchings too, the decompiled functions' chunk files (phase 6, D92), in code-unit order", async () => {
   const dir = await dirWith({
     'asm/nonmatchings/main/sub_08000100.s': '',
     'asm/matchings/main/Decompiled.s': '',
@@ -207,7 +244,12 @@ test('readChunkFiles lists asm/matchings too, the decompiled functions\' chunk f
 });
 
 test("readRenameTexts: the modules' hand-written sources too, under src/ or elsewhere; an absent one is left out (D109)", async () => {
-  const dir = await dirWith({ 'src/main.c': 'int A;\n', 'src/asm/hand.s': '\t.global A\n', 'src/asm/other.s': 'not read\n', 'handwritten/rand.s': '@ rand\n' });
+  const dir = await dirWith({
+    'src/main.c': 'int A;\n',
+    'src/asm/hand.s': '\t.global A\n',
+    'src/asm/other.s': 'not read\n',
+    'handwritten/rand.s': '@ rand\n',
+  });
   const read = await readRenameTexts(dir, ['src/asm/hand.s', 'handwritten/rand.s', 'handwritten/absent.s']);
   assert.ok(read.ok);
   assert.deepEqual([...read.value.texts.keys()], ['handwritten/rand.s', 'src/asm/hand.s', 'src/main.c']);
@@ -229,11 +271,18 @@ test('readRenameTexts: every .c and .h under src/ and every file under include/,
   await symlink(path.join(dir, 'src', 'main.c'), path.join(dir, 'src', 'link.c'));
   const read = await readRenameTexts(dir);
   assert.ok(read.ok);
-  assert.deepEqual([...read.value.texts.keys()], ['include/global.h', 'include/macros.inc', 'src/deep/part.c', 'src/deep/part.h', 'src/main.c']);
+  assert.deepEqual(
+    [...read.value.texts.keys()],
+    ['include/global.h', 'include/macros.inc', 'src/deep/part.c', 'src/deep/part.h', 'src/main.c'],
+  );
   assert.equal(read.value.texts.get('src/main.c'), '\ufeffint A;\r\n', 'the byte order mark is kept');
   assert.equal(read.value.sha1s.get('src/main.c'), sha1Of('\ufeffint A;\r\n'));
   assert.deepEqual(
-    read.value.skipped.map((f) => [f.path, f.reason, f.bytes === undefined ? undefined : Buffer.from(f.bytes).toString('latin1')]),
+    read.value.skipped.map((f) => [
+      f.path,
+      f.reason,
+      f.bytes === undefined ? undefined : Buffer.from(f.bytes).toString('latin1'),
+    ]),
     [
       ['include/blob.bin', 'binary', 'a\u0000b'],
       ['include/latin1.h', 'not-utf8', 'c\u00e9\n'],
@@ -247,44 +296,59 @@ test('readRenameTexts: every .c and .h under src/ and every file under include/,
 
 // Fix round 2 (architecture-r1-1): a link whose target cannot be read is E_IO_READ, never a link to nothing; a
 // dangling link and a loop are links to nothing, and so is a link to a directory with no file (correctness-r2-3).
-test('readRenameTexts: a link to an unreadable file is E_IO_READ; a dangling link, a link loop and a link to an empty directory are skipped without bytes', { skip: process.getuid?.() === 0 ? 'root reads through mode 000' : false }, async () => {
-  const dir = await dirWith({ 'src/main.c': 'int A;\n', 'secret/locked.h': 'int A;\n', 'empty/.keep': '' });
-  await rm(path.join(dir, 'empty', '.keep'));
-  await symlink(path.join(dir, 'nowhere.h'), path.join(dir, 'src', 'dangling.h'));
-  await symlink('loop.h', path.join(dir, 'src', 'loop.h'));
-  await symlink(path.join(dir, 'empty'), path.join(dir, 'include'));
-  const nothing = await readRenameTexts(dir);
-  assert.ok(nothing.ok);
-  assert.deepEqual(
-    nothing.value.skipped.map((f) => [f.path, f.reason, f.bytes === undefined]),
-    [
-      ['include', 'link', true],
-      ['src/dangling.h', 'link', true],
-      ['src/loop.h', 'link', true],
-    ],
-  );
-  await symlink(path.join(dir, 'secret', 'locked.h'), path.join(dir, 'src', 'locked.h'));
-  await chmod(path.join(dir, 'secret', 'locked.h'), 0o000);
-  try {
-    const read = await readRenameTexts(dir);
-    assert.equal(read.ok, false);
-    assert.ok(!read.ok && read.diagnostics.some((d) => d.code === 'E_IO_READ' && d.path === 'src/locked.h'), JSON.stringify(read));
-  } finally {
-    await chmod(path.join(dir, 'secret', 'locked.h'), 0o644);
-  }
-});
+test(
+  'readRenameTexts: a link to an unreadable file is E_IO_READ; a dangling link, a link loop and a link to an empty directory are skipped without bytes',
+  { skip: process.getuid?.() === 0 ? 'root reads through mode 000' : false },
+  async () => {
+    const dir = await dirWith({ 'src/main.c': 'int A;\n', 'secret/locked.h': 'int A;\n', 'empty/.keep': '' });
+    await rm(path.join(dir, 'empty', '.keep'));
+    await symlink(path.join(dir, 'nowhere.h'), path.join(dir, 'src', 'dangling.h'));
+    await symlink('loop.h', path.join(dir, 'src', 'loop.h'));
+    await symlink(path.join(dir, 'empty'), path.join(dir, 'include'));
+    const nothing = await readRenameTexts(dir);
+    assert.ok(nothing.ok);
+    assert.deepEqual(
+      nothing.value.skipped.map((f) => [f.path, f.reason, f.bytes === undefined]),
+      [
+        ['include', 'link', true],
+        ['src/dangling.h', 'link', true],
+        ['src/loop.h', 'link', true],
+      ],
+    );
+    await symlink(path.join(dir, 'secret', 'locked.h'), path.join(dir, 'src', 'locked.h'));
+    await chmod(path.join(dir, 'secret', 'locked.h'), 0o000);
+    try {
+      const read = await readRenameTexts(dir);
+      assert.equal(read.ok, false);
+      assert.ok(
+        !read.ok && read.diagnostics.some((d) => d.code === 'E_IO_READ' && d.path === 'src/locked.h'),
+        JSON.stringify(read),
+      );
+    } finally {
+      await chmod(path.join(dir, 'secret', 'locked.h'), 0o644);
+    }
+  },
+);
 
 // Fix round 4 (correctness-r2-3): the files behind a link to a directory are read and listed as skipped with their
 // bytes, so planRename refuses one that names the old name; a file rename edits through its own path is not listed.
 test('readRenameTexts: a link to a directory lists each file below it with its bytes, but not one rename edits through its own path', async () => {
-  const dir = await dirWith({ 'src/main.c': 'int A;\n', 'include/real/own.h': 'int A;\n', 'outside/sub/ext.h': 'void A(void);\n' });
+  const dir = await dirWith({
+    'src/main.c': 'int A;\n',
+    'include/real/own.h': 'int A;\n',
+    'outside/sub/ext.h': 'void A(void);\n',
+  });
   await symlink(path.join(dir, 'outside'), path.join(dir, 'include', 'ext'));
   await symlink(path.join(dir, 'include', 'real'), path.join(dir, 'include', 'alias'));
   const read = await readRenameTexts(dir);
   assert.ok(read.ok);
   assert.deepEqual([...read.value.texts.keys()], ['include/real/own.h', 'src/main.c']);
   assert.deepEqual(
-    read.value.skipped.map((f) => [f.path, f.reason, f.bytes === undefined ? undefined : Buffer.from(f.bytes).toString('utf8')]),
+    read.value.skipped.map((f) => [
+      f.path,
+      f.reason,
+      f.bytes === undefined ? undefined : Buffer.from(f.bytes).toString('utf8'),
+    ]),
     [
       ['include/alias', 'link', undefined],
       ['include/ext/sub/ext.h', 'link', 'void A(void);\n'],
@@ -308,19 +372,27 @@ test('readProject passes the chunk files on disk as previousChunkFiles, and none
 });
 
 // Fix round 5 (architecture-b0-6): a tree that cannot be read is an error, never "no previous tree".
-test('readChunkFiles: an asm/ or module directory it cannot examine or list is E_IO_READ', { skip: process.getuid?.() === 0 ? 'root reads through mode 000' : false }, async () => {
-  const dir = await dirWith({ 'asm/nonmatchings/main/sub_08000100.s': '' });
-  for (const locked of [path.join(dir, 'asm'), path.join(dir, 'asm', 'nonmatchings'), path.join(dir, 'asm', 'nonmatchings', 'main')]) {
-    await chmod(locked, 0o000);
-    try {
-      const read = await readChunkFiles(dir);
-      assert.equal(read.ok, false, locked);
-      assert.ok(!read.ok && read.diagnostics.some((d) => d.code === 'E_IO_READ'), locked);
-    } finally {
-      await chmod(locked, 0o755);
+test(
+  'readChunkFiles: an asm/ or module directory it cannot examine or list is E_IO_READ',
+  { skip: process.getuid?.() === 0 ? 'root reads through mode 000' : false },
+  async () => {
+    const dir = await dirWith({ 'asm/nonmatchings/main/sub_08000100.s': '' });
+    for (const locked of [
+      path.join(dir, 'asm'),
+      path.join(dir, 'asm', 'nonmatchings'),
+      path.join(dir, 'asm', 'nonmatchings', 'main'),
+    ]) {
+      await chmod(locked, 0o000);
+      try {
+        const read = await readChunkFiles(dir);
+        assert.equal(read.ok, false, locked);
+        assert.ok(!read.ok && read.diagnostics.some((d) => d.code === 'E_IO_READ'), locked);
+      } finally {
+        await chmod(locked, 0o755);
+      }
     }
-  }
-});
+  },
+);
 
 // Fix round 11 (architecture-d0-3): the headers the C reconciliation follows (IncludeAsmWanted.headers, D87 c).
 
@@ -342,7 +414,17 @@ test('readHeaderTexts: no include/ or src/ is an empty map; every file under inc
   });
   const read = await readHeaderTexts(dir);
   assert.ok(read.ok);
-  assert.deepEqual([...read.value.texts.keys()], ['include/gba/deep/io_reg.h', 'include/gba/gba.h', 'include/global.h', 'include/macros.inc', 'src/local.h', 'src/sub/inner.h']);
+  assert.deepEqual(
+    [...read.value.texts.keys()],
+    [
+      'include/gba/deep/io_reg.h',
+      'include/gba/gba.h',
+      'include/global.h',
+      'include/macros.inc',
+      'src/local.h',
+      'src/sub/inner.h',
+    ],
+  );
   assert.equal(read.value.texts.get('include/global.h'), '#include "gba/gba.h"\n');
   assert.deepEqual([...read.value.realPaths], [], 'no link: every file is where its key says');
   const file = await readHeaderTexts(await dirWith({ include: 'a file, not a directory' }));
@@ -369,35 +451,57 @@ test('readHeaderTexts follows a symbolic link into a directory: a linked subdire
   await symlink(path.join(shared, 'src'), path.join(dir, 'src', 'sub'));
   const read = await readHeaderTexts(dir);
   assert.ok(read.ok, read.ok ? '' : read.diagnostics.map((d) => d.message).join('; '));
-  assert.deepEqual([...read.value.texts], [
-    ['include/alias/types.h', 't'],
-    ['include/gba/macro.h', 'm'],
-    ['include/global.h', 'g'],
-    ['include/real/types.h', 't'],
-    ['include/types.h', 't'],
-    ['src/sub/x.h', 'x'],
-  ]);
+  assert.deepEqual(
+    [...read.value.texts],
+    [
+      ['include/alias/types.h', 't'],
+      ['include/gba/macro.h', 'm'],
+      ['include/global.h', 'g'],
+      ['include/real/types.h', 't'],
+      ['include/types.h', 't'],
+      ['src/sub/x.h', 'x'],
+    ],
+  );
 });
 
 test('readHeaderTexts follows include/ and src/ that are themselves links; one to the project directory ends there', async () => {
-  const shared = await dirWith({ 'include/global.h': 'g', 'include/sub/a.h': 'a', 'src/local.h': 'l', 'src/main.c': 'not a header' });
+  const shared = await dirWith({
+    'include/global.h': 'g',
+    'include/sub/a.h': 'a',
+    'src/local.h': 'l',
+    'src/main.c': 'not a header',
+  });
   const dir = await dirWith({});
   await symlink(path.join(shared, 'include'), path.join(dir, 'include'));
   await symlink(path.join(shared, 'src'), path.join(dir, 'src'));
   const read = await readHeaderTexts(dir);
   assert.ok(read.ok, read.ok ? '' : read.diagnostics.map((d) => d.message).join('; '));
-  assert.deepEqual([...read.value.texts], [['include/global.h', 'g'], ['include/sub/a.h', 'a'], ['src/local.h', 'l']]);
+  assert.deepEqual(
+    [...read.value.texts],
+    [
+      ['include/global.h', 'g'],
+      ['include/sub/a.h', 'a'],
+      ['src/local.h', 'l'],
+    ],
+  );
   const real = await realpath(shared);
-  assert.deepEqual([...read.value.realPaths], [
-    ['include/global.h', `${real}/include/global.h`],
-    ['include/sub/a.h', `${real}/include/sub/a.h`],
-    ['src/local.h', `${real}/src/local.h`],
-  ]);
+  assert.deepEqual(
+    [...read.value.realPaths],
+    [
+      ['include/global.h', `${real}/include/global.h`],
+      ['include/sub/a.h', `${real}/include/sub/a.h`],
+      ['src/local.h', `${real}/src/local.h`],
+    ],
+  );
   const self = await dirWith({ 'global.h': 'g', 'macros.h': 'm', 'unnamed.h': 'u' });
   await symlink('.', path.join(self, 'include'));
   const selfRead = await readHeaderTexts(self);
   assert.ok(selfRead.ok);
-  assert.deepEqual([...selfRead.value.texts], [], 'include -> . is the project directory: not walked, and no #include names a file');
+  assert.deepEqual(
+    [...selfRead.value.texts],
+    [],
+    'include -> . is the project directory: not walked, and no #include names a file',
+  );
 });
 
 // Phase 6 (roadmap "Carried from phase 4": D89 a, D90 a, gate-honesty-d2-2, correctness-d2-1, architecture-d2-1,
@@ -410,122 +514,187 @@ test('readHeaderTexts reads through include -> . exactly the files an #include n
   const read = await readHeaderTexts(self, new Map([['src/main.c', '#include "global.h"\n']]));
   assert.ok(read.ok, read.ok ? '' : read.diagnostics.map((d) => d.message).join('; '));
   // global.h through -I include, then "macros.h" from global.h's real directory, the project's top.
-  assert.deepEqual([...read.value.texts], [['include/global.h', '#include "macros.h"\n'], ['macros.h', 'm']]);
+  assert.deepEqual(
+    [...read.value.texts],
+    [
+      ['include/global.h', '#include "macros.h"\n'],
+      ['macros.h', 'm'],
+    ],
+  );
   assert.deepEqual([...read.value.realPaths], [['include/global.h', 'global.h']]);
 });
 
-test('readHeaderTexts resolves a .. behind a linked directory from the link\'s target; a header linked as a file keeps its link\'s directory', async () => {
-  const shared = await dirWith({ 'gba/macro.h': '#include "../glue.h"\n', 'glue.h': 'shared glue', 'other/lf.h': '#include "sib.h"\n', 'other/sib.h': 'other sib' });
+test("readHeaderTexts resolves a .. behind a linked directory from the link's target; a header linked as a file keeps its link's directory", async () => {
+  const shared = await dirWith({
+    'gba/macro.h': '#include "../glue.h"\n',
+    'glue.h': 'shared glue',
+    'other/lf.h': '#include "sib.h"\n',
+    'other/sib.h': 'other sib',
+  });
   const dir = await dirWith({ 'include/glue.h': 'project glue', 'include/sib.h': 'include sib' });
   await symlink(path.join(shared, 'gba'), path.join(dir, 'include', 'gba'));
   await symlink(path.join(shared, 'other', 'lf.h'), path.join(dir, 'include', 'lf.h'));
-  const read = await readHeaderTexts(dir, new Map([['src/main.c', '#include "gba/macro.h"\n#include "lf.h"\n#include <gba/../glue.h>\n']]));
+  const read = await readHeaderTexts(
+    dir,
+    new Map([['src/main.c', '#include "gba/macro.h"\n#include "lf.h"\n#include <gba/../glue.h>\n']]),
+  );
   assert.ok(read.ok, read.ok ? '' : read.diagnostics.map((d) => d.message).join('; '));
   const real = await realpath(shared);
   // As cc -E and arm-none-eabi-cpp read it: shared glue (twice) and include sib, never other/sib.h.
-  assert.deepEqual([...read.value.texts], [
-    [`${real}/glue.h`, 'shared glue'],
-    ['include/gba/../glue.h', 'shared glue'],
-    ['include/gba/macro.h', '#include "../glue.h"\n'],
-    ['include/glue.h', 'project glue'],
-    ['include/lf.h', '#include "sib.h"\n'],
-    ['include/sib.h', 'include sib'],
-  ]);
-  assert.deepEqual([...read.value.realPaths], [
-    ['include/gba/../glue.h', `${real}/glue.h`],
-    ['include/gba/macro.h', `${real}/gba/macro.h`],
-  ]);
+  assert.deepEqual(
+    [...read.value.texts],
+    [
+      [`${real}/glue.h`, 'shared glue'],
+      ['include/gba/../glue.h', 'shared glue'],
+      ['include/gba/macro.h', '#include "../glue.h"\n'],
+      ['include/glue.h', 'project glue'],
+      ['include/lf.h', '#include "sib.h"\n'],
+      ['include/sib.h', 'include sib'],
+    ],
+  );
+  assert.deepEqual(
+    [...read.value.realPaths],
+    [
+      ['include/gba/../glue.h', `${real}/glue.h`],
+      ['include/gba/macro.h', `${real}/gba/macro.h`],
+    ],
+  );
 });
 
-test('readHeaderTexts returns promptly when a followed link reaches a FIFO: it is not listed, not read (gate-honesty-e1-2)', { skip: process.platform === 'win32' ? 'mkfifo is POSIX' : false }, async () => {
-  const shared = await dirWith({ 'gba/macro.h': 'm' });
-  const pipe = path.join(shared, 'gba', 'pipe.h');
-  execFileSync('mkfifo', [pipe]);
-  const dir = await dirWith({ 'include/global.h': 'g' });
-  await symlink(path.join(shared, 'gba'), path.join(dir, 'include', 'gba'));
-  await mkdir(path.join(dir, 'src'));
-  await symlink(pipe, path.join(dir, 'src', 'pipe.h'));
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error('readHeaderTexts did not return within 5 s: it read the FIFO')), 5000);
-  });
-  try {
-    const read = await Promise.race([readHeaderTexts(dir, new Map([['src/main.c', '#include "pipe.h"\n#include "gba/pipe.h"\n']])), timeout]);
-    assert.ok(read.ok, read.ok ? '' : read.diagnostics.map((d) => d.message).join('; '));
-    assert.deepEqual([...read.value.texts], [
-      ['include/gba/macro.h', 'm'],
-      ['include/global.h', 'g'],
-    ]);
-  } finally {
-    clearTimeout(timer);
-    // A reader blocked on the FIFO (the defect) gets end of file, and the FIFO goes in the same tick, so the next open
-    // (through the other link) finds nothing: a failure fails instead of hanging the process.
+test(
+  'readHeaderTexts returns promptly when a followed link reaches a FIFO: it is not listed, not read (gate-honesty-e1-2)',
+  { skip: process.platform === 'win32' ? 'mkfifo is POSIX' : false },
+  async () => {
+    const shared = await dirWith({ 'gba/macro.h': 'm' });
+    const pipe = path.join(shared, 'gba', 'pipe.h');
+    execFileSync('mkfifo', [pipe]);
+    const dir = await dirWith({ 'include/global.h': 'g' });
+    await symlink(path.join(shared, 'gba'), path.join(dir, 'include', 'gba'));
+    await mkdir(path.join(dir, 'src'));
+    await symlink(pipe, path.join(dir, 'src', 'pipe.h'));
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error('readHeaderTexts did not return within 5 s: it read the FIFO')), 5000);
+    });
     try {
-      closeSync(openSync(pipe, constants.O_WRONLY | constants.O_NONBLOCK));
-    } catch {
-      // ENXIO: nothing reads it, as it should be.
+      const read = await Promise.race([
+        readHeaderTexts(dir, new Map([['src/main.c', '#include "pipe.h"\n#include "gba/pipe.h"\n']])),
+        timeout,
+      ]);
+      assert.ok(read.ok, read.ok ? '' : read.diagnostics.map((d) => d.message).join('; '));
+      assert.deepEqual(
+        [...read.value.texts],
+        [
+          ['include/gba/macro.h', 'm'],
+          ['include/global.h', 'g'],
+        ],
+      );
+    } finally {
+      clearTimeout(timer);
+      // A reader blocked on the FIFO (the defect) gets end of file, and the FIFO goes in the same tick, so the next open
+      // (through the other link) finds nothing: a failure fails instead of hanging the process.
+      try {
+        closeSync(openSync(pipe, constants.O_WRONLY | constants.O_NONBLOCK));
+      } catch {
+        // ENXIO: nothing reads it, as it should be.
+      }
+      unlinkSync(pipe);
     }
-    unlinkSync(pipe);
-  }
-});
+  },
+);
 
 // Fix round 14 (architecture-e0-2, D90 a) recorded a third layout: a link to a directory above the project was entered
 // and every file under it read. Phase 6 (gate-honesty-e1-1): only the files an #include names are read through it.
-test('readHeaderTexts reads through a link above the project (include/up, src/up -> ../..) only the files an #include names', { skip: process.getuid?.() === 0 ? 'root reads through mode 000' : false }, async () => {
-  const outer = await dirWith({ 'other/x.h': 'x', 'other/y.h': 'y', 'other/z.h': 'z', 'blob.bin': 'b', 'locked.h': 'l' });
-  const dir = path.join(outer, 'proj');
-  await mkdir(path.join(dir, 'include'), { recursive: true });
-  await mkdir(path.join(dir, 'src'), { recursive: true });
-  await writeFile(path.join(dir, 'include', 'global.h'), '#include "up/other/x.h"\n');
-  await symlink(path.join('..', '..'), path.join(dir, 'include', 'up'));
-  await symlink(path.join('..', '..'), path.join(dir, 'src', 'up'));
-  // An unrelated file there that cannot be read is never opened: no E_IO_READ.
-  await chmod(path.join(outer, 'locked.h'), 0o000);
-  try {
-    const read = await readHeaderTexts(dir, new Map([['src/main.c', '#include "global.h"\n#include "up/other/y.h"\n']]));
-    assert.ok(read.ok, read.ok ? '' : read.diagnostics.map((d) => d.message).join('; '));
-    const real = await realpath(outer);
-    assert.deepEqual([...read.value.texts], [
-      ['include/global.h', '#include "up/other/x.h"\n'],
-      ['include/up/other/x.h', 'x'],
-      ['src/up/other/y.h', 'y'],
-    ]);
-    assert.deepEqual([...read.value.realPaths], [
-      ['include/up/other/x.h', `${real}/other/x.h`],
-      ['src/up/other/y.h', `${real}/other/y.h`],
-    ]);
-  } finally {
-    await chmod(path.join(outer, 'locked.h'), 0o644);
-  }
-});
-
-test('readHeaderTexts: a file an #include names that cannot be read is E_IO_READ', { skip: process.getuid?.() === 0 ? 'root reads through mode 000' : false }, async () => {
-  const outer = await dirWith({ 'locked.h': 'l' });
-  const dir = path.join(outer, 'proj');
-  await mkdir(path.join(dir, 'include'), { recursive: true });
-  await symlink(path.join('..', '..'), path.join(dir, 'include', 'up'));
-  await chmod(path.join(outer, 'locked.h'), 0o000);
-  try {
-    const read = await readHeaderTexts(dir, new Map([['src/main.c', '#include <up/locked.h>\n']]));
-    assert.ok(!read.ok && read.diagnostics.some((d) => d.code === 'E_IO_READ' && d.path === 'include/up/locked.h'), read.ok ? 'read' : read.diagnostics.map((d) => d.message).join('; '));
-  } finally {
-    await chmod(path.join(outer, 'locked.h'), 0o644);
-  }
-});
-
-test('readHeaderTexts: an include/ or src/ directory it cannot list, or a header it cannot read, is E_IO_READ', { skip: process.getuid?.() === 0 ? 'root reads through mode 000' : false }, async () => {
-  const dir = await dirWith({ 'include/gba/gba.h': '', 'src/sub/a.h': '' });
-  for (const locked of [path.join(dir, 'include'), path.join(dir, 'include', 'gba'), path.join(dir, 'src', 'sub'), path.join(dir, 'include', 'gba', 'gba.h')]) {
-    await chmod(locked, 0o000);
+test(
+  'readHeaderTexts reads through a link above the project (include/up, src/up -> ../..) only the files an #include names',
+  { skip: process.getuid?.() === 0 ? 'root reads through mode 000' : false },
+  async () => {
+    const outer = await dirWith({
+      'other/x.h': 'x',
+      'other/y.h': 'y',
+      'other/z.h': 'z',
+      'blob.bin': 'b',
+      'locked.h': 'l',
+    });
+    const dir = path.join(outer, 'proj');
+    await mkdir(path.join(dir, 'include'), { recursive: true });
+    await mkdir(path.join(dir, 'src'), { recursive: true });
+    await writeFile(path.join(dir, 'include', 'global.h'), '#include "up/other/x.h"\n');
+    await symlink(path.join('..', '..'), path.join(dir, 'include', 'up'));
+    await symlink(path.join('..', '..'), path.join(dir, 'src', 'up'));
+    // An unrelated file there that cannot be read is never opened: no E_IO_READ.
+    await chmod(path.join(outer, 'locked.h'), 0o000);
     try {
-      const read = await readHeaderTexts(dir);
-      assert.equal(read.ok, false, locked);
-      assert.ok(!read.ok && read.diagnostics.some((d) => d.code === 'E_IO_READ'), locked);
+      const read = await readHeaderTexts(
+        dir,
+        new Map([['src/main.c', '#include "global.h"\n#include "up/other/y.h"\n']]),
+      );
+      assert.ok(read.ok, read.ok ? '' : read.diagnostics.map((d) => d.message).join('; '));
+      const real = await realpath(outer);
+      assert.deepEqual(
+        [...read.value.texts],
+        [
+          ['include/global.h', '#include "up/other/x.h"\n'],
+          ['include/up/other/x.h', 'x'],
+          ['src/up/other/y.h', 'y'],
+        ],
+      );
+      assert.deepEqual(
+        [...read.value.realPaths],
+        [
+          ['include/up/other/x.h', `${real}/other/x.h`],
+          ['src/up/other/y.h', `${real}/other/y.h`],
+        ],
+      );
     } finally {
-      await chmod(locked, locked.endsWith('.h') ? 0o644 : 0o755);
+      await chmod(path.join(outer, 'locked.h'), 0o644);
     }
-  }
-});
+  },
+);
+
+test(
+  'readHeaderTexts: a file an #include names that cannot be read is E_IO_READ',
+  { skip: process.getuid?.() === 0 ? 'root reads through mode 000' : false },
+  async () => {
+    const outer = await dirWith({ 'locked.h': 'l' });
+    const dir = path.join(outer, 'proj');
+    await mkdir(path.join(dir, 'include'), { recursive: true });
+    await symlink(path.join('..', '..'), path.join(dir, 'include', 'up'));
+    await chmod(path.join(outer, 'locked.h'), 0o000);
+    try {
+      const read = await readHeaderTexts(dir, new Map([['src/main.c', '#include <up/locked.h>\n']]));
+      assert.ok(
+        !read.ok && read.diagnostics.some((d) => d.code === 'E_IO_READ' && d.path === 'include/up/locked.h'),
+        read.ok ? 'read' : read.diagnostics.map((d) => d.message).join('; '),
+      );
+    } finally {
+      await chmod(path.join(outer, 'locked.h'), 0o644);
+    }
+  },
+);
+
+test(
+  'readHeaderTexts: an include/ or src/ directory it cannot list, or a header it cannot read, is E_IO_READ',
+  { skip: process.getuid?.() === 0 ? 'root reads through mode 000' : false },
+  async () => {
+    const dir = await dirWith({ 'include/gba/gba.h': '', 'src/sub/a.h': '' });
+    for (const locked of [
+      path.join(dir, 'include'),
+      path.join(dir, 'include', 'gba'),
+      path.join(dir, 'src', 'sub'),
+      path.join(dir, 'include', 'gba', 'gba.h'),
+    ]) {
+      await chmod(locked, 0o000);
+      try {
+        const read = await readHeaderTexts(dir);
+        assert.equal(read.ok, false, locked);
+        assert.ok(!read.ok && read.diagnostics.some((d) => d.code === 'E_IO_READ'), locked);
+      } finally {
+        await chmod(locked, locked.endsWith('.h') ? 0o644 : 0o755);
+      }
+    }
+  },
+);
 
 test('readProject passes the headers as headerTexts, and none with withoutC', async () => {
   const { dir } = await project();

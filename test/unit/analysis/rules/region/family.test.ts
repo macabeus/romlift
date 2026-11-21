@@ -15,10 +15,16 @@ test('three region rules, each under its meta id, with complete metadata, in the
     const rule = REGION_RULES[id];
     assert.equal(rule.meta.id, id);
     assert.equal(rule.kind, 'region');
-    for (const field of [rule.meta.summary, rule.meta.restsOn, rule.meta.recovers]) assert.ok(field.trim().length > 0, id);
+    for (const field of [rule.meta.summary, rule.meta.restsOn, rule.meta.recovers])
+      assert.ok(field.trim().length > 0, id);
     assert.ok(rule.meta.adds.length > 0, id);
     assert.equal(RULES[id], rule);
-    for (const profile of [AGBCC, DUMMY_PROFILE]) assert.ok(profile.pipeline.region.includes(id), `${profile.id}: ${id}`);
+    for (const profile of [AGBCC, DUMMY_PROFILE])
+      assert.ok(profile.pipeline.region.includes(id), `${profile.id}: ${id}`);
   }
-  assert.equal(typeof REGION_RULES['region.startup'].startup, 'function', 'the startup rule answers the startup region');
+  assert.equal(
+    typeof REGION_RULES['region.startup'].startup,
+    'function',
+    'the startup rule answers the startup region',
+  );
 });

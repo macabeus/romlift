@@ -40,7 +40,7 @@
 // reports rather than gates; NOT_COMPARED the functions objdiff could not compare at all. D34 as the owner amended it
 // on 25 October 2026 (D102: phase-3.md Q1 option (b) and phase-6.md Q6 option (c)) gates every other class but
 // unnamed-target (isGated), up to each tuning ROM's ceiling (bench/baseline/objdiff-ceiling.json, g6.objdiff).
-import { abs32Word, R_ARM, R_ARM_BRANCHES } from 'romlift';
+import { R_ARM, R_ARM_BRANCHES, abs32Word } from 'romlift';
 import { defaultSpellingAddress } from 'romlift/internal';
 
 import type { ObjdiffDifference } from './objdiff.ts';
@@ -84,7 +84,15 @@ export const OBJDIFF_CLASSES: readonly ObjdiffClass[] = [
 ];
 
 /** The classes whose two sides are checked to link to the same word. */
-export const SAME_WORD: ReadonlySet<ObjdiffClass> = new Set<ObjdiffClass>(['resolved-call', 'static-callee', 'value-named', 'alias', 'symbol-addend', 'value-for-symbol', 'default-name']);
+export const SAME_WORD: ReadonlySet<ObjdiffClass> = new Set<ObjdiffClass>([
+  'resolved-call',
+  'static-callee',
+  'value-named',
+  'alias',
+  'symbol-addend',
+  'value-for-symbol',
+  'default-name',
+]);
 /** The classes that are functions objdiff did not compare. */
 export const NOT_COMPARED: ReadonlySet<ObjdiffClass> = new Set<ObjdiffClass>(['missing-symbol', 'tool']);
 
@@ -134,7 +142,6 @@ const TRAILING_PAD = /delete: \.hword 0x0 \| \(none\)$/;
 const RELOCATION_ROW = new RegExp(`: (${NAME}) \\| (${NAME})$`);
 const MISSING_ROW = new RegExp(`: (${NAME}) \\| a plain value$`);
 
-
 /**
  * The word `span + addend` links to under relocation `type`: R_ARM_ABS32 sets the Thumb bit of a Thumb function; for a
  * branch (R_ARM_BRANCHES) it is the target, the PC bias of both sides being one.
@@ -149,9 +156,21 @@ function linkedWord(span: NamedSpan, addend: number, type: number): number | und
 const DEFAULT_DATA_NAME = /^gUnk_[0-9A-F]{8}$/;
 
 /** The class of a relocation `<a> | <b>`: alias, symbol-addend, default-name, relocation-other or unverified. */
-function relocationClass(a: readonly NamedSpan[], b: readonly NamedSpan[], d: ObjdiffDifference, baseName = ''): ObjdiffClass {
+function relocationClass(
+  a: readonly NamedSpan[],
+  b: readonly NamedSpan[],
+  d: ObjdiffDifference,
+  baseName = '',
+): ObjdiffClass {
   const { relocationType: type, referenceAddend, baseAddend } = d.facts;
-  if (type === undefined || referenceAddend === undefined || baseAddend === undefined || a.length === 0 || b.length === 0) return 'unverified';
+  if (
+    type === undefined ||
+    referenceAddend === undefined ||
+    baseAddend === undefined ||
+    a.length === 0 ||
+    b.length === 0
+  )
+    return 'unverified';
   if (!R_ARM_BRANCHES.has(type) && type !== R_ARM.ABS32) return 'unverified';
   let alias = false;
   let inside = false;
@@ -166,20 +185,31 @@ function relocationClass(a: readonly NamedSpan[], b: readonly NamedSpan[], d: Ob
   if (inside) return 'symbol-addend';
   // The base names the word by its default name, the address it spells, which the reference's `<a> + addend` links to.
   const spelled = DEFAULT_DATA_NAME.test(baseName) ? defaultSpellingAddress(baseName) : undefined;
-  const sameWord = spelled !== undefined && a.some((x) => linkedWord(x, referenceAddend, type) === linkedWord({ addr: spelled, size: 0, thumb: false }, baseAddend, type));
+  const sameWord =
+    spelled !== undefined &&
+    a.some(
+      (x) =>
+        linkedWord(x, referenceAddend, type) === linkedWord({ addr: spelled, size: 0, thumb: false }, baseAddend, type),
+    );
   return sameWord ? 'default-name' : 'relocation-other';
 }
 
 /** The class of a missing relocation: value-for-symbol, relocation-other or unverified. */
 function missingClass(symbol: readonly NamedSpan[], d: ObjdiffDifference): ObjdiffClass {
   const { relocationType: type, referenceAddend, baseField, sectionBase, offset } = d.facts;
-  if (type === undefined || referenceAddend === undefined || baseField === undefined || symbol.length === 0) return 'unverified';
-  if (type === R_ARM.ABS32) return symbol.some((x) => linkedWord(x, referenceAddend, type) === baseField >>> 0) ? 'value-for-symbol' : 'relocation-other';
+  if (type === undefined || referenceAddend === undefined || baseField === undefined || symbol.length === 0)
+    return 'unverified';
+  if (type === R_ARM.ABS32)
+    return symbol.some((x) => linkedWord(x, referenceAddend, type) === baseField >>> 0)
+      ? 'value-for-symbol'
+      : 'relocation-other';
   if (type === R_ARM.THM_CALL) {
     // The reference's bl at P reaches S + A + 4, the base's plain bl P + 4 + its offset: one target when S + A = P + offset.
     if (sectionBase === undefined || offset === undefined) return 'unverified';
     const site = sectionBase + offset;
-    return symbol.some((x) => (x.addr + referenceAddend) >>> 0 === (site + baseField) >>> 0) ? 'value-for-symbol' : 'relocation-other';
+    return symbol.some((x) => (x.addr + referenceAddend) >>> 0 === (site + baseField) >>> 0)
+      ? 'value-for-symbol'
+      : 'relocation-other';
   }
   return 'unverified';
 }
@@ -191,7 +221,9 @@ function instructionClass(d: ObjdiffDifference, addressesOf: NameAddresses): Obj
   if (word !== null) {
     const value = Number.parseInt(word[1] ?? '', 16);
     const addend = word[4] === undefined ? 0 : Number.parseInt(word[4], 16) * (word[3] === '-' ? -1 : 1);
-    return addressesOf(word[2] ?? '').some((x) => linkedWord(x, addend, R_ARM.ABS32) === value) ? 'value-named' : 'instruction-other';
+    return addressesOf(word[2] ?? '').some((x) => linkedWord(x, addend, R_ARM.ABS32) === value)
+      ? 'value-named'
+      : 'instruction-other';
   }
   const call = STATIC_CALL.exec(detail);
   if (call !== null) {
@@ -209,7 +241,9 @@ export function objdiffClass(d: ObjdiffDifference, addressesOf: NameAddresses): 
       return instructionClass(d, addressesOf);
     case 'relocation': {
       const names = RELOCATION_ROW.exec(d.example.detail);
-      return names === null ? 'relocation-other' : relocationClass(addressesOf(names[1] ?? ''), addressesOf(names[2] ?? ''), d, names[2] ?? '');
+      return names === null
+        ? 'relocation-other'
+        : relocationClass(addressesOf(names[1] ?? ''), addressesOf(names[2] ?? ''), d, names[2] ?? '');
     }
     case 'missing-relocation': {
       const name = MISSING_ROW.exec(d.example.detail);
@@ -237,7 +271,10 @@ export function countClasses(classes: readonly ObjdiffClass[]): Readonly<Record<
 }
 
 /** The count of every class over `differences`, every class present (0 when none). */
-export function classCounts(differences: readonly ObjdiffDifference[], addressesOf: NameAddresses): Readonly<Record<ObjdiffClass, number>> {
+export function classCounts(
+  differences: readonly ObjdiffDifference[],
+  addressesOf: NameAddresses,
+): Readonly<Record<ObjdiffClass, number>> {
   return countClasses(differences.map((d) => objdiffClass(d, addressesOf)));
 }
 

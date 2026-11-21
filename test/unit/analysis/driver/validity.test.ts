@@ -2,13 +2,13 @@
 // epoch only, and validity rules that judge the entry before any reading.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { rejectionKey } from '../../../../src/core/analysis/driver/trail.ts';
 
-import { createDriver } from '../../../../src/core/analysis/driver/state.ts';
-import { valid, whyInvalid } from '../../../../src/core/analysis/driver/validity.ts';
-import { beginEpoch } from '../../../../src/core/analysis/driver/epoch.ts';
 import { accept } from '../../../../src/core/analysis/driver/accept.ts';
+import { beginEpoch } from '../../../../src/core/analysis/driver/epoch.ts';
 import { settle } from '../../../../src/core/analysis/driver/settle.ts';
+import { createDriver } from '../../../../src/core/analysis/driver/state.ts';
+import { rejectionKey } from '../../../../src/core/analysis/driver/trail.ts';
+import { valid, whyInvalid } from '../../../../src/core/analysis/driver/validity.ts';
 import type { RegisteredRule } from '../../../../src/core/analysis/types.ts';
 import { fakeRule, registry, romWith, testProfile, tuningFor } from '../../../helpers/analysis.ts';
 import { thumbAt } from '../../../helpers/thumb.ts';
@@ -22,9 +22,21 @@ function driver(rules: readonly RegisteredRule[]) {
     { at: F, bytes: thumbAt(F)`push {lr}; bl _08000240; pop {pc}` },
     { at: G, bytes: thumbAt(G)`push {lr}; bl _08000200; pop {pc}` },
   ]);
-  const profile = testProfile({ validity: rules.map((r) => r.meta.id), claim: ['claim.adjacent-pools'], walk: walk.map((w) => w.meta.id) });
+  const profile = testProfile({
+    validity: rules.map((r) => r.meta.id),
+    claim: ['claim.adjacent-pools'],
+    walk: walk.map((w) => w.meta.id),
+  });
   const reg = registry(...rules, extent, ...walk);
-  return { s: createDriver(rom, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' }, tuningFor(profile, reg), reg) };
+  return {
+    s: createDriver(
+      rom,
+      profile,
+      { mode: 'discover', seeds: [], overrides: [], trail: 'off' },
+      tuningFor(profile, reg),
+      reg,
+    ),
+  };
 }
 
 test('the memo is optimistic while the callees are checked, so mutual recursion terminates', () => {
@@ -73,7 +85,12 @@ test('an entry outside the ROM, odd or claimed is never valid, rejected by the r
   assert.equal(s.neverValid.has(F + 1), true);
   assert.equal(s.settled.size, 0, 'checkEntry needs no reading');
   assert.equal(s.rejections.get(rejectionKey(F + 1, 'thumb'))?.rule, 'valid.in-rom-unclaimed');
-  assert.deepEqual(whyInvalid(s, 0x0900_0000), { rule: 'valid.in-rom-unclaimed', reason: 'inside-code', intrinsic: true, detail: 'outside the ROM' });
+  assert.deepEqual(whyInvalid(s, 0x0900_0000), {
+    rule: 'valid.in-rom-unclaimed',
+    reason: 'inside-code',
+    intrinsic: true,
+    detail: 'outside the ROM',
+  });
   assert.equal(s.settled.size, 0, 'checkEntry needs no reading');
   accept(s, { entry: F, mode: 'thumb', proposedBy: 'seed.call', cites: [] });
   assert.equal(valid(s, F), true);

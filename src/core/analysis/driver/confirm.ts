@@ -44,7 +44,8 @@ export function compareOverrides(a: OverrideFact, b: OverrideFact): number {
 export function listedSeeds(options: AnalysisOptions): ReadonlyMap<Addr, Seed> {
   const listed = new Map<Addr, Seed>();
   if (options.mode !== 'confirm') return listed;
-  for (const seed of [...options.seeds].sort(compareSeeds)) if (seed.rule === 'seed.listed' && !listed.has(seed.entry)) listed.set(seed.entry, seed);
+  for (const seed of [...options.seeds].sort(compareSeeds))
+    if (seed.rule === 'seed.listed' && !listed.has(seed.entry)) listed.set(seed.entry, seed);
   return listed;
 }
 
@@ -71,11 +72,16 @@ export function recordUnlisted(s: DriverState, c: Candidate, origin: Origin): vo
   const p = provenance(c.proposedBy, s.round, c.cites);
   s.unlisted.set(c.entry, { entry: c.entry, mode: c.mode, origin, provenance: p });
   s.diagnostics.push(
-    diagnostic(AnalysisCodes, 'W_UNLISTED_FUNCTION', `${hexAddr(c.entry)} (${c.mode}) is accepted by ${c.proposedBy} but not listed`, {
-      addr: c.entry,
-      rule: c.proposedBy,
-      cites: p.cites,
-    }),
+    diagnostic(
+      AnalysisCodes,
+      'W_UNLISTED_FUNCTION',
+      `${hexAddr(c.entry)} (${c.mode}) is accepted by ${c.proposedBy} but not listed`,
+      {
+        addr: c.entry,
+        rule: c.proposedBy,
+        cites: p.cites,
+      },
+    ),
   );
 }
 
@@ -89,12 +95,26 @@ export function checkListed(s: DriverState, c: Candidate): void {
   if (s.listed.get(c.entry)?.validate !== true) return;
   const failure = whyListedInvalid(s, c.entry);
   if (failure === undefined) return;
-  const rejection = { at: c.entry, mode: c.mode, rule: failure.rule, reason: failure.reason, intrinsic: failure.intrinsic, round: s.round, detail: failure.detail, count: 1 };
+  const rejection = {
+    at: c.entry,
+    mode: c.mode,
+    rule: failure.rule,
+    reason: failure.reason,
+    intrinsic: failure.intrinsic,
+    round: s.round,
+    detail: failure.detail,
+    count: 1,
+  };
   s.listedInvalid.set(c.entry, { entry: c.entry, rejection });
   s.diagnostics.push(
-    diagnostic(AnalysisCodes, 'W_LISTED_INVALID', `the listed function ${hexAddr(c.entry)} fails ${failure.rule}: ${failure.detail}`, {
-      addr: c.entry,
-      rule: failure.rule,
-    }),
+    diagnostic(
+      AnalysisCodes,
+      'W_LISTED_INVALID',
+      `the listed function ${hexAddr(c.entry)} fails ${failure.rule}: ${failure.detail}`,
+      {
+        addr: c.entry,
+        rule: failure.rule,
+      },
+    ),
   );
 }

@@ -23,17 +23,21 @@ function armReading(v: AnalysisView, entry: Addr, end: Addr): Reading | undefine
   const flow = first.flow.kind;
   if (flow === 'branch' || flow === 'invalid' || isConditional(first)) return undefined;
   const r = v.read(entry, 'arm');
-  if (r.insns.length < profile.gapScan.minInsns || r.errors.length > 0 || r.returns === 0 || r.codeEnd > end) return undefined;
+  if (r.insns.length < profile.gapScan.minInsns || r.errors.length > 0 || r.returns === 0 || r.codeEnd > end)
+    return undefined;
   if (end - r.codeEnd > profile.gapScan.fillSlack && !isDense(r, profile)) return undefined;
-  if (r.insns.some((i) => v.claimAt(i.addr) !== Claim.free) || r.pools.some((p) => v.claimAt(p.addr) === Claim.code)) return undefined;
+  if (r.insns.some((i) => v.claimAt(i.addr) !== Claim.free) || r.pools.some((p) => v.claimAt(p.addr) === Claim.code))
+    return undefined;
   return r;
 }
 
 export default defineRule({
   meta: {
     id: 'gap.arm-scan',
-    summary: 'an ARM function at the cursor or up to armFrontPoolWords words ahead of its own pools and tables, unreached by any reference',
-    restsOn: 'hand-written ARM keeps literal pools before its code and dispatches through branch tables, and is entered through RAM copies or computed jumps',
+    summary:
+      'an ARM function at the cursor or up to armFrontPoolWords words ahead of its own pools and tables, unreached by any reference',
+    restsOn:
+      'hand-written ARM keeps literal pools before its code and dispatches through branch tables, and is entered through RAM copies or computed jumps',
     recovers: 'heap, OAM and map routines in ARM that no accepted code refers to',
     reads: ['rom', 'claims', 'readings'],
     adds: ['candidates'],

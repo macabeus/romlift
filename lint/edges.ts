@@ -74,7 +74,14 @@ const types = (...names: string[]): Selector => ({ element: { type: names } });
 const files = (...paths: string[]): Selector => ({ file: { path: paths } });
 const packages = (...sources: string[]): Selector => ({ module: { origin: 'external', source: sources } });
 const NODE_BUILTINS: Selector = { module: { origin: 'core', source: 'node:*' } };
-const RUNTIME_DEPS = packages('smol-toml', 'smol-toml/**', 'zod', 'zod/**', '@match-kit/decomp-yaml', '@match-kit/decomp-yaml/**');
+const RUNTIME_DEPS = packages(
+  'smol-toml',
+  'smol-toml/**',
+  'zod',
+  'zod/**',
+  '@match-kit/decomp-yaml',
+  '@match-kit/decomp-yaml/**',
+);
 const ENTRY_POINTS = packages('romlift', 'romlift/node', 'romlift/isa', 'romlift/internal');
 const FOUNDATION = types('foundation');
 const ALL_CORE = files('src/core/**');
@@ -103,7 +110,10 @@ const RULE_FILE_DEPS: readonly Selector[] = [
 ];
 
 const may = (from: string, to: readonly Selector[]): Policy => ({ from: types(from), allow: { to } });
-const mayForTypes = (from: string, to: readonly Selector[]): Policy => ({ from: types(from), allow: { to, dependency: { kind: 'type' } } });
+const mayForTypes = (from: string, to: readonly Selector[]): Policy => ({
+  from: types(from),
+  allow: { to, dependency: { kind: 'type' } },
+});
 /** A file whose rights are not its folder's: none of its folder's, then exactly `to`. */
 const only = (from: readonly string[], to: readonly Selector[]): Policy[] => [
   { from: files(...from), disallow: { dependency: { kind: '*' } } },
@@ -117,13 +127,27 @@ const ELEMENT_POLICIES: readonly Policy[] = [
   may('rule-family', RULE_FILE_DEPS),
   may('analysis', [FOUNDATION, types('provenance', 'profile', 'analysis', 'rule-family')]),
   may('proposals', [FOUNDATION, types('provenance', 'proposals')]),
-  may('layout', [FOUNDATION, files('src/core/profile/types.ts', 'src/core/analysis/types.ts'), types('proposals', 'layout')]),
-  may('signatures', [FOUNDATION, types('provenance', 'proposals', 'signatures'), files('src/core/analysis/types.ts'), packages('zod', 'zod/**')]),
+  may('layout', [
+    FOUNDATION,
+    files('src/core/profile/types.ts', 'src/core/analysis/types.ts'),
+    types('proposals', 'layout'),
+  ]),
+  may('signatures', [
+    FOUNDATION,
+    types('provenance', 'proposals', 'signatures'),
+    files('src/core/analysis/types.ts'),
+    packages('zod', 'zod/**'),
+  ]),
   may('config', [FOUNDATION, types('proposals', 'config'), RUNTIME_DEPS]),
   may('model', [
     FOUNDATION,
     types('provenance', 'model'),
-    files('src/core/profile/types.ts', 'src/core/analysis/types.ts', 'src/core/config/compilers.ts', 'src/core/layout/borders.ts'),
+    files(
+      'src/core/profile/types.ts',
+      'src/core/analysis/types.ts',
+      'src/core/config/compilers.ts',
+      'src/core/layout/borders.ts',
+    ),
   ]),
   // "core/config (types and compilers.ts)": the rest of the config module is reachable for types only.
   mayForTypes('model', [types('config')]),
@@ -132,7 +156,11 @@ const ELEMENT_POLICIES: readonly Policy[] = [
   may('emit', [FOUNDATION, types('model', 'reconcile', 'emit')]),
   // core/reconcile and core/config/compilers.ts: the text-layout check reads a C stub's INCLUDE_ASM statements with the
   // one C tokenizer (no regex runs over code, §6.6) and a C unit's compiler (D74).
-  may('verify', [FOUNDATION, types('model', 'reconcile', 'verify'), files('src/core/emit/tree.ts', 'src/core/config/compilers.ts')]),
+  may('verify', [
+    FOUNDATION,
+    types('model', 'reconcile', 'verify'),
+    files('src/core/emit/tree.ts', 'src/core/config/compilers.ts'),
+  ]),
   may('write-plan', [FOUNDATION, types('write-plan'), files('src/core/emit/tree.ts')]),
   may('workflow', [FOUNDATION, ALL_CORE]),
   may('shell', [FOUNDATION, ALL_CORE, types('shell'), NODE_BUILTINS, RUNTIME_DEPS]),
@@ -158,7 +186,10 @@ const FILE_POLICIES: readonly Policy[] = [
   // A family's index.ts also imports its own rule files.
   { from: files(FAMILY_INDEX), allow: { to: files(`${RULES}/{{from.element.captured.family}}/*.ts`) } },
   ...only([LOOSE_RULE_FILE], RULE_FILE_DEPS),
-  ...only(['src/core/diagnostic-codes.ts'], [files('src/core/**/codes.ts', 'src/foundation/rom/codes.ts', 'src/foundation/diagnostics/**')]),
+  ...only(
+    ['src/core/diagnostic-codes.ts'],
+    [files('src/core/**/codes.ts', 'src/foundation/rom/codes.ts', 'src/foundation/diagnostics/**')],
+  ),
   ...only(['src/cli/commands/index.ts'], [files('src/cli/commands/*.ts', 'src/cli/registry.ts')]),
   ...only(['src/{index,node,isa,internal}.ts'], [files('src/api/*.ts')]),
   // An api file lives directly in src/api/.
@@ -171,7 +202,11 @@ const GUARDS: readonly Policy[] = [
     disallow: { to: files(RULES_INDEX) },
     message: 'only core/analysis/driver/ imports rules/index.ts',
   },
-  { from: files(`!${RULES_INDEX}`), disallow: { to: files(FAMILY_INDEX) }, message: 'only rules/index.ts imports a family index' },
+  {
+    from: files(`!${RULES_INDEX}`),
+    disallow: { to: files(FAMILY_INDEX) },
+    message: 'only rules/index.ts imports a family index',
+  },
   {
     from: files(`!${FAMILY_INDEX}`),
     disallow: { to: files(`${RULES}/*/!(index).ts`, LOOSE_RULE_FILE) },
@@ -179,7 +214,12 @@ const GUARDS: readonly Policy[] = [
   },
   {
     from: files(FAMILY_INDEX),
-    disallow: { to: [{ element: { type: 'rule-family', captured: { family: '!{{from.element.captured.family}}' } } }, files(LOOSE_RULE_FILE)] },
+    disallow: {
+      to: [
+        { element: { type: 'rule-family', captured: { family: '!{{from.element.captured.family}}' } } },
+        files(LOOSE_RULE_FILE),
+      ],
+    },
     message: "only the family's index.ts imports its rule files",
   },
   { from: files('**'), disallow: { to: files('**/*.test.ts') }, message: 'a test file is never imported' },
@@ -187,4 +227,5 @@ const GUARDS: readonly Policy[] = [
 
 export const POLICIES: readonly Policy[] = [...ELEMENT_POLICIES, ...FILE_POLICIES, ...GUARDS];
 
-export const MESSAGE = "a {{from.element.types}} file may not import '{{dependency.source}}' (architecture §2, lint/edges.ts)";
+export const MESSAGE =
+  "a {{from.element.types}} file may not import '{{dependency.source}}' (architecture §2, lint/edges.ts)";

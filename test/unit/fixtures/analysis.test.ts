@@ -6,15 +6,28 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-
-import { analyze, encodeAnalysis, parseElf, profileById, type AnalysisOptions, type AnalysisResult, type CompilerProfile } from 'romlift';
-import { analyzeTuned, DEFAULT_TUNING } from 'romlift/internal';
+import {
+  type AnalysisOptions,
+  type AnalysisResult,
+  type CompilerProfile,
+  analyze,
+  encodeAnalysis,
+  parseElf,
+  profileById,
+} from 'romlift';
+import { DEFAULT_TUNING, analyzeTuned } from 'romlift/internal';
 
 import { sealedInput } from '../../../bench/src/analysis-run.ts';
 import { classifier, classifyMiss, labelClause } from '../../../bench/src/classify.ts';
 import { elfTruth } from '../../../bench/src/truth.ts';
 import { DUMMY_PROFILE } from '../../helpers/dummy-profile.ts';
-import { expectProblems, listSyntheticFixtures, readExpect, readFixtureRom, type SyntheticFixture } from '../../helpers/fixtures.ts';
+import {
+  type SyntheticFixture,
+  expectProblems,
+  listSyntheticFixtures,
+  readExpect,
+  readFixtureRom,
+} from '../../helpers/fixtures.ts';
 
 const FIXTURES = listSyntheticFixtures();
 const OPTIONS: AnalysisOptions = { mode: 'discover', seeds: [], overrides: [], trail: 'off' };
@@ -35,7 +48,8 @@ const digest = (result: AnalysisResult): string => [...encodeAnalysis(result)].j
 
 test('every fixture holds its expect.json under the agbcc profile', () => {
   const profile = agbcc();
-  for (const f of FIXTURES) assert.deepEqual(expectProblems(readExpect(f), analyze(readFixtureRom(f), profile, OPTIONS)), [], f.name);
+  for (const f of FIXTURES)
+    assert.deepEqual(expectProblems(readExpect(f), analyze(readFixtureRom(f), profile, OPTIONS)), [], f.name);
 });
 
 test('the dummy profile runs on every fixture and records its id, with the functions in entry order', () => {
@@ -44,13 +58,19 @@ test('the dummy profile runs on every fixture and records its id, with the funct
     assert.equal(result.schema, 'romlift/analysis@1', f.name);
     assert.equal(result.profile, 'dummy', f.name);
     assert.ok(result.functions.length > 0, f.name);
-    for (let i = 1; i < result.functions.length; i++) assert.ok((result.functions[i - 1]?.entry ?? 0) < (result.functions[i]?.entry ?? 0), `${f.name}: entry order`);
+    for (let i = 1; i < result.functions.length; i++)
+      assert.ok((result.functions[i - 1]?.entry ?? 0) < (result.functions[i]?.entry ?? 0), `${f.name}: entry order`);
   }
 });
 
 test('two runs of every fixture give one canonical analysis, with either profile', () => {
   for (const profile of [agbcc(), DUMMY_PROFILE]) {
-    for (const f of FIXTURES) assert.equal(digest(analyze(readFixtureRom(f), profile, OPTIONS)), digest(analyze(readFixtureRom(f), profile, OPTIONS)), `${f.name} (${profile.id})`);
+    for (const f of FIXTURES)
+      assert.equal(
+        digest(analyze(readFixtureRom(f), profile, OPTIONS)),
+        digest(analyze(readFixtureRom(f), profile, OPTIONS)),
+        `${f.name} (${profile.id})`,
+      );
   }
 });
 
@@ -65,7 +85,10 @@ test('the suppressed split: without gap.forward-chain, the unreferenced Leaf is 
   const profile = agbcc();
 
   const split = analyze(rom, profile, OPTIONS);
-  assert.ok(split.functions.some((fn) => fn.entry === leaf.addr), 'with the rule, Leaf is found');
+  assert.ok(
+    split.functions.some((fn) => fn.entry === leaf.addr),
+    'with the rule, Leaf is found',
+  );
 
   const suppressed = analyzeTuned(rom, profile, OPTIONS, { ...DEFAULT_TUNING, disabled: ['gap.forward-chain'] });
   assert.ok(!suppressed.functions.some((fn) => fn.entry === leaf.addr), 'without the rule, Leaf is missed');

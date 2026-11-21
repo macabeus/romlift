@@ -39,7 +39,11 @@ test('results.json takes the corpus summary only while it parses, matches as and
     const cx = context(root);
     assert.equal(await currentPrinterSummary(cx, AS), undefined, 'no summary yet');
     const digest = await corpusInputsDigest(root, AS, OPTIONS);
-    const summary = corpusSummary({ inputsDigest: digest, as: AS, options: OPTIONS }, summarizeCorpus([], armCoverage()), true);
+    const summary = corpusSummary(
+      { inputsDigest: digest, as: AS, options: OPTIONS },
+      summarizeCorpus([], armCoverage()),
+      true,
+    );
     await writeSummary(root, summary);
     assert.deepEqual(await currentPrinterSummary(cx, AS), summary);
     assert.equal(await currentPrinterSummary(cx, null), undefined, 'no as on the PATH');
@@ -61,9 +65,21 @@ test('a writing run keeps the previous printer member while it is current and ne
     await writeTree(root, TREE);
     const cx = context(root);
     const digest = await corpusInputsDigest(root, AS, OPTIONS);
-    const summary = corpusSummary({ inputsDigest: digest, as: AS, options: OPTIONS }, summarizeCorpus([], armCoverage()), true);
-    assert.deepEqual(await printerMember(cx, AS, undefined), { ok: true, summary: undefined, from: 'none' }, 'nothing to keep, nothing to drop');
-    assert.deepEqual(await printerMember(cx, AS, summary), { ok: true, summary, from: 'previous' }, 'no local corpus run: the current member is kept');
+    const summary = corpusSummary(
+      { inputsDigest: digest, as: AS, options: OPTIONS },
+      summarizeCorpus([], armCoverage()),
+      true,
+    );
+    assert.deepEqual(
+      await printerMember(cx, AS, undefined),
+      { ok: true, summary: undefined, from: 'none' },
+      'nothing to keep, nothing to drop',
+    );
+    assert.deepEqual(
+      await printerMember(cx, AS, summary),
+      { ok: true, summary, from: 'previous' },
+      'no local corpus run: the current member is kept',
+    );
     await writeSummary(root, summary);
     assert.deepEqual(await printerMember(cx, AS, summary), { ok: true, summary, from: 'corpus' });
     await writeTree(root, { 'src/foundation/isa/decode.ts': 'changed' });

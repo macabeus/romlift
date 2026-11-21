@@ -17,7 +17,8 @@ export default defineRule({
   reason: 'pool-claimed',
   intrinsic: true,
   check(r, v) {
-    for (const i of r.insns) if (v.claimAt(i.addr) !== Claim.free) return `its code overlaps claimed bytes at ${hexAddr(i.addr)}`;
+    for (const i of r.insns)
+      if (v.claimAt(i.addr) !== Claim.free) return `its code overlaps claimed bytes at ${hexAddr(i.addr)}`;
     return undefined;
   },
 });

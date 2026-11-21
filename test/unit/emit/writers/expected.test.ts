@@ -12,8 +12,8 @@ import { after, test } from 'node:test';
 
 import { emitTree } from '../../../../src/core/emit/emit-tree.ts';
 import type { EmitContext, FileEntry } from '../../../../src/core/emit/tree.ts';
-import { stubAssemblyText } from '../../../../src/core/model/c-unit.ts';
 import { expectedText, expectedWriter } from '../../../../src/core/emit/writers/expected.ts';
+import { stubAssemblyText } from '../../../../src/core/model/c-unit.ts';
 import { buildModel } from '../../../../src/core/model/model.ts';
 import type { Model } from '../../../../src/core/model/types.ts';
 import { profileById } from '../../../../src/core/profile/registry.ts';
@@ -78,7 +78,15 @@ test("a c module's target includes its chunk files in ROM order, a decompiled fu
   const text = expectedText(model, CX, main);
   const includes = text.split('\n').filter((l) => l.startsWith('.include "asm/'));
   assert.ok(includes.length > 0);
-  assert.ok(text.endsWith(stubAssemblyText(includes.map((l) => l.slice('.include "'.length, -1)), main.compiler)), 'agbcc\'s stub assembly, c-unit.ts stubAssemblyText (architecture-r1-3)');
+  assert.ok(
+    text.endsWith(
+      stubAssemblyText(
+        includes.map((l) => l.slice('.include "'.length, -1)),
+        main.compiler,
+      ),
+    ),
+    "agbcc's stub assembly, c-unit.ts stubAssemblyText (architecture-r1-3)",
+  );
   assert.ok(includes.every((l) => l.startsWith('.include "asm/nonmatchings/main/')));
   const first = model.chunks[main.chunks.first];
   assert.ok(first !== undefined && first.kind === 'function');
@@ -99,7 +107,10 @@ test("an asm or data module's target includes its own source", () => {
 test('a module that is not generated has no file; a misordered include fails the text-layout check', () => {
   const { rom, model } = fixtureModel('c-data');
   const main = model.modules.findIndex((m) => m.name === 'main');
-  const retained: Model = { ...model, modules: model.modules.map((m, i) => (i === main ? { ...m, generated: false } : m)) };
+  const retained: Model = {
+    ...model,
+    modules: model.modules.map((m, i) => (i === main ? { ...m, generated: false } : m)),
+  };
   assert.deepEqual([...expectedWriter.emit(rom, retained, CX, main)], []);
   const [target, ...rest] = [...expectedWriter.emit(rom, model, CX, main)];
   assert.ok(target !== undefined && 'text' in target);
@@ -140,7 +151,11 @@ for (const name of ['composite', 'c-data']) {
       const source = `expected/${module.name}.s`;
       const ran = await runTool(tools.as, [...DIALECT.asArgs, '-I', '.', '-o', `${module.name}.o`, source], dir);
       assert.equal(ran.code, 0, `${name}: ${source}: ${ran.stderr}`);
-      assert.equal((await textOfObject(`${module.name}.o`)).length, module.span.end - module.span.start, `${name}: ${module.name}`);
+      assert.equal(
+        (await textOfObject(`${module.name}.o`)).length,
+        module.span.end - module.span.start,
+        `${name}: ${module.name}`,
+      );
     }
   });
 }

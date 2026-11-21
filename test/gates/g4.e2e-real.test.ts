@@ -14,9 +14,10 @@
 // `npm pack`, `npm install --ignore-scripts <tarball>` into an empty directory), with `npx romlift init` in a directory
 // below the install and setup.sh's ROMLIFT_CLI set to the installed bin.
 import { createHash } from 'node:crypto';
-import { copyFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { copyAgbcc, gate, withLock, type DatasetRef, type ExecResult, type GateContext } from './gate.ts';
+
+import { type DatasetRef, type ExecResult, type GateContext, copyAgbcc, gate, withLock } from './gate.ts';
 
 interface CliLine {
   readonly type: string;
@@ -73,8 +74,11 @@ async function installedTarball(cx: GateContext, dir: string): Promise<string> {
     if (name === undefined) throw new Error('npm pack --json listed no tarball');
     return path.join(packs, name);
   });
-  const install = await cx.exec('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund', tarball], { cwd: tool });
-  if (install.code !== 0) throw new Error(`npm install --ignore-scripts <tarball> exited ${install.code}:\n${tail(install)}`);
+  const install = await cx.exec('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund', tarball], {
+    cwd: tool,
+  });
+  if (install.code !== 0)
+    throw new Error(`npm install --ignore-scripts <tarball> exited ${install.code}:\n${tail(install)}`);
   const bin = path.join(tool, 'node_modules', '.bin', 'romlift');
   if (!(await exists(bin))) throw new Error('the installed package has no romlift bin');
   return bin;
@@ -87,7 +91,14 @@ interface Runner {
 }
 
 /** init, setup.sh and make; returns the failure (with output unless `sealed`), or undefined at the SHA-1. */
-async function build(cx: GateContext, runner: Runner, dataset: DatasetRef, dir: string, agbcc: string | undefined, sealed: boolean): Promise<string | undefined> {
+async function build(
+  cx: GateContext,
+  runner: Runner,
+  dataset: DatasetRef,
+  dir: string,
+  agbcc: string | undefined,
+  sealed: boolean,
+): Promise<string | undefined> {
   const shown = (run: ExecResult): string => (sealed ? '(output withheld: sealed)' : `\n${tail(run)}`);
   const cli = runner.bin;
   await mkdir(dir, { recursive: true });
@@ -100,7 +111,8 @@ async function build(cx: GateContext, runner: Runner, dataset: DatasetRef, dir: 
   } catch {
     return `init --json printed bad NDJSON ${shown(init)}`;
   }
-  if (init.code !== 0 || last?.type !== 'summary' || last.exitCode !== 0) return `init exited ${init.code} ${shown(init)}`;
+  if (init.code !== 0 || last?.type !== 'summary' || last.exitCode !== 0)
+    return `init exited ${init.code} ${shown(init)}`;
   const toml = await readFile(path.join(dir, 'romlift.toml'), 'utf8');
   if (agbcc !== undefined) await copyAgbcc(agbcc, dir);
   const env = { ROMLIFT_CLI: cli };
@@ -111,7 +123,10 @@ async function build(cx: GateContext, runner: Runner, dataset: DatasetRef, dir: 
   if ((await readFile(path.join(dir, 'romlift.toml'), 'utf8')) !== toml) return 'setup.sh or make changed romlift.toml';
   const target = await sha1File(dir);
   if (target === undefined) return 'the project has no single <name>.sha1 in sha1sum format';
-  if (target.sha1 !== dataset.sha1) return sealed ? 'the .sha1 file records another SHA-1' : `the .sha1 file records ${target.sha1}, the dataset ${dataset.sha1}`;
+  if (target.sha1 !== dataset.sha1)
+    return sealed
+      ? 'the .sha1 file records another SHA-1'
+      : `the .sha1 file records ${target.sha1}, the dataset ${dataset.sha1}`;
   const built = path.join(dir, target.file);
   if (!(await exists(built))) return 'make built no ROM';
   const actual = sha1(await readFile(built));
@@ -126,14 +141,16 @@ gate({
   inputs: ['roms', 'toolchain'],
   needs: ['init', 'generate'],
   async run(cx) {
-    if (cx.datasets.length < TUNING_ROMS) throw new Error(`${cx.datasets.length} tuning datasets; the gate runs all ${TUNING_ROMS}`);
+    if (cx.datasets.length < TUNING_ROMS)
+      throw new Error(`${cx.datasets.length} tuning datasets; the gate runs all ${TUNING_ROMS}`);
     const cli = await sourceCli(cx);
     const source: Runner = { init: [cli], bin: cli };
     const base = await cx.tmpDir('romlift-e2e-real-');
     const problems: string[] = [];
     let agbcc: string | undefined;
     const remember = async (dir: string): Promise<void> => {
-      if (agbcc === undefined && (await exists(path.join(dir, 'tools', 'agbcc', 'bin', 'agbcc')))) agbcc = path.join(dir, 'tools', 'agbcc');
+      if (agbcc === undefined && (await exists(path.join(dir, 'tools', 'agbcc', 'bin', 'agbcc'))))
+        agbcc = path.join(dir, 'tools', 'agbcc');
     };
     for (const dataset of cx.datasets) {
       const dir = path.join(base, 'tuning', dataset.name);
@@ -145,7 +162,14 @@ gate({
     const bin = await installedTarball(cx, path.join(base, 'packed'));
     const packed: Runner = { init: ['npx', '--no', 'romlift'], bin };
     for (const dataset of cx.datasets) {
-      const failure = await build(cx, packed, dataset, path.join(base, 'packed', 'install', 'projects', dataset.name), agbcc, false);
+      const failure = await build(
+        cx,
+        packed,
+        dataset,
+        path.join(base, 'packed', 'install', 'projects', dataset.name),
+        agbcc,
+        false,
+      );
       if (failure !== undefined) problems.push(`${dataset.name} from the tarball: ${failure}`);
       else cx.note(`${dataset.name} reaches ${dataset.sha1} from the installed tarball`);
     }
@@ -153,10 +177,14 @@ gate({
     for (let i = 0; i < cx.sealed.length; i++) {
       const dataset = cx.sealed[i];
       if (dataset === undefined) continue;
-      if ((await build(cx, source, dataset, path.join(base, 'sealed', String(i)), agbcc, true)) === undefined) sealedOk++;
+      if ((await build(cx, source, dataset, path.join(base, 'sealed', String(i)), agbcc, true)) === undefined)
+        sealedOk++;
     }
-    if (cx.sealed.length > 0) cx.note(`sealed: ${sealedOk} of ${cx.sealed.length} held-out ROMs reach their SHA-1 (counts only)`);
+    if (cx.sealed.length > 0)
+      cx.note(`sealed: ${sealedOk} of ${cx.sealed.length} held-out ROMs reach their SHA-1 (counts only)`);
     if (problems.length > 0) throw new Error(`end to end on the tuning ROMs: ${problems.join(' | ')}`);
-    cx.note(`all ${cx.datasets.length} tuning ROMs reach their SHA-1 from init, setup.sh and make, from the source tree and from the installed tarball`);
+    cx.note(
+      `all ${cx.datasets.length} tuning ROMs reach their SHA-1 from init, setup.sh and make, from the source tree and from the installed tarball`,
+    );
   },
 });

@@ -11,13 +11,17 @@
 // 0x46C0 pad an ELF function's size covers lie in `$t` code; the zero dead runs lie in `$d` data and stay `.2byte`.
 // Bytes between functions (an orphan chunk) always print as data.
 import type { Rom } from '../../../foundation/rom/rom.ts';
-import { u16, u32, u8 } from '../../../foundation/rom/rom.ts';
+import { u8, u16, u32 } from '../../../foundation/rom/rom.ts';
 import type { Mode, Span } from '../../../foundation/rom/span.ts';
 import { hex } from '../../../foundation/util/hex.ts';
 import type { DataNote } from '../../model/types.ts';
 
 /** The comment text of each data note. */
-const DATA_NOTE_TEXT: Readonly<Record<DataNote, string>> = { dead: 'dead', 'mixer-hole': 'mixer hole', unreached: 'unreached' };
+const DATA_NOTE_TEXT: Readonly<Record<DataNote, string>> = {
+  dead: 'dead',
+  'mixer-hole': 'mixer hole',
+  unreached: 'unreached',
+};
 
 /** The most words one `.4byte` line holds. */
 const WORDS_PER_LINE = 4;
@@ -79,7 +83,12 @@ function isNonZeroHalfwords(rom: Rom, span: Span): boolean {
  * Whether a data item's bytes are Thumb code the assembler emitted (see the header): printed `.inst.n`. `inFunction`
  * is the state of the function that holds the item, undefined outside a function.
  */
-export function isThumbCodeData(rom: Rom, span: Span, note: DataNote | undefined, inFunction: Mode | undefined): boolean {
+export function isThumbCodeData(
+  rom: Rom,
+  span: Span,
+  note: DataNote | undefined,
+  inFunction: Mode | undefined,
+): boolean {
   if (inFunction !== 'thumb') return false;
   return isNopRun(rom, span) || (note === 'dead' && isNonZeroHalfwords(rom, span));
 }
@@ -87,7 +96,8 @@ export function isThumbCodeData(rom: Rom, span: Span, note: DataNote | undefined
 /** The bytes of `span` as `.inst.n` halfwords, each ending with `@ <comment>` when one is given. */
 export function thumbCodeLines(rom: Rom, span: Span, comment?: string): readonly string[] {
   const out: string[] = [];
-  for (let a = span.start; a + 2 <= span.end; a += 2) out.push(withComment(`\t.inst.n 0x${hex(u16(rom, a), 4)}`, comment));
+  for (let a = span.start; a + 2 <= span.end; a += 2)
+    out.push(withComment(`\t.inst.n 0x${hex(u16(rom, a), 4)}`, comment));
   return out;
 }
 
@@ -95,9 +105,16 @@ export function thumbCodeLines(rom: Rom, span: Span, comment?: string): readonly
  * The lines of a data item's bytes `span` with its note; `inFunction` is the state of the function holding it (undefined
  * outside a function), where Thumb code the assembler emitted prints `.inst.n`.
  */
-export function noteLines(rom: Rom, span: Span, note: DataNote | undefined, inFunction: Mode | undefined): readonly string[] {
+export function noteLines(
+  rom: Rom,
+  span: Span,
+  note: DataNote | undefined,
+  inFunction: Mode | undefined,
+): readonly string[] {
   const comment = note === undefined ? undefined : DATA_NOTE_TEXT[note];
-  return isThumbCodeData(rom, span, note, inFunction) ? thumbCodeLines(rom, span, comment) : dataLines(rom, span, comment);
+  return isThumbCodeData(rom, span, note, inFunction)
+    ? thumbCodeLines(rom, span, comment)
+    : dataLines(rom, span, comment);
 }
 
 /** Whether `span` is zeros that end on a word boundary, less than a word: what `.align 2, 0` reproduces. */

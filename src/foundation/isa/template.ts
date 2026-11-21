@@ -17,6 +17,7 @@ import type { Addr } from '../rom/span.ts';
 import { fieldValue as get, rol32, ror32 } from './bits.ts';
 import {
   CONDITIONS,
+  SHIFTS,
   num,
   parseNum,
   parsePsrFields,
@@ -25,7 +26,6 @@ import {
   regList,
   regName,
   regNumber,
-  SHIFTS,
 } from './operand-text.ts';
 import type { Fields } from './types.ts';
 
@@ -77,7 +77,9 @@ function shiftText(shift: number, amount: number): string {
 function readShift(name: string | undefined, amount: string | undefined, rrx: string | undefined, out: Ops): boolean {
   if (rrx !== undefined) return put(out, 'shift', 4) && put(out, 'amount', 0);
   if (name === undefined) return put(out, 'shift', 0) && put(out, 'amount', 0);
-  return put(out, 'shift', SHIFTS.indexOf(name)) && put(out, 'amount', amount === undefined ? undefined : parseNum(amount));
+  return (
+    put(out, 'shift', SHIFTS.indexOf(name)) && put(out, 'amount', amount === undefined ? undefined : parseNum(amount))
+  );
 }
 
 function sign(ops: Fields): string {
@@ -140,7 +142,8 @@ const OPERANDS: Readonly<Record<string, OperandKind>> = {
   rshift: {
     re: /, (lsl|lsr|asr|ror) (r1[0-5]|r[0-9]|sp|lr|pc|ip|fp)/y,
     render: (ops) => `, ${SHIFTS[get(ops, 'shift')] ?? 'lsl'} ${regName(get(ops, 'rs'))}`,
-    read: (caps, _key, _cx, out) => put(out, 'shift', SHIFTS.indexOf(caps[0] ?? '')) && put(out, 'rs', regNumber(caps[1] ?? '')),
+    read: (caps, _key, _cx, out) =>
+      put(out, 'shift', SHIFTS.indexOf(caps[0] ?? '')) && put(out, 'rs', regNumber(caps[1] ?? '')),
   },
   const: {
     re: /#(0x[0-9a-fA-F]+|[0-9]+)(?:, ([0-9]+))?/y,
@@ -238,7 +241,8 @@ const OPERANDS: Readonly<Record<string, OperandKind>> = {
   psrf: {
     re: /(cpsr|spsr)_([fsxc]+)/y,
     render: (ops) => `${get(ops, 'r') === 1 ? 'spsr' : 'cpsr'}_${psrFields(get(ops, 'mask'))}`,
-    read: (caps, _key, _cx, out) => put(out, 'r', caps[0] === 'spsr' ? 1 : 0) && put(out, 'mask', parsePsrFields(caps[1] ?? '')),
+    read: (caps, _key, _cx, out) =>
+      put(out, 'r', caps[0] === 'spsr' ? 1 : 0) && put(out, 'mask', parsePsrFields(caps[1] ?? '')),
   },
 };
 
@@ -309,9 +313,12 @@ export function compileForm(template: string): CompiledForm {
       continue;
     }
     const part = MNEMONIC_PARTS[text];
-    if (part === undefined) throw new RomliftInvariantError(`template '${template}': unknown mnemonic placeholder {${text}}`);
+    if (part === undefined)
+      throw new RomliftInvariantError(`template '${template}': unknown mnemonic placeholder {${text}}`);
     parts.push({ kind: 'mnemonic', part });
-    mnemonics = mnemonics.flatMap(([m, ops]) => part.values.map(([suffix, more]) => [m + suffix, { ...ops, ...more }] as const));
+    mnemonics = mnemonics.flatMap(([m, ops]) =>
+      part.values.map(([suffix, more]) => [m + suffix, { ...ops, ...more }] as const),
+    );
   }
   if (space >= 0) parts.push({ kind: 'text', text: ' ' });
 
@@ -322,7 +329,8 @@ export function compileForm(template: string): CompiledForm {
       continue;
     }
     const operand = OPERANDS[text];
-    if (operand === undefined) throw new RomliftInvariantError(`template '${template}': unknown operand placeholder {${text}}`);
+    if (operand === undefined)
+      throw new RomliftInvariantError(`template '${template}': unknown operand placeholder {${text}}`);
     parts.push({ kind: 'operand', operand, key: text });
   }
   return { template, mnemonics, parts, operandsFrom };
@@ -344,7 +352,12 @@ export function renderForm(form: CompiledForm, ops: Fields, cx: RenderContext): 
 }
 
 /** The operand values of `operandText` read through `form`, merged onto the mnemonic's values. */
-export function readForm(form: CompiledForm, mnemonicOps: Fields, operandText: string, cx: ReadContext): Fields | undefined {
+export function readForm(
+  form: CompiledForm,
+  mnemonicOps: Fields,
+  operandText: string,
+  cx: ReadContext,
+): Fields | undefined {
   const out: Ops = { ...mnemonicOps };
   let at = 0;
   for (let i = form.operandsFrom; i < form.parts.length; i++) {

@@ -24,8 +24,8 @@
 //   gluedWhere splits the glued misses (inside a found extent: a glued split; in no extent or past the code
 //   end: code the run never reached) and is printed, never judged: zero glued is the threshold.
 //   entries and elfFunctions are counted from the end of the startup region, startup entries excluded.
-import { gate, type DatasetRef, type GateContext } from './gate.ts';
-import { FAMILY_WAIVER, heldOutVerdict, type SealedResult } from './held-out-verdict.ts';
+import { type DatasetRef, type GateContext, gate } from './gate.ts';
+import { FAMILY_WAIVER, type SealedResult, heldOutVerdict } from './held-out-verdict.ts';
 
 interface SealedCounts {
   readonly name: string;
@@ -33,7 +33,11 @@ interface SealedCounts {
   readonly elfFunctions: number;
   readonly tp: number;
   readonly glued: number;
-  readonly gluedWhere?: { readonly insideExtent: number; readonly outsideExtents: number; readonly pastCodeEnd: number };
+  readonly gluedWhere?: {
+    readonly insideExtent: number;
+    readonly outsideExtents: number;
+    readonly pastCodeEnd: number;
+  };
   readonly labelCandidates: number;
   readonly falseEntries: Readonly<Record<string, number>>;
   readonly extents: { readonly sized: number; readonly agree: number };
@@ -62,9 +66,13 @@ function pct(x: number, digits = 2): string {
 }
 
 /** Runs one sealed dataset and judges its counts; throws without echoing any bench output. */
-async function judge(cx: GateContext, dataset: DatasetRef): Promise<{ readonly pass: boolean; readonly summary: string }> {
+async function judge(
+  cx: GateContext,
+  dataset: DatasetRef,
+): Promise<{ readonly pass: boolean; readonly summary: string }> {
   const run = await cx.npm('bench', ['run', '--only', dataset.name, '--json']);
-  if (run.code !== 0) throw new Error(`bench run --only ${dataset.name} --json exited ${run.code} (output withheld: sealed)`);
+  if (run.code !== 0)
+    throw new Error(`bench run --only ${dataset.name} --json exited ${run.code} (output withheld: sealed)`);
   let result: BenchRun;
   try {
     result = cx.lastJson<BenchRun>(run.stdout);
@@ -73,7 +81,10 @@ async function judge(cx: GateContext, dataset: DatasetRef): Promise<{ readonly p
   }
   const counts = result.sealed.find((s) => s.name === dataset.name);
   if (counts === undefined) throw new Error(`bench run --only ${dataset.name} reported no sealed counts`);
-  if (LEAK.test(JSON.stringify(counts))) throw new Error(`the sealed entry of ${dataset.name} carries an address or a name; the seal is broken (not printed)`);
+  if (LEAK.test(JSON.stringify(counts)))
+    throw new Error(
+      `the sealed entry of ${dataset.name} carries an address or a name; the seal is broken (not printed)`,
+    );
 
   const precision = share(counts.tp, counts.entries);
   const recall = share(counts.tp, counts.elfFunctions);
@@ -90,10 +101,16 @@ async function judge(cx: GateContext, dataset: DatasetRef): Promise<{ readonly p
     .map((k) => `${k} ${counts.falseEntries[k] ?? 0}`)
     .join(', ');
   const g = counts.gluedWhere;
-  const where = g === undefined ? '' : ` (inside an extent ${g.insideExtent}, outside every extent ${g.outsideExtents}, past the code end ${g.pastCodeEnd})`;
+  const where =
+    g === undefined
+      ? ''
+      : ` (inside an extent ${g.insideExtent}, outside every extent ${g.outsideExtents}, past the code end ${g.pastCodeEnd})`;
   const measured = `precision ${pct(precision)}, recall ${pct(recall)}, glued ${counts.glued}${where}, label candidates ${counts.labelCandidates}, extents ${pct(extents, 3)}, code end ${counts.codeEnd.delta}, false entries ${falseByClass}`;
   const verdict = failures.length === 0 ? 'pass' : `fail (${failures.join('; ')})`;
-  return { pass: failures.length === 0, summary: `${dataset.name} [${dataset.family ?? 'no family'}] ${verdict}: ${measured}` };
+  return {
+    pass: failures.length === 0,
+    summary: `${dataset.name} [${dataset.family ?? 'no family'}] ${verdict}: ${measured}`,
+  };
 }
 
 gate({
@@ -116,6 +133,8 @@ gate({
     if (verdict.waiverRefused !== undefined) cx.note(verdict.waiverRefused);
     for (const w of verdict.waived ?? []) cx.note(`WAIVED: ${w}`);
     if (!verdict.pass) throw new Error(`held-out: ${verdict.problems.join('; ')}`);
-    cx.note(`${verdict.passing.length} sealed ROMs pass, families ${verdict.families.join(', ')} (absent from tuning: ${verdict.freshFamilies.length === 0 ? 'none' : verdict.freshFamilies.join(', ')})`);
+    cx.note(
+      `${verdict.passing.length} sealed ROMs pass, families ${verdict.families.join(', ')} (absent from tuning: ${verdict.freshFamilies.length === 0 ? 'none' : verdict.freshFamilies.join(', ')})`,
+    );
   },
 });

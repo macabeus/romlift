@@ -8,12 +8,12 @@ import type { FileHandle } from 'node:fs/promises';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 
+import { LOCK_PATH, ROMLIFT_DIR } from '../../core/write-plan/types.ts';
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
-import { LOCK_PATH, ROMLIFT_DIR } from '../../core/write-plan/types.ts';
 import { ShellCodes } from '../codes.ts';
-import { onDisk } from './disk-state.ts';
 import { errnoOf, errorReason, readTextIfPresent } from '../fs.ts';
+import { onDisk } from './disk-state.ts';
 
 export type LockOutcome<T> =
   | { readonly ok: true; readonly value: T; readonly diagnostics: readonly Diagnostic[] }
@@ -36,7 +36,9 @@ export function parseLock(text: string): LockHolder | undefined {
     const json: unknown = JSON.parse(text);
     if (typeof json !== 'object' || json === null) return undefined;
     const { pid, host } = json as { readonly pid?: unknown; readonly host?: unknown };
-    return typeof pid === 'number' && Number.isInteger(pid) && pid > 0 && typeof host === 'string' ? { pid, host } : undefined;
+    return typeof pid === 'number' && Number.isInteger(pid) && pid > 0 && typeof host === 'string'
+      ? { pid, host }
+      : undefined;
   } catch {
     return undefined;
   }
@@ -52,7 +54,10 @@ export function processAlive(pid: number): boolean {
   }
 }
 
-type Attempt = { readonly kind: 'taken' } | { readonly kind: 'exists' } | { readonly kind: 'failed'; readonly diagnostic: Diagnostic };
+type Attempt =
+  | { readonly kind: 'taken' }
+  | { readonly kind: 'exists' }
+  | { readonly kind: 'failed'; readonly diagnostic: Diagnostic };
 
 /** Creates the lock with O_EXCL holding `text`. */
 async function create(file: string, text: string): Promise<Attempt> {
@@ -61,7 +66,10 @@ async function create(file: string, text: string): Promise<Attempt> {
     handle = await open(file, 'wx');
   } catch (error) {
     if (errnoOf(error) === 'EEXIST') return { kind: 'exists' };
-    return { kind: 'failed', diagnostic: diagnostic(ShellCodes, 'E_IO_WRITE', `cannot create ${file}: ${errorReason(error)}`, { path: file }) };
+    return {
+      kind: 'failed',
+      diagnostic: diagnostic(ShellCodes, 'E_IO_WRITE', `cannot create ${file}: ${errorReason(error)}`, { path: file }),
+    };
   }
   try {
     await handle.writeFile(text);
@@ -71,7 +79,10 @@ async function create(file: string, text: string): Promise<Attempt> {
     await handle.close().catch(() => undefined);
     handle = undefined;
     await unlink(file).catch(() => undefined);
-    return { kind: 'failed', diagnostic: diagnostic(ShellCodes, 'E_IO_WRITE', `cannot write ${file}: ${errorReason(error)}`, { path: file }) };
+    return {
+      kind: 'failed',
+      diagnostic: diagnostic(ShellCodes, 'E_IO_WRITE', `cannot write ${file}: ${errorReason(error)}`, { path: file }),
+    };
   } finally {
     await handle?.close();
   }
@@ -110,7 +121,9 @@ export async function removeStale(file: string, stale: string): Promise<boolean>
   return true;
 }
 
-type Acquired = { readonly ok: true; readonly diagnostics: readonly Diagnostic[] } | { readonly ok: false; readonly diagnostic: Diagnostic };
+type Acquired =
+  | { readonly ok: true; readonly diagnostics: readonly Diagnostic[] }
+  | { readonly ok: false; readonly diagnostic: Diagnostic };
 
 async function acquire(file: string, text: string): Promise<Acquired> {
   const self = parseLock(text);
@@ -133,7 +146,9 @@ async function acquire(file: string, text: string): Promise<Acquired> {
     if (attempt > 0 || !(await removeStale(file, held))) {
       return { ok: false, diagnostic: locked(file, `is held by ${who}, which is gone, and another run took it over`) };
     }
-    notes.push(diagnostic(ShellCodes, 'W_STALE_LOCK', `${file} was left by ${who}, which is gone; taken over`, { path: file }));
+    notes.push(
+      diagnostic(ShellCodes, 'W_STALE_LOCK', `${file} was left by ${who}, which is gone; taken over`, { path: file }),
+    );
   }
   return { ok: false, diagnostic: locked(file, 'could not be taken') };
 }
@@ -154,7 +169,10 @@ export async function withProjectLock<T>(dir: string, fn: () => Promise<T>): Pro
     await mkdir(join(dir, ROMLIFT_DIR), { recursive: true });
   } catch (error) {
     const path = join(dir, ROMLIFT_DIR);
-    return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_WRITE', `cannot create ${path}: ${errorReason(error)}`, { path })] };
+    return {
+      ok: false,
+      diagnostics: [diagnostic(ShellCodes, 'E_IO_WRITE', `cannot create ${path}: ${errorReason(error)}`, { path })],
+    };
   }
   const file = onDisk(dir, LOCK_PATH);
   const text = lockText({ pid: process.pid, host: hostname() });

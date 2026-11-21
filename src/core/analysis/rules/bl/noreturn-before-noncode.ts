@@ -23,7 +23,8 @@ export default defineRule({
   meta: {
     id: 'bl.noreturn-before-noncode',
     summary: 'a call followed by non-code in the caller never returns',
-    restsOn: 'agbcc emits nothing after a call to a function that never returns, so the bytes after it are a pool or another function',
+    restsOn:
+      'agbcc emits nothing after a call to a function that never returns, so the bytes after it are a pool or another function',
     recovers: 'pools and neighbouring functions read as the code after a never-returning call',
     reads: ['readings'],
     adds: ['bl-verdicts', 'exits'],

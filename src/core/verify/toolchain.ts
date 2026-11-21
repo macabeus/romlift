@@ -13,7 +13,6 @@ import { hex, hexSize } from '../../foundation/util/hex.ts';
 import type { AssembleUnit, BuildUnit } from '../model/paths.ts';
 import type { CheckResult } from './report.ts';
 
-
 /**
  * Why `as` cannot build a unit's object, or undefined when it can: its source is no assembly file (a C module's
  * `src/<module>.c`, which phase 4's compile step builds; the text-layout check refuses such a model first).
@@ -63,8 +62,15 @@ export function firstDifference(image: Uint8Array, rom: Rom): string {
 
 /** The link verdict of a linked image of `units` units, whose SHA-1 the shell computed. */
 export function linkVerdict(image: Uint8Array, sha1: string, rom: Rom, units: number): LinkCheckResult {
-  if (sha1 === rom.sha1) return { id: 'link', ok: true, detail: `${units} units link to the ROM's SHA-1 ${sha1}`, diagnostics: [], sha1 };
-  return { id: 'link', ok: false, detail: `the linked image's SHA-1 ${sha1} is not the ROM's ${rom.sha1}: ${firstDifference(image, rom)}`, diagnostics: [], sha1 };
+  if (sha1 === rom.sha1)
+    return { id: 'link', ok: true, detail: `${units} units link to the ROM's SHA-1 ${sha1}`, diagnostics: [], sha1 };
+  return {
+    id: 'link',
+    ok: false,
+    detail: `the linked image's SHA-1 ${sha1} is not the ROM's ${rom.sha1}: ${firstDifference(image, rom)}`,
+    diagnostics: [],
+    sha1,
+  };
 }
 
 /** One unit's verdict, with how many bytes its relocations left to the linker. */
@@ -73,10 +79,19 @@ export interface ObjectVerdict extends ModuleAssembly {
 }
 
 /** How one section of an object compares with a ROM range: how many bytes its relocations masked, or the first problem. */
-type SectionComparison = { readonly ok: true; readonly masked: number } | { readonly ok: false; readonly detail: string };
+type SectionComparison =
+  | { readonly ok: true; readonly masked: number }
+  | { readonly ok: false; readonly detail: string };
 
 /** Section `name` of `object` against the ROM bytes of `span`, outside the fields its relocations leave to the linker. */
-function compareSection(object: Uint8Array, unit: AssembleUnit, rom: Rom, name: string, span: { readonly start: number; readonly end: number }, what: string): SectionComparison {
+function compareSection(
+  object: Uint8Array,
+  unit: AssembleUnit,
+  rom: Rom,
+  name: string,
+  span: { readonly start: number; readonly end: number },
+  what: string,
+): SectionComparison {
   const failed = (detail: string): SectionComparison => ({ ok: false, detail });
   const elf = parseElf(object);
   if (!elf.ok) return failed(`${unit.object}: ${elf.error}`);
@@ -98,7 +113,8 @@ function compareSection(object: Uint8Array, unit: AssembleUnit, rom: Rom, name: 
     }
   }
   const base = span.start - rom.base;
-  if (base < 0 || base + size > rom.bytes.length) return failed(`${what === 'the module' ? "the module's span" : what} lies outside the ROM`);
+  if (base < 0 || base + size > rom.bytes.length)
+    return failed(`${what === 'the module' ? "the module's span" : what} lies outside the ROM`);
   for (let i = 0; i < size; i++) {
     if (mask[i] === 0 && object[section.offset + i] !== rom.bytes[base + i]) {
       return failed(`first difference at 0x${hex(span.start + i)}`);
@@ -112,14 +128,29 @@ export function compareObject(object: Uint8Array, unit: AssembleUnit, rom: Rom):
   const text = compareSection(object, unit, rom, '.text', unit.span, 'the module');
   if (!text.ok) return { module: unit.module, ok: false, detail: text.detail, masked: 0 };
   const range = unit.data?.span;
-  if (range === undefined) return { module: unit.module, ok: true, detail: `equals 0x${hex(unit.span.start)}..0x${hex(unit.span.end)}`, masked: text.masked };
+  if (range === undefined)
+    return {
+      module: unit.module,
+      ok: true,
+      detail: `equals 0x${hex(unit.span.start)}..0x${hex(unit.span.end)}`,
+      masked: text.masked,
+    };
   const data = compareSection(object, unit, rom, '.rodata', range, 'its data range');
   if (!data.ok) return { module: unit.module, ok: false, detail: data.detail, masked: 0 };
-  return { module: unit.module, ok: true, detail: `equals 0x${hex(unit.span.start)}..0x${hex(unit.span.end)} and its data range 0x${hex(range.start)}..0x${hex(range.end)}`, masked: text.masked + data.masked };
+  return {
+    module: unit.module,
+    ok: true,
+    detail: `equals 0x${hex(unit.span.start)}..0x${hex(unit.span.end)} and its data range 0x${hex(range.start)}..0x${hex(range.end)}`,
+    masked: text.masked + data.masked,
+  };
 }
 
 /** The `assemble` result of every unit's verdict (in unit order) and the toolchain's diagnostics. */
-export function assembleVerdict(modules: readonly ModuleAssembly[], masked: number, diagnostics: readonly Diagnostic[]): AssembleCheckResult {
+export function assembleVerdict(
+  modules: readonly ModuleAssembly[],
+  masked: number,
+  diagnostics: readonly Diagnostic[],
+): AssembleCheckResult {
   const bad = modules.filter((m) => !m.ok);
   if (bad.length === 0) {
     const detail = `${modules.length} modules assemble to their ROM ranges (${masked} relocated bytes left to the linker)`;

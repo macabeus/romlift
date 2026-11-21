@@ -39,7 +39,10 @@ test('the startup module yields asm/crt0.s with its chunks in ROM order', () => 
 
 test('crt0.s and its include reproduce the startup region with both printers', () => {
   for (const printer of ['readable', 'raw'] as const) {
-    const entries = [...crt0Writer.emit(rom, model, { ...cx, printer }, 1), ...orphanWriter.emit(rom, model, { ...cx, printer }, 1)];
+    const entries = [
+      ...crt0Writer.emit(rom, model, { ...cx, printer }, 1),
+      ...orphanWriter.emit(rom, model, { ...cx, printer }, 1),
+    ];
     const { layout, errors } = layoutUnit(model, entries, 'asm/crt0.s', 'crt0');
     assert.deepEqual(errors, [], printer);
     assert.deepEqual(layout.bytes, romBytes(rom, 0x0800_00c0, 0x0800_0100), printer);

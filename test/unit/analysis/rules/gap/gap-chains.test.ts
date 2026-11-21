@@ -24,15 +24,28 @@ test('end anchor, then backward chain, below an accepted function after data', (
       { at: BASE + 0xd0, bytes: words(0xffff_ffff) },
       { at: BASE + 0x2e8, bytes: thumbAt(BASE + 0x2e8)`push {lr}; pop {pc}` },
       { at: BASE + 0x2ec, bytes: thumbAt(BASE + 0x2ec)`push {lr}; movs r0, #0; movs r0, #0; pop {pc}` },
-      { at: BASE + 0x2f4, bytes: thumbAt(BASE + 0x2f4)`push {lr}; movs r1, #1; movs r1, #1; movs r1, #1; movs r1, #1; pop {pc}` },
+      {
+        at: BASE + 0x2f4,
+        bytes: thumbAt(BASE + 0x2f4)`push {lr}; movs r1, #1; movs r1, #1; movs r1, #1; movs r1, #1; pop {pc}`,
+      },
       { at: BASE + 0x300, bytes: armAt(BASE + 0x300)`mov r0, #0; bx lr` },
     ],
     { entry: CRT0 },
   );
-  const own = (Object.keys(RULES) as RuleId[]).filter((id) => familyOf(id) === 'gap' || familyOf(id) === 'region').map((id) => RULES[id] as RegisteredRule);
+  const own = (Object.keys(RULES) as RuleId[])
+    .filter((id) => familyOf(id) === 'gap' || familyOf(id) === 'region')
+    .map((id) => RULES[id] as RegisteredRule);
   const reg = registry(...own, romEntry, calls, extent, inRom, decodes, selfOrAccepted, ...walk);
-  const result = runAnalysis(rom, AGBCC, { mode: 'discover', seeds: [], overrides: [], trail: 'off' }, tuningFor(AGBCC, reg), reg);
-  const found = result.functions.filter((f) => f.entry >= BASE + 0x100 && f.entry < BASE + 0x300).map((f) => [f.entry - BASE, f.accepted.rule, f.extent.end - BASE]);
+  const result = runAnalysis(
+    rom,
+    AGBCC,
+    { mode: 'discover', seeds: [], overrides: [], trail: 'off' },
+    tuningFor(AGBCC, reg),
+    reg,
+  );
+  const found = result.functions
+    .filter((f) => f.entry >= BASE + 0x100 && f.entry < BASE + 0x300)
+    .map((f) => [f.entry - BASE, f.accepted.rule, f.extent.end - BASE]);
   assert.deepEqual(found, [
     [0x2e8, 'gap.backward-prologue-chain', 0x2ec],
     [0x2ec, 'gap.end-anchor', 0x2f4],

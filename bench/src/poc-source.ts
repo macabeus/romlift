@@ -3,11 +3,10 @@
 // `path\0sha256\n` list. bench/baseline/poc-source.json holds the pinned value; export-poc,
 // doctor-real and poc-check refuse a checkout that differs from it.
 import { join } from 'node:path';
-
 import { compareCodeUnits } from 'romlift';
 import { sha256Of } from 'romlift/node';
 
-import { baselineDir, type BenchContext } from './context.ts';
+import { type BenchContext, baselineDir } from './context.ts';
 import { BenchError, exists, isDirectory, isRecord, listFiles, readFileBytes, readJson } from './files.ts';
 
 export const POC_SOURCE_DIRS: readonly string[] = ['src', 'signatures', 'bench/dataset'];
@@ -71,6 +70,7 @@ export function comparePocSource(pinned: PocSource, actual: PocSource): string[]
     else if (want === undefined) problems.push(`${path} is not in the pinned PoC source`);
     else if (want !== have) problems.push(`${path} differs from the pinned PoC source`);
   }
-  if (pocSourceDigest(pinned.files) !== pinned.digest) problems.push('poc-source.json: its digest does not match its file list');
+  if (pocSourceDigest(pinned.files) !== pinned.digest)
+    problems.push('poc-source.json: its digest does not match its file list');
   return problems;
 }

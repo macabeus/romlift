@@ -4,7 +4,7 @@
 //
 // FROZEN output: the last stdout line of `npm run bench -- poc-check --json` (exit 0):
 //   {ok, roms: [{name, rowsEqual, pocRowEqual, diffs, scaffoldOk, deterministic, pocSourceDigestOk}]}
-import { gate, type ExecResult } from './gate.ts';
+import { type ExecResult, gate } from './gate.ts';
 
 interface PocCheckRom {
   readonly name: string;
@@ -56,6 +56,8 @@ gate({
     }
     if (problems.length > 0) throw new Error(`bench poc-check: ${problems.join('; ')}`);
     if (!check.ok) throw new Error('bench poc-check reported ok false with every ROM passing');
-    cx.note(`${TUNING_ROMS.length} tuning ROMs: rows equal the baseline, PoC rows equal, scaffold SHA-1 ok, deterministic, PoC source pinned`);
+    cx.note(
+      `${TUNING_ROMS.length} tuning ROMs: rows equal the baseline, PoC rows equal, scaffold SHA-1 ok, deterministic, PoC source pinned`,
+    );
   },
 });

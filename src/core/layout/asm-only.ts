@@ -31,7 +31,11 @@ export function asmOnlyReasons(f: FunctionFact): AsmOnlyReason[] {
  * consecutive assembly-only function chunks, with any orphan chunks between them, from the first one's start
  * to the last one's end.
  */
-export function asmOnlyRanges(chunks: readonly TiledChunk[], facts: ReadonlyMap<Addr, FunctionFact>, from: Addr): Span[] {
+export function asmOnlyRanges(
+  chunks: readonly TiledChunk[],
+  facts: ReadonlyMap<Addr, FunctionFact>,
+  from: Addr,
+): Span[] {
   const out: Span[] = [];
   let open: { start: Addr; end: Addr } | undefined;
   for (const c of chunks) {
@@ -48,4 +52,3 @@ export function asmOnlyRanges(chunks: readonly TiledChunk[], facts: ReadonlyMap<
   if (open !== undefined) out.push(open);
   return out;
 }
-

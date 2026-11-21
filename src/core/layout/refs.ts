@@ -42,7 +42,8 @@ export function borderRefs(rom: Rom, analysis: Pick<AnalysisResult, 'functions'>
     for (const span of f.code) {
       const end = Math.min(span.end, rom.end);
       if (f.mode === 'arm') {
-        for (let a = alignWord(Math.max(span.start, rom.base)); a + 4 <= end; a += 4) pcRef(a, decode('arm', peek32(rom, a), a).flow);
+        for (let a = alignWord(Math.max(span.start, rom.base)); a + 4 <= end; a += 4)
+          pcRef(a, decode('arm', peek32(rom, a), a).flow);
         continue;
       }
       for (let a = Math.max(span.start, rom.base); a + 2 <= end; a += 2) {
@@ -56,4 +57,3 @@ export function borderRefs(rom: Rom, analysis: Pick<AnalysisResult, 'functions'>
   }
   return { shortBranches, pcRelative };
 }
-

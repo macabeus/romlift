@@ -9,12 +9,12 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
+import { type BenchIo, main } from '../../../bench/src/cli.ts';
 import type { BenchContext } from '../../../bench/src/context.ts';
-import { main, type BenchIo } from '../../../bench/src/cli.ts';
 import { checkHeldoutRows } from '../../../bench/src/provenance.ts';
 import { assertCountsOnly, sealedCounts } from '../../../bench/src/seal.ts';
 import { dataset, results, row, withTempDir } from '../../unit/bench/fixtures.ts';
-import { syntheticTier, TINY_DEPS } from '../../unit/bench/harness.ts';
+import { TINY_DEPS, syntheticTier } from '../../unit/bench/harness.ts';
 
 const SEALED = 'held';
 
@@ -35,7 +35,8 @@ function capture(): Captured {
   return { lines, errors, out: (l) => lines.push(l), err: (l) => errors.push(l) };
 }
 
-const datasetFile = (cx: BenchContext, name: string): string => join(cx.repoRoot, 'bench', 'dataset', 'real', `${name}.json`);
+const datasetFile = (cx: BenchContext, name: string): string =>
+  join(cx.repoRoot, 'bench', 'dataset', 'real', `${name}.json`);
 const resultsFile = (cx: BenchContext): string => join(cx.repoRoot, 'bench', 'results.json');
 
 async function readJsonFile(path: string): Promise<Record<string, unknown>> {
@@ -47,13 +48,18 @@ async function withSealedTier(name: string, body: (cx: BenchContext) => Promise<
   await withTempDir(`romlift-mut-seal-${name}-`, async (root) => {
     const cx = await syntheticTier(join(root, 't'));
     const tiny = await readJsonFile(datasetFile(cx, 'tiny'));
-    await writeFile(datasetFile(cx, SEALED), `${JSON.stringify({ ...tiny, name: SEALED, family: 'other-family', heldout: true, revealed: [], labels: [], untyped: [] }, null, 2)}\n`);
+    await writeFile(
+      datasetFile(cx, SEALED),
+      `${JSON.stringify({ ...tiny, name: SEALED, family: 'other-family', heldout: true, revealed: [], labels: [], untyped: [] }, null, 2)}\n`,
+    );
     assert.equal(await main(['run'], cx, capture(), TINY_DEPS), 0);
     await body(cx);
   });
 }
 
-async function provenance(cx: BenchContext): Promise<{ readonly code: number; readonly checks: Readonly<Record<string, Check>> }> {
+async function provenance(
+  cx: BenchContext,
+): Promise<{ readonly code: number; readonly checks: Readonly<Record<string, Check>> }> {
   const io = capture();
   const code = await main(['provenance', '--json'], cx, io);
   const last = JSON.parse(io.lines.at(-1) ?? '{}') as { ok: boolean; checks: Check[] };
@@ -64,9 +70,15 @@ async function provenance(cx: BenchContext): Promise<{ readonly code: number; re
 test('the clean run keeps the sealed dataset to counts, and its artifact passes heldout-rows', async () => {
   await withSealedTier('clean', async (cx) => {
     const written = await readJsonFile(resultsFile(cx));
-    assert.deepEqual((written['roms'] as { name: string }[]).map((r) => r.name), ['tiny']);
+    assert.deepEqual(
+      (written['roms'] as { name: string }[]).map((r) => r.name),
+      ['tiny'],
+    );
     const sealed = written['sealed'] as Record<string, unknown>[];
-    assert.deepEqual(sealed.map((s) => s['name']), [SEALED]);
+    assert.deepEqual(
+      sealed.map((s) => s['name']),
+      [SEALED],
+    );
     for (const entry of sealed) assertCountsOnly(entry);
     const { checks } = await provenance(cx);
     assert.equal(checks['heldout-rows']?.ok, true);
@@ -98,8 +110,16 @@ test('a held-out row injected into results.json fails heldout-rows and exits 1',
 test('the heldout-rows check alone: a sealed dataset with a row fails, a revealed one does not', () => {
   const sealed = dataset({ name: SEALED, heldout: true });
   const artifact = results([row({ name: SEALED })]);
-  assert.deepEqual(checkHeldoutRows(artifact, [sealed]), { id: 'heldout-rows', ok: false, detail: `the artifact holds rows of sealed datasets: ${SEALED}` });
-  const revealed = dataset({ name: SEALED, heldout: true, revealed: [{ at: '2026-10-17', commit: 'abc1234', reason: 'diagnosis' }] });
+  assert.deepEqual(checkHeldoutRows(artifact, [sealed]), {
+    id: 'heldout-rows',
+    ok: false,
+    detail: `the artifact holds rows of sealed datasets: ${SEALED}`,
+  });
+  const revealed = dataset({
+    name: SEALED,
+    heldout: true,
+    revealed: [{ at: '2026-10-17', commit: 'abc1234', reason: 'diagnosis' }],
+  });
   assert.equal(checkHeldoutRows(artifact, [revealed]).ok, true);
 });
 
@@ -110,7 +130,12 @@ test('bench adopt on the sealed dataset exits 1 with its refusal and writes noth
     assert.equal(await main(['adopt', SEALED], cx, io, TINY_DEPS), 1);
     assert.deepEqual(io.lines, []);
     assert.equal(io.errors.length, 1);
-    assert.match(io.errors[0] ?? '', new RegExp(`^${SEALED} is sealed \\(held out, never revealed\\): adopt refuses it; reveal it first with bench run --reveal ${SEALED} --reason <text>`));
+    assert.match(
+      io.errors[0] ?? '',
+      new RegExp(
+        `^${SEALED} is sealed \\(held out, never revealed\\): adopt refuses it; reveal it first with bench run --reveal ${SEALED} --reason <text>`,
+      ),
+    );
     assert.equal(await readFile(datasetFile(cx, SEALED), 'utf8'), before);
     // The control: the tuning dataset is adopted.
     assert.equal(await main(['adopt', 'tiny'], cx, capture(), TINY_DEPS), 0);
@@ -120,7 +145,17 @@ test('bench adopt on the sealed dataset exits 1 with its refusal and writes noth
 test('a sealed entry carrying an address fails assertCountsOnly, naming the field and never the value', () => {
   const counts = sealedCounts({
     name: SEALED,
-    found: [{ entry: 0x0800_0200, mode: 'thumb', extent: { start: 0x0800_0200, end: 0x0800_0210 }, holes: [], branchTargets: [], noReturnSites: [], origin: 'call' }],
+    found: [
+      {
+        entry: 0x0800_0200,
+        mode: 'thumb',
+        extent: { start: 0x0800_0200, end: 0x0800_0210 },
+        holes: [],
+        branchTargets: [],
+        noReturnSites: [],
+        origin: 'call',
+      },
+    ],
     truth: [{ addr: 0x0800_0200, size: 0x10, thumb: true }],
     startupEnd: 0x0800_0100,
     isPrologue: () => false,
@@ -135,7 +170,10 @@ test('a sealed entry carrying an address fails assertCountsOnly, naming the fiel
     [{ ...counts, misses: [{ addr: 0x0800_0108 }] }, /^sealed field misses is not a count or a record of counts$/],
   ];
   for (const [entry, message] of faults) {
-    assert.throws(() => assertCountsOnly(entry), (error: unknown) => error instanceof Error && message.test(error.message) && !error.message.includes('108'));
+    assert.throws(
+      () => assertCountsOnly(entry),
+      (error: unknown) => error instanceof Error && message.test(error.message) && !error.message.includes('108'),
+    );
   }
 });
 

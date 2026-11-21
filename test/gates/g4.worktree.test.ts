@@ -14,9 +14,10 @@
 // worktree's `./setup.sh` checks the submodule out (`git submodule update --init`) and builds it again. Later worktrees
 // get a copy of the main checkout's built tools/agbcc, which setup.sh then finds present.
 import { createHash } from 'node:crypto';
-import { copyFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { copyAgbcc, gate, pooled, withSharedAgbcc, type ExecResult, type GateContext } from './gate.ts';
+
+import { type ExecResult, type GateContext, copyAgbcc, gate, pooled, withSharedAgbcc } from './gate.ts';
 
 interface CliLine {
   readonly type: string;
@@ -33,13 +34,30 @@ const ROM_FILE = 'baserom.gba';
  * The generated roots plan.md's scaffold table and R4 mark "In Git: No" (a directory ends with `/`), written here and
  * not read from the product, which is what the gate tests.
  */
-const R4_GENERATED: readonly string[] = ['asm/', 'data/', 'expected/', 'ldscript.txt', 'symbols.ld', 'modules.mk', 'objdiff.json'];
+const R4_GENERATED: readonly string[] = [
+  'asm/',
+  'data/',
+  'expected/',
+  'ldscript.txt',
+  'symbols.ld',
+  'modules.mk',
+  'objdiff.json',
+];
 
 function underR4Root(file: string): boolean {
   return R4_GENERATED.some((root) => (root.endsWith('/') ? file.startsWith(root) : file === root));
 }
 const NOT_BUILT: ReadonlySet<string> = new Set(['c-data']);
-const GIT = ['-c', 'user.name=romlift gate', '-c', 'user.email=gate@romlift.invalid', '-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null'];
+const GIT = [
+  '-c',
+  'user.name=romlift gate',
+  '-c',
+  'user.email=gate@romlift.invalid',
+  '-c',
+  'commit.gpgsign=false',
+  '-c',
+  'core.hooksPath=/dev/null',
+];
 
 function tail(run: ExecResult, lines = 30): string {
   return `${run.stdout}${run.stderr}`.trimEnd().split('\n').slice(-lines).join('\n');
@@ -66,7 +84,14 @@ async function sourceCli(cx: GateContext): Promise<string> {
   return shim;
 }
 
-async function run(cx: GateContext, what: string, command: string, args: readonly string[], cwd: string, env: Readonly<Record<string, string>> = {}): Promise<ExecResult> {
+async function run(
+  cx: GateContext,
+  what: string,
+  command: string,
+  args: readonly string[],
+  cwd: string,
+  env: Readonly<Record<string, string>> = {},
+): Promise<ExecResult> {
   const result = await cx.exec(command, args, { cwd, env });
   if (result.code !== 0) throw new Error(`${what} exited ${result.code}:\n${tail(result)}`);
   return result;
@@ -74,8 +99,12 @@ async function run(cx: GateContext, what: string, command: string, args: readonl
 
 async function sha1File(dir: string): Promise<{ readonly sha1: string; readonly file: string }> {
   const names = (await readdir(dir)).filter((name) => name.endsWith('.sha1'));
-  const match = names.length === 1 && names[0] !== undefined ? /^([0-9a-f]{40})\s+\*?(\S+)\s*$/m.exec(await readFile(path.join(dir, names[0]), 'utf8')) : null;
-  if (match?.[1] === undefined || match[2] === undefined) throw new Error('the project has no single <name>.sha1 in sha1sum format');
+  const match =
+    names.length === 1 && names[0] !== undefined
+      ? /^([0-9a-f]{40})\s+\*?(\S+)\s*$/m.exec(await readFile(path.join(dir, names[0]), 'utf8'))
+      : null;
+  if (match?.[1] === undefined || match[2] === undefined)
+    throw new Error('the project has no single <name>.sha1 in sha1sum format');
   return { sha1: match[1], file: match[2] };
 }
 
@@ -83,7 +112,14 @@ async function sha1File(dir: string): Promise<{ readonly sha1: string; readonly 
  * Initialises and commits `main` (after `./setup.sh` there when `viaSubmodule`, which registers tools/agbcc as a
  * submodule), adds a worktree, and builds there; returns the failure, if any, and the main checkout.
  */
-async function inWorktree(cx: GateContext, cli: string, target: Target, base: string, agbcc: string | undefined, viaSubmodule: boolean): Promise<{ readonly failure?: string; readonly worktree: string; readonly main: string }> {
+async function inWorktree(
+  cx: GateContext,
+  cli: string,
+  target: Target,
+  base: string,
+  agbcc: string | undefined,
+  viaSubmodule: boolean,
+): Promise<{ readonly failure?: string; readonly worktree: string; readonly main: string }> {
   const main = path.join(base, 'main', target.name);
   const env = { ROMLIFT_CLI: cli };
   const worktree = path.join(base, 'worktree', target.name);
@@ -92,48 +128,77 @@ async function inWorktree(cx: GateContext, cli: string, target: Target, base: st
   await copyFile(target.rom, path.join(main, ROM_FILE));
   const init = await cx.exec(cli, ['init', ROM_FILE, '--json'], { cwd: main, env });
   const last = cx.jsonLines<CliLine>(init.stdout).at(-1);
-  if (init.code !== 0 || last?.type !== 'summary' || last.exitCode !== 0) return { failure: `init exited ${init.code}:\n${tail(init)}`, worktree, main };
+  if (init.code !== 0 || last?.type !== 'summary' || last.exitCode !== 0)
+    return { failure: `init exited ${init.code}:\n${tail(init)}`, worktree, main };
   await run(cx, 'git init', 'git', ['init', '-q'], main);
   if (viaSubmodule) {
     const mainSetup = await cx.exec('./setup.sh', [], { cwd: main, env });
-    if (mainSetup.code !== 0) return { failure: `./setup.sh in the main checkout exited ${mainSetup.code}:\n${tail(mainSetup)}`, worktree, main };
+    if (mainSetup.code !== 0)
+      return {
+        failure: `./setup.sh in the main checkout exited ${mainSetup.code}:\n${tail(mainSetup)}`,
+        worktree,
+        main,
+      };
   }
   await run(cx, 'git add', 'git', ['add', '-A'], main);
   await run(cx, 'git commit', 'git', [...GIT, 'commit', '-q', '-m', 'romlift init'], main);
   const tracked = (await run(cx, 'git ls-files', 'git', ['ls-files'], main)).stdout.split('\n');
-  if (tracked.includes(ROM_FILE)) return { failure: `${ROM_FILE} was committed: the scaffold's .gitignore must exclude it`, worktree, main };
+  if (tracked.includes(ROM_FILE))
+    return { failure: `${ROM_FILE} was committed: the scaffold's .gitignore must exclude it`, worktree, main };
   // The generated roots plan.md's scaffold table marks "In Git: No" (R4, the owner's answer to Q9): the gate's own list
   // (R4_GENERATED), so a product that lost a root from GENERATED_ROOTS and its .gitignore still fails here; and,
   // united with it, the product's rule (underGeneratedRoot), so a root a later phase adds is checked too
   // (architecture-b0-3, fix round 6 gate-honesty-b1-1).
   const underGeneratedRoot = cx.need<(file: string) => boolean>('underGeneratedRoot');
   const generated = tracked.filter((file) => underR4Root(file) || underGeneratedRoot(file));
-  if (generated.length > 0) return { failure: `the generated tree was committed (${generated.slice(0, 3).join(', ')}, …): the scaffold's .gitignore must exclude it (R4)`, worktree, main };
+  if (generated.length > 0)
+    return {
+      failure: `the generated tree was committed (${generated.slice(0, 3).join(', ')}, …): the scaffold's .gitignore must exclude it (R4)`,
+      worktree,
+      main,
+    };
   if (viaSubmodule) {
-    const stage = (await run(cx, 'git ls-files --stage', 'git', ['ls-files', '--stage', '--', 'tools/agbcc'], main)).stdout;
-    if (!/^160000 /m.test(stage)) return { failure: `setup.sh in the main checkout did not register tools/agbcc as a submodule (git ls-files --stage: ${JSON.stringify(stage.trim())})`, worktree, main };
+    const stage = (await run(cx, 'git ls-files --stage', 'git', ['ls-files', '--stage', '--', 'tools/agbcc'], main))
+      .stdout;
+    if (!/^160000 /m.test(stage))
+      return {
+        failure: `setup.sh in the main checkout did not register tools/agbcc as a submodule (git ls-files --stage: ${JSON.stringify(stage.trim())})`,
+        worktree,
+        main,
+      };
   }
   await run(cx, 'git worktree add', 'git', ['worktree', 'add', '-q', '-b', 'gate-worktree', worktree], main);
-  if (await exists(path.join(worktree, ROM_FILE))) return { failure: 'the fresh worktree already holds the ROM', worktree, main };
+  if (await exists(path.join(worktree, ROM_FILE)))
+    return { failure: 'the fresh worktree already holds the ROM', worktree, main };
   if (agbcc !== undefined && !viaSubmodule) await copyAgbcc(agbcc, worktree);
   const setup = await cx.exec('./setup.sh', [], { cwd: worktree, env });
-  if (setup.code !== 0) return { failure: `./setup.sh in the worktree exited ${setup.code}:\n${tail(setup)}`, worktree, main };
+  if (setup.code !== 0)
+    return { failure: `./setup.sh in the worktree exited ${setup.code}:\n${tail(setup)}`, worktree, main };
   if (!/asm\/ is absent: running romlift generate/.test(`${setup.stdout}${setup.stderr}`)) {
     return { failure: `setup.sh in the worktree did not generate the tree (duty 5):\n${tail(setup)}`, worktree, main };
   }
   if (viaSubmodule && !/checking out the tools\/agbcc submodule/.test(`${setup.stdout}${setup.stderr}`)) {
-    return { failure: `setup.sh in the worktree did not check the tools/agbcc submodule out:\n${tail(setup)}`, worktree, main };
+    return {
+      failure: `setup.sh in the worktree did not check the tools/agbcc submodule out:\n${tail(setup)}`,
+      worktree,
+      main,
+    };
   }
   const copied = path.join(worktree, ROM_FILE);
-  if (!(await exists(copied))) return { failure: `setup.sh did not copy ${ROM_FILE} from the main checkout`, worktree, main };
-  if (sha1(await readFile(copied)) !== expected) return { failure: `the copied ${ROM_FILE} differs from the main checkout's`, worktree, main };
+  if (!(await exists(copied)))
+    return { failure: `setup.sh did not copy ${ROM_FILE} from the main checkout`, worktree, main };
+  if (sha1(await readFile(copied)) !== expected)
+    return { failure: `the copied ${ROM_FILE} differs from the main checkout's`, worktree, main };
   const make = await cx.exec('make', [], { cwd: worktree, env });
   if (make.code !== 0) return { failure: `make in the worktree exited ${make.code}:\n${tail(make)}`, worktree, main };
   const recorded = await sha1File(worktree);
-  if (recorded.sha1 !== expected) return { failure: `the .sha1 file records ${recorded.sha1}, expected ${expected}`, worktree, main };
+  if (recorded.sha1 !== expected)
+    return { failure: `the .sha1 file records ${recorded.sha1}, expected ${expected}`, worktree, main };
   const built = path.join(worktree, recorded.file);
   const actual = (await exists(built)) ? sha1(await readFile(built)) : 'nothing';
-  return actual === expected ? { worktree, main } : { failure: `make in the worktree built ${actual}, expected ${expected}`, worktree, main };
+  return actual === expected
+    ? { worktree, main }
+    : { failure: `make in the worktree built ${actual}, expected ${expected}`, worktree, main };
 }
 
 gate({
@@ -144,18 +209,25 @@ gate({
   realInputs: ['roms'],
   needs: ['init', 'generate', 'underGeneratedRoot'],
   async run(cx) {
-    const targets: Target[] = cx.fixtures.filter((f) => !NOT_BUILT.has(f.name)).map((f) => ({ name: f.name, rom: f.rom }));
+    const targets: Target[] = cx.fixtures
+      .filter((f) => !NOT_BUILT.has(f.name))
+      .map((f) => ({ name: f.name, rom: f.rom }));
     if (targets.length === 0) throw new Error('no committed fixture under bench/dataset/synthetic');
-    if (cx.tier === 'real') for (const d of cx.datasets) targets.push({ name: d.name, rom: path.resolve(cx.benchRoot, d.rom) });
+    if (cx.tier === 'real')
+      for (const d of cx.datasets) targets.push({ name: d.name, rom: path.resolve(cx.benchRoot, d.rom) });
     const cli = await sourceCli(cx);
     const base = await cx.tmpDir('romlift-worktree-');
     // The first target builds agbcc (through the submodule its main checkout registers); the rest get a copy,
     // FIXTURE_PARALLELISM fixtures at once, the tuning ROMs of the real tier one at a time.
-    const one = async ({ target, i }: { readonly target: Target; readonly i: number }, agbcc: string | undefined): Promise<{ readonly failure?: string; readonly agbcc?: string }> => {
+    const one = async (
+      { target, i }: { readonly target: Target; readonly i: number },
+      agbcc: string | undefined,
+    ): Promise<{ readonly failure?: string; readonly agbcc?: string }> => {
       const { failure, worktree, main } = await inWorktree(cx, cli, target, base, agbcc, i === 0);
       let fresh: string | undefined;
       for (const built of [path.join(main, 'tools', 'agbcc'), path.join(worktree, 'tools', 'agbcc')]) {
-        if (agbcc === undefined && fresh === undefined && (await exists(path.join(built, 'bin', 'agbcc')))) fresh = built;
+        if (agbcc === undefined && fresh === undefined && (await exists(path.join(built, 'bin', 'agbcc'))))
+          fresh = built;
       }
       return { ...(failure === undefined ? {} : { failure }), ...(fresh === undefined ? {} : { agbcc: fresh }) };
     };
@@ -164,8 +236,12 @@ gate({
     const fromFixtures = await withSharedAgbcc(items.slice(0, fixtureCount), one);
     const agbcc = fromFixtures.find((o) => o.agbcc !== undefined)?.agbcc;
     const outcomes = [...fromFixtures, ...(await pooled(items.slice(fixtureCount), 1, (item) => one(item, agbcc)))];
-    const problems = outcomes.flatMap((o, i) => (o.failure === undefined ? [] : [`${targets[i]?.name ?? '?'}: ${o.failure}`]));
+    const problems = outcomes.flatMap((o, i) =>
+      o.failure === undefined ? [] : [`${targets[i]?.name ?? '?'}: ${o.failure}`],
+    );
     if (problems.length > 0) throw new Error(`the worktree build: ${problems.join(' | ')}`);
-    cx.note(`${targets.length} fresh worktrees copied the ROM and built to the SHA-1; ${targets[0]?.name ?? '?'} through the tools/agbcc submodule setup.sh registered in the main checkout`);
+    cx.note(
+      `${targets.length} fresh worktrees copied the ROM and built to the SHA-1; ${targets[0]?.name ?? '?'} through the tools/agbcc submodule setup.sh registered in the main checkout`,
+    );
   },
 });

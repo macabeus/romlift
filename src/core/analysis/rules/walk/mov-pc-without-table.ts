@@ -10,7 +10,8 @@ export default defineRule({
   meta: {
     id: 'walk.mov-pc-without-table',
     summary: 'a write to pc that is not a table jump or bx ends the path as a register jump',
-    restsOn: 'compiled and hand-written code jump through registers (function pointers, switch helpers, ARM handlers); the target is unknown, not invalid',
+    restsOn:
+      'compiled and hand-written code jump through registers (function pointers, switch helpers, ARM handlers); the target is unknown, not invalid',
     recovers: 'functions ending in a computed jump, which would otherwise read as not code',
     reads: ['rom'],
     adds: ['exits'],

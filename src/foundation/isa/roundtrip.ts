@@ -14,13 +14,18 @@ export type Printing =
   | { readonly kind: 'raw'; readonly reason: RawReason };
 
 /** The text and its encoding when assemble(parse(format(insn))) reproduces the size and word. */
-function attempt(insn: Insn, resolver: SymbolResolver): { readonly text: string; readonly assembled: Assembled } | undefined {
+function attempt(
+  insn: Insn,
+  resolver: SymbolResolver,
+): { readonly text: string; readonly assembled: Assembled } | undefined {
   const text = format(insn, resolver);
   if (text === undefined) return undefined;
   const parsed = parse(text, insn.mode, insn.addr, resolver);
   if (parsed === undefined) return undefined;
   const assembled = assemble(parsed, insn.addr);
-  return assembled !== undefined && assembled.size === insn.size && assembled.word === insn.word ? { text, assembled } : undefined;
+  return assembled !== undefined && assembled.size === insn.size && assembled.word === insn.word
+    ? { text, assembled }
+    : undefined;
 }
 
 /** The printing rule: the row's encoding reason first, then the round trip ('no-roundtrip' when it fails). */

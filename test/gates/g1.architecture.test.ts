@@ -6,10 +6,13 @@
 // and requires no diagnostic (what `tsc --noEmit -p tsconfig.json` reports), and the ESLint one. The gate runs that
 // file once and requires each of the two tests by name to pass, so neither can leave the file unnoticed; it no
 // longer runs `tsc --noEmit` a second time beside it.
-import { gate, type ExecResult } from './gate.ts';
+import { type ExecResult, gate } from './gate.ts';
 
 /** The tests of test/architecture.test.ts this gate's verdict rests on, by name. */
-const REQUIRED: readonly string[] = ['the repository typechecks', 'the repository follows every architecture rule (eslint.config.js)'];
+const REQUIRED: readonly string[] = [
+  'the repository typechecks',
+  'the repository follows every architecture rule (eslint.config.js)',
+];
 
 function tail(run: ExecResult, lines = 40): string {
   return `${run.stdout}${run.stderr}`.trimEnd().split('\n').slice(-lines).join('\n');
@@ -35,7 +38,10 @@ gate({
     if (checker.code !== 0) throw new Error(`test/architecture.test.ts exited ${checker.code}:\n${tail(checker)}`);
     const passed = new Set([...checker.stdout.matchAll(/^ok \d+ - (.+)$/gm)].map((m) => (m[1] ?? '').trim()));
     const missing = REQUIRED.filter((name) => !passed.has(name));
-    if (missing.length > 0) throw new Error(`test/architecture.test.ts passed without ${missing.map((n) => `"${n}"`).join(' and ')}:\n${tail(checker)}`);
+    if (missing.length > 0)
+      throw new Error(
+        `test/architecture.test.ts passed without ${missing.map((n) => `"${n}"`).join(' and ')}:\n${tail(checker)}`,
+      );
     cx.note(`ESLint and tsc: ${tapTotals(checker.stdout)}; tsc --noEmit: 0 errors`);
   },
 });

@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { ExitCode } from '../../../src/cli/exit-codes.ts';
 import { main } from '../../../src/cli/main.ts';
 import { commandHelp, usageText } from '../../../src/cli/registry.ts';
-import { scanFake, capturingIo, FAKE_COMMANDS } from './fake.ts';
+import { FAKE_COMMANDS, capturingIo, scanFake } from './fake.ts';
 
 test('no arguments, --help and -h print usage to stdout and exit 0', async () => {
   for (const argv of [[], ['--help'], ['-h'], ['--help', 'scan']]) {
@@ -59,7 +59,9 @@ test('a thrown RomliftInvariantError prints one stderr line and exits 70', async
   const io = capturingIo();
   assert.equal(await main(['invariant'], io, FAKE_COMMANDS), ExitCode.internal);
   assert.deepEqual(io.out, []);
-  assert.deepEqual(io.err, ['romlift: invariant violated: RomliftInvariantError: the tiling has a hole at 0x08000000\n']);
+  assert.deepEqual(io.err, [
+    'romlift: invariant violated: RomliftInvariantError: the tiling has a hole at 0x08000000\n',
+  ]);
 });
 
 test('any other throw, and a return that is not an exit code, exit 70 with one line', async () => {
@@ -68,7 +70,9 @@ test('any other throw, and a return that is not an exit code, exit 70 with one l
   assert.deepEqual(io.err, ['romlift: internal error: TypeError: x is undefined\n']);
   const io2 = capturingIo();
   assert.equal(await main(['bogus'], io2, FAKE_COMMANDS), ExitCode.internal);
-  assert.deepEqual(io2.err, ["romlift: invariant violated: RomliftInvariantError: command 'bogus' returned 42, not an exit code\n"]);
+  assert.deepEqual(io2.err, [
+    "romlift: invariant violated: RomliftInvariantError: command 'bogus' returned 42, not an exit code\n",
+  ]);
 });
 
 test('main defaults to the shipped COMMANDS', async () => {

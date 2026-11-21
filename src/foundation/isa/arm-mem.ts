@@ -1,9 +1,9 @@
 // The ARM (ARMv4T) memory rows: word and byte loads and stores (with the user-mode T forms and the
 // pc-relative pool load), halfword and signed transfers, the block transfers and swp. Loads into pc
 // get rows of their own (flow pop-pc), so the flow class is a table fact.
-import { fieldValue as v, popcount, wrap32 } from './bits.ts';
-import { pcOf } from './pc-relative.ts';
 import { shiftFields, shiftOperands } from './arm-shift.ts';
+import { popcount, fieldValue as v, wrap32 } from './bits.ts';
+import { pcOf } from './pc-relative.ts';
 import { cond, flag, imm, reg, reglist, row, shiftType } from './row.ts';
 import type { Row } from './row.ts';
 import type { Fields, RawReason } from './types.ts';
@@ -21,7 +21,12 @@ interface Transfer {
 
 const TRANSFERS: readonly Transfer[] = [false, true].flatMap((user) =>
   [false, true].flatMap((byte) =>
-    [false, true].map((load) => ({ name: `${load ? 'ldr' : 'str'}${byte ? 'b' : ''}${user ? 't' : ''}`, load, byte, user })),
+    [false, true].map((load) => ({
+      name: `${load ? 'ldr' : 'str'}${byte ? 'b' : ''}${user ? 't' : ''}`,
+      load,
+      byte,
+      user,
+    })),
   ),
 );
 
@@ -62,10 +67,19 @@ function transferRow(t: Transfer, regOffset: boolean, pcDest: boolean): Row {
       ...(regOffset ? { rm: v(f, 'rm'), ...shiftOperands(v(f, 'stype'), v(f, 'samt')) } : { imm: v(f, 'imm') }),
     }),
     fromOps: (o) => {
-      const base = { cond: v(o, 'cond'), rd: v(o, 'rd'), rn: v(o, 'rn'), u: v(o, 'u'), ...(t.user ? {} : { p: v(o, 'p'), w: v(o, 'w') }) };
+      const base = {
+        cond: v(o, 'cond'),
+        rd: v(o, 'rd'),
+        rn: v(o, 'rn'),
+        u: v(o, 'u'),
+        ...(t.user ? {} : { p: v(o, 'p'), w: v(o, 'w') }),
+      };
       // as refuses `ldr/str pc, [pc, #imm]` unless imm is a multiple of 4 ("ldr to register 15 must
       // be 4-byte aligned"); the label form of ldr has no such check and is the pool row's.
-      if (!regOffset) return v(o, 'rd') === 15 && v(o, 'rn') === 15 && v(o, 'imm') % 4 !== 0 ? undefined : { ...base, imm: v(o, 'imm') };
+      if (!regOffset)
+        return v(o, 'rd') === 15 && v(o, 'rn') === 15 && v(o, 'imm') % 4 !== 0
+          ? undefined
+          : { ...base, imm: v(o, 'imm') };
       const shift = shiftFields(v(o, 'shift'), v(o, 'amount'));
       return shift === undefined ? undefined : { ...base, rm: v(o, 'rm'), ...shift };
     },
@@ -87,7 +101,11 @@ const LDR_POOL: Row = row('arm.ldr_pc', 'arm', {
   fields: [cond(), flag('u', 23), reg('rd', 12, 4), imm('imm', 0, 12)],
   syntax: 'ldr{c} {rd}, {target}',
   flow: 'pc-load',
-  toOps: (f, a) => ({ cond: v(f, 'cond'), rd: v(f, 'rd'), target: wrap32(pcOf(a, 'arm') + (v(f, 'u') === 1 ? 1 : -1) * v(f, 'imm')) }),
+  toOps: (f, a) => ({
+    cond: v(f, 'cond'),
+    rd: v(f, 'rd'),
+    target: wrap32(pcOf(a, 'arm') + (v(f, 'u') === 1 ? 1 : -1) * v(f, 'imm')),
+  }),
   fromOps: (o, a) => {
     const offset = v(o, 'target') - pcOf(a, 'arm');
     return { cond: v(o, 'cond'), rd: v(o, 'rd'), u: offset < 0 ? 0 : 1, imm: Math.abs(offset) };
@@ -101,8 +119,16 @@ const plainTransfers = TRANSFERS.filter((t) => !t.user);
 
 const singleTransfers: Row[] = [
   LDR_POOL,
-  ...userTransfers.flatMap((t) => [false, true].flatMap((r) => (t.load ? [transferRow(t, r, true), transferRow(t, r, false)] : [transferRow(t, r, false)]))),
-  ...plainTransfers.flatMap((t) => [false, true].flatMap((r) => (t.load ? [transferRow(t, r, true), transferRow(t, r, false)] : [transferRow(t, r, false)]))),
+  ...userTransfers.flatMap((t) =>
+    [false, true].flatMap((r) =>
+      t.load ? [transferRow(t, r, true), transferRow(t, r, false)] : [transferRow(t, r, false)],
+    ),
+  ),
+  ...plainTransfers.flatMap((t) =>
+    [false, true].flatMap((r) =>
+      t.load ? [transferRow(t, r, true), transferRow(t, r, false)] : [transferRow(t, r, false)],
+    ),
+  ),
 ];
 
 // ---------------------------------------------------------------------------------------------------
@@ -152,7 +178,13 @@ function halfRow(name: string, l: number, s: number, h: number, regOffset: boole
 
 const halfTransfers: Row[] = [
   // L = 0 with S = 1 is ldrd/strd from ARMv5TE: undefined on the ARMv4T.
-  row('arm.ldrd_strd', 'arm', { mask: 0x0e10_00d0, match: 0x0000_00d0, fields: [cond()], syntax: 'ldrd/strd', rawOnly: 'undefined' }),
+  row('arm.ldrd_strd', 'arm', {
+    mask: 0x0e10_00d0,
+    match: 0x0000_00d0,
+    fields: [cond()],
+    syntax: 'ldrd/strd',
+    rawOnly: 'undefined',
+  }),
   ...HALF.flatMap(([name, l, s, h]) => [halfRow(name, l, s, h, false), halfRow(name, l, s, h, true)]),
 ];
 
@@ -164,7 +196,15 @@ function blockRow(name: 'ldm' | 'stm', loadsPc: boolean): Row {
   return row(`arm.${name}${loadsPc ? '_pc' : ''}`, 'arm', {
     mask: loadsPc ? 0x0e10_8000 : 0x0e10_0000,
     match: (load ? 0x0810_0000 : 0x0800_0000) | (loadsPc ? 0x8000 : 0),
-    fields: [cond(), flag('p', 24), flag('u', 23), flag('user', 22), flag('w', 21), reg('rn', 16, 4), reglist('list', 0, 16)],
+    fields: [
+      cond(),
+      flag('p', 24),
+      flag('u', 23),
+      flag('user', 22),
+      flag('w', 21),
+      reg('rn', 16, 4),
+      reglist('list', 0, 16),
+    ],
     syntax: `${name}{am}{c} {rn}{wb}, {list}{caret}`,
     flow: loadsPc ? 'pop-pc' : 'next',
     raw: (f) => {
@@ -210,7 +250,13 @@ const swaps: Row[] = [
   swpRow(false),
   swpRow(true),
   // The rest of 0001 xxxx 1001 (ldrex and friends in later architectures).
-  row('arm.swp_undefined', 'arm', { mask: 0x0f00_00f0, match: 0x0100_0090, fields: [cond()], syntax: 'undefined', rawOnly: 'undefined' }),
+  row('arm.swp_undefined', 'arm', {
+    mask: 0x0f00_00f0,
+    match: 0x0100_0090,
+    fields: [cond()],
+    syntax: 'undefined',
+    rawOnly: 'undefined',
+  }),
 ];
 
 /** The memory rows in decode order. */

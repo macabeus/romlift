@@ -4,14 +4,22 @@
 // reason, extents with the 4-byte padding allowance, and the code end (truth.ts elfCodeEnd, D61 a). Two runs are scored the same way:
 // romlift's own AnalysisResult with its miss diagnoses (scoreAnalysis, `bench run`), and a PoC dump
 // (scoreRun, `bench poc-check`). Pure: the run, the truth and the dataset in, one row out.
-import { compareCodeUnits, compareNumbers, hexAddr, type AnalysisResult, type MissReason, type Mode, type Origin } from 'romlift';
+import {
+  type AnalysisResult,
+  type MissReason,
+  type Mode,
+  type Origin,
+  compareCodeUnits,
+  compareNumbers,
+  hexAddr,
+} from 'romlift';
 import type { MissDiagnosis } from 'romlift/internal';
 
 import type { Dataset } from './dataset.ts';
 import { BenchError } from './files.ts';
 import type { BenchRow, ExtentRow, FalseRow, MissRow, StaleException } from './row.ts';
-import { dumpAddr, missReasonId, originId, type ScoredRun } from './scored-run.ts';
-import { elfCodeEnd, type Truth } from './truth.ts';
+import { type ScoredRun, dumpAddr, missReasonId, originId } from './scored-run.ts';
+import { type Truth, elfCodeEnd } from './truth.ts';
 
 /** An extent agrees when the ELF size equals it, or equals it padded to a multiple of 4. */
 export function extentAgrees(elfSize: number, extent: number): boolean {
@@ -23,7 +31,11 @@ export function extentAgrees(elfSize: number, extent: number): boolean {
  * startup end, is not an ELF function, or the ELF gives it no size); else the ELF function and whether the
  * extent agrees. The objdiff family scores exactly the functions this says agree (D34).
  */
-export function extentJudgement(f: Pick<FoundFunction, 'entry' | 'end'>, truth: Pick<Truth, 'byAddr'>, startupEnd: number): { readonly elf: Truth['functions'][number]; readonly agrees: boolean } | undefined {
+export function extentJudgement(
+  f: Pick<FoundFunction, 'entry' | 'end'>,
+  truth: Pick<Truth, 'byAddr'>,
+  startupEnd: number,
+): { readonly elf: Truth['functions'][number]; readonly agrees: boolean } | undefined {
   if (f.entry < startupEnd) return undefined;
   const t = truth.byAddr.get(f.entry);
   if (t === undefined || t.size === 0) return undefined;
@@ -31,7 +43,11 @@ export function extentJudgement(f: Pick<FoundFunction, 'entry' | 'end'>, truth: 
 }
 
 /** The found functions whose entry and extent agree with the ELF, with their ELF function, in entry order. */
-export function agreeingFunctions<F extends Pick<FoundFunction, 'entry' | 'end'>>(found: readonly F[], truth: Pick<Truth, 'byAddr'>, startupEnd: number): { readonly found: F; readonly elf: Truth['functions'][number] }[] {
+export function agreeingFunctions<F extends Pick<FoundFunction, 'entry' | 'end'>>(
+  found: readonly F[],
+  truth: Pick<Truth, 'byAddr'>,
+  startupEnd: number,
+): { readonly found: F; readonly elf: Truth['functions'][number] }[] {
   const out: { readonly found: F; readonly elf: Truth['functions'][number] }[] = [];
   for (const f of [...found].sort((a, b) => compareNumbers(a.entry, b.entry))) {
     const judged = extentJudgement(f, truth, startupEnd);
@@ -66,10 +82,15 @@ export interface ScoreContext {
   readonly sha1: string;
 }
 
-const byAddrText = (x: { readonly addr: string }, y: { readonly addr: string }): number => compareCodeUnits(x.addr, y.addr);
+const byAddrText = (x: { readonly addr: string }, y: { readonly addr: string }): number =>
+  compareCodeUnits(x.addr, y.addr);
 
 /** The row of one run; `elfEnd` is the ELF's code end under the convention of the run's scorer. */
-export function scoreParts(run: RunParts, { truth, dataset, sha1 }: ScoreContext, elfEnd: number = elfCodeEnd(truth)): BenchRow {
+export function scoreParts(
+  run: RunParts,
+  { truth, dataset, sha1 }: ScoreContext,
+  elfEnd: number = elfCodeEnd(truth),
+): BenchRow {
   const startupEnd = run.startup.end;
   const all = [...run.functions].sort((a, b) => compareNumbers(a.entry, b.entry));
   const byEntry = new Map(all.map((f) => [f.entry, f]));
@@ -104,10 +125,18 @@ export function scoreParts(run: RunParts, { truth, dataset, sha1 }: ScoreContext
   for (const t of truthFrom) {
     if (foundEntries.has(t.addr)) continue;
     const reason = run.missReason(t.addr);
-    if (reason === undefined) throw new BenchError(`${dataset.name}: no miss diagnosis for ${hexAddr(t.addr)} ${t.name}`);
+    if (reason === undefined)
+      throw new BenchError(`${dataset.name}: no miss diagnosis for ${hexAddr(t.addr)} ${t.name}`);
     const addr = hexAddr(t.addr);
     const listed = labels.get(addr);
-    misses.push({ addr, name: t.name, size: t.size, reason, listed: listed !== undefined, ...(listed === undefined ? {} : { category: listed.category }) });
+    misses.push({
+      addr,
+      name: t.name,
+      size: t.size,
+      reason,
+      listed: listed !== undefined,
+      ...(listed === undefined ? {} : { category: listed.category }),
+    });
   }
 
   let sized = 0;
@@ -124,7 +153,8 @@ export function scoreParts(run: RunParts, { truth, dataset, sha1 }: ScoreContext
     const f = byEntry.get(t.addr);
     if (f === undefined || t.size === 0) continue;
     const extent = f.end - t.addr;
-    if (!extentAgrees(t.size, extent)) mismatches.push({ addr: hexAddr(t.addr), name: t.name, elf: t.size, found: extent });
+    if (!extentAgrees(t.size, extent))
+      mismatches.push({ addr: hexAddr(t.addr), name: t.name, elf: t.size, found: extent });
   }
 
   return {
@@ -133,7 +163,11 @@ export function scoreParts(run: RunParts, { truth, dataset, sha1 }: ScoreContext
     elfCommit: dataset.elfCommit,
     elfFunctions: truthFrom.length,
     entries: found.length,
-    startup: { end: hexAddr(startupEnd), pieces: run.startup.pieces, elfFunctions: truth.functions.length - truthFrom.length },
+    startup: {
+      end: hexAddr(startupEnd),
+      pieces: run.startup.pieces,
+      elfFunctions: truth.functions.length - truthFrom.length,
+    },
     thumb: found.filter((f) => f.mode === 'thumb').length,
     arm: found.filter((f) => f.mode === 'arm').length,
     tp,
@@ -232,7 +266,10 @@ export function insideFoundFunction(found: readonly Pick<FoundFunction, 'entry' 
 }
 
 /** The dataset rows the row no longer needs: labels it does not miss, untyped rows it does not report. */
-export function staleExceptions(dataset: Pick<Dataset, 'labels' | 'untyped'>, row: Pick<BenchRow, 'misses' | 'falseEntries'>): StaleException[] {
+export function staleExceptions(
+  dataset: Pick<Dataset, 'labels' | 'untyped'>,
+  row: Pick<BenchRow, 'misses' | 'falseEntries'>,
+): StaleException[] {
   const missed = new Set(row.misses.map((m) => m.addr));
   const reported = new Set(row.falseEntries.map((f) => f.addr));
   return [

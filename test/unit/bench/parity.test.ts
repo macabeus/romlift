@@ -3,11 +3,10 @@
 // verdicts, claims merged across the extent splits with padding and data dropped.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-
 import type { AnalysisResult, FunctionFact } from 'romlift';
 
+import { PARITY_SCHEMA, type ParityView, parityDigest, parseParityView } from '../../../bench/src/parity-view.ts';
 import { parityViewOf, resultParityDigest } from '../../../bench/src/parity.ts';
-import { parityDigest, parseParityView, PARITY_SCHEMA, type ParityView } from '../../../bench/src/parity-view.ts';
 
 const base: Omit<FunctionFact, 'entry' | 'mode' | 'extent' | 'codeEnd' | 'code' | 'origin'> = {
   dead: [],
@@ -44,7 +43,11 @@ const thumb: FunctionFact = {
   extent: { start: 0x0800_0010, end: 0x0800_0040 },
   codeEnd: 0x0800_0030,
   // An absorbed block's instructions are already part of the code runs; touching runs merge.
-  code: [{ start: 0x0800_0010, end: 0x0800_0018 }, { start: 0x0800_0018, end: 0x0800_0020 }, { start: 0x0800_0024, end: 0x0800_0030 }],
+  code: [
+    { start: 0x0800_0010, end: 0x0800_0018 },
+    { start: 0x0800_0018, end: 0x0800_0020 },
+    { start: 0x0800_0024, end: 0x0800_0030 },
+  ],
   absorbed: [{ start: 0x0800_0024, end: 0x0800_0030 }],
   pools: [0x0800_0034, 0x0800_0030],
   farPools: [0x0800_1000],
@@ -87,13 +90,27 @@ const result: AnalysisResult = {
 const expected: ParityView = {
   schema: PARITY_SCHEMA,
   functions: [
-    { entry: 0x0800_0000, mode: 'arm', end: 0x0800_0010, codeEnd: 0x0800_000c, code: [[0x0800_0000, 0x0800_000c]], pools: [0x0800_000c], tables: [], far: [], noreturn: [], origin: 'rom-entry' },
+    {
+      entry: 0x0800_0000,
+      mode: 'arm',
+      end: 0x0800_0010,
+      codeEnd: 0x0800_000c,
+      code: [[0x0800_0000, 0x0800_000c]],
+      pools: [0x0800_000c],
+      tables: [],
+      far: [],
+      noreturn: [],
+      origin: 'rom-entry',
+    },
     {
       entry: 0x0800_0010,
       mode: 'thumb',
       end: 0x0800_0040,
       codeEnd: 0x0800_0030,
-      code: [[0x0800_0010, 0x0800_0020], [0x0800_0024, 0x0800_0030]],
+      code: [
+        [0x0800_0010, 0x0800_0020],
+        [0x0800_0024, 0x0800_0030],
+      ],
       pools: [0x0800_0030, 0x0800_0034, 0x0800_1000],
       tables: [[0x0800_0038, 2]],
       far: [0x0800_0014],
@@ -130,6 +147,9 @@ test('padding and data claims are left out; far and noreturn come from the bl ve
 
 test('the result digest is the parity digest of the view', () => {
   assert.equal(resultParityDigest(result), parityDigest(expected));
-  const moved: AnalysisResult = { ...result, functions: [{ ...thumb, extent: { start: 0x0800_0010, end: 0x0800_0044 } }, arm] };
+  const moved: AnalysisResult = {
+    ...result,
+    functions: [{ ...thumb, extent: { start: 0x0800_0010, end: 0x0800_0044 } }, arm],
+  };
   assert.notEqual(resultParityDigest(moved), parityDigest(expected), 'an extent change changes the digest');
 });

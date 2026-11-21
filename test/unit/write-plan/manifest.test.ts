@@ -4,7 +4,14 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { decodeManifest, encodeManifest, isProjectPath } from '../../../src/core/write-plan/manifest.ts';
-import { GENERATED_ROOTS, JOURNAL_PATH, LOCK_PATH, MANIFEST_PATH, ROMLIFT_DIR, underGeneratedRoot } from '../../../src/core/write-plan/types.ts';
+import {
+  GENERATED_ROOTS,
+  JOURNAL_PATH,
+  LOCK_PATH,
+  MANIFEST_PATH,
+  ROMLIFT_DIR,
+  underGeneratedRoot,
+} from '../../../src/core/write-plan/types.ts';
 import type { Manifest } from '../../../src/core/write-plan/types.ts';
 
 const SHA = 'a0a298d9dba1ba15d04a42fc2eb35893d1a9569b';
@@ -26,8 +33,15 @@ function text(m: Manifest): string {
 test('a manifest encodes canonically and decodes to itself', () => {
   const t = text(MANIFEST);
   assert.ok(t.endsWith('}\n'));
-  assert.ok(t.indexOf('"asm/crt0.s"') < t.indexOf('"asm/nonmatchings/main/AgbMain.s"') && t.indexOf('"asm/nonmatchings') < t.indexOf('"ldscript.txt"'), 'paths sorted by code unit');
-  assert.ok(t.indexOf('"files"') < t.indexOf('"romlift"') && t.indexOf('"romlift"') < t.indexOf('"schema"'), 'keys sorted');
+  assert.ok(
+    t.indexOf('"asm/crt0.s"') < t.indexOf('"asm/nonmatchings/main/AgbMain.s"') &&
+      t.indexOf('"asm/nonmatchings') < t.indexOf('"ldscript.txt"'),
+    'paths sorted by code unit',
+  );
+  assert.ok(
+    t.indexOf('"files"') < t.indexOf('"romlift"') && t.indexOf('"romlift"') < t.indexOf('"schema"'),
+    'keys sorted',
+  );
   const back = decodeManifest(t);
   assert.ok(back.ok);
   assert.deepEqual(back.manifest, MANIFEST);
@@ -65,11 +79,20 @@ test('anything else decodes to an error value, never a throw', () => {
 
 test('project paths are normalised and relative', () => {
   for (const ok of ['asm/x.s', 'ldscript.txt', '.romlift/manifest.json', 'a/b/c']) assert.ok(isProjectPath(ok), ok);
-  for (const bad of ['', '/x', 'a//b', 'a/./b', 'a/../b', '..', 'a\\b', 'a/', 'x\0y']) assert.ok(!isProjectPath(bad), JSON.stringify(bad));
+  for (const bad of ['', '/x', 'a//b', 'a/./b', 'a/../b', '..', 'a\\b', 'a/', 'x\0y'])
+    assert.ok(!isProjectPath(bad), JSON.stringify(bad));
 });
 
 test('the generated roots and romlift state paths', () => {
-  assert.deepEqual(GENERATED_ROOTS, ['asm/', 'data/', 'expected/', 'ldscript.txt', 'symbols.ld', 'modules.mk', 'objdiff.json']);
+  assert.deepEqual(GENERATED_ROOTS, [
+    'asm/',
+    'data/',
+    'expected/',
+    'ldscript.txt',
+    'symbols.ld',
+    'modules.mk',
+    'objdiff.json',
+  ]);
   assert.equal(ROMLIFT_DIR, '.romlift');
   assert.equal(MANIFEST_PATH, '.romlift/manifest.json');
   assert.equal(JOURNAL_PATH, '.romlift/journal.json');
