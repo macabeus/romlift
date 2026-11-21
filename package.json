@@ -48,6 +48,7 @@
     "bench": "node --conditions=source bench/src/cli.ts",
     "corpus": "node --conditions=source test/corpus/generate.ts",
     "export-poc": "node --conditions=source bench/tools/export-poc.ts",
+    "agbcc": "node --conditions=source bench/tools/agbcc.ts",
     "fixtures": "node --conditions=source bench/tools/fixtures.ts",
     "signatures": "node --conditions=source bench/tools/signatures.ts",
     "build": "tsc -p tsconfig.build.json"

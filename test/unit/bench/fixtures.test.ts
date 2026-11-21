@@ -73,9 +73,15 @@ test('every source a fixture compiles with old_agbcc is one of its C sources, an
   assert.deepEqual(users, ['multi-compiler']);
 });
 
-test('fixtures.yml builds old_agbcc at the pinned commit and installs it beside agbcc', () => {
+test("fixtures.yml builds the checkout's agbcc (the submodule, old_agbcc beside it) before it rebuilds the fixtures", () => {
   const workflow = readFileSync(join(SYNTHETIC_ROOT, '..', '..', '..', '.github', 'workflows', 'fixtures.yml'), 'utf8');
-  assert.match(workflow, /make -C "\$RUNNER_TEMP\/agbcc-src\/gcc" old -j1/);
-  assert.match(workflow, /cp "\$RUNNER_TEMP\/agbcc-src\/gcc\/old_agbcc" "\$RUNNER_TEMP\/agbcc\/bin\/old_agbcc"/);
-  assert.match(workflow, /cp "\$RUNNER_TEMP\/agbcc-src\/gcc\/agbcc" "\$RUNNER_TEMP\/agbcc\/bin\/agbcc"/);
+  assert.match(workflow, /uses: actions\/checkout@v4\n\s+with:\n\s+submodules: true/, 'the job checks tools/agbcc out');
+  const build = workflow.indexOf('run: npm run agbcc');
+  const check = workflow.indexOf('run: npm run fixtures -- check --json');
+  assert.ok(build > 0 && check > build, 'npm run agbcc builds tools/agbcc before the fixtures are rebuilt');
+  assert.match(
+    workflow,
+    /cp -R "\$AGBCC_BUILD\/bin" "\$AGBCC_BUILD\/include" "\$AGBCC_BUILD\/lib" "\$dir\/tools\/agbcc\/"/,
+    'each end-to-end project gets the build as installed',
+  );
 });

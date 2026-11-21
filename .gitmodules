@@ -1,0 +1,5 @@
+[submodule "tools/agbcc"]
+	path = tools/agbcc
+	url = https://github.com/macabeus/agbcc.git
+	shallow = true
+	ignore = dirty

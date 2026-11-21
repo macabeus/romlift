@@ -9,8 +9,8 @@
 // objdiff-cli is found as the bench finds it (ROMLIFT_OBJDIFF, the repository's bench/.local/objdiff-target build, the
 // main checkout's, PATH, then $ROMLIFT_BENCH_ROOT/objdiff), through a child process that loads bench/src/objdiff-cli.ts
 // by path (test/local imports only romlift's entry points and node, D37), at the version bench/tools/objdiff.version
-// pins. agbcc comes from ROMLIFT_AGBCC, else bench/.local/agbcc, else $ROMLIFT_BENCH_ROOT/pokeemerald/tools/agbcc, else
-// setup.sh builds it at the pin (network). Without objdiff-cli or binutils the test is `unavailable`, or fails when
+// pins. agbcc is the checkout's (tools/agbcc, built by `npm run agbcc`, D120), else setup.sh builds it at the pin
+// (network). Without objdiff-cli or binutils the test is `unavailable`, or fails when
 // ROMLIFT_REQUIRE_LOCAL=1.
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
@@ -84,16 +84,10 @@ function tail(ran: Ran, lines = 25): string {
   return ran.out.trimEnd().split('\n').slice(-lines).join('\n');
 }
 
-/** The first agbcc build found (a directory holding bin/agbcc), or undefined: setup.sh then builds it. */
+/** The checkout's agbcc (tools/agbcc, built by `npm run agbcc`, D120), or undefined until it is built: setup.sh then builds it. */
 function prebuiltAgbcc(): string | undefined {
-  const env = process.env['ROMLIFT_AGBCC'];
-  const candidates = [
-    ...(env ? [path.resolve(REPO, env)] : []),
-    path.join(REPO, 'bench', '.local', 'agbcc'),
-    path.join(BENCH_ROOT, 'romlift', 'bench', '.local', 'agbcc'),
-    path.join(BENCH_ROOT, 'pokeemerald', 'tools', 'agbcc'),
-  ];
-  return candidates.find((dir) => existsSync(path.join(dir, 'bin', 'agbcc')));
+  const dir = path.join(REPO, 'tools', 'agbcc');
+  return existsSync(path.join(dir, 'bin', 'agbcc')) ? dir : undefined;
 }
 
 async function objdiffCli(): Promise<{ readonly bin: string } | { readonly unavailable: string }> {

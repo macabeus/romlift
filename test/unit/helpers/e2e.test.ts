@@ -8,7 +8,9 @@ import { chmod, mkdir, mkdtemp, readFile, readdir, rm, utimes, writeFile } from 
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { type TestContext, test } from 'node:test';
+import { readAgbccPin } from 'romlift/node';
 
+import { pinText } from '../../../bench/src/agbcc.ts';
 import {
   type CommandRunner,
   NOT_BUILT,
@@ -236,6 +238,14 @@ test('agbccCache fills once, from a prebuilt directory or the first project, and
   await script(path.join(prebuilt, 'bin', 'agbcc'), 'echo agbcc');
   await script(path.join(prebuilt, 'bin', 'old_agbcc'), 'echo old_agbcc');
   await writeFile(path.join(prebuilt, 'build.sh'), 'the checkout, not copied');
+  await assert.rejects(
+    agbccCache(path.join(dir, 'unstamped'), prebuilt),
+    /records no pin \(no romlift-agbcc-pin\.json\)/,
+    "a prebuilt agbcc is the checkout's build, stamped with its pin (bench/src/agbcc.ts)",
+  );
+  const pin = await readAgbccPin(REPO_ROOT);
+  assert.ok(pin.ok);
+  await writeFile(path.join(prebuilt, 'romlift-agbcc-pin.json'), pinText(pin.value));
   const cache = await agbccCache(path.join(dir, 'cache'), prebuilt);
   assert.equal(await cache.filled(), true);
   const project = path.join(dir, 'p1');

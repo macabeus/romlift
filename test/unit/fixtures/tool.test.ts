@@ -178,20 +178,6 @@ test('another agbcc commit, other bytes, other symbols or a missing record fail 
   assert.deepEqual(noRecord.problems, ['build.mk has no toolchain record (AGBCC_COMMIT)']);
 });
 
-test('an unknown agbcc commit is a note, and the rebuilt bytes decide', () => {
-  const unknown = compareFixture('demo', BUILD, RECORD, BUILD, { agbccCommit: undefined, asVersion: AS });
-  assert.equal(unknown.ok, true);
-  assert.match(unknown.notes[0] ?? '', /agbcc commit in use is unknown/);
-  const unknownAndDifferent = compareFixture(
-    'demo',
-    BUILD,
-    RECORD,
-    { ...BUILD, gba: new Uint8Array([9]) },
-    { agbccCommit: undefined, asVersion: AS },
-  );
-  assert.equal(unknownAndDifferent.ok, false);
-});
-
 test('the --json summary line names the failed fixtures and the toolchain', () => {
   const good = compareFixture('a', BUILD, RECORD, BUILD, { agbccCommit: COMMIT, asVersion: AS });
   const bad = compareFixture(
@@ -201,7 +187,7 @@ test('the --json summary line names the failed fixtures and the toolchain', () =
     { ...BUILD, gba: new Uint8Array() },
     { agbccCommit: COMMIT, asVersion: AS },
   );
-  const summary = JSON.parse(summaryLine('check', [good, bad], { agbccCommit: undefined, asVersion: AS })) as Record<
+  const summary = JSON.parse(summaryLine('check', [good, bad], { agbccCommit: COMMIT, asVersion: AS })) as Record<
     string,
     unknown
   >;
@@ -210,7 +196,7 @@ test('the --json summary line names the failed fixtures and the toolchain', () =
   assert.equal(summary['ok'], false);
   assert.equal(summary['fixtures'], 2);
   assert.deepEqual(summary['failed'], ['b']);
-  assert.deepEqual(summary['toolchain'], { agbccCommit: null, as: AS });
+  assert.deepEqual(summary['toolchain'], { agbccCommit: COMMIT, as: AS });
   assert.equal(
     (JSON.parse(summaryLine('rebuild', [good], { agbccCommit: COMMIT, asVersion: AS })) as { ok: boolean }).ok,
     true,

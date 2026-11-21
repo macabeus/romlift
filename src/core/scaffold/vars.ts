@@ -10,7 +10,7 @@ import { isProjectPath } from '../../foundation/util/project-path.ts';
 
 /** The pinned agbcc a project builds with: templates/agbcc.json, the submodule `.gitmodules` and setup.sh name. */
 export interface AgbccPin {
-  /** The repository setup.sh clones (pret/agbcc). */
+  /** The repository setup.sh clones: macabeus/agbcc, a fork of pret/agbcc that compiles to the same bytes (D120). */
   readonly url: string;
   /** The commit tools/agbcc is checked out at: forty lower-case hex digits. */
   readonly commit: string;

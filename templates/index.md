@@ -25,8 +25,8 @@ refuses an unknown member, a target that is not a project path, a repeated targe
 | `include/include_asm.h` | none | romlift: `INCLUDE_ASM_HEADER` (`src/foundation/asm/dialect.ts`) |
 
 `agbcc.json` (`{ "url", "commit" }`, decoded by `decodeAgbccPin`) is read, never copied: it pins the agbcc
-that `.gitmodules` and `setup.sh` name (pret/agbcc `da598c1d918402c42c0c0d7128ba14567f3175e9`, the commit
-the synthetic fixtures were built with).
+that `.gitmodules` and `setup.sh` name: macabeus/agbcc `a0f70c956e8f982ee2a1f67f9fbead46cbaef339`, the commit of romlift's
+own `tools/agbcc` submodule and the one the synthetic fixtures were built with (D120).
 
 Templates and manifest targets spell a value of `ScaffoldVars` as `@@<placeholder>@@`, one of `name`,
 `romFile`, `builtRom`, `sha1`, `sha1File`, `romliftVersion`, `title`, `agbccUrl`, `agbccCommit`

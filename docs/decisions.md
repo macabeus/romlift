@@ -5615,6 +5615,59 @@ reformatted tree. A contributor formats with `npm run format` (or an editor's Pr
 dprint; formatting the Markdown too (Prettier would realign every table of the records for no reader's gain); a wider
 line than gba-kit's (the owner chose its settings).
 
+## D120. agbcc is a submodule, `tools/agbcc`, from macabeus/agbcc; the owner's words of 21 November 2026
+
+**Context.** romlift found an agbcc build three ways: `ROMLIFT_AGBCC` (a directory holding `bin/agbcc`) and
+`ROMLIFT_AGBCC_COMMIT` (its commit) for the fixtures and four `test/local` tests, falling back to
+`bench/.local/agbcc` or `$ROMLIFT_BENCH_ROOT/pokeemerald/tools/agbcc`, while `bench run --scaffold` fetched pret/agbcc
+at `templates/agbcc.json`'s commit into `bench/.local/agbcc` and the workflows compiled it by hand. The owner proposed
+"a git submodule for agbcc (cloning `git@github.com:macabeus/agbcc.git`) at `./tools/agbcc`", with every scaffolded
+project registering the same repository at the same commit, and the two variables removed. They accepted the changes
+recommended (an HTTPS URL, `templates/agbcc.json` kept as the pin the package ships and tested against the submodule,
+`ignore = dirty` and `shallow = true`) except staying at pret's commit: "I think `macabeus/agbcc` produces exactly the
+same result as the original pret's agbcc. You can confirm it by compiling using `macabeus/agbcc` and check the final
+rom's hash". macabeus/agbcc is a fork of pret/agbcc whose master, `a0f70c956e8f982ee2a1f67f9fbead46cbaef339`, is
+pret's `da598c1` and eight commits (instrumentation flags, a WebAssembly package, a `dwarf2out` fix) that touch the
+compiler's sources.
+
+**Measured before the decision**, with agbcc and old_agbcc built from the fork's master, in clones of the seven
+matching decompilations, each first built with its own agbcc to its SHA-1, then cleaned and built with the fork's:
+pokeemerald (310 C compiles), sa2 (242), tmc (619) and kleod with the fork's compiler, headers and libraries,
+FireEmblem7J (84) with its compiler and headers, klonoa-empire-of-dreams (10) with all three, and sa3 (213) with its
+compiler and sa3's own libraries (sa3 needs a C library with `powf`, which neither pret's nor the fork's has): every
+ROM equals its SHA-1. The fork's `libc.a` and `libgcc.a`, compiled by the fork's agbcc, disassemble identically to
+those pret's agbcc compiled at `da598c1` (27,160 and 6,912 lines), and the 54 synthetic fixtures rebuild to the same
+bytes.
+
+**Decision.**
+
+- (a) **`tools/agbcc` is a submodule** of `https://github.com/macabeus/agbcc.git` at `a0f70c9`, `shallow = true`
+  (a build needs the commit, not its history) and `ignore = dirty` (the build lives inside it). After cloning,
+  `git submodule update --init tools/agbcc`; `npm run agbcc` builds it in place, with its own `build.sh` and
+  `install.sh`, into `tools/agbcc/{bin,include,lib}`, and stamps the build with the pin, so it builds again only when
+  the pin moves (`bench/src/agbcc.ts`, `checkoutAgbcc`). It refuses a submodule that is not checked out, or is
+  checked out at another commit than the pin's.
+- (b) **One agbcc for everything romlift builds**: the fixtures (`npm run fixtures`, which records the pin's commit;
+  the 54 `build.mk` now record `a0f70c9`), `bench run --scaffold`'s init builds (each project gets the build's
+  `bin`, `include` and `lib`), the `test/local` tests, and the workflows `fixtures.yml` and `packed.yml`, which check
+  the submodule out and run `npm run agbcc` instead of compiling pret/agbcc's `gcc/` by hand. `ROMLIFT_AGBCC`,
+  `ROMLIFT_AGBCC_COMMIT`, the `bench/.local/agbcc` cache, the `pokeemerald/tools/agbcc` fallback and the benchmark
+  root's `agbcc/` mirror are gone; a prebuilt agbcc must carry the pin's stamp.
+- (c) **The pin a project gets** stays `templates/agbcc.json`, since the published package holds no git metadata:
+  it names the same URL and commit as the submodule, which `test/unit/bench/agbcc.test.ts` checks against the
+  index's gitlink and `.gitmodules`. A scaffolded project's `.gitmodules` (written by `init`) gains `shallow = true`,
+  and `setup.sh` registers and builds macabeus/agbcc at that commit.
+- (d) **ESLint and Prettier leave `tools/agbcc/` alone**: it is another project's sources, with configs of its own.
+
+**Consequences.** A romlift clone needs the submodule only to build C (the fixtures, the scaffold builds, `test/local`);
+`npm test` and the CLI do not. No compatibility is kept for the removed variables (there are no users, the owner's
+words of 21 November 2026; D108). The gates still build agbcc through `setup.sh` once per gate, from the pin's URL,
+as a user's project does.
+
+**Rejected.** An SSH URL (`git@github.com:`): it needs a GitHub SSH key, which CI, contributors and users' projects
+may not have. Reading the pin from the submodule at run time (the package has no submodule). Staying at pret's
+`da598c1` (the owner's choice, measured above).
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per

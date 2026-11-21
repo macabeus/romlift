@@ -11,8 +11,7 @@
 //     built from the stub assembly (what link-check.ts assembles), which is as long as the module's ROM range (that
 //     those bytes link to the ROM is g3.link's and emission-real.test.ts's proof).
 //
-// Inputs: the agbcc build at ROMLIFT_AGBCC (a directory holding bin/agbcc and bin/old_agbcc), else
-// $ROMLIFT_BENCH_ROOT/pokeemerald/tools/agbcc; the host C compiler `cc` (HOSTCC overrides it); binutils; klonoa's ROM
+// Inputs: the checkout's agbcc, tools/agbcc with bin/agbcc and bin/old_agbcc (built by `npm run agbcc`, D120); the host C compiler `cc` (HOSTCC overrides it); binutils; klonoa's ROM
 // from its dataset. A missing input makes a test `unavailable`, or fails it when ROMLIFT_REQUIRE_LOCAL=1. test/local
 // imports romlift only through its entry points (architecture §2).
 import assert from 'node:assert/strict';
@@ -49,8 +48,7 @@ const REPO = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
 const BENCH_ENV = process.env['ROMLIFT_BENCH_ROOT'];
 const BENCH_ROOT = BENCH_ENV ? path.resolve(REPO, BENCH_ENV) : path.dirname(REPO);
 const REQUIRE = process.env['ROMLIFT_REQUIRE_LOCAL'] === '1';
-const AGBCC_ENV = process.env['ROMLIFT_AGBCC'];
-const AGBCC = AGBCC_ENV ? path.resolve(REPO, AGBCC_ENV) : path.join(BENCH_ROOT, 'pokeemerald', 'tools', 'agbcc');
+const AGBCC = path.join(REPO, 'tools', 'agbcc');
 const HOSTCC = process.env['HOSTCC'] ?? 'cc';
 const COMPILERS = ['agbcc', 'old_agbcc'] as const;
 const FIXTURES = ['mixer-tiled-hole', 'pops-unpushed-frame'] as const;
@@ -72,7 +70,7 @@ after(async () => {
 /** Why the compilers or binutils cannot run here, or undefined. */
 function missingTools(): string | undefined {
   for (const id of COMPILERS)
-    if (!existsSync(path.join(AGBCC, 'bin', id))) return `unavailable: ${path.join(AGBCC, 'bin', id)}`;
+    if (!existsSync(path.join(AGBCC, 'bin', id))) return `unavailable: ${path.join(AGBCC, 'bin', id)} (npm run agbcc)`;
   return 'code' in tools ? `unavailable: ${tools.message}` : undefined;
 }
 

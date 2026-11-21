@@ -10,8 +10,8 @@
 // line of the tree may print one as the name of a label inside the range, which would link to the run address; each
 // prints as its value or through `__load_<module>`, and the SHA-1 then proves the bytes.
 //
-// Inputs: the fixture's committed ROM; klonoa's ROM from its dataset; agbcc from ROMLIFT_AGBCC, else bench/.local/agbcc,
-// else $ROMLIFT_BENCH_ROOT/pokeemerald/tools/agbcc, else setup.sh builds it at the pin (network); binutils. A missing ROM
+// Inputs: the fixture's committed ROM; klonoa's ROM from its dataset; agbcc from the checkout's tools/agbcc
+// (built by `npm run agbcc`, D120), else setup.sh builds it at the pin (network); binutils. A missing ROM
 // makes its case `unavailable`, or fails it when ROMLIFT_REQUIRE_LOCAL=1. test/local imports only the entry points and
 // node (architecture §2), so the loop is spelled here.
 import assert from 'node:assert/strict';
@@ -82,15 +82,10 @@ const klonoaRanges = klonoaConfig.overrides.map((o, i) =>
   rangeOf(o, 'runsAt', `bench/overrides/klonoa.json overrides[${i}]`),
 );
 
-/** The first agbcc build found (a directory holding bin/agbcc), or undefined: setup.sh then builds it. */
+/** The checkout's agbcc (tools/agbcc, built by `npm run agbcc`, D120), or undefined until it is built: setup.sh then builds it. */
 function prebuiltAgbcc(): string | undefined {
-  const env = process.env['ROMLIFT_AGBCC'];
-  const candidates = [
-    ...(env ? [path.resolve(REPO, env)] : []),
-    path.join(REPO, 'bench', '.local', 'agbcc'),
-    path.join(BENCH_ROOT, 'pokeemerald', 'tools', 'agbcc'),
-  ];
-  return candidates.find((dir) => existsSync(path.join(dir, 'bin', 'agbcc')));
+  const dir = path.join(REPO, 'tools', 'agbcc');
+  return existsSync(path.join(dir, 'bin', 'agbcc')) ? dir : undefined;
 }
 
 const TMP = await mkdtemp(path.join(tmpdir(), 'romlift-ram-code-'));

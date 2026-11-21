@@ -4,8 +4,9 @@
 # matrix's Node (24, the engines floor, D2, D30, D115), on Linux (D108), and every committed fixture but c-data (whose C array must fail the link, g4.c-data-fails-loud) goes through `npx romlift init <rom>`
 # in a directory below the install that holds only its ROM, `./setup.sh` and `make`, which must end at the fixture's
 # SHA-1. ROMLIFT_CLI points setup.sh at the installed bin, since the pinned version is not on the registry, and it
-# then skips its npm duty. agbcc and old_agbcc are built once per job at the commit templates/agbcc.json pins (as
-# fixtures.yml builds them) and copied into each project's tools/agbcc, where setup.sh's agbcc duty finds them.
+# then skips its npm duty. The checkout's agbcc (tools/agbcc, the submodule at templates/agbcc.json's commit, D120) is
+# built once per job, as fixtures.yml builds it, and copied as installed into each project's tools/agbcc, where
+# setup.sh's agbcc duty finds it.
 name: packed
 
 on:
@@ -27,37 +28,18 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: npm
       - name: Install binutils (apt)
         run: sudo apt-get update && sudo apt-get install -y binutils-arm-none-eabi
-      # The commit and URL the package's setup.sh would fetch, read from the template the tarball ships.
-      - name: Read the agbcc pin
-        id: agbcc
-        run: |
-          echo "url=$(node -p "require('./templates/agbcc.json').url")" >> "$GITHUB_OUTPUT"
-          echo "commit=$(node -p "require('./templates/agbcc.json').commit")" >> "$GITHUB_OUTPUT"
-      # Both compilers from the one commit, in the order of pret/agbcc's build.sh (old_agbcc first, each after a
-      # clean, since they share the object files), side by side in bin/ as its install.sh puts them.
-      - name: Build agbcc and old_agbcc at the pinned commit
-        env:
-          AGBCC_URL: ${{ steps.agbcc.outputs.url }}
-          AGBCC_COMMIT: ${{ steps.agbcc.outputs.commit }}
-        run: |
-          git init -q "$RUNNER_TEMP/agbcc-src"
-          git -C "$RUNNER_TEMP/agbcc-src" fetch -q --depth 1 "$AGBCC_URL" "$AGBCC_COMMIT"
-          git -C "$RUNNER_TEMP/agbcc-src" checkout -q FETCH_HEAD
-          mkdir -p "$RUNNER_TEMP/agbcc/bin"
-          make -C "$RUNNER_TEMP/agbcc-src/gcc" clean
-          make -C "$RUNNER_TEMP/agbcc-src/gcc" old -j1
-          cp "$RUNNER_TEMP/agbcc-src/gcc/old_agbcc" "$RUNNER_TEMP/agbcc/bin/old_agbcc"
-          make -C "$RUNNER_TEMP/agbcc-src/gcc" clean
-          make -C "$RUNNER_TEMP/agbcc-src/gcc" -j1
-          cp "$RUNNER_TEMP/agbcc-src/gcc/agbcc" "$RUNNER_TEMP/agbcc/bin/agbcc"
       - name: Install exactly the lock file
         run: npm ci --ignore-scripts
+      - name: Build the checkout's agbcc (tools/agbcc)
+        run: npm run agbcc
       - name: Build dist/
         run: npm run build
       - name: Pack
@@ -98,7 +80,7 @@ jobs:
       - name: npx romlift init, setup.sh and make on every fixture but c-data, from the tarball
         timeout-minutes: 30
         env:
-          AGBCC_BUILD: ${{ runner.temp }}/agbcc
+          AGBCC_BUILD: ${{ github.workspace }}/tools/agbcc
         run: |
           set -eu
           export ROMLIFT_CLI="$ROMLIFT_BIN"
@@ -125,8 +107,8 @@ jobs:
             (cd "$dir" && npx --no romlift init "$name.gba" --json) > "$logs/$name.init.ndjson" || { echo "npx romlift init exited $?"; tail -n 8 "$logs/$name.init.ndjson"; return 1; }
             summary_ok "$logs/$name.init.ndjson" || { echo 'init printed no ok summary'; return 1; }
             cp "$dir/romlift.toml" "$logs/$name.toml"
-            mkdir -p "$dir/tools"
-            cp -R "$AGBCC_BUILD" "$dir/tools/agbcc"
+            mkdir -p "$dir/tools/agbcc"
+            cp -R "$AGBCC_BUILD/bin" "$AGBCC_BUILD/include" "$AGBCC_BUILD/lib" "$dir/tools/agbcc/"
             (cd "$dir" && ./setup.sh) || { echo "./setup.sh exited $?"; return 1; }
             (cd "$dir" && make) || { echo "make exited $?"; return 1; }
             cmp -s "$dir/romlift.toml" "$logs/$name.toml" || { echo 'setup.sh or make changed romlift.toml'; return 1; }
