@@ -17,9 +17,9 @@
 // romlift with npm (no lock yet: `npm install`) and duty 5 runs `npx romlift generate` from that install; make must
 // still end at the SHA-1.
 import { createHash } from 'node:crypto';
-import { copyFile, cp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { gate, withLock, type ExecResult, type FixtureRef, type GateContext } from './gate.ts';
+import { copyAgbcc, gate, withLock, withSharedAgbcc, type ExecResult, type FixtureRef, type GateContext } from './gate.ts';
 
 interface PackResult {
   readonly filename: string;
@@ -111,7 +111,7 @@ async function build(cx: GateContext, bin: string, fixture: FixtureRef, dir: str
   await copyFile(fixture.rom, path.join(dir, rom));
   const init = await cx.exec('npx', ['--no', 'romlift', 'init', rom, '--json'], { cwd: dir });
   if (!summaryOk(cx, init)) return `npx romlift init exited ${init.code}:\n${tail(init)}`;
-  if (agbcc !== undefined) await cp(agbcc, path.join(dir, 'tools', 'agbcc'), { recursive: true });
+  if (agbcc !== undefined) await copyAgbcc(agbcc, dir);
   if (tarball !== undefined) {
     const prepared = await withoutBypass(dir, tarball);
     if (prepared !== undefined) return prepared;
@@ -157,20 +157,22 @@ gate({
     const bin = path.join(tool, 'node_modules', '.bin', 'romlift');
     if (!(await exists(bin))) throw new Error('the installed package has no romlift bin');
 
-    const problems: string[] = [];
-    let agbcc: string | undefined;
-    let built = 0;
-    let throughNpm = true;
-    for (const fixture of cx.fixtures) {
-      if (NOT_BUILT[fixture.name] !== undefined) continue;
+    // The first fixture built goes through the tarball (setup.sh's npm duty, no ROMLIFT_CLI) and builds agbcc; the rest
+    // get a copy of it and the bypass, FIXTURE_PARALLELISM at once.
+    const fixtures = cx.fixtures.filter((f) => NOT_BUILT[f.name] === undefined);
+    const outcomes = await withSharedAgbcc(fixtures, async (fixture, agbcc) => {
+      const throughNpm = fixture === fixtures[0];
       const dir = path.join(tool, 'projects', fixture.name);
       const failure = await build(cx, bin, fixture, dir, agbcc, throughNpm ? tarball : undefined);
-      if (throughNpm && failure === undefined) cx.note(`${fixture.name}: setup.sh without ROMLIFT_CLI installed romlift from the tarball (npm install) and ran npx romlift generate`);
-      throughNpm = false;
-      if (failure !== undefined) problems.push(`${fixture.name}: ${failure}`);
-      else built++;
-      if (agbcc === undefined && (await exists(path.join(dir, 'tools', 'agbcc', 'bin', 'agbcc')))) agbcc = path.join(dir, 'tools', 'agbcc');
+      const fresh = agbcc === undefined && (await exists(path.join(dir, 'tools', 'agbcc', 'bin', 'agbcc'))) ? path.join(dir, 'tools', 'agbcc') : undefined;
+      return { fixture, throughNpm, failure, agbcc: fresh };
+    });
+    const problems: string[] = [];
+    for (const o of outcomes) {
+      if (o.throughNpm && o.failure === undefined) cx.note(`${o.fixture.name}: setup.sh without ROMLIFT_CLI installed romlift from the tarball (npm install) and ran npx romlift generate`);
+      if (o.failure !== undefined) problems.push(`${o.fixture.name}: ${o.failure}`);
     }
+    const built = outcomes.filter((o) => o.failure === undefined).length;
     if (problems.length > 0) throw new Error(`end to end from the tarball: ${problems.join(' | ')}`);
     cx.note(`${path.basename(tarball)}: ${files.length} files, no ROM, ELF, map or built signature file; ${built} fixtures reach their SHA-1`);
   },

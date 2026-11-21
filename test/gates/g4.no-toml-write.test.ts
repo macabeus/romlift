@@ -12,7 +12,7 @@ import { createHash } from 'node:crypto';
 import { copyFile, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { gate, type ExecResult, type GateContext } from './gate.ts';
+import { CHECKOUT_CLI_ENV, FIXTURE_PARALLELISM, gate, pooled, type ExecResult, type GateContext } from './gate.ts';
 
 interface CliLine {
   readonly type: string;
@@ -81,7 +81,7 @@ async function identify(file: string): Promise<FileId> {
 async function romlift(cx: GateContext, cwd: string, args: readonly string[], preload?: { readonly url: string; readonly report: string }): Promise<void> {
   const cli = path.join(cx.repoRoot, 'src', 'cli', 'main.ts');
   const flags = preload === undefined ? ['--conditions=source'] : ['--conditions=source', '--import', preload.url];
-  const env = preload === undefined ? {} : { ROMLIFT_WATCH_FILE: path.join(cwd, 'romlift.toml'), ROMLIFT_WATCH_REPORT: preload.report };
+  const env = preload === undefined ? CHECKOUT_CLI_ENV : { ...CHECKOUT_CLI_ENV, ROMLIFT_WATCH_FILE: path.join(cwd, 'romlift.toml'), ROMLIFT_WATCH_REPORT: preload.report };
   const run = await cx.exec(process.execPath, [...flags, cli, ...args, '--json'], { cwd, env });
   const last = cx.jsonLines<CliLine>(run.stdout).at(-1);
   if (run.code !== 0 || last?.type !== 'summary' || last.exitCode !== 0) throw new Error(`romlift ${args.join(' ')} --json exited ${run.code}:\n${tail(run)}`);
@@ -98,9 +98,10 @@ gate({
     const preloadFile = path.join(base, 'watch-toml.mjs');
     await writeFile(preloadFile, PRELOAD);
     const url = pathToFileURL(preloadFile).href;
-    const problems: string[] = [];
-    let runs = 0;
-    for (const fixture of cx.fixtures) {
+    // Each fixture in a project of its own, FIXTURE_PARALLELISM at once; the problems in the fixtures' order.
+    const outcomes = await pooled(cx.fixtures, FIXTURE_PARALLELISM, async (fixture) => {
+      const problems: string[] = [];
+      let runs = 0;
       const dir = path.join(base, fixture.name);
       await mkdir(dir, { recursive: true });
       await copyFile(fixture.rom, path.join(dir, `${fixture.name}.gba`));
@@ -123,7 +124,10 @@ gate({
       const after = await identify(toml);
       if (after.sha1 !== before.sha1) problems.push(`${fixture.name}: romlift.toml content changed`);
       else if (after.ino !== before.ino || after.mtimeMs !== before.mtimeMs) problems.push(`${fixture.name}: romlift.toml was replaced or touched`);
-    }
+      return { problems, runs };
+    });
+    const problems = outcomes.flatMap((o) => o.problems);
+    const runs = outcomes.reduce((n, o) => n + o.runs, 0);
     if (problems.length > 0) throw new Error(`generate wrote the TOML: ${problems.join(' | ')}`);
     cx.note(`${runs} generate runs on ${cx.fixtures.length} fixtures never opened romlift.toml for writing`);
   },

@@ -14,8 +14,8 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { appendFileSync } from 'node:fs';
-import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { availableParallelism, tmpdir } from 'node:os';
 import path from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -588,6 +588,103 @@ async function lockIsStale(lock: string): Promise<boolean> {
   }
   const pid = Number.parseInt(owner, 10);
   return !(Number.isInteger(pid) && pid > 0 && processAlive(pid));
+}
+
+/**
+ * The environment a gate runs `romlift init` in on each of many projects: ROMLIFT_CLI set, as a romlift checkout runs
+ * it (README.md). Only its presence matters to init: its lock step then defers without asking the npm registry for a
+ * romlift version that has never been published (W_LOCKFILE_DEFERRED either way, and the same files written), a
+ * request that cost 0.6 s per init. test/unit/shell/toolchain/npm.test.ts covers the lock step itself; g4.cli-contract,
+ * g4.e2e-real, g4.packed-e2e, g4.c-data-fails-loud and g6.rename still run init with npm asked.
+ */
+export const CHECKOUT_CLI_ENV: Readonly<Record<string, string>> = { ROMLIFT_CLI: 'romlift' };
+
+/** What pret/agbcc's install.sh writes into a project's tools/agbcc, and all a project's build reads of it. */
+export const AGBCC_INSTALLED: readonly string[] = ['bin', 'include', 'lib'];
+
+/**
+ * Gives the project `projectDir` the compiler an earlier project of the same gate built in `agbccDir` (its
+ * tools/agbcc), so setup.sh's duty 2 finds tools/agbcc/bin/agbcc present and builds nothing. Only what install.sh
+ * installed is copied, 9 MB, not the 73 MB checkout with its build tree beside it.
+ */
+export async function copyAgbcc(agbccDir: string, projectDir: string): Promise<void> {
+  for (const dir of AGBCC_INSTALLED) await cp(path.join(agbccDir, dir), path.join(projectDir, 'tools', 'agbcc', dir), { recursive: true });
+}
+
+/**
+ * How many committed fixtures a gate works on at once: one per core. Each fixture's work is its own projects and
+ * processes (init, generate, make in its own directory), so they share nothing but the machine. A tuning ROM of the
+ * real tier is worked on alone (`pooled(…, 1, …)`), since one init of it can hold a gigabyte.
+ */
+export const FIXTURE_PARALLELISM = Math.max(1, availableParallelism());
+
+/**
+ * `work` on every item, at most `limit` at once, the results in the items' order whatever order they finish in, so
+ * a gate reports its problems and notes as a serial loop would. Once one item's work throws, no further item starts;
+ * the ones already started are awaited (their processes and directories are theirs to finish), then the error of the
+ * earliest item that threw is thrown. Items start in order, so every item before that one ran to its end: the error
+ * is the one a serial loop would have stopped at.
+ */
+export async function pooled<T, R>(items: readonly T[], limit: number, work: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array<R>(items.length);
+  let next = 0;
+  const failures: { readonly index: number; readonly error: unknown }[] = [];
+  const worker = async (): Promise<void> => {
+    while (failures.length === 0 && next < items.length) {
+      const index = next++;
+      try {
+        results[index] = await work(items[index] as T, index);
+      } catch (error) {
+        failures.push({ index, error });
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, worker));
+  const earliest = failures.reduce<(typeof failures)[number] | undefined>((a, b) => (a === undefined || b.index < a.index ? b : a), undefined);
+  if (earliest !== undefined) throw earliest.error;
+  return results;
+}
+
+/** What one target gives a gate's report: its problems and its notes, which the gate reports in the targets' order. */
+export interface TargetReport {
+  readonly problems: readonly string[];
+  readonly notes: readonly string[];
+}
+
+/**
+ * `work` on a gate's targets: the committed fixtures FIXTURE_PARALLELISM at once, then the tuning ROMs of the real tier
+ * one at a time; the results in that order (the fixtures', then the datasets'), as a serial loop over both gives them.
+ */
+export async function onTargets<T, R>(fixtures: readonly T[], datasets: readonly T[], work: (target: T) => Promise<R>): Promise<R[]> {
+  return [...(await pooled(fixtures, FIXTURE_PARALLELISM, work)), ...(await pooled(datasets, 1, work))];
+}
+
+/** Reports the targets' notes, in order, and returns their problems, in order. */
+export function reportTargets(cx: Pick<GateContext, 'note'>, reports: readonly TargetReport[]): string[] {
+  for (const r of reports) for (const note of r.notes) cx.note(note);
+  return reports.flatMap((r) => r.problems);
+}
+
+/**
+ * `work` on every fixture of a gate that builds a project per fixture, where the first project's setup.sh builds
+ * agbcc and the others get a copy (copyAgbcc). The fixtures run one at a time until one's work returns the
+ * tools/agbcc it built, then the rest `limit` at once, each given that one; the results are in the fixtures' order.
+ * When none builds agbcc, every fixture runs alone, as a serial loop would.
+ */
+export async function withSharedAgbcc<T, R extends { readonly agbcc?: string | undefined }>(
+  items: readonly T[],
+  work: (item: T, agbcc: string | undefined) => Promise<R>,
+  limit: number = FIXTURE_PARALLELISM,
+): Promise<R[]> {
+  const results: R[] = [];
+  let agbcc: string | undefined;
+  while (agbcc === undefined && results.length < items.length) {
+    const result = await work(items[results.length] as T, undefined);
+    results.push(result);
+    agbcc = result.agbcc;
+  }
+  const shared = agbcc;
+  return [...results, ...(await pooled(items.slice(results.length), limit, (item) => work(item, shared)))];
 }
 
 /**

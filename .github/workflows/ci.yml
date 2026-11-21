@@ -41,9 +41,9 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y binutils-arm-none-eabi
       - name: Install exactly the lock file
         run: npm ci --ignore-scripts
-      - name: Typecheck
-        run: npm run typecheck
-      - name: Test (unit, golden, architecture, mutation; includes the no-ROM-tracked check)
+      # No separate `npm run typecheck`: npm test's test/architecture.test.ts typechecks tsconfig.json (its "the
+      # repository typechecks"), and g1.architecture below runs and requires it again.
+      - name: Test (unit, golden, architecture with tsc and ESLint, mutation; includes the no-ROM-tracked check)
         run: npm test
       - name: Gates of every landed phase, ci tier
         run: npm run bench -- gates --require "$(node -p "require('./test/gates/phase.json').landed")" --tier ci

@@ -16,7 +16,7 @@
 // writers' files by path, then the global writers' files by path).
 import { copyFile, mkdir, realpath } from 'node:fs/promises';
 import path from 'node:path';
-import { gate, type ExecResult, type GateContext } from './gate.ts';
+import { gate, onTargets, reportTargets, type ExecResult, type GateContext, type TargetReport } from './gate.ts';
 
 const VARIED_ENV: Readonly<Record<string, string>> = { TZ: 'Pacific/Kiritimati', LANG: 'tr_TR.UTF-8', LC_ALL: 'tr_TR.UTF-8' };
 
@@ -82,21 +82,24 @@ gate({
   realInputs: ['roms'],
   needs: ['romFromBytes', 'sha1Of', 'profileById', 'analyze', 'configFromDiscover', 'buildModel', 'emitTree'],
   async run(cx) {
-    const targets: Target[] = cx.fixtures.map((f) => ({ name: f.name, rom: f.rom }));
-    if (targets.length === 0) throw new Error('no committed fixture under bench/dataset/synthetic');
-    if (cx.tier === 'real') for (const d of cx.datasets) targets.push({ name: d.name, rom: path.resolve(cx.benchRoot, d.rom) });
+    const fixtures: Target[] = cx.fixtures.map((f) => ({ name: f.name, rom: f.rom }));
+    if (fixtures.length === 0) throw new Error('no committed fixture under bench/dataset/synthetic');
+    const datasets: Target[] = cx.tier === 'real' ? cx.datasets.map((d) => ({ name: d.name, rom: path.resolve(cx.benchRoot, d.rom) })) : [];
+    const targets = [...fixtures, ...datasets];
 
     const base = await cx.tmpDir('romlift-tree-determinism-');
-    const problems: string[] = [];
-    for (const target of targets) {
+    // Each target's two runs one after the other; the fixtures FIXTURE_PARALLELISM at once, the tuning ROMs one at a time.
+    const reports = await onTargets(fixtures, datasets, async (target): Promise<TargetReport> => {
+      const problems: string[] = [];
       const first = await emitIn(cx, target, path.join(base, 'first', target.name), {});
       const second = await emitIn(cx, target, path.join(base, 'second run', 'elsewhere', target.name), VARIED_ENV);
       if (first.treeDigest !== second.treeDigest) problems.push(`${target.name}: tree ${first.treeDigest} (${first.files} files) then ${second.treeDigest} (${second.files} files)`);
       const leaks = [...first.leaks, ...second.leaks];
       if (leaks.length > 0) problems.push(`${target.name}: files contain the project path: ${[...new Set(leaks)].slice(0, 8).join(', ')}`);
       if (first.files === 0) problems.push(`${target.name}: the tree is empty`);
-      cx.note(`${target.name} tree ${first.treeDigest} (${first.files} files)`);
-    }
+      return { problems, notes: [`${target.name} tree ${first.treeDigest} (${first.files} files)`] };
+    });
+    const problems = reportTargets(cx, reports);
     if (problems.length > 0) throw new Error(`the tree is not deterministic: ${problems.join('; ')}`);
     cx.note(`${targets.length} trees identical across cwd, project path, TZ and locale; no file names a project path`);
   },

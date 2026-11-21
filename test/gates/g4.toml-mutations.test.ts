@@ -42,9 +42,9 @@
 //   setup.sh runs romlift as `$ROMLIFT_CLI` when it is set (the source CLI here); the first target builds agbcc through
 //   its duty (2) and later targets get a copy of that tools/agbcc, as g4.e2e-fixtures does.
 import { createHash } from 'node:crypto';
-import { copyFile, cp, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { gate, type ExecResult, type GateContext } from './gate.ts';
+import { CHECKOUT_CLI_ENV, copyAgbcc, gate, pooled, withSharedAgbcc, type ExecResult, type GateContext } from './gate.ts';
 
 type Addr = number;
 type Mode = 'thumb' | 'arm';
@@ -313,7 +313,7 @@ async function sourceCli(cx: GateContext): Promise<string> {
 
 async function romlift(cx: GateContext, cwd: string, args: readonly string[]): Promise<{ readonly run: ExecResult; readonly lines: readonly CliLine[] }> {
   const cli = path.join(cx.repoRoot, 'src', 'cli', 'main.ts');
-  const run = await cx.exec(process.execPath, ['--conditions=source', cli, ...args, '--json'], { cwd });
+  const run = await cx.exec(process.execPath, ['--conditions=source', cli, ...args, '--json'], { cwd, env: CHECKOUT_CLI_ENV });
   const lines = cx.jsonLines<CliLine>(run.stdout);
   const last = lines[lines.length - 1];
   if (last?.type !== 'summary' || last.exitCode !== run.code) throw new Error(`romlift ${args.join(' ')} --json exited ${run.code} without a matching summary:\n${tail(run)}`);
@@ -329,6 +329,16 @@ async function snapshot(dir: string, prefix = ''): Promise<Map<string, string>> 
     else if (entry.isFile()) out.set(relative, createHash('sha1').update(await readFile(path.join(dir, relative))).digest('hex'));
   }
   return out;
+}
+
+/** One target's share of the gate's report, and the tools/agbcc its setup.sh built, if it built one. */
+interface Outcome {
+  readonly problems: readonly string[];
+  readonly notes: readonly string[];
+  /** The legal edits that built, by kind. */
+  readonly byKind: ReadonlyMap<LegalKind, number>;
+  readonly illegal: number;
+  readonly agbcc: string | undefined;
 }
 
 function sameTree(a: ReadonlyMap<string, string>, b: ReadonlyMap<string, string>): boolean {
@@ -355,19 +365,19 @@ gate({
     const profile = cx.need<ProfileById>('profileById')('agbcc');
     if (profile === undefined) throw new Error("profileById('agbcc') returned nothing");
 
-    const targets: Target[] = cx.fixtures.map((f) => ({ name: f.name, rom: f.rom }));
-    if (targets.length === 0) throw new Error('no committed fixture under bench/dataset/synthetic');
-    if (cx.tier === 'real') for (const d of cx.datasets) targets.push({ name: d.name, rom: path.resolve(cx.benchRoot, d.rom) });
+    const fixtures: Target[] = cx.fixtures.map((f) => ({ name: f.name, rom: f.rom }));
+    if (fixtures.length === 0) throw new Error('no committed fixture under bench/dataset/synthetic');
+    const datasets: Target[] = cx.tier === 'real' ? cx.datasets.map((d) => ({ name: d.name, rom: path.resolve(cx.benchRoot, d.rom) })) : [];
     const base = await cx.tmpDir('romlift-toml-mutations-');
     const cli = await sourceCli(cx);
     const env = { ROMLIFT_CLI: cli };
-    const problems: string[] = [];
-    let legal = 0;
-    /** The legal edits that built, by kind (the note reports each count). */
-    const byKind = new Map<LegalKind, number>(LEGAL_KINDS.map((k) => [k, 0]));
-    let illegal = 0;
-    let agbcc: string | undefined;
-    for (const target of targets) {
+
+    /** One target's edits, in a project of its own: what a serial loop over the targets would have reported of it. */
+    const mutate = async (target: Target, agbcc: string | undefined): Promise<Outcome> => {
+      const problems: string[] = [];
+      const notes: string[] = [];
+      const byKind = new Map<LegalKind, number>(LEGAL_KINDS.map((k) => [k, 0]));
+      let illegal = 0;
       const dir = path.join(base, target.name);
       await mkdir(dir, { recursive: true });
       await copyFile(target.rom, path.join(dir, 'baserom.gba'));
@@ -395,15 +405,15 @@ gate({
       };
       const facts: Facts = { config: parsed.value, legalBetween, analysis, modelShape, dataStart: rule.dataStart, end: rom.end };
       const random = prng(nameSeed(target.name));
-      if (agbcc !== undefined) await cp(agbcc, path.join(dir, 'tools', 'agbcc'), { recursive: true });
+      if (agbcc !== undefined) await copyAgbcc(agbcc, dir);
       const setup = await cx.exec('./setup.sh', [], { cwd: dir, env });
       if (setup.code !== 0) throw new Error(`${target.name}: ./setup.sh exited ${setup.code}:\n${tail(setup)}`);
-      if (agbcc === undefined && (await exists(path.join(dir, 'tools', 'agbcc', 'bin', 'agbcc')))) agbcc = path.join(dir, 'tools', 'agbcc');
+      const built = agbcc === undefined && (await exists(path.join(dir, 'tools', 'agbcc', 'bin', 'agbcc'))) ? path.join(dir, 'tools', 'agbcc') : undefined;
 
       for (const kind of LEGAL_KINDS) {
         const edit = legalEdit(kind, facts, random);
         if (edit === undefined) {
-          cx.note(`${target.name}: no place for ${kind}`);
+          notes.push(`${target.name}: no place for ${kind}`);
           continue;
         }
         await writeFile(tomlPath, api.serialize(edit.config));
@@ -416,7 +426,6 @@ gate({
           const built = make === undefined ? 'not run' : make.code === 0 ? '0' : `${make.code}: ${tail(make, 4).replace(/\n/g, ' / ')}`;
           problems.push(`${target.name}: ${edit.what}: generate exit ${generate.run.code}, make exit ${built}, codes [${codes.join(', ')}]`);
         } else {
-          legal++;
           byKind.set(kind, (byKind.get(kind) ?? 0) + 1);
         }
       }
@@ -431,11 +440,24 @@ gate({
         else illegal++;
       }
       await writeFile(tomlPath, text);
-    }
+      return { problems, notes, byKind, illegal, agbcc: built };
+    };
+
+    // The first fixture builds agbcc through setup.sh's duty 2 and every other target gets a copy of it; the fixtures
+    // run FIXTURE_PARALLELISM at once, the tuning ROMs of the real tier one at a time.
+    const fromFixtures = await withSharedAgbcc(fixtures, mutate);
+    const agbcc = fromFixtures.find((o) => o.agbcc !== undefined)?.agbcc;
+    const outcomes = [...fromFixtures, ...(await pooled(datasets, 1, (t) => mutate(t, agbcc)))];
+    const problems = outcomes.flatMap((o) => o.problems);
+    for (const o of outcomes) for (const note of o.notes) cx.note(note);
+    /** The legal edits that built, by kind (the note reports each count). */
+    const byKind = new Map<LegalKind, number>(LEGAL_KINDS.map((k) => [k, outcomes.reduce((n, o) => n + (o.byKind.get(k) ?? 0), 0)]));
+    const legal = [...byKind.values()].reduce((a, b) => a + b, 0);
+    const illegal = outcomes.reduce((n, o) => n + o.illegal, 0);
     if ((byKind.get('add-override') ?? 0) === 0) problems.push('no target took an add-override edit that changes the model');
     if ((byKind.get('split-asm-module') ?? 0) === 0) problems.push('no target took a split-asm-module edit');
     if (problems.length > 0) throw new Error(`TOML mutations: ${problems.join(' | ')}`);
     const kinds = LEGAL_KINDS.map((k) => `${k} ${byKind.get(k) ?? 0}${k === 'add-override' ? ' (each a data override that changes the model, no W_OVERRIDE_IGNORED, D98 d, D104 a)' : ''}`).join(', ');
-    cx.note(`${legal} legal edits link to the SHA-1 and build with make to it (${kinds}), and ${illegal} illegal edits give their codes, on ${targets.length} ROMs`);
+    cx.note(`${legal} legal edits link to the SHA-1 and build with make to it (${kinds}), and ${illegal} illegal edits give their codes, on ${outcomes.length} ROMs`);
   },
 });

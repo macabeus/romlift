@@ -5530,6 +5530,56 @@ runs on a tiny tree, a minute. The dev dependencies grow from two packages to si
 second tool). Keeping the custom checker (it works, but only a test run shows a violation, and its format is
 romlift's alone). An ESLint denylist for globals, `no-restricted-globals` (incomplete by construction, as D5 said).
 
+## D118. Faster tests by faster code, not by caches; the owner's words of 16 and 20 November 2026
+
+**Context.** CI's one job took about 40 minutes: 34 of them the ci tier of the gates, 4.5 `npm test`. The owner asked
+to "Investigate how to make the tests run faster. Avoid relying on caches; focus on trying to optimize the code", and,
+after the first findings, to continue "following your recommendation": run each gate's fixtures at once, and stop
+typechecking the repository twice. Measured locally (10 cores) with every child process of the slowest gates timed: of
+the ci tier's 1,832 s, about 450 s were nine builds of agbcc (one per gate that runs setup.sh), about 600 s some 1,500
+CLI processes (each about 0.27 s before it does anything, Node stripping and compiling about 270 TypeScript files),
+about 230 s init's lock step asking the npm registry for an unpublished romlift (0.6 s each), about 175 s copying the
+73 MB agbcc checkout into each project, and 20 of the 61 s of g3.large-rom's init one function, `holesOf`.
+
+**Decision.**
+
+- (a) **`holesOf`** (`core/analysis/reading.ts`) decides each uncovered stretch of an extent whole, in constant time,
+  instead of halfword by halfword: inside a gap every halfword is a hole but the last, which a zero halfword followed by
+  a covered byte or the end spares. A differential run against the old function gave the same holes and hole bytes on
+  20,000 random readings. g3.large-rom: 96 s to 55 s.
+- (b) **`joinAtOffsets`** (`core/reconcile/include-asm.ts`) joins the insertions at one offset with one `join`,
+  keeping only the last `eol.length` characters to test the end, where it grew a string piece by piece and tested
+  `endsWith` on the whole of it each time: 20,000 stubs at one offset, 555 ms to 3 ms; the same edits on 200,000 random
+  cases.
+- (c) **The decode tables** (`foundation/isa/decode.ts`) are built from typed arrays of the rows' masks and matches
+  rather than by 65,536 `findIndex` calls: 27 ms to 6 ms in every process that decodes; the same row for every Thumb
+  halfword.
+- (d) **The gates run `init` on their many projects with `ROMLIFT_CLI` set** (`CHECKOUT_CLI_ENV`), as they already ran
+  setup.sh and make, so its lock step defers without the registry (W_LOCKFILE_DEFERRED either way, the same files
+  written). The unit tests cover the step; g4.cli-contract, g4.e2e-real, g4.packed-e2e, g4.c-data-fails-loud and
+  g6.rename still run init with npm asked.
+- (e) **A project borrows the first project's agbcc as installed** (`copyAgbcc`): `bin/`, `include/` and `lib/`, what
+  pret's install.sh writes and all the build reads, 9 MB, not its whole checkout.
+- (f) **A gate works on its committed fixtures at once**, one per core (`FIXTURE_PARALLELISM`), each in its own
+  project: g2.determinism, g2.rule-coverage, g3.tree-determinism, g4.e2e-fixtures, g4.generate-idempotent,
+  g4.no-toml-write, g4.packed-e2e, g4.toml-canonical, g4.toml-mutations, g4.worktree and g6.expected-bytes. `pooled`
+  returns the results in the fixtures' order and, after a failure, starts nothing more and throws the earliest failing
+  fixture's error, so a gate reports exactly what its serial loop did: 43 of the 45 ci-tier records were byte for byte
+  those of the serial run (the other two, g1.provenance's source digest and g3.large-rom's peak RSS, differ by what they
+  measure). `withSharedAgbcc` runs fixtures one at a time until one has built agbcc, then the rest together. The tuning
+  ROMs of the real tier stay one at a time (one init of one can hold a gigabyte), and the gates themselves still run one
+  at a time (`--test-concurrency=1`), so no speed or memory gate measures beside another process of the run.
+- (g) **The repository is typechecked once per run of a check**: g1.architecture no longer runs `tsc --noEmit` beside
+  test/architecture.test.ts, whose "the repository typechecks" builds the same program; the gate instead requires that
+  test and the ESLint one to pass by name. CI drops its `npm run typecheck` step, which `npm test` repeated.
+
+**Consequences.** The ci tier of the gates: 1,832 s to 746 s locally. About 450 s of what remains is the nine agbcc
+builds; building it once per run and lending it to every gate is reuse across gates, close to the caches the owner
+ruled out, and is left to the owner. The rest of a CLI process's start is Node's own work on the source files.
+
+**Rejected.** Caching anything between runs (the owner's words). Running the gates themselves at once (the speed and
+memory gates measure the machine). Loading the CLI's commands lazily (`generate` needs 274 of its 303 modules).
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per

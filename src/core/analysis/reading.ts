@@ -138,7 +138,12 @@ function covered(entry: Addr, end: Addr, insns: readonly InsnSpan[], pools: read
 /**
  * The PoC's dense() count: over [entry, end) in halfword steps from the entry, a halfword whose first byte
  * no instruction, pool or table covers is a hole unless it is zero and the byte two further is covered or
- * past the end. Only the uncovered stretches are visited.
+ * past the end.
+ *
+ * Each uncovered stretch (a gap between two covered ranges, or before the first or after the last) is decided whole,
+ * in constant time: no halfword of it is covered, and every halfword but its last is followed by another uncovered
+ * one, so all of them are holes, and only the last, when it is zero, may be spared by what follows it. A function
+ * whose extent runs over a large uncovered stretch costs no more than one with none.
  */
 function holesOf(rom: Rom, entry: Addr, end: Addr, insns: readonly InsnSpan[], pools: readonly PoolWord[], tables: readonly JumpTable[]): {
   holes: readonly Span[];
@@ -161,15 +166,20 @@ function holesOf(rom: Rom, entry: Addr, end: Addr, insns: readonly InsnSpan[], p
     const to = gap < cov.length ? (cov[gap] as Span).start : end;
     let a = Math.max(from, next);
     if ((a - entry) & 1) a += 1;
-    for (; a < to; a += 2) {
-      if (isCovered(a)) continue;
-      const zero = contains(rom, a, 2) && u16(rom, a) === 0;
-      if (zero && (a + 2 >= end || isCovered(a + 2))) continue;
-      bytes += 2;
-      const stop = Math.min(a + 2, end);
-      const last = holes[holes.length - 1];
-      if (last !== undefined && last.end === a) holes[holes.length - 1] = { start: last.start, end: stop };
-      else holes.push({ start: a, end: stop });
+    if (a < to) {
+      // The halfwords a, a + 2, ..., last lie in the gap; each but `last` is followed by one that does too.
+      const last = a + 2 * Math.floor((to - 1 - a) / 2);
+      const zero = contains(rom, last, 2) && u16(rom, last) === 0;
+      const lastIsHole = !(zero && (last + 2 >= end || isCovered(last + 2)));
+      const count = (last - a) / 2 + (lastIsHole ? 1 : 0);
+      if (count > 0) {
+        bytes += 2 * count;
+        const stop = lastIsHole ? Math.min(last + 2, end) : last;
+        const previous = holes[holes.length - 1];
+        if (previous !== undefined && previous.end === a) holes[holes.length - 1] = { start: previous.start, end: stop };
+        else holes.push({ start: a, end: stop });
+      }
+      a = last + 2;
     }
     next = a;
   }
