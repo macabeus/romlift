@@ -5580,6 +5580,40 @@ ruled out, and is left to the owner. The rest of a CLI process's start is Node's
 **Rejected.** Caching anything between runs (the owner's words). Running the gates themselves at once (the speed and
 memory gates measure the machine). Loading the CLI's commands lazily (`generate` needs 274 of its 303 modules).
 
+## D119. Prettier formats the code, with gba-kit's settings; the owner's words of 20 November 2026
+
+**Context.** Nothing formatted romlift's code: its style (two spaces, single quotes, semicolons) held by habit, and 7,321
+of its 108,227 lines of TypeScript ran past 120 columns, the longest 552. The owner asked for a code formatter, took
+the recommendation, and chose its settings: "Use Prettier, and copy the same settings as `gba-kit`".
+
+**Decision.**
+
+- (a) **Prettier 3.8.1 and `@trivago/prettier-plugin-sort-imports` 6.0.2**, pinned exactly, the versions gba-kit's lock
+  file resolves, so the two projects format alike. `.prettierrc.json` is gba-kit's, byte for byte: width 120, single
+  quotes, trailing commas, semicolons, two spaces, and imports sorted with packages (and `node:` builtins) first, then
+  relative ones, a blank line between, the names inside each sorted.
+- (b) **What it formats**: the TypeScript and JavaScript (`src/`, `test/`, `bench/`, `lint/`, `eslint.config.js`) and
+  the hand-written configuration (`package.json`, the tsconfigs, the workflows). `.prettierignore` leaves out, beside
+  gba-kit's entries, the Markdown (the phase records, decisions and indexes, kept as written) and every file romlift
+  writes or compares byte for byte: `templates/` (what `init` renders), the JSON goldens and fixtures, the results,
+  baselines, datasets and overrides the bench writes, and the signature specs and built signatures.
+- (c) **`npm run format` and `npm run format:check`**, gba-kit's scripts; CI runs the check right after installing.
+- (d) **One commit reformats the code and changes nothing else**, and `.git-blame-ignore-revs` names it, so `git blame`
+  (with `blame.ignoreRevsFile`, which GitHub reads on its own) passes over it. Measured on it: each of the 770 files
+  parses to the same syntax tree as before, its imports compared as a sorted set, with redundant parentheses, trailing
+  commas, the spelling of a literal and the quotes of a property name set aside; the typechecker, ESLint and the tests
+  pass unchanged; no file's header comment moved (the import sorter carries a comment with its import,
+  and every header stayed above the first one); no import has side effects, so their new order changes no evaluation
+  order that matters; `src/cli/main.ts` keeps its launcher line first.
+
+**Consequences.** 770 files change once. The source digest changes with them, so the real tier ran again on the
+reformatted tree. A contributor formats with `npm run format` (or an editor's Prettier extension, which reads
+`.prettierrc.json`); ESLint still checks the architecture alone and no style rule (D117).
+
+**Rejected.** Biome (faster, but a second linter beside ESLint and a formatter close to Prettier's, not equal to it);
+dprint; formatting the Markdown too (Prettier would realign every table of the records for no reader's gain); a wider
+line than gba-kit's (the owner chose its settings).
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per

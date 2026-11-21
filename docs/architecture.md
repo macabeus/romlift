@@ -100,6 +100,8 @@ romlift/
   eslint.config.js                  the architecture rules of §2 and nothing else (D117); no inline disable comment works
   lint/                             edges.ts (the edge table below, as eslint-plugin-boundaries elements and policies),
                                     plugin.ts (romlift's own rules: globals, map-iteration, barrel, dynamic-import)
+  .prettierrc.json                  Prettier's settings, gba-kit's (D119); .prettierignore leaves out Markdown and what romlift
+                                    writes or compares byte for byte
   .gitignore                        *.gba *.elf *.map *.o (fixture builds re-included), dist/, bench/.local/,
                                     bench/timings.json, signatures/*.json (built files, D40)
   .github/workflows/                ci.yml, printer.yml, fixtures.yml, provenance.yml, packed.yml
@@ -2224,7 +2226,8 @@ per-ROM thresholds and "at least two sealed ROMs pass" still decide.
 | `gates [--require <phase>] [--tier ci\|real]` | runs the gate tests and prints every gate with its verdict and input digests; `--tier real` writes the gate record into `results.json` |
 | `signatures [--only <rom>] [--loo] [--json]` | phase 6: the signatures family (§8.4) after a seedless discover run, per tuning ROM (`romlift/bench-signatures@1`), sealed ROMs by counts only; `--loo` rebuilds each multi-reference version without each reference (`romlift/bench-signatures-loo@1`); `g6.signatures-judged`, `-heldout`, `-loo` read it |
 
-npm scripts: `typecheck` (`tsc --noEmit`), `lint` (ESLint with `eslint.config.js`, D117), `test` (unit, golden, architecture, property and mutation
+npm scripts: `typecheck` (`tsc --noEmit`), `lint` (ESLint with `eslint.config.js`, D117), `format` and `format:check`
+(Prettier with `.prettierrc.json`, D119), `test` (unit, golden, architecture, property and mutation
 tests, `node --conditions=source --test`), `corpus` (generate and assemble the corpus), `fixtures`
 (`rebuild` and `check`), `bench`, `export-poc` (`--mode scored|parity|queries`; runs
 `bench/tools/export-poc.ts`, which spawns the PoC's own `tsx` from `ROMLIFT_POC`), `test:local` (needs ROMs

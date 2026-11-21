@@ -1,0 +1,20 @@
+node_modules/
+dist/
+*.tsbuildinfo
+package-lock.json
+
+# Prose and records: the phase records, decisions and indexes are kept as written.
+*.md
+
+# What romlift writes or reads byte for byte: the scaffold templates init renders, the goldens and fixtures the tests
+# compare, the results, baselines and datasets the bench writes, and the signature specs and built signatures.
+templates/
+test/golden/**/*.json
+test/fixtures/
+bench/results.json
+bench/baseline/
+bench/dataset/
+bench/overrides/
+bench/.local/
+bench/web/
+signatures/
