@@ -19,7 +19,9 @@ import { formatDiagnosticText, formatSummaryText } from '../reporters/text.ts';
 import { exitCodeOf, writeLines } from './command-common.ts';
 
 /** Each edited file's path, its op (edit, or keep when nothing changed) and how many identifiers its edits rename. */
-function editedFiles(outcome: RenameOutcome): readonly { readonly path: string; readonly op: string; readonly identifiers: number }[] {
+function editedFiles(
+  outcome: RenameOutcome,
+): readonly { readonly path: string; readonly op: string; readonly identifiers: number }[] {
   const ops = new Map(outcome.ops.map((op) => [op.path, op.op] as const));
   return outcome.edits.map((e) => ({ path: e.path, op: ops.get(e.path) ?? 'edit', identifiers: e.edits.length }));
 }
@@ -32,13 +34,24 @@ function renameExitCode(outcome: RenameOutcome): ExitCode {
 async function printOutcome(io: CliIo, json: boolean, outcome: RenameOutcome, summary: RunSummary): Promise<void> {
   const files = outcome.ok ? editedFiles(outcome) : [];
   if (json) {
-    const patch = outcome.configPath === undefined ? [] : [recordLine('patch', { path: outcome.configPath, written: outcome.tomlWritten })];
-    await writeLines(io, [...files.map((f) => recordLine('edit', f)), ...patch, ...outcome.diagnostics.map(diagnosticLine), summaryLine(summary)]);
+    const patch =
+      outcome.configPath === undefined
+        ? []
+        : [recordLine('patch', { path: outcome.configPath, written: outcome.tomlWritten })];
+    await writeLines(io, [
+      ...files.map((f) => recordLine('edit', f)),
+      ...patch,
+      ...outcome.diagnostics.map(diagnosticLine),
+      summaryLine(summary),
+    ]);
     return;
   }
-  if (outcome.diagnostics.length > 0) io.stderr(outcome.diagnostics.map((d: Diagnostic) => `${formatDiagnosticText(d)}\n`).join(''));
+  if (outcome.diagnostics.length > 0)
+    io.stderr(outcome.diagnostics.map((d: Diagnostic) => `${formatDiagnosticText(d)}\n`).join(''));
   const toml = outcome.tomlWritten && outcome.configPath !== undefined ? [`patch  ${outcome.configPath}\n`] : [];
-  const lines = files.map((f) => `${f.op.padEnd(6)} ${f.path} (${f.identifiers} ${f.identifiers === 1 ? 'identifier' : 'identifiers'})\n`);
+  const lines = files.map(
+    (f) => `${f.op.padEnd(6)} ${f.path} (${f.identifiers} ${f.identifiers === 1 ? 'identifier' : 'identifiers'})\n`,
+  );
   await writeLines(io, [...lines, ...toml, `rename: ${formatSummaryText(summary)}\n`]);
 }
 
@@ -48,7 +61,13 @@ export const renameCommand: CommandSpec = {
     "Renames a function or symbol of romlift.toml: its entry on one line (its `from` dropped) and the identifiers in src/, include/ and hand-written module sources, never comments or strings; a default data name gUnk_<ADDR> gets its [symbols] entry, while other default names (unk_…, a chunk's) need one first",
   usage: 'rename <old> <new> [--json]',
   positionals: [{ name: '<old>' }, { name: '<new>' }],
-  options: [{ name: 'json', kind: 'boolean', summary: 'Prints NDJSON: one line per edited file, the TOML patch, the diagnostics, then a summary' }],
+  options: [
+    {
+      name: 'json',
+      kind: 'boolean',
+      summary: 'Prints NDJSON: one line per edited file, the TOML patch, the diagnostics, then a summary',
+    },
+  ],
   async run(args, io) {
     const json = args.flags['json'] === true;
     const [from = '', to = ''] = args.positionals;
@@ -58,7 +77,12 @@ export const renameCommand: CommandSpec = {
     const summary: RunSummary = {
       ok: exitCode === ExitCode.ok,
       exitCode,
-      counts: { files: files.filter((f) => f.op === 'edit').length, identifiers: files.reduce((n, f) => n + f.identifiers, 0), toml: outcome.tomlWritten ? 1 : 0, diagnostics: outcome.diagnostics.length },
+      counts: {
+        files: files.filter((f) => f.op === 'edit').length,
+        identifiers: files.reduce((n, f) => n + f.identifiers, 0),
+        toml: outcome.tomlWritten ? 1 : 0,
+        diagnostics: outcome.diagnostics.length,
+      },
     };
     await printOutcome(io, json, outcome, summary);
     return exitCode;

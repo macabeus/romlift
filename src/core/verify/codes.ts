@@ -17,7 +17,8 @@ export const VerifyCodes = defineCodes({
   },
   E_SELF_CHECK_TEXT: {
     severity: 'error',
-    meaning: 'an emitted file, parsed back and laid out, differs from the ROM or its padding, or a file is missing (text-layout.ts)',
+    meaning:
+      'an emitted file, parsed back and laid out, differs from the ROM or its padding, or a file is missing (text-layout.ts)',
   },
   E_PATH_CASE_COLLISION: {
     severity: 'error',

@@ -34,7 +34,8 @@ function tail(run: ExecResult, lines = 30): string {
  */
 async function corpusSummary(cx: GateContext): Promise<CorpusSummary> {
   const run = await withLock('corpus', () => cx.npm('corpus', ['--json', '--reuse']));
-  if (run.code !== 0 && run.code !== 1) throw new Error(`npm run corpus -- --json --reuse exited ${run.code}:\n${tail(run)}`);
+  if (run.code !== 0 && run.code !== 1)
+    throw new Error(`npm run corpus -- --json --reuse exited ${run.code}:\n${tail(run)}`);
   const summary = cx.lastJson<CorpusSummary>(run.stdout);
   if (summary.schema !== 'romlift/corpus-summary@1') {
     throw new Error(`npm run corpus printed schema '${String(summary.schema)}', expected 'romlift/corpus-summary@1'`);
@@ -60,12 +61,15 @@ interface CorpusSummary {
 }
 
 /** The slice of `romlift/isa` this gate calls. */
-type Decode = (mode: 'thumb' | 'arm', word: number, addr: number) => { readonly specId: string; readonly flow: { readonly kind: string } } | undefined;
+type Decode = (
+  mode: 'thumb' | 'arm',
+  word: number,
+  addr: number,
+) => { readonly specId: string; readonly flow: { readonly kind: string } } | undefined;
 type SpecOf = (id: string) => { readonly id: string; readonly mode: string } | undefined;
 
 const ARM_SAMPLE_FLOOR = 1 << 20;
 const FILLS: readonly number[] = [0x00000000, 0x000fff0f, 0x0005a50a, 0x000a5a05];
-
 
 /** The ids of the ARM rows the decoder selects for some word, invalid decodings excluded. */
 function reachableArmRows(decode: Decode): readonly string[] {
@@ -88,7 +92,8 @@ function rawCounts(section: CorpusSection): string {
 
 /** Every printed mnemonic of the section assembles to its own bytes. */
 function assertSection(name: string, section: CorpusSection, minCases: number): string {
-  if (section.cases < minCases) throw new Error(`the ${name} corpus has ${section.cases} cases, expected at least ${minCases}`);
+  if (section.cases < minCases)
+    throw new Error(`the ${name} corpus has ${section.cases} cases, expected at least ${minCases}`);
   if (section.mnemonic <= 0) throw new Error(`the ${name} corpus printed no mnemonic`);
   if (section.disagree !== 0) {
     throw new Error(
@@ -108,7 +113,8 @@ gate({
     const summary = await corpusSummary(cx);
     const arm = summary.sections.arm;
     const sample = summary.options.armSample;
-    if (!(sample >= ARM_SAMPLE_FLOOR)) throw new Error(`the ARM sample is ${sample} words, expected at least 2^20 = ${ARM_SAMPLE_FLOOR}`);
+    if (!(sample >= ARM_SAMPLE_FLOOR))
+      throw new Error(`the ARM sample is ${sample} words, expected at least 2^20 = ${ARM_SAMPLE_FLOOR}`);
     cx.note(assertSection('arm', arm, sample));
 
     const specOf = cx.need<SpecOf>('specOf');
@@ -122,15 +128,23 @@ gate({
         return true;
       }
     });
-    if (unknown.length > 0) throw new Error(`coverage names ids that are not ARM rows: ${unknown.slice(0, 10).join(', ')}`);
+    if (unknown.length > 0)
+      throw new Error(`coverage names ids that are not ARM rows: ${unknown.slice(0, 10).join(', ')}`);
     const reachable = reachableArmRows(cx.need<Decode>('decode'));
     const missing = reachable.filter((id) => arm.coverage[id] === undefined);
-    if (missing.length > 0) throw new Error(`${missing.length} decodable ARM rows have no coverage entry: ${missing.slice(0, 10).join(', ')}`);
+    if (missing.length > 0)
+      throw new Error(
+        `${missing.length} decodable ARM rows have no coverage entry: ${missing.slice(0, 10).join(', ')}`,
+      );
     // A raw-only row with no fields (arm.nv, arm.undefined) has nothing to sweep, so its entry is empty;
     // it decodes only as invalid, so only the rows decode can select must record a field class.
-    const fieldless = (id: string): boolean => (arm.coverage[id]?.exhaustive.length ?? 0) + (arm.coverage[id]?.sampled.length ?? 0) === 0;
+    const fieldless = (id: string): boolean =>
+      (arm.coverage[id]?.exhaustive.length ?? 0) + (arm.coverage[id]?.sampled.length ?? 0) === 0;
     const empty = reachable.filter(fieldless);
-    if (empty.length > 0) throw new Error(`${empty.length} decodable ARM rows record no covered field class: ${empty.slice(0, 10).join(', ')}`);
+    if (empty.length > 0)
+      throw new Error(
+        `${empty.length} decodable ARM rows record no covered field class: ${empty.slice(0, 10).join(', ')}`,
+      );
     const rawOnly = covered.filter(fieldless);
     if (rawOnly.length > 0) cx.note(`fieldless raw-only arm rows: ${rawOnly.join(' ')}`);
 
@@ -144,7 +158,9 @@ gate({
       sampled += entry.sampled.length;
       if (entry.sampled.length > 0) sampledOnly.push(`${id}[${entry.sampled.join(',')}]`);
     }
-    cx.note(`arm coverage: ${covered.length} rows (${reachable.length} reachable by decode), ${exhaustive} field classes exhaustive, ${sampled} only sampled`);
+    cx.note(
+      `arm coverage: ${covered.length} rows (${reachable.length} reachable by decode), ${exhaustive} field classes exhaustive, ${sampled} only sampled`,
+    );
     if (sampledOnly.length > 0) cx.note(`arm classes covered only by sampling: ${sampledOnly.join(' ')}`);
   },
 });

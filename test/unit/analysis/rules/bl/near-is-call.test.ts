@@ -28,11 +28,20 @@ test('1,535 bytes away is a call, 1,536 is not, in both directions', () => {
 test("the profile's idiom decides: one that never matches a far jump makes every bl a call", () => {
   const rom = romWith([{ at: F, bytes: thumbAt(F)`push {lr}; pop {pc}` }], { size: 0x1000 });
   const never = { ...testProfile(), idioms: { ...AGBCC.idioms, matchFarJump: () => false } };
-  assert.equal(blRule(ID).decide({ site: S, target: S + 0x800 }, readingOf(rom, { entry: F }), viewWith({ rom, profile: never })), 'call');
+  assert.equal(
+    blRule(ID).decide({ site: S, target: S + 0x800 }, readingOf(rom, { entry: F }), viewWith({ rom, profile: never })),
+    'call',
+  );
 });
 
 test('a near bl to code that pops an unpushed frame is a call; without the rule it reads as a far jump', () => {
-  const near = romWith([{ at: F, bytes: thumbAt(F)`push {lr}; bl _08000400; pop {pc}` }, { at: F + 0x200, bytes: thumbAt(F + 0x200)`pop {pc}` }]);
+  const near = romWith([
+    { at: F, bytes: thumbAt(F)`push {lr}; bl _08000400; pop {pc}` },
+    { at: F + 0x200, bytes: thumbAt(F + 0x200)`pop {pc}` },
+  ]);
   assert.deepEqual(settle(driverOver(near), F).blVerdicts, [{ site: S, target: F + 0x200, verdict: 'call', rule: ID }]);
-  assert.deepEqual(settle(driverOver(near, ID), F).blVerdicts.map((v) => [v.verdict, v.rule]), [['far', 'bl.target-pops-unpushed-frame']]);
+  assert.deepEqual(
+    settle(driverOver(near, ID), F).blVerdicts.map((v) => [v.verdict, v.rule]),
+    [['far', 'bl.target-pops-unpushed-frame']],
+  );
 });

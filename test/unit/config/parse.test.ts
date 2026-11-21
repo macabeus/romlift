@@ -102,7 +102,15 @@ const ILLUSTRATIVE_CONFIG: RomliftConfig = {
   modules: [
     { name: 'crt0', start: 0x0800_00c0, kind: 'asm', generated: true },
     { name: 'main', start: 0x0800_043c, kind: 'c', generated: true },
-    { name: 'eeprom', start: 0x0804_e800, kind: 'c', dataStart: 0x0804_ef00, generated: true, compiler: 'old_agbcc', cflags: ['-O1'] },
+    {
+      name: 'eeprom',
+      start: 0x0804_e800,
+      kind: 'c',
+      dataStart: 0x0804_ef00,
+      generated: true,
+      compiler: 'old_agbcc',
+      cflags: ['-O1'],
+    },
     { name: 'm4a', start: 0x0804_f000, kind: 'asm', generated: true, library: 'm4a', version: '2001' },
     { name: 'm4a_ram', start: 0x0804_f318, kind: 'asm', generated: true, library: 'm4a', version: '2001' },
     { name: 'm4a_2', start: 0x0804_f718, kind: 'asm', generated: true, library: 'm4a', version: '2001' },
@@ -122,7 +130,8 @@ const ILLUSTRATIVE_CONFIG: RomliftConfig = {
   overrides: [{ start: 0x0804_f318, size: 0x400, kind: 'code', runsAt: 0x0300_0388 }],
 };
 
-const MINIMAL = 'schema = 1\n\n[rom]\npath = "baserom.gba"\nsha1 = "a0a298d9dba1ba15d04a42fc2eb35893d1a9569b"\n\n[build]\nname = "x"\ncompiler = "agbcc"\n\n[signatures]\nenabled = false\n';
+const MINIMAL =
+  'schema = 1\n\n[rom]\npath = "baserom.gba"\nsha1 = "a0a298d9dba1ba15d04a42fc2eb35893d1a9569b"\n\n[build]\nname = "x"\ncompiler = "agbcc"\n\n[signatures]\nenabled = false\n';
 
 function ok(text: string): RomliftConfig {
   const parsed = parseConfig(text);
@@ -152,7 +161,11 @@ test("§6.5's illustrative file parses, comments and all, to its in-memory confi
   assert.ok(parsed.ok);
   assert.deepEqual(parsed.diagnostics, []);
   assert.deepEqual(parsed.value, ILLUSTRATIVE_CONFIG);
-  assert.deepEqual([...parsed.value.functions.keys()], [0x0800_00fc, 0x0800_0470, 0x0804_f318], 'the maps are in address order');
+  assert.deepEqual(
+    [...parsed.value.functions.keys()],
+    [0x0800_00fc, 0x0800_0470, 0x0804_f318],
+    'the maps are in address order',
+  );
 });
 
 test('every key of schema 1 reads into its in-memory member', () => {
@@ -186,33 +199,84 @@ runs_at = 0x03000000
 from = "sig:m4a@2001"
 `);
   assert.deepEqual(config.signatures, { enabled: true, libraries: ['m4a', 'libgcc'] });
-  assert.deepEqual(config.modules, [{ name: 'kept', start: 0x0800_0000, kind: 'c', dataStart: 0x0800_0f00, generated: false, compiler: 'old_agbcc', cflags: ['-O1', '-ftst'], library: 'agb', version: '1' }]);
-  assert.deepEqual(config.functions.get(0x0800_0000), { name: 'F', mode: 'arm', size: 0x10, aliases: ['G', 'H'], from: 'sig:gate@0' });
-  assert.deepEqual(config.entryPoints.get(0x0800_0004), { name: 'E', mode: 'arm', size: 8, aliases: ['E2'], from: 'sig:gate@0' });
-  assert.deepEqual(config.symbols.get(0x0300_0000), { name: 'gS', size: 4, type: 'bytes', aliases: ['gT'], from: 'sig:m4a@2001' });
-  assert.deepEqual(config.overrides, [{ start: 0x0800_0100, size: 0x20, kind: 'data', mode: 'thumb', runsAt: 0x0300_0000, from: 'sig:m4a@2001' }]);
+  assert.deepEqual(config.modules, [
+    {
+      name: 'kept',
+      start: 0x0800_0000,
+      kind: 'c',
+      dataStart: 0x0800_0f00,
+      generated: false,
+      compiler: 'old_agbcc',
+      cflags: ['-O1', '-ftst'],
+      library: 'agb',
+      version: '1',
+    },
+  ]);
+  assert.deepEqual(config.functions.get(0x0800_0000), {
+    name: 'F',
+    mode: 'arm',
+    size: 0x10,
+    aliases: ['G', 'H'],
+    from: 'sig:gate@0',
+  });
+  assert.deepEqual(config.entryPoints.get(0x0800_0004), {
+    name: 'E',
+    mode: 'arm',
+    size: 8,
+    aliases: ['E2'],
+    from: 'sig:gate@0',
+  });
+  assert.deepEqual(config.symbols.get(0x0300_0000), {
+    name: 'gS',
+    size: 4,
+    type: 'bytes',
+    aliases: ['gT'],
+    from: 'sig:m4a@2001',
+  });
+  assert.deepEqual(config.overrides, [
+    { start: 0x0800_0100, size: 0x20, kind: 'data', mode: 'thumb', runsAt: 0x0300_0000, from: 'sig:m4a@2001' },
+  ]);
 });
 
-test('source is a module string, syntax only: its legality is the model\'s (D109)', () => {
-  const module = (value: string): string => `${MINIMAL}\n[[modules]]\nname = "m"\nstart = 0x08000000\nkind = "asm"\nsource = ${value}\n`;
-  assert.deepEqual(ok(module('"src/asm/m.s"')).modules, [{ name: 'm', start: 0x0800_0000, kind: 'asm', generated: true, source: 'src/asm/m.s' }]);
-  assert.deepEqual(ok(module('"asm/m.s"')).modules[0]?.source, 'asm/m.s', 'a path under asm/ parses; the model refuses it');
+test("source is a module string, syntax only: its legality is the model's (D109)", () => {
+  const module = (value: string): string =>
+    `${MINIMAL}\n[[modules]]\nname = "m"\nstart = 0x08000000\nkind = "asm"\nsource = ${value}\n`;
+  assert.deepEqual(ok(module('"src/asm/m.s"')).modules, [
+    { name: 'm', start: 0x0800_0000, kind: 'asm', generated: true, source: 'src/asm/m.s' },
+  ]);
+  assert.deepEqual(
+    ok(module('"asm/m.s"')).modules[0]?.source,
+    'asm/m.s',
+    'a path under asm/ parses; the model refuses it',
+  );
   assert.equal(messages(module('7')).length, 1);
   assert.equal(messages(module('""')).length, 1);
 });
 
 test('data_start is a module address, syntax only, reported under its TOML spelling (phase 6, D92)', () => {
-  const module = (value: string): string => `${MINIMAL}\n[[modules]]\nname = "m"\nstart = 0x08000000\nkind = "c"\ndata_start = ${value}\n`;
-  assert.deepEqual(ok(module('0x08000100')).modules, [{ name: 'm', start: 0x0800_0000, kind: 'c', dataStart: 0x0800_0100, generated: true }]);
+  const module = (value: string): string =>
+    `${MINIMAL}\n[[modules]]\nname = "m"\nstart = 0x08000000\nkind = "c"\ndata_start = ${value}\n`;
+  assert.deepEqual(ok(module('0x08000100')).modules, [
+    { name: 'm', start: 0x0800_0000, kind: 'c', dataStart: 0x0800_0100, generated: true },
+  ]);
   // Below its module's start, or in an asm module: still syntax; whether the range is legal is the model's question.
   assert.equal(ok(module('0x07000000')).modules[0]?.dataStart, 0x0700_0000);
-  assert.deepEqual(messages(module('"0x08000100"')), ['E_TOML_SCHEMA line 18: modules[0].data_start: Invalid input: expected number, received string']);
-  assert.deepEqual(messages(module('-4')), ['E_TOML_SCHEMA line 18: modules[0].data_start: Too small: expected number to be >=0']);
-  assert.match(messages(`${MINIMAL}\n[[modules]]\nname = "m"\nstart = 0x08000000\nkind = "c"\ndataStart = 0x08000100\n`)[0] ?? '', /unknown key `dataStart` \(schema 1 has name, start, kind, data_start, generated/);
+  assert.deepEqual(messages(module('"0x08000100"')), [
+    'E_TOML_SCHEMA line 18: modules[0].data_start: Invalid input: expected number, received string',
+  ]);
+  assert.deepEqual(messages(module('-4')), [
+    'E_TOML_SCHEMA line 18: modules[0].data_start: Too small: expected number to be >=0',
+  ]);
+  assert.match(
+    messages(`${MINIMAL}\n[[modules]]\nname = "m"\nstart = 0x08000000\nkind = "c"\ndataStart = 0x08000100\n`)[0] ?? '',
+    /unknown key `dataStart` \(schema 1 has name, start, kind, data_start, generated/,
+  );
 });
 
 test('defaults: a bare name is a Thumb entry with no aliases, a module is generated, absent tables are empty', () => {
-  const config = ok(`${MINIMAL}\n[functions]\n0x08000000 = "F"\n0x08000010 = { name = "G" }\n\n[symbols]\n0x03000000 = "gS"\n`);
+  const config = ok(
+    `${MINIMAL}\n[functions]\n0x08000000 = "F"\n0x08000010 = { name = "G" }\n\n[symbols]\n0x03000000 = "gS"\n`,
+  );
   assert.deepEqual(config.functions.get(0x0800_0000), { name: 'F', mode: 'thumb', aliases: [] });
   assert.deepEqual(config.functions.get(0x0800_0010), { name: 'G', mode: 'thumb', aliases: [] });
   assert.deepEqual(config.symbols.get(0x0300_0000), { name: 'gS', aliases: [] });
@@ -225,21 +289,27 @@ test('defaults: a bare name is a Thumb entry with no aliases, a module is genera
 
 test('a [functions.0x…] table or dotted keys restructured by hand parse to the same entry as the line', () => {
   const line = ok(`${MINIMAL}\n[functions]\n0x08000000 = { name = "F", mode = "arm", aliases = ["G"] }\n`);
-  const table = ok(`${MINIMAL}\n[functions]\n\n[symbols]\n\n[functions.0x08000000]\nname = "F"\nmode = "arm"\naliases = [\n  "G",\n]\n`);
-  const dotted = ok(`${MINIMAL}\n[functions]\n0x08000000.name = "F"\n0x08000000.mode = "arm"\n0x08000000.aliases = ["G"]\n`);
+  const table = ok(
+    `${MINIMAL}\n[functions]\n\n[symbols]\n\n[functions.0x08000000]\nname = "F"\nmode = "arm"\naliases = [\n  "G",\n]\n`,
+  );
+  const dotted = ok(
+    `${MINIMAL}\n[functions]\n0x08000000.name = "F"\n0x08000000.mode = "arm"\n0x08000000.aliases = ["G"]\n`,
+  );
   assert.deepEqual(table, line);
   assert.deepEqual(dotted, line);
 });
 
 test('text that is not TOML is E_TOML_PARSE with its line and column', () => {
-  assert.deepEqual(messages(`${MINIMAL}cflags = ["-O1"\n`), ['E_TOML_PARSE line 14, column 1: expected comma or end of structure']);
+  assert.deepEqual(messages(`${MINIMAL}cflags = ["-O1"\n`), [
+    'E_TOML_PARSE line 14, column 1: expected comma or end of structure',
+  ]);
   assert.deepEqual(messages('schema = \n'), ['E_TOML_PARSE line 1, column 10: invalid value']);
   const duplicateKey = messages(`${MINIMAL.replace('enabled = false', 'enabled = false\nenabled = true')}`);
   assert.equal(duplicateKey.length, 1);
   assert.match(duplicateKey[0] ?? '', /^E_TOML_PARSE line 13, column \d+: /);
 });
 
-test('the build name is one init accepts, and the project\'s ROM is always baserom.gba (D75 i)', () => {
+test("the build name is one init accepts, and the project's ROM is always baserom.gba (D75 i)", () => {
   const name = MINIMAL.match(/^name = "([^"]+)"$/m)?.[1] ?? assert.fail('MINIMAL has no [build] name');
   assert.deepEqual(messages(MINIMAL.replace(`name = "${name}"`, 'name = "../../evil name"')), [
     "E_TOML_SCHEMA line 8: build.name: not a build name (letters, digits, '.', '_' and '-', a letter or digit first, at most 100 characters)",
@@ -253,18 +323,31 @@ test('TOML that is not schema 1 is E_TOML_SCHEMA, every issue at once, with its 
   assert.deepEqual(messages(`${MINIMAL}\n[analysis]\ndisable = ["seed.x"]\n`), [
     'E_TOML_SCHEMA line 14: analysis: unknown key `analysis` (schema 1 has schema, rom, build, signatures, modules, functions, entry_points, symbols, overrides)',
   ]);
-  assert.deepEqual(messages(`${MINIMAL}\n[[overrides]]\nstart = 0x08000000\nsize = 0x10\nkind = "code"\nrunsAt = 0x03000000\n`), [
-    'E_TOML_SCHEMA line 18: overrides[0].runsAt: unknown key `runsAt` (schema 1 has start, size, kind, mode, runs_at, from)',
-  ]);
-  assert.deepEqual(messages(`${MINIMAL.replace('compiler = "agbcc"', 'compiler = "gcc"')}\n[[modules]]\nname = "m"\nstart = 0x08000000\nkind = "rom"\n[functions]\n0x08000000 = { name = "1bad" }\n`), [
-    'E_UNKNOWN_COMPILER line 9: build.compiler: not a registered build compiler (core/config/compilers.ts)',
-    'E_TOML_SCHEMA line 17: modules[0].kind: Invalid option: expected one of "asm"|"c"|"data"',
-    'E_TOML_SCHEMA line 19: functions.0x08000000.name: not an assembler symbol name (a letter or _, then letters, digits, _, . and $, at most 200 characters)',
-  ]);
-  assert.deepEqual(messages(MINIMAL.replace(/\[rom\]\npath = "baserom.gba"\nsha1 = "[0-9a-f]+"\n\n/, '').replace('schema = 1', 'schema = 2')), [
-    'E_TOML_SCHEMA line 1: schema: Invalid input: expected 1',
-    'E_TOML_SCHEMA rom: Invalid input: expected object, received undefined',
-  ]);
+  assert.deepEqual(
+    messages(`${MINIMAL}\n[[overrides]]\nstart = 0x08000000\nsize = 0x10\nkind = "code"\nrunsAt = 0x03000000\n`),
+    [
+      'E_TOML_SCHEMA line 18: overrides[0].runsAt: unknown key `runsAt` (schema 1 has start, size, kind, mode, runs_at, from)',
+    ],
+  );
+  assert.deepEqual(
+    messages(
+      `${MINIMAL.replace('compiler = "agbcc"', 'compiler = "gcc"')}\n[[modules]]\nname = "m"\nstart = 0x08000000\nkind = "rom"\n[functions]\n0x08000000 = { name = "1bad" }\n`,
+    ),
+    [
+      'E_UNKNOWN_COMPILER line 9: build.compiler: not a registered build compiler (core/config/compilers.ts)',
+      'E_TOML_SCHEMA line 17: modules[0].kind: Invalid option: expected one of "asm"|"c"|"data"',
+      'E_TOML_SCHEMA line 19: functions.0x08000000.name: not an assembler symbol name (a letter or _, then letters, digits, _, . and $, at most 200 characters)',
+    ],
+  );
+  assert.deepEqual(
+    messages(
+      MINIMAL.replace(/\[rom\]\npath = "baserom.gba"\nsha1 = "[0-9a-f]+"\n\n/, '').replace('schema = 1', 'schema = 2'),
+    ),
+    [
+      'E_TOML_SCHEMA line 1: schema: Invalid input: expected 1',
+      'E_TOML_SCHEMA rom: Invalid input: expected object, received undefined',
+    ],
+  );
   assert.deepEqual(messages(`${MINIMAL}\n[functions]\n0x08000000 = 5\n0x08000010 = { name = "G", size = 0 }\n`), [
     'E_TOML_SCHEMA line 15: functions.0x08000000: must be a name string or a table',
     'E_TOML_SCHEMA line 16: functions.0x08000010.size: Too small: expected number to be >=1',
@@ -273,7 +356,9 @@ test('TOML that is not schema 1 is E_TOML_SCHEMA, every issue at once, with its 
     'E_TOML_SCHEMA line 1: modules: must be an array of tables ([[modules]])',
     'E_TOML_SCHEMA line 2: functions: must be a table',
   ]);
-  assert.deepEqual(messages(`${MINIMAL}\nmodules = 3\n`), ['E_TOML_SCHEMA line 14: signatures.modules: unknown key `modules` (schema 1 has enabled, libraries)']);
+  assert.deepEqual(messages(`${MINIMAL}\nmodules = 3\n`), [
+    'E_TOML_SCHEMA line 14: signatures.modules: unknown key `modules` (schema 1 has enabled, libraries)',
+  ]);
 });
 
 test('the address checks come first and are not doubled by smol-toml', () => {
@@ -298,7 +383,9 @@ test('a [functions] key no instruction of its mode starts at is E_FUNCTION_MISAL
     'E_FUNCTION_MISALIGNED line 17: the [functions] key 0x0800010A (Arm) is not a word-aligned ARM instruction address',
     "E_FUNCTION_MISALIGNED line 18: the [functions] key 0x08000111 (Legacy) is not a halfword-aligned Thumb instruction address; a Thumb function's pointer value has bit 0 set, its entry is 0x08000110",
   ]);
-  assert.ok(parseConfig(`${MINIMAL}\n[functions]\n0x08000100 = "A"\n0x08000114 = { name = "ArmOk", mode = "arm" }\n`).ok);
+  assert.ok(
+    parseConfig(`${MINIMAL}\n[functions]\n0x08000100 = "A"\n0x08000114 = { name = "ArmOk", mode = "arm" }\n`).ok,
+  );
 });
 
 test("on every committed fixture's config: the illegal edits of g4.toml-mutations give their codes", () => {
@@ -314,15 +401,18 @@ test("on every committed fixture's config: the illegal edits of g4.toml-mutation
     const repeated = parseConfig([...lines.slice(0, at + 1), line, ...lines.slice(at + 1)].join('\n'));
     assert.deepEqual(
       repeated.ok ? [] : repeated.diagnostics.map((d) => [d.code, d.message]),
-      [['E_DUPLICATE_ADDRESS', `line ${at + 2}: [functions] lists ${line.slice(0, 10)} twice, at lines ${at + 1} and ${at + 2}`]],
+      [
+        [
+          'E_DUPLICATE_ADDRESS',
+          `line ${at + 2}: [functions] lists ${line.slice(0, 10)} twice, at lines ${at + 1} and ${at + 2}`,
+        ],
+      ],
       name,
     );
-    const misspelt = parseConfig([...lines.slice(0, at), line.replace(FUNCTION_LINE, '$1$2$3'), ...lines.slice(at + 1)].join('\n'));
-    assert.deepEqual(
-      misspelt.ok ? [] : misspelt.diagnostics.map((d) => d.code),
-      ['E_TOML_KEY_SPELLING'],
-      name,
+    const misspelt = parseConfig(
+      [...lines.slice(0, at), line.replace(FUNCTION_LINE, '$1$2$3'), ...lines.slice(at + 1)].join('\n'),
     );
+    assert.deepEqual(misspelt.ok ? [] : misspelt.diagnostics.map((d) => d.code), ['E_TOML_KEY_SPELLING'], name);
   }
 });
 
@@ -346,6 +436,7 @@ test('parseConfig never throws: seeded random edits of a canonical file', () => 
     const char = alphabet[(random[i * 4 + 2] ?? 0) % alphabet.length] ?? ' ';
     const text = `${base.slice(0, at)}${char.repeat(((random[i * 4 + 3] ?? 0) % 3) + 1)}${base.slice(at + length)}`;
     const parsed = parseConfig(text);
-    if (!parsed.ok) assert.ok(parsed.diagnostics.length > 0 && parsed.diagnostics.every((d) => d.severity === 'error'), text);
+    if (!parsed.ok)
+      assert.ok(parsed.diagnostics.length > 0 && parsed.diagnostics.every((d) => d.severity === 'error'), text);
   }
 });

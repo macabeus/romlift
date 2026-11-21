@@ -17,7 +17,10 @@ test('a stub-only unit: its includes in text order, no problem, and its assembly
     ],
     problems: [],
   });
-  assert.deepEqual(stubAssemblyOf(STUB, 'old_agbcc'), { ok: true, text: stubAssemblyText(['asm/nonmatchings/main/A.s', 'asm/nonmatchings/main/B_08000100.s'], 'old_agbcc') });
+  assert.deepEqual(stubAssemblyOf(STUB, 'old_agbcc'), {
+    ok: true,
+    text: stubAssemblyText(['asm/nonmatchings/main/A.s', 'asm/nonmatchings/main/B_08000100.s'], 'old_agbcc'),
+  });
   assert.deepEqual(readStub(C_STUB_HEADER), { includes: [], problems: [] }, 'a module without chunk files');
   assert.deepEqual(readStub(''), { includes: [], problems: [] });
 });

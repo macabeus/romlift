@@ -18,7 +18,7 @@ import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
-import { appendFile, chmod, copyFile, cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { appendFile, chmod, copyFile, cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
@@ -44,7 +44,11 @@ function num(value: unknown, what: string): number {
 
 function rangeOf(value: Readonly<Record<string, unknown>>, runAtKey: 'runAt' | 'runsAt', what: string): RamRange {
   const mode = value['mode'];
-  const base = { start: num(value['start'], `${what}.start`), size: num(value['size'], `${what}.size`), runAt: num(value[runAtKey], `${what}.${runAtKey}`) };
+  const base = {
+    start: num(value['start'], `${what}.start`),
+    size: num(value['size'], `${what}.size`),
+    runAt: num(value[runAtKey], `${what}.${runAtKey}`),
+  };
   return mode === 'thumb' || mode === 'arm' ? { ...base, mode } : base;
 }
 
@@ -54,17 +58,38 @@ function hex(a: number): string {
 
 const FIXTURE = path.join(REPO, 'bench', 'dataset', 'synthetic', 'code-copied-to-ram');
 const FIXTURE_ROM = path.join(FIXTURE, 'build', 'code-copied-to-ram.gba');
-const fixtureRange = rangeOf((JSON.parse(readFileSync(path.join(FIXTURE, 'expect.json'), 'utf8')) as { readonly ramCopy: Readonly<Record<string, unknown>> }).ramCopy, 'runAt', 'expect.json ramCopy');
+const fixtureRange = rangeOf(
+  (
+    JSON.parse(readFileSync(path.join(FIXTURE, 'expect.json'), 'utf8')) as {
+      readonly ramCopy: Readonly<Record<string, unknown>>;
+    }
+  ).ramCopy,
+  'runAt',
+  'expect.json ramCopy',
+);
 
-const dataset = JSON.parse(readFileSync(path.join(REPO, 'bench', 'dataset', 'real', 'klonoa.json'), 'utf8')) as { readonly rom: string; readonly sha1: string };
+const dataset = JSON.parse(readFileSync(path.join(REPO, 'bench', 'dataset', 'real', 'klonoa.json'), 'utf8')) as {
+  readonly rom: string;
+  readonly sha1: string;
+};
 const KLONOA_ROM = path.join(BENCH_ROOT, dataset.rom);
-const klonoaConfig = JSON.parse(readFileSync(path.join(REPO, 'bench', 'overrides', 'klonoa.json'), 'utf8')) as { readonly schema: number; readonly overrides: readonly Readonly<Record<string, unknown>>[]; readonly source: string };
-const klonoaRanges = klonoaConfig.overrides.map((o, i) => rangeOf(o, 'runsAt', `bench/overrides/klonoa.json overrides[${i}]`));
+const klonoaConfig = JSON.parse(readFileSync(path.join(REPO, 'bench', 'overrides', 'klonoa.json'), 'utf8')) as {
+  readonly schema: number;
+  readonly overrides: readonly Readonly<Record<string, unknown>>[];
+  readonly source: string;
+};
+const klonoaRanges = klonoaConfig.overrides.map((o, i) =>
+  rangeOf(o, 'runsAt', `bench/overrides/klonoa.json overrides[${i}]`),
+);
 
 /** The first agbcc build found (a directory holding bin/agbcc), or undefined: setup.sh then builds it. */
 function prebuiltAgbcc(): string | undefined {
   const env = process.env['ROMLIFT_AGBCC'];
-  const candidates = [...(env ? [path.resolve(REPO, env)] : []), path.join(REPO, 'bench', '.local', 'agbcc'), path.join(BENCH_ROOT, 'pokeemerald', 'tools', 'agbcc')];
+  const candidates = [
+    ...(env ? [path.resolve(REPO, env)] : []),
+    path.join(REPO, 'bench', '.local', 'agbcc'),
+    path.join(BENCH_ROOT, 'pokeemerald', 'tools', 'agbcc'),
+  ];
   return candidates.find((dir) => existsSync(path.join(dir, 'bin', 'agbcc')));
 }
 
@@ -76,12 +101,22 @@ interface Ran {
   readonly out: string;
 }
 
-function run(command: string, args: readonly string[], cwd: string, env: Readonly<Record<string, string>> = {}): Promise<Ran> {
+function run(
+  command: string,
+  args: readonly string[],
+  cwd: string,
+  env: Readonly<Record<string, string>> = {},
+): Promise<Ran> {
   return new Promise((resolve) => {
-    execFile(command, [...args], { cwd, env: { ...process.env, ...env }, maxBuffer: 256 * 1024 * 1024 }, (error, stdout, stderr) => {
-      const code = error === null ? 0 : typeof error.code === 'number' ? error.code : 1;
-      resolve({ code, out: `${stdout}${stderr}` });
-    });
+    execFile(
+      command,
+      [...args],
+      { cwd, env: { ...process.env, ...env }, maxBuffer: 256 * 1024 * 1024 },
+      (error, stdout, stderr) => {
+        const code = error === null ? 0 : typeof error.code === 'number' ? error.code : 1;
+        resolve({ code, out: `${stdout}${stderr}` });
+      },
+    );
   });
 }
 
@@ -91,7 +126,10 @@ function tail(ran: Ran, lines = 25): string {
 
 async function sourceCli(): Promise<string> {
   const cli = path.join(TMP, 'romlift');
-  await writeFile(cli, `#!/bin/sh\nexec '${process.execPath}' --conditions=source '${path.join(REPO, 'src', 'cli', 'main.ts')}' "$@"\n`);
+  await writeFile(
+    cli,
+    `#!/bin/sh\nexec '${process.execPath}' --conditions=source '${path.join(REPO, 'src', 'cli', 'main.ts')}' "$@"\n`,
+  );
   await chmod(cli, 0o755);
   return cli;
 }
@@ -126,18 +164,36 @@ async function projectModel(dir: string): Promise<string> {
   const read = await readProject(dir, { withoutC: true });
   assert.ok(read.ok, `readProject ${dir}: ${read.ok ? '' : read.diagnostics.map((d) => d.message).join('; ')}`);
   const confirmed = confirmProject(read.value.inputs);
-  assert.ok(confirmed.ok, `confirmProject ${dir}: ${confirmed.ok ? '' : confirmed.diagnostics.map((d) => d.message).join('; ')}`);
+  assert.ok(
+    confirmed.ok,
+    `confirmProject ${dir}: ${confirmed.ok ? '' : confirmed.diagnostics.map((d) => d.message).join('; ')}`,
+  );
   return [...encodeModel(confirmed.model, read.value.inputs.rom)].join('');
 }
 
-function modelOf(stdout: string): { readonly modules: readonly ModelModule[]; readonly functions: readonly { readonly entry: number; readonly runAt?: number }[] } {
+function modelOf(stdout: string): {
+  readonly modules: readonly ModelModule[];
+  readonly functions: readonly { readonly entry: number; readonly runAt?: number }[];
+} {
   const header = JSON.parse(stdout.split('\n')[0] ?? '{}') as {
-    readonly modules: readonly { readonly name: string; readonly span: { readonly start: unknown; readonly end: unknown }; readonly runAt?: unknown }[];
+    readonly modules: readonly {
+      readonly name: string;
+      readonly span: { readonly start: unknown; readonly end: unknown };
+      readonly runAt?: unknown;
+    }[];
     readonly functions: readonly { readonly entry: unknown; readonly runAt?: unknown }[];
   };
   return {
-    modules: header.modules.map((m) => ({ name: m.name, start: num(m.span.start, 'span.start'), end: num(m.span.end, 'span.end'), ...(m.runAt === undefined ? {} : { runAt: num(m.runAt, 'runAt') }) })),
-    functions: header.functions.map((f) => ({ entry: num(f.entry, 'entry'), ...(f.runAt === undefined ? {} : { runAt: num(f.runAt, 'runAt') }) })),
+    modules: header.modules.map((m) => ({
+      name: m.name,
+      start: num(m.span.start, 'span.start'),
+      end: num(m.span.end, 'span.end'),
+      ...(m.runAt === undefined ? {} : { runAt: num(m.runAt, 'runAt') }),
+    })),
+    functions: header.functions.map((f) => ({
+      entry: num(f.entry, 'entry'),
+      ...(f.runAt === undefined ? {} : { runAt: num(f.runAt, 'runAt') }),
+    })),
   };
 }
 
@@ -173,18 +229,33 @@ async function rebuild(name: string, romPath: string, ranges: readonly RamRange[
   const { modules, functions } = modelOf(await projectModel(dir));
   const end = range.start + range.size;
   const own = modules.filter((m) => m.start < end && m.end > range.start);
-  assert.deepEqual(own.map((m) => [m.start, m.end, m.runAt]), [[range.start, end, range.runAt]], `${name}: one module spans exactly ${hex(range.start)}..${hex(end)}, run at ${hex(range.runAt)}`);
+  assert.deepEqual(
+    own.map((m) => [m.start, m.end, m.runAt]),
+    [[range.start, end, range.runAt]],
+    `${name}: one module spans exactly ${hex(range.start)}..${hex(end)}, run at ${hex(range.runAt)}`,
+  );
   const inside = functions.filter((f) => f.entry >= range.start && f.entry < end);
-  assert.ok(inside.some((f) => f.entry === range.start), `${name}: the range's start is a function`);
-  for (const f of inside) assert.equal(f.runAt, range.runAt + (f.entry - range.start), `${name}: ${hex(f.entry)} runs at its run address`);
-  for (const f of functions.filter((g) => g.entry < range.start || g.entry >= end)) assert.equal(f.runAt, undefined, `${name}: ${hex(f.entry)} runs where it is loaded`);
+  assert.ok(
+    inside.some((f) => f.entry === range.start),
+    `${name}: the range's start is a function`,
+  );
+  for (const f of inside)
+    assert.equal(f.runAt, range.runAt + (f.entry - range.start), `${name}: ${hex(f.entry)} runs at its run address`);
+  for (const f of functions.filter((g) => g.entry < range.start || g.entry >= end))
+    assert.equal(f.runAt, undefined, `${name}: ${hex(f.entry)} runs where it is loaded`);
 
   const generate = await run(cli, ['generate', '--json'], dir, env);
   assert.equal(generate.code, 0, tail(generate));
   const ldscript = await readFile(path.join(dir, 'ldscript.txt'), 'utf8');
   const module = own[0]?.name ?? '';
-  assert.ok(ldscript.includes(`.${module} ${hex(range.runAt)} : AT(${hex(range.start)})`), `${name}: ldscript.txt places .${module} at its run address\n${ldscript}`);
-  assert.ok(ldscript.includes(`__load_${module} = LOADADDR(.${module});`), `${name}: ldscript.txt defines __load_${module}`);
+  assert.ok(
+    ldscript.includes(`.${module} ${hex(range.runAt)} : AT(${hex(range.start)})`),
+    `${name}: ldscript.txt places .${module} at its run address\n${ldscript}`,
+  );
+  assert.ok(
+    ldscript.includes(`__load_${module} = LOADADDR(.${module});`),
+    `${name}: ldscript.txt defines __load_${module}`,
+  );
 
   // The words naming the range where it is loaded keep their bytes: never a label inside the range (its run address).
   const bytes = readFileSync(romPath);
@@ -196,32 +267,59 @@ async function rebuild(name: string, romPath: string, ranges: readonly RamRange[
     const operand = texts.map((t) => line.exec(t)?.[1]).find((o) => o !== undefined);
     if (operand === undefined) continue;
     printed++;
-    assert.ok(operand === hex(value) || operand.startsWith(`__load_${module}`), `${name}: the word at ${hex(at)} (${hex(value)}) prints as ${operand}, which would not link to its own bytes`);
+    assert.ok(
+      operand === hex(value) || operand.startsWith(`__load_${module}`),
+      `${name}: the word at ${hex(at)} (${hex(value)}) prints as ${operand}, which would not link to its own bytes`,
+    );
   }
-  if (name === 'klonoa') assert.ok(printed >= 1 && named.get(0x0804_ff98) === 0x0804_f319, 'klonoa: m4aSoundInit loads SoundMainRAM | 1 from its pool, and that pool word is printed');
+  if (name === 'klonoa')
+    assert.ok(
+      printed >= 1 && named.get(0x0804_ff98) === 0x0804_f319,
+      'klonoa: m4aSoundInit loads SoundMainRAM | 1 from its pool, and that pool word is printed',
+    );
 
   const prebuilt = prebuiltAgbcc();
-  for (const part of ['bin', 'include', 'lib']) if (prebuilt !== undefined && existsSync(path.join(prebuilt, part))) await cp(path.join(prebuilt, part), path.join(dir, 'tools', 'agbcc', part), { recursive: true });
+  for (const part of ['bin', 'include', 'lib'])
+    if (prebuilt !== undefined && existsSync(path.join(prebuilt, part)))
+      await cp(path.join(prebuilt, part), path.join(dir, 'tools', 'agbcc', part), { recursive: true });
   const setup = await run('./setup.sh', [], dir, env);
   assert.equal(setup.code, 0, tail(setup));
   const make = await run('make', [], dir, env);
   assert.equal(make.code, 0, tail(make));
   const buildName = /^name = "([^"]+)"$/m.exec(await readFile(path.join(dir, 'romlift.toml'), 'utf8'))?.[1] ?? '';
-  const built = /^[0-9a-f]{40}\s+\*?(\S+)\s*$/m.exec(await readFile(path.join(dir, `${buildName}.sha1`), 'utf8'))?.[1] ?? '';
-  assert.equal(createHash('sha1').update(readFileSync(path.join(dir, built))).digest('hex'), sha1, `${name}: make built another ROM`);
+  const built =
+    /^[0-9a-f]{40}\s+\*?(\S+)\s*$/m.exec(await readFile(path.join(dir, `${buildName}.sha1`), 'utf8'))?.[1] ?? '';
+  assert.equal(
+    createHash('sha1')
+      .update(readFileSync(path.join(dir, built)))
+      .digest('hex'),
+    sha1,
+    `${name}: make built another ROM`,
+  );
 }
 
-test('the RAM-copy fixture: its runs_at range is its own module at 0x03000000 and the tree links to the SHA-1', { timeout: 30 * 60_000 }, async () => {
-  const bytes = readFileSync(FIXTURE_ROM);
-  await rebuild('code-copied-to-ram', FIXTURE_ROM, [fixtureRange], createHash('sha1').update(bytes).digest('hex'));
-});
+test(
+  'the RAM-copy fixture: its runs_at range is its own module at 0x03000000 and the tree links to the SHA-1',
+  { timeout: 30 * 60_000 },
+  async () => {
+    const bytes = readFileSync(FIXTURE_ROM);
+    await rebuild('code-copied-to-ram', FIXTURE_ROM, [fixtureRange], createHash('sha1').update(bytes).digest('hex'));
+  },
+);
 
 const unavailable = existsSync(KLONOA_ROM) ? undefined : `unavailable: rom ${KLONOA_ROM}`;
 
-test("klonoa: SoundMainRAM's range from bench/overrides/klonoa.json runs at 0x03000388 and the tree links to the SHA-1", { skip: REQUIRE ? false : (unavailable ?? false), timeout: 60 * 60_000 }, async () => {
-  assert.equal(unavailable, undefined, unavailable);
-  assert.equal(klonoaConfig.schema, 1);
-  assert.deepEqual(klonoaRanges.map((r) => [r.start, r.runAt]), [[0x0804_f318, 0x0300_0388]]);
-  assert.equal(dataset.sha1, 'a0a298d9dba1ba15d04a42fc2eb35893d1a9569b');
-  await rebuild('klonoa', KLONOA_ROM, klonoaRanges, dataset.sha1);
-});
+test(
+  "klonoa: SoundMainRAM's range from bench/overrides/klonoa.json runs at 0x03000388 and the tree links to the SHA-1",
+  { skip: REQUIRE ? false : (unavailable ?? false), timeout: 60 * 60_000 },
+  async () => {
+    assert.equal(unavailable, undefined, unavailable);
+    assert.equal(klonoaConfig.schema, 1);
+    assert.deepEqual(
+      klonoaRanges.map((r) => [r.start, r.runAt]),
+      [[0x0804_f318, 0x0300_0388]],
+    );
+    assert.equal(dataset.sha1, 'a0a298d9dba1ba15d04a42fc2eb35893d1a9569b');
+    await rebuild('klonoa', KLONOA_ROM, klonoaRanges, dataset.sha1);
+  },
+);

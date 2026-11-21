@@ -1,13 +1,22 @@
 // Fault injection into the architecture rules (g1.checks-fail, architecture §10, D117): each fault, added to an
 // otherwise clean mini-repository that carries the repository's eslint.config.js and lint/, must make ESLint report
 // exactly one problem, of the expected rule.
+import { ESLint } from 'eslint';
 import assert from 'node:assert/strict';
-import { copyFileSync, cpSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { ESLint } from 'eslint';
 
 const repoRoot = path.resolve(fileURLToPath(new URL('../../../', import.meta.url)));
 // The real path: macOS's tmpdir is a symlink, and ESLint and boundaries must see one spelling of each file.
@@ -36,7 +45,8 @@ const CLEAN: Readonly<Record<string, string>> = {
     '',
   ].join('\n'),
   'src/core/profile/types.ts': 'export interface Profile { readonly name: string }\n',
-  'src/core/profile/agbcc.ts': "import type { Profile } from './types.ts';\nexport const agbcc: Profile = { name: 'agbcc' };\n",
+  'src/core/profile/agbcc.ts':
+    "import type { Profile } from './types.ts';\nexport const agbcc: Profile = { name: 'agbcc' };\n",
   'src/core/analysis/types.ts': 'export type Claim = number;\n',
   'src/core/config/parse.ts': 'export const parse = (text: string): number => text.length;\n',
   'src/core/analysis/rules/define-rule.ts': 'export function defineRule<T>(rule: T): T {\n  return rule;\n}\n',
@@ -48,7 +58,8 @@ const CLEAN: Readonly<Record<string, string>> = {
     '',
   ].join('\n'),
   'src/core/analysis/rules/seed/index.ts': "import { entry } from './entry.ts';\nexport const seedRules = [entry];\n",
-  'src/core/analysis/rules/index.ts': "import { seedRules } from './seed/index.ts';\nexport const rules = [...seedRules];\n",
+  'src/core/analysis/rules/index.ts':
+    "import { seedRules } from './seed/index.ts';\nexport const rules = [...seedRules];\n",
   'src/core/analysis/driver/run.ts': "import { rules } from '../rules/index.ts';\nexport const count = rules.length;\n",
   'src/core/model/names.ts': [
     "import { sortedKeys } from '../../foundation/util/sorted.ts';",
@@ -64,7 +75,8 @@ const CLEAN: Readonly<Record<string, string>> = {
     '}',
     '',
   ].join('\n'),
-  'src/shell/project/locate.ts': "import { listDir } from '../fs.ts';\nexport const here = (): string[] => listDir('.');\n",
+  'src/shell/project/locate.ts':
+    "import { listDir } from '../fs.ts';\nexport const here = (): string[] => listDir('.');\n",
   'src/api/rom.ts': "export { biggest } from '../foundation/util/numbers.ts';\n",
   'src/api/files.ts': "export { listDir } from '../shell/fs.ts';\n",
   'src/api/project.ts': "export { here } from '../shell/project/locate.ts';\n",
@@ -163,7 +175,7 @@ const FAULTS: readonly Fault[] = [
     name: 'localeCompare in the shell',
     rule: 'no-restricted-properties',
     file: 'src/shell/compare.ts',
-    text: "export const compare = (a: string, b: string): number => a.localeCompare(b);\n",
+    text: 'export const compare = (a: string, b: string): number => a.localeCompare(b);\n',
   },
   {
     name: 'process in core',
@@ -267,7 +279,12 @@ interface Problem {
 async function lint(root: string): Promise<Problem[]> {
   const results = await new ESLint({ cwd: root }).lintFiles(['.']);
   return results.flatMap((r) =>
-    r.messages.map((m) => ({ file: path.relative(root, r.filePath).split(path.sep).join('/'), line: m.line, rule: m.ruleId ?? 'eslint', message: m.message })),
+    r.messages.map((m) => ({
+      file: path.relative(root, r.filePath).split(path.sep).join('/'),
+      line: m.line,
+      rule: m.ruleId ?? 'eslint',
+      message: m.message,
+    })),
   );
 }
 

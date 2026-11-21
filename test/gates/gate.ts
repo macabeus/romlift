@@ -14,13 +14,15 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { appendFileSync } from 'node:fs';
-import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { availableParallelism, tmpdir } from 'node:os';
 import path from 'node:path';
-import { test, type TestContext } from 'node:test';
+import { type TestContext, test } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
+
 import { byCodeUnit } from './order.ts';
+
 export { byCodeUnit } from './order.ts';
 
 export type GateTier = 'ci' | 'real';
@@ -149,7 +151,6 @@ const ENTRY_SOURCES: Readonly<Record<EntryPoint, string>> = {
 // ---------------------------------------------------------------------------------------------------
 // Pure decisions.
 
-
 /** The tier selected by ROMLIFT_GATE_TIER; `ci` when unset. */
 export function selectedTier(env: Readonly<Record<string, string | undefined>>): GateTier {
   const value = env['ROMLIFT_GATE_TIER'];
@@ -246,7 +247,9 @@ export function decideVerdict(
     readonly checks: Readonly<Partial<Record<GateInput, InputCheck>>>;
   },
 ): Precondition | undefined {
-  return decideHistorical(spec, facts.landed) ?? decidePending(spec, facts.exported) ?? decideInputs(spec, facts.checks);
+  return (
+    decideHistorical(spec, facts.landed) ?? decidePending(spec, facts.exported) ?? decideInputs(spec, facts.checks)
+  );
 }
 
 /**
@@ -255,13 +258,17 @@ export function decideVerdict(
  * gate, and `fail` when it throws, so a frozen gate's verdict still comes from its own check
  * (gate-honesty-r2-1, code-quality-r0-6).
  */
-export function gateStep(
-  precondition: Precondition | undefined,
-):
-  | { readonly kind: 'record'; readonly verdict: 'pending' | 'unavailable'; readonly detail: string; readonly missing: readonly string[] }
+export function gateStep(precondition: Precondition | undefined):
+  | {
+      readonly kind: 'record';
+      readonly verdict: 'pending' | 'unavailable';
+      readonly detail: string;
+      readonly missing: readonly string[];
+    }
   | { readonly kind: 'run'; readonly onReturn: 'pass' | 'historical'; readonly detail?: string } {
   if (precondition === undefined) return { kind: 'run', onReturn: 'pass' };
-  if (precondition.verdict === 'historical') return { kind: 'run', onReturn: 'historical', detail: precondition.detail };
+  if (precondition.verdict === 'historical')
+    return { kind: 'run', onReturn: 'historical', detail: precondition.detail };
   return { kind: 'record', verdict: precondition.verdict, detail: precondition.detail, missing: precondition.missing };
 }
 
@@ -309,7 +316,9 @@ export function jsonLines<T>(stdout: string): readonly T[] {
     try {
       out.push(JSON.parse(line) as T);
     } catch (error) {
-      throw new Error(`line ${i + 1} is not JSON (${error instanceof Error ? error.message : String(error)}): ${line.slice(0, 200)}`);
+      throw new Error(
+        `line ${i + 1} is not JSON (${error instanceof Error ? error.message : String(error)}): ${line.slice(0, 200)}`,
+      );
     }
   }
   return out;
@@ -396,7 +405,13 @@ export async function listFixtures(repoRoot: string, io: GateIo): Promise<readon
     const name = parts[0] ?? '';
     if (parts.length !== 3 || parts[1] !== 'build' || parts[2] !== `${name}.gba`) continue;
     const dir = path.join(root, name);
-    out.push({ name, dir, rom: path.join(dir, 'build', `${name}.gba`), elf: path.join(dir, 'build', `${name}.elf`), expect: path.join(dir, 'expect.json') });
+    out.push({
+      name,
+      dir,
+      rom: path.join(dir, 'build', `${name}.gba`),
+      elf: path.join(dir, 'build', `${name}.elf`),
+      expect: path.join(dir, 'expect.json'),
+    });
   }
   return out.sort((a, b) => byCodeUnit(a.name, b.name));
 }
@@ -458,7 +473,8 @@ export async function checkInput(input: GateInput, env: InputEnv, io: GateIo): P
           continue;
         }
         const sha256 = await io.fileDigest(file, 'sha256');
-        if (sha256 !== d.elfSha256) problems.push(`${d.name}: ${d.elf} has sha256 ${sha256}, the dataset records ${d.elfSha256}`);
+        if (sha256 !== d.elfSha256)
+          problems.push(`${d.name}: ${d.elf} has sha256 ${sha256}, the dataset records ${d.elfSha256}`);
         lines.push(`${d.name}\0${sha256}`);
       }
       return result(io, problems, lines);
@@ -474,7 +490,8 @@ export async function checkInput(input: GateInput, env: InputEnv, io: GateIo): P
           problems.push(`${d.name}: ${d.objectsDir ?? ''} is missing`);
         } else {
           const digest = await objectsDigest(dir, io);
-          if (digest !== d.objectsDigest) problems.push(`${d.name}: objects digest ${digest}, the dataset records ${d.objectsDigest}`);
+          if (digest !== d.objectsDigest)
+            problems.push(`${d.name}: objects digest ${digest}, the dataset records ${d.objectsDigest}`);
           lines.push(`${d.name}\0${digest}`);
         }
       }
@@ -499,7 +516,11 @@ export async function checkInput(input: GateInput, env: InputEnv, io: GateIo): P
       }
       if (problems.length > 0) return { available: false, detail: problems.join('; ') };
       const recorded = isRecord(parsed) && typeof parsed['digest'] === 'string' ? parsed['digest'] : undefined;
-      return { available: true, detail: '', digest: recorded ?? summaryDigest(io, Object.keys(files).sort(byCodeUnit)) };
+      return {
+        available: true,
+        detail: '',
+        digest: recorded ?? summaryDigest(io, Object.keys(files).sort(byCodeUnit)),
+      };
     }
     case 'toolchain': {
       for (const tool of TOOLCHAIN_TOOLS) {
@@ -608,7 +629,8 @@ export const AGBCC_INSTALLED: readonly string[] = ['bin', 'include', 'lib'];
  * installed is copied, 9 MB, not the 73 MB checkout with its build tree beside it.
  */
 export async function copyAgbcc(agbccDir: string, projectDir: string): Promise<void> {
-  for (const dir of AGBCC_INSTALLED) await cp(path.join(agbccDir, dir), path.join(projectDir, 'tools', 'agbcc', dir), { recursive: true });
+  for (const dir of AGBCC_INSTALLED)
+    await cp(path.join(agbccDir, dir), path.join(projectDir, 'tools', 'agbcc', dir), { recursive: true });
 }
 
 /**
@@ -625,7 +647,11 @@ export const FIXTURE_PARALLELISM = Math.max(1, availableParallelism());
  * earliest item that threw is thrown. Items start in order, so every item before that one ran to its end: the error
  * is the one a serial loop would have stopped at.
  */
-export async function pooled<T, R>(items: readonly T[], limit: number, work: (item: T, index: number) => Promise<R>): Promise<R[]> {
+export async function pooled<T, R>(
+  items: readonly T[],
+  limit: number,
+  work: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
   const results: R[] = new Array<R>(items.length);
   let next = 0;
   const failures: { readonly index: number; readonly error: unknown }[] = [];
@@ -640,7 +666,10 @@ export async function pooled<T, R>(items: readonly T[], limit: number, work: (it
     }
   };
   await Promise.all(Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, worker));
-  const earliest = failures.reduce<(typeof failures)[number] | undefined>((a, b) => (a === undefined || b.index < a.index ? b : a), undefined);
+  const earliest = failures.reduce<(typeof failures)[number] | undefined>(
+    (a, b) => (a === undefined || b.index < a.index ? b : a),
+    undefined,
+  );
   if (earliest !== undefined) throw earliest.error;
   return results;
 }
@@ -655,7 +684,11 @@ export interface TargetReport {
  * `work` on a gate's targets: the committed fixtures FIXTURE_PARALLELISM at once, then the tuning ROMs of the real tier
  * one at a time; the results in that order (the fixtures', then the datasets'), as a serial loop over both gives them.
  */
-export async function onTargets<T, R>(fixtures: readonly T[], datasets: readonly T[], work: (target: T) => Promise<R>): Promise<R[]> {
+export async function onTargets<T, R>(
+  fixtures: readonly T[],
+  datasets: readonly T[],
+  work: (target: T) => Promise<R>,
+): Promise<R[]> {
   return [...(await pooled(fixtures, FIXTURE_PARALLELISM, work)), ...(await pooled(datasets, 1, work))];
 }
 
@@ -843,7 +876,11 @@ async function loadExports(): Promise<Exports> {
     try {
       namespace = await importEntry(entry);
     } catch (error) {
-      return { names, values, error: `cannot load ${entry}: ${error instanceof Error ? error.message : String(error)}` };
+      return {
+        names,
+        values,
+        error: `cannot load ${entry}: ${error instanceof Error ? error.message : String(error)}`,
+      };
     }
     for (const key of Object.keys(namespace).sort(byCodeUnit)) {
       names.add(key);
@@ -876,8 +913,13 @@ function message(error: unknown): string {
  * shared by g2.entries, g2.extents and g2.baseline-rows, which must fail rather than judge against a
  * vacuous 0; undefined when the row has one.
  */
-export function noPocReference(rom: { readonly name: string; readonly poc?: { readonly source?: string } }, what = ''): string | undefined {
-  return rom.poc?.source === 'none' ? `${rom.name}: no PoC reference (no baseline row and no PoC dump)${what}: run npm run export-poc -- --mode scored` : undefined;
+export function noPocReference(
+  rom: { readonly name: string; readonly poc?: { readonly source?: string } },
+  what = '',
+): string | undefined {
+  return rom.poc?.source === 'none'
+    ? `${rom.name}: no PoC reference (no baseline row and no PoC dump)${what}: run npm run export-poc -- --mode scored`
+    : undefined;
 }
 
 /**
@@ -902,7 +944,16 @@ export function gate(spec: GateSpec): void {
     const inputs: Record<string, string> = {};
     const notes: string[] = [];
     const record = (verdict: Verdict, detail: string, missing: readonly string[]): Verdict => {
-      report({ id: spec.id, phase: spec.phase, tier: selected, verdict, detail, inputs, missing, ms: performance.now() - started });
+      report({
+        id: spec.id,
+        phase: spec.phase,
+        tier: selected,
+        verdict,
+        detail,
+        inputs,
+        missing,
+        ms: performance.now() - started,
+      });
       return verdict;
     };
 
@@ -960,9 +1011,15 @@ export function gate(spec: GateSpec): void {
       },
       exec,
       npm(script, args = [], options = {}) {
-        const npmEnv: Record<string, string> = { ROMLIFT_BENCH_ROOT: env.benchRoot, ROMLIFT_POC: env.pocRoot, ...options.env };
+        const npmEnv: Record<string, string> = {
+          ROMLIFT_BENCH_ROOT: env.benchRoot,
+          ROMLIFT_POC: env.pocRoot,
+          ...options.env,
+        };
         const execOptions: ExecOptions =
-          options.timeoutMs === undefined ? { cwd: env.repoRoot, env: npmEnv } : { cwd: env.repoRoot, env: npmEnv, timeoutMs: options.timeoutMs };
+          options.timeoutMs === undefined
+            ? { cwd: env.repoRoot, env: npmEnv }
+            : { cwd: env.repoRoot, env: npmEnv, timeoutMs: options.timeoutMs };
         return exec('npm', ['run', '--silent', script, '--', ...args], execOptions);
       },
       lastJson,

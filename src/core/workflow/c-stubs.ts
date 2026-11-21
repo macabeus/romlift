@@ -40,9 +40,10 @@
 // Pure: the shell reads the C texts and passes its sha1 function in; nothing is hashed or read here.
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
-import { compareCodeUnits } from '../../foundation/util/sorted.ts';
-import { stubChunks } from '../model/c-unit.ts';
 import { isCSource, nonmatchingDir, nonmatchingFileOf } from '../../foundation/util/project-files.ts';
+import { compareCodeUnits } from '../../foundation/util/sorted.ts';
+import type { FileEntry } from '../emit/tree.ts';
+import { stubChunks } from '../model/c-unit.ts';
 import { chunkNamesOf, chunkPathsOf, moduleChunkStubs, moduleSource } from '../model/paths.ts';
 import type { Model } from '../model/types.ts';
 import { compiledDefinitions, fragmentPhrase, scanC } from '../reconcile/c-scan.ts';
@@ -51,7 +52,6 @@ import { planIncludeAsm, unscannableWarning } from '../reconcile/include-asm.ts'
 import type { StubTree } from '../reconcile/include-asm.ts';
 import { applyTextEdits } from '../reconcile/text-edit.ts';
 import type { TextEdit } from '../reconcile/text-edit.ts';
-import type { FileEntry } from '../emit/tree.ts';
 import { WorkflowCodes } from './codes.ts';
 
 /** No C file reconciled: a fresh tree, `init`'s, or a run that reads no C. */
@@ -77,7 +77,8 @@ export interface StubReconciliation {
 /** The module of every function chunk of the model, by name. */
 function functionModules(model: Pick<Model, 'chunks'>): ReadonlyMap<string, string> {
   const out = new Map<string, string>();
-  for (const chunk of model.chunks) if (chunk.kind === 'function' && !out.has(chunk.name)) out.set(chunk.name, chunk.module);
+  for (const chunk of model.chunks)
+    if (chunk.kind === 'function' && !out.has(chunk.name)) out.set(chunk.name, chunk.module);
   return out;
 }
 
@@ -85,15 +86,29 @@ function functionModules(model: Pick<Model, 'chunks'>): ReadonlyMap<string, stri
  * E_C_DEFINITION_MOVED for definition `d` of `path` (or of the fragment `d.via` that `path` includes), whose function
  * romlift.toml now puts in module `owner`, whose source is `ownerSource`.
  */
-function movedDiagnostic(path: string, d: Pick<CDefinition, 'name' | 'line' | 'via' | 'chain'>, owner: Model['modules'][number] | undefined, ownerName: string, ownerSource: string | undefined): Diagnostic {
+function movedDiagnostic(
+  path: string,
+  d: Pick<CDefinition, 'name' | 'line' | 'via' | 'chain'>,
+  owner: Model['modules'][number] | undefined,
+  ownerName: string,
+  ownerSource: string | undefined,
+): Diagnostic {
   // Named by its path (fix round 6, correctness-b1-2): the file may not exist yet, and the next generate writes the
   // module's INCLUDE_ASM lines and the include of include_asm.h around the C pasted into it.
   const advice =
     owner?.kind === 'c'
       ? `move its C to ${ownerSource ?? `${ownerName}'s source`} (create the file if it does not exist: the next generate adds the module's INCLUDE_ASM lines around it), or the function is defined twice`
       : `${ownerName} is ${owner?.kind === 'data' ? 'a data' : 'an asm'} module, which builds no C: delete the C definition, or make ${ownerName} a c module in romlift.toml, or the function is defined twice`;
-  const where = d.via === undefined ? `${path} defines ${d.name} (line ${d.line})` : `${fragmentPhrase(d.via, path, d.line, d.chain)}, defines ${d.name}`;
-  return diagnostic(WorkflowCodes, 'E_C_DEFINITION_MOVED', `${where}, which romlift.toml now puts in module ${ownerName}: ${advice}`, { path: d.via ?? path });
+  const where =
+    d.via === undefined
+      ? `${path} defines ${d.name} (line ${d.line})`
+      : `${fragmentPhrase(d.via, path, d.line, d.chain)}, defines ${d.name}`;
+  return diagnostic(
+    WorkflowCodes,
+    'E_C_DEFINITION_MOVED',
+    `${where}, which romlift.toml now puts in module ${ownerName}: ${advice}`,
+    { path: d.via ?? path },
+  );
 }
 
 /**
@@ -108,7 +123,13 @@ function movedDiagnostic(path: string, d: Pick<CDefinition, 'name' | 'line' | 'v
  * its symbolic links (ProjectInputs.headerRealPaths, IncludeAsmWanted.headerRealPaths; phase 6, the cpp-exact include
  * resolution, D89 a, D90 a); undefined, every file is where its key says.
  */
-export function reconcileStubs(model: Pick<Model, 'modules' | 'chunks'>, cTexts: ReadonlyMap<string, string>, previousChunkFiles?: readonly string[], headerTexts?: ReadonlyMap<string, string>, headerRealPaths?: ReadonlyMap<string, string>): StubReconciliation {
+export function reconcileStubs(
+  model: Pick<Model, 'modules' | 'chunks'>,
+  cTexts: ReadonlyMap<string, string>,
+  previousChunkFiles?: readonly string[],
+  headerTexts?: ReadonlyMap<string, string>,
+  headerRealPaths?: ReadonlyMap<string, string>,
+): StubReconciliation {
   const files: ReconciledStub[] = [];
   const diagnostics: Diagnostic[] = [];
   const sources = new Set(model.modules.map((m) => moduleSource(model, m)));
@@ -121,7 +142,8 @@ export function reconcileStubs(model: Pick<Model, 'modules' | 'chunks'>, cTexts:
   // Every src/*.c that is no module's source: a fragment a module's file may #include (fix round 6, correctness-b1-3;
   // the planner reads its definitions and INCLUDE_ASM statements, fix round 7, correctness-b2-1), else a file of no module.
   const fragments = new Map<string, string>();
-  for (const path of [...cTexts.keys()].sort(compareCodeUnits)) if (!sources.has(path)) fragments.set(path, cTexts.get(path) ?? '');
+  for (const path of [...cTexts.keys()].sort(compareCodeUnits))
+    if (!sources.has(path)) fragments.set(path, cTexts.get(path) ?? '');
   /** Each module's source by path: an include of one is no fragment (architecture-b2-5). */
   const sourceModules = new Map(model.modules.map((m) => [moduleSource(model, m), m.name] as const));
   /** The fragments some module's file includes; what they hold was checked there. */
@@ -129,7 +151,10 @@ export function reconcileStubs(model: Pick<Model, 'modules' | 'chunks'>, cTexts:
   // A decompiled function's file of that tree, under asm/matchings (phase 6, D92), counts at its chunk's path.
   const previous = previousChunkFiles?.map(nonmatchingFileOf);
   // A function of the previous tree that a module still has is wanted there (or E_C_DEFINITION_MOVED), never stale.
-  const retired = previous !== undefined && previous.length > 0 ? chunkNamesOf(previous).filter((name) => !owners.has(name)) : undefined;
+  const retired =
+    previous !== undefined && previous.length > 0
+      ? chunkNamesOf(previous).filter((name) => !owners.has(name))
+      : undefined;
   // The tree this run writes: a stub of a directory it no longer writes that file in goes (correctness-b0-2).
   let tree: StubTree | undefined;
   for (const module of model.modules) {
@@ -138,8 +163,19 @@ export function reconcileStubs(model: Pick<Model, 'modules' | 'chunks'>, cTexts:
     const base = cTexts.get(path);
     if (!isCSource(path) || base === undefined) continue;
     tree ??= stubTree(model);
-    const before = retired === undefined ? {} : { retired, previousStubs: moduleChunkStubs(previous ?? [], module.name) };
-    const plan = planIncludeAsm(base, { module: module.name, chunks: stubChunks(model, module), path, tree, fragments, sources: sourceModules, ...(headerTexts === undefined ? {} : { headers: headerTexts }), ...(headerRealPaths === undefined ? {} : { headerRealPaths }), ...before });
+    const before =
+      retired === undefined ? {} : { retired, previousStubs: moduleChunkStubs(previous ?? [], module.name) };
+    const plan = planIncludeAsm(base, {
+      module: module.name,
+      chunks: stubChunks(model, module),
+      path,
+      tree,
+      fragments,
+      sources: sourceModules,
+      ...(headerTexts === undefined ? {} : { headers: headerTexts }),
+      ...(headerRealPaths === undefined ? {} : { headerRealPaths }),
+      ...before,
+    });
     files.push({ path, base, edits: plan.edits, text: applyTextEdits(base, plan.edits) });
     diagnostics.push(...plan.diagnostics);
     for (const fragment of plan.included) included.add(fragment);
@@ -152,10 +188,25 @@ export function reconcileStubs(model: Pick<Model, 'modules' | 'chunks'>, cTexts:
   for (const [path, text] of fragments) {
     if (included.has(path)) continue;
     const compiled = compiledDefinitions(scanC(text));
-    diagnostics.push(diagnostic(WorkflowCodes, 'W_C_FILE_UNUSED', `${path} is the source of no module of romlift.toml and no module's source #includes it, so make does not build it (was its c module renamed?); its C is left in place`, { path }));
+    diagnostics.push(
+      diagnostic(
+        WorkflowCodes,
+        'W_C_FILE_UNUSED',
+        `${path} is the source of no module of romlift.toml and no module's source #includes it, so make does not build it (was its c module renamed?); its C is left in place`,
+        { path },
+      ),
+    );
     // Its decompiled C of a function some module has would drop out of the build while that module's stub stands in.
     // A file the scanner cannot split is checked over what it read, and says so (architecture-b0-2).
-    if (!compiled.scannable) diagnostics.push(unscannableWarning(path, path, compiled.unscannable, 'its definitions were checked against the modules as far as it reads'));
+    if (!compiled.scannable)
+      diagnostics.push(
+        unscannableWarning(
+          path,
+          path,
+          compiled.unscannable,
+          'its definitions were checked against the modules as far as it reads',
+        ),
+      );
     for (const d of compiled.definitions) {
       const owner = owners.get(d.name);
       if (owner !== undefined) diagnostics.push(movedDiagnostic(path, d, modules.get(owner), owner, sourceOf(owner)));
@@ -178,11 +229,17 @@ function byPath(stubs: StubReconciliation): ReadonlyMap<string, ReconciledStub> 
 }
 
 /** `entries` with each existing C file's c-stub entry made a `reconciled` edit of it (`hash`: the shell's sha1). */
-export function* projectEntries(entries: Iterable<FileEntry>, stubs: StubReconciliation, hash: (text: string) => string): Generator<FileEntry> {
+export function* projectEntries(
+  entries: Iterable<FileEntry>,
+  stubs: StubReconciliation,
+  hash: (text: string) => string,
+): Generator<FileEntry> {
   const files = byPath(stubs);
   for (const entry of entries) {
     const stub = entry.ownership === 'scaffold' && entry.writer === 'c-stub' ? files.get(entry.path) : undefined;
-    yield stub === undefined ? entry : { ownership: 'reconciled', path: entry.path, baseSha1: hash(stub.base), edits: stub.edits };
+    yield stub === undefined
+      ? entry
+      : { ownership: 'reconciled', path: entry.path, baseSha1: hash(stub.base), edits: stub.edits };
   }
 }
 
@@ -198,7 +255,9 @@ export function* resolvedEntries(entries: Iterable<FileEntry>, stubs: StubReconc
 /** `entries` (resolvedEntries') with every c-stub entry `generated`: the tree `generate --out` writes and rewrites. */
 export function* outTreeEntries(entries: Iterable<FileEntry>): Generator<FileEntry> {
   for (const entry of entries) {
-    yield entry.ownership === 'scaffold' && entry.writer === 'c-stub' ? { ownership: 'generated', path: entry.path, text: entry.text, writer: 'c-stub' } : entry;
+    yield entry.ownership === 'scaffold' && entry.writer === 'c-stub'
+      ? { ownership: 'generated', path: entry.path, text: entry.text, writer: 'c-stub' }
+      : entry;
   }
 }
 

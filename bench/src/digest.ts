@@ -4,7 +4,6 @@
 // their repository-relative path, each hashed as `path\0` then its bytes, and the major is appended
 // as `node\0<major>`. A missing directory contributes nothing.
 import { join } from 'node:path';
-
 import { compareCodeUnits } from 'romlift';
 import { listDir, sha256Stream } from 'romlift/node';
 
@@ -52,14 +51,16 @@ export async function sourceDigestPaths(repoRoot: string): Promise<string[]> {
   const top = await listDir(repoRoot);
   if (!top.ok) throw new BenchError(top.diagnostic.message);
   for (const name of top.value) {
-    if ((SOURCE_FILES.includes(name) || TSCONFIG.test(name)) && !(await isDirectory(join(repoRoot, name)))) paths.push(name);
+    if ((SOURCE_FILES.includes(name) || TSCONFIG.test(name)) && !(await isDirectory(join(repoRoot, name))))
+      paths.push(name);
   }
   return paths.sort(compareCodeUnits);
 }
 
 export async function sourceDigest(repoRoot: string, nodeMajor: number): Promise<string> {
   const files: DigestFile[] = [];
-  for (const path of await sourceDigestPaths(repoRoot)) files.push({ path, bytes: await readFileBytes(join(repoRoot, path)) });
+  for (const path of await sourceDigestPaths(repoRoot))
+    files.push({ path, bytes: await readFileBytes(join(repoRoot, path)) });
   return digestOf(files, nodeMajor);
 }
 

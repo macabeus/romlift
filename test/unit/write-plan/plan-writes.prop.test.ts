@@ -42,7 +42,16 @@ class Random {
   }
 }
 
-const GENERATED = ['asm/a.s', 'asm/b.s', 'asm/m4a.s', 'asm/nonmatchings/m4a/F.s', 'asm/nonmatchings/main/G.s', 'data/main.s', 'ldscript.txt', 'symbols.ld'];
+const GENERATED = [
+  'asm/a.s',
+  'asm/b.s',
+  'asm/m4a.s',
+  'asm/nonmatchings/m4a/F.s',
+  'asm/nonmatchings/main/G.s',
+  'data/main.s',
+  'ldscript.txt',
+  'symbols.ld',
+];
 const SCAFFOLD = ['Makefile', 'README.md', 'include/macros.inc'];
 const RECONCILED = ['src/main.c', 'src/m4a.c'];
 const STRAY = ['asm/stray.s', 'data/old.s', 'notes.txt'];
@@ -66,7 +75,8 @@ function randomCase(r: Random): Case {
     if (r.chance(60)) disk.set(path, `${path} v${r.below(3)}`);
   }
   for (const path of GENERATED) {
-    if (r.chance(75)) entries.push({ ownership: 'generated', path, text: `${path} v${r.below(3)}`, writer: 'function' });
+    if (r.chance(75))
+      entries.push({ ownership: 'generated', path, text: `${path} v${r.below(3)}`, writer: 'function' });
     if (r.chance(50)) files[path] = { sha1: fakeHash(`${path} v${r.below(3)}`), writer: 'function' };
   }
   for (const path of SCAFFOLD) {
@@ -76,9 +86,15 @@ function randomCase(r: Random): Case {
     const text = disk.get(path);
     if (text === undefined || !r.chance(70)) continue;
     const at = r.below(text.length + 1);
-    entries.push({ ownership: 'reconciled', path, baseSha1: fakeHash(text), edits: [{ start: at, end: at, text: '/* stub */', reason: 'add-stub' }] });
+    entries.push({
+      ownership: 'reconciled',
+      path,
+      baseSha1: fakeHash(text),
+      edits: [{ start: at, end: at, text: '/* stub */', reason: 'add-stub' }],
+    });
   }
-  if (r.chance(10)) entries.push({ ownership: 'generated', path: 'notes.txt', text: 'generated notes', writer: 'objdiff' });
+  if (r.chance(10))
+    entries.push({ ownership: 'generated', path: 'notes.txt', text: 'generated notes', writer: 'objdiff' });
   if (r.chance(20)) files['asm/stray.s'] = { sha1: fakeHash('asm/stray.s v0'), writer: 'function' };
   const order = entries.map((entry) => ({ entry, key: r.next() })).sort((a, b) => a.key - b.key);
   return {
@@ -103,7 +119,14 @@ function planFor(c: Case): WritePlan {
     const text = c.disk.get(path);
     if (text !== undefined) reconciledTexts.set(path, text);
   }
-  return planWrites({ entries: c.entries, manifest: c.manifest, disk: snapshot(c.disk, c), reconciledTexts, hash: fakeHash, retained: c.retained });
+  return planWrites({
+    entries: c.entries,
+    manifest: c.manifest,
+    disk: snapshot(c.disk, c),
+    reconciledTexts,
+    hash: fakeHash,
+    retained: c.retained,
+  });
 }
 
 function apply(disk: Disk, p: WritePlan): Disk {
@@ -117,7 +140,9 @@ function apply(disk: Disk, p: WritePlan): Disk {
 
 /** The reconciled entries a workflow plans against the applied texts: the stubs are in, so no edit is left. */
 function settled(entries: readonly FileEntry[], disk: Disk): readonly FileEntry[] {
-  return entries.map((e) => (e.ownership === 'reconciled' ? { ...e, baseSha1: fakeHash(disk.get(e.path) ?? ''), edits: [] } : e));
+  return entries.map((e) =>
+    e.ownership === 'reconciled' ? { ...e, baseSha1: fakeHash(disk.get(e.path) ?? ''), edits: [] } : e,
+  );
 }
 
 test('applying a plan then re-planning gives only keeps and the same manifest (500 seeded cases)', () => {
@@ -135,16 +160,22 @@ test('applying a plan then re-planning gives only keeps and the same manifest (5
     applied++;
     const disk = apply(c.disk, first);
     const again = planFor({ ...c, entries: settled(c.entries, disk), manifest: first.manifest, disk });
-    assert.deepEqual(again.ops.filter((op) => op.op !== 'keep'), [], `case ${i}: the re-plan changes nothing`);
+    assert.deepEqual(
+      again.ops.filter((op) => op.op !== 'keep'),
+      [],
+      `case ${i}: the re-plan changes nothing`,
+    );
     assert.deepEqual(again.manifest, first.manifest, `case ${i}: the manifest is stable`);
     assert.ok(!planHasErrors(again), `case ${i}: the re-plan has no error`);
     for (const op of first.ops) {
       if (op.op === 'edit') assert.equal(disk.get(op.path), op.text);
-      if (op.op === 'delete') assert.ok(!c.retained.some((p) => op.path === p || (p.endsWith('/') && op.path.startsWith(p))));
+      if (op.op === 'delete')
+        assert.ok(!c.retained.some((p) => op.path === p || (p.endsWith('/') && op.path.startsWith(p))));
     }
     for (const prefix of c.retained) {
       for (const [path, text] of c.disk) {
-        if (path === prefix || (prefix.endsWith('/') && path.startsWith(prefix))) assert.equal(disk.get(path), text, `case ${i}: retained ${path} untouched`);
+        if (path === prefix || (prefix.endsWith('/') && path.startsWith(prefix)))
+          assert.equal(disk.get(path), text, `case ${i}: retained ${path} untouched`);
       }
     }
   }
@@ -157,10 +188,14 @@ test('applyTextEdits equals splicing edits in from the end', () => {
     const text = 'abcdefghijklmnopqrstuvwxyz'.slice(0, r.below(27));
     const cuts = Array.from({ length: r.below(5) * 2 }, () => r.below(text.length + 1)).sort((a, b) => a - b);
     const edits = [];
-    for (let k = 0; k + 1 < cuts.length; k += 2) edits.push({ start: cuts[k] ?? 0, end: cuts[k + 1] ?? 0, text: `<${k}>`, reason: 'add-stub' as const });
+    for (let k = 0; k + 1 < cuts.length; k += 2)
+      edits.push({ start: cuts[k] ?? 0, end: cuts[k + 1] ?? 0, text: `<${k}>`, reason: 'add-stub' as const });
     let expected = text;
     for (const e of [...edits].reverse()) expected = expected.slice(0, e.start) + e.text + expected.slice(e.end);
-    const shuffled = edits.map((e) => ({ e, key: r.next() })).sort((a, b) => a.key - b.key).map((x) => x.e);
+    const shuffled = edits
+      .map((e) => ({ e, key: r.next() }))
+      .sort((a, b) => a.key - b.key)
+      .map((x) => x.e);
     // equal-offset insertions keep their given order, so only shuffle when no two edits share a start
     const distinct = new Set(edits.map((e) => e.start)).size === edits.length;
     assert.equal(applyTextEdits(text, distinct ? shuffled : edits), expected);

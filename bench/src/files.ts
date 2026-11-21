@@ -2,7 +2,6 @@
 // JSON the committed bench files use. I/O failures throw a BenchError naming the path.
 import { mkdir, stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-
 import { compareCodeUnits } from 'romlift';
 import { atomicWrite, listDir, readBytes } from 'romlift/node';
 

@@ -18,8 +18,16 @@ const rom = romWith([
 ]);
 
 test('a valid reading inside the gap is proposed', () => {
-  assert.deepEqual(rule.propose(gapCursor(P, END, P), viewWith({ rom })), { entry: P, mode: 'thumb', cites: [P, P + 6] });
-  assert.equal(rule.propose(gapCursor(P, END, P + 0x10), viewWith({ rom }))?.entry, P + 0x10, 'a one-instruction stub too: the veto is the accept slot\'s');
+  assert.deepEqual(rule.propose(gapCursor(P, END, P), viewWith({ rom })), {
+    entry: P,
+    mode: 'thumb',
+    cites: [P, P + 6],
+  });
+  assert.equal(
+    rule.propose(gapCursor(P, END, P + 0x10), viewWith({ rom }))?.entry,
+    P + 0x10,
+    "a one-instruction stub too: the veto is the accept slot's",
+  );
 });
 
 test('declined: a function, a zero first word, or an invalid entry', () => {
@@ -45,6 +53,9 @@ test('declined: a word-aligned word holding an accepted Thumb function + 1 is it
   // Not a function yet: the word may still be read as code.
   assert.equal(rule.propose(gapCursor(P, END, P), viewWith({ rom: pointers }))?.entry, P);
   // An even word, or a cursor at 2 mod 4, is never such a pointer.
-  const even = romWith([{ at: P, bytes: words(F) }, { at: P + 4, bytes: thumbAt(P + 4)`bx lr` }]);
+  const even = romWith([
+    { at: P, bytes: words(F) },
+    { at: P + 4, bytes: thumbAt(P + 4)`bx lr` },
+  ]);
   assert.equal(rule.propose(gapCursor(P, END, P), viewWith({ rom: even, functions: [F] }))?.entry, P);
 });

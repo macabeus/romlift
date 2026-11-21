@@ -18,12 +18,11 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-
 import { BASEROM_FILE } from 'romlift';
 import { sha1Of } from 'romlift/node';
 
 import { REPO_ROOT } from './context.ts';
-import { runProcess, type ProcessResult } from './process.ts';
+import { type ProcessResult, runProcess } from './process.ts';
 
 export const LARGE_ROM_BIN_SCHEMA = 'romlift/bench-large-rom-bin@1';
 /** The CLI's entry point, whose first line is the bin's launcher. */
@@ -87,14 +86,29 @@ export function launcherOptions(mainText: string): readonly string[] {
 
 /** What one finished process says: its RSS and live-heap lines, its last stdout line read as a summary, and why it failed. */
 export function binRunOf(run: BinRun, result: ProcessResult): BinRunResult {
-  const rssLine = result.stderr.trimEnd().split('\n').reverse().find((l) => RSS_LINE.test(l));
-  const rss = rssLine === undefined ? null : Math.round((Number.parseInt(RSS_LINE.exec(rssLine)?.[1] ?? '0', 10) / 1024) * 100) / 100;
-  const liveLine = result.stderr.trimEnd().split('\n').reverse().find((l) => LIVE_HEAP_LINE.test(l));
+  const rssLine = result.stderr
+    .trimEnd()
+    .split('\n')
+    .reverse()
+    .find((l) => RSS_LINE.test(l));
+  const rss =
+    rssLine === undefined
+      ? null
+      : Math.round((Number.parseInt(RSS_LINE.exec(rssLine)?.[1] ?? '0', 10) / 1024) * 100) / 100;
+  const liveLine = result.stderr
+    .trimEnd()
+    .split('\n')
+    .reverse()
+    .find((l) => LIVE_HEAP_LINE.test(l));
   const liveText = liveLine === undefined ? '-' : (LIVE_HEAP_LINE.exec(liveLine)?.[1] ?? '-');
   const live = liveText === '-' ? null : Number.parseFloat(liveText);
   const fatal = result.stderr.split('\n').find((l) => l.startsWith('FATAL ERROR:'));
   const base = { command: run.command, exitCode: result.code, maxRssMiB: rss, peakLiveHeapMiB: live };
-  if (!run.json) return { ...base, detail: fatal ?? (result.code === 0 ? 'completed' : result.stderr.trimEnd().split('\n').slice(-3).join(' | ')) };
+  if (!run.json)
+    return {
+      ...base,
+      detail: fatal ?? (result.code === 0 ? 'completed' : result.stderr.trimEnd().split('\n').slice(-3).join(' | ')),
+    };
   let summary: { readonly type?: unknown; readonly ok?: unknown } = {};
   try {
     summary = JSON.parse(result.stdout.trimEnd().split('\n').at(-1) ?? '') as typeof summary;
@@ -136,7 +150,13 @@ export async function largeRomBin(deps: LargeRomBinDeps): Promise<LargeRomBinRep
     const runs: BinRunResult[] = [];
     for (const run of BIN_RUNS) {
       const args = run.args.map((a) => (a === '{rom}' ? rom : a));
-      const result = binRunOf(run, await deps.spawn(['--conditions=source', ...nodeOptions, '--import', RSS_PROBE, CLI_MAIN, ...args], run.inProject === true ? project : undefined));
+      const result = binRunOf(
+        run,
+        await deps.spawn(
+          ['--conditions=source', ...nodeOptions, '--import', RSS_PROBE, CLI_MAIN, ...args],
+          run.inProject === true ? project : undefined,
+        ),
+      );
       deps.log(
         `${run.command.padEnd(40)} exit ${result.exitCode}, peak RSS ${result.maxRssMiB === null ? '-' : `${result.maxRssMiB.toFixed(1)} MiB`}, peak live heap ${result.peakLiveHeapMiB === null ? '-' : `${result.peakLiveHeapMiB.toFixed(1)} MiB`}: ${result.detail}`,
       );

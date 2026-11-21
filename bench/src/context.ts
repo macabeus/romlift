@@ -17,7 +17,10 @@ export interface BenchContext {
 export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 /** The context from the environment, with the documented defaults. */
-export function contextFromEnv(env: Readonly<Record<string, string | undefined>>, repoRoot: string = REPO_ROOT): BenchContext {
+export function contextFromEnv(
+  env: Readonly<Record<string, string | undefined>>,
+  repoRoot: string = REPO_ROOT,
+): BenchContext {
   const bench = env['ROMLIFT_BENCH_ROOT'];
   const benchRoot = bench ? resolve(repoRoot, bench) : dirname(repoRoot);
   const poc = env['ROMLIFT_POC'];
@@ -33,6 +36,8 @@ export const datasetDir = (cx: BenchContext): string => join(cx.repoRoot, 'bench
 export const baselineDir = (cx: BenchContext): string => join(cx.repoRoot, 'bench', 'baseline');
 export const gatesDir = (cx: BenchContext): string => join(cx.repoRoot, 'test', 'gates');
 /** The PoC dump of one ROM, written by export-poc (gitignored). */
-export const scoredPath = (cx: BenchContext, rom: string): string => join(cx.repoRoot, 'bench', '.local', 'poc', rom, 'scored.json');
+export const scoredPath = (cx: BenchContext, rom: string): string =>
+  join(cx.repoRoot, 'bench', '.local', 'poc', rom, 'scored.json');
 /** The as round-trip corpus summary, written by `npm run corpus` (gitignored). */
-export const corpusSummaryPath = (cx: BenchContext): string => join(cx.repoRoot, 'bench', '.local', 'corpus', 'summary.json');
+export const corpusSummaryPath = (cx: BenchContext): string =>
+  join(cx.repoRoot, 'bench', '.local', 'corpus', 'summary.json');

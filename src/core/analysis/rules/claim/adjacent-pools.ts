@@ -14,7 +14,8 @@ export default defineRule({
   meta: {
     id: 'claim.adjacent-pools',
     summary: 'the extent is the code plus the pools and tables right after it; claim those pools and every table',
-    restsOn: 'agbcc emits a function\'s literal pool and switch tables right after its code, separated only by alignment',
+    restsOn:
+      "agbcc emits a function's literal pool and switch tables right after its code, separated only by alignment",
     recovers: 'pools and tables that would be free bytes for the gap scan to misread as functions',
     reads: ['readings', 'claims'],
     adds: ['claims'],
@@ -23,9 +24,11 @@ export default defineRule({
   claims(_f, r) {
     const edits: ClaimEdit[] = [];
     for (const p of r.pools) {
-      if (p.addr >= r.entry && p.addr + 4 <= r.end) edits.push({ span: { start: p.addr, end: p.addr + 4 }, kind: Claim.pool, when: 'start-free' });
+      if (p.addr >= r.entry && p.addr + 4 <= r.end)
+        edits.push({ span: { start: p.addr, end: p.addr + 4 }, kind: Claim.pool, when: 'start-free' });
     }
-    for (const t of r.tables) edits.push({ span: { start: t.base, end: t.base + 4 * t.targets.length }, kind: Claim.table, when: 'always' });
+    for (const t of r.tables)
+      edits.push({ span: { start: t.base, end: t.base + 4 * t.targets.length }, kind: Claim.table, when: 'always' });
     return edits;
   },
   extentEnd(shape, profile) {

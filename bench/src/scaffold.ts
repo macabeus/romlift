@@ -13,31 +13,30 @@
 // The bench reaches all of it through EmissionFamilies (named apart from emission-run.ts EmissionRunner, the
 // generate and init workflows `bench speed` and `bench large-rom` time), so its tests run `bench run` on hand-built
 // analyses.
-import { cp, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
 import {
-  buildUnits,
-  discoverModel as modelOfDiscover,
-  emitTree,
-  BASEROM_FILE,
   type AgbccPin,
   type AnalysisResult,
+  BASEROM_FILE,
   type ElfSymbol,
   type GnuMap,
   type Model,
-  type Printer,
   type PrintStats,
+  type Printer,
   type Rom,
+  buildUnits,
+  emitTree,
+  discoverModel as modelOfDiscover,
 } from 'romlift';
 import { linkCheck, readAgbccPin, sha1Of, writeFreshTree } from 'romlift/node';
 
 import type { BenchContext } from './context.ts';
 import { BenchError, exists } from './files.ts';
 import { CLI_MAIN, launcherOptions } from './large-rom-bin.ts';
-import { scoreObjdiff, unlinkedSummary, type ObjdiffSummary } from './objdiff.ts';
-import { runProcess, type ProcessOptions, type ProcessResult } from './process.ts';
+import { type ObjdiffSummary, scoreObjdiff, unlinkedSummary } from './objdiff.ts';
+import { type ProcessOptions, type ProcessResult, runProcess } from './process.ts';
 import { readableStats, treePass } from './readability.ts';
 import type { Truth } from './truth.ts';
 
@@ -131,7 +130,8 @@ export function discoverModel(rom: Rom, analysis: AnalysisResult): Model {
 
 const EMPTY_DECOMP = { defined: [] };
 
-const messages = (diagnostics: readonly { readonly message: string }[]): string => diagnostics.map((d) => d.message).join('; ');
+const messages = (diagnostics: readonly { readonly message: string }[]): string =>
+  diagnostics.map((d) => d.message).join('; ');
 
 /**
  * Writes `printer`'s tree of `model` into the empty directory `dir` as a fresh project is written
@@ -167,7 +167,11 @@ const since = (started: number): number => Math.round(performance.now() - starte
 export const NOT_RUN = -1;
 
 /** Runs a command to its end; never throws for a nonzero exit (process.ts runProcess). */
-export type CommandRunner = (command: string, args: readonly string[], options: ProcessOptions) => Promise<ProcessResult>;
+export type CommandRunner = (
+  command: string,
+  args: readonly string[],
+  options: ProcessOptions,
+) => Promise<ProcessResult>;
 
 /** The agbcc cache of `bench run --scaffold`: tools/agbcc as pret/agbcc's install.sh lays it out (bin, include, lib). */
 export const agbccCachePath = (cx: BenchContext): string => join(cx.repoRoot, 'bench', '.local', 'agbcc');
@@ -192,11 +196,18 @@ export type UnstampedAgbcc = 'refuse' | 'accept';
  * a stamp of another pin may not, and a directory without a stamp follows `unstamped` (UnstampedAgbcc). Throws when the
  * stamp exists but cannot be read.
  */
-export async function agbccPinProblem(dir: string, pin: AgbccPin, unstamped: UnstampedAgbcc): Promise<string | undefined> {
+export async function agbccPinProblem(
+  dir: string,
+  pin: AgbccPin,
+  unstamped: UnstampedAgbcc,
+): Promise<string | undefined> {
   const stamp = join(dir, AGBCC_CACHE_PIN);
-  if (!(await exists(stamp))) return unstamped === 'accept' ? undefined : `the agbcc ${dir} records no pin (no ${AGBCC_CACHE_PIN})`;
+  if (!(await exists(stamp)))
+    return unstamped === 'accept' ? undefined : `the agbcc ${dir} records no pin (no ${AGBCC_CACHE_PIN})`;
   const recorded = await readFile(stamp, 'utf8');
-  return recorded === pinText(pin) ? undefined : `the agbcc ${dir} was built at ${recorded.trim()}, not at templates/agbcc.json's ${pinText(pin).trim()}`;
+  return recorded === pinText(pin)
+    ? undefined
+    : `the agbcc ${dir} was built at ${recorded.trim()}, not at templates/agbcc.json's ${pinText(pin).trim()}`;
 }
 
 /** templates/agbcc.json, the pin `init` writes into every project's setup.sh, read by romlift's reader (romlift/node readAgbccPin). */
@@ -212,7 +223,8 @@ async function hasCompilers(dir: string): Promise<boolean> {
   return true;
 }
 
-const tail = (run: ProcessResult, lines = 20): string => `${run.stdout}${run.stderr}`.trimEnd().split('\n').slice(-lines).join('\n');
+const tail = (run: ProcessResult, lines = 20): string =>
+  `${run.stdout}${run.stderr}`.trimEnd().split('\n').slice(-lines).join('\n');
 
 export interface AgbccCacheDeps {
   readonly run: CommandRunner;
@@ -224,11 +236,19 @@ export interface AgbccCacheDeps {
  * Where the pinned agbcc is fetched from: AGBCC_URL when set (setup.sh's mirror variable), else the benchmark root's
  * `agbcc/` checkout when it holds the pinned commit (no network), else the pin's URL.
  */
-export async function agbccSource(cx: BenchContext, pin: AgbccPin, deps: Pick<AgbccCacheDeps, 'run' | 'env'>): Promise<string> {
+export async function agbccSource(
+  cx: BenchContext,
+  pin: AgbccPin,
+  deps: Pick<AgbccCacheDeps, 'run' | 'env'>,
+): Promise<string> {
   const mirror = deps.env['AGBCC_URL'];
   if (mirror !== undefined && mirror !== '') return mirror;
   const local = join(cx.benchRoot, 'agbcc');
-  if ((await exists(join(local, '.git'))) && (await deps.run('git', ['-C', local, 'cat-file', '-e', `${pin.commit}^{commit}`], {})).code === 0) return local;
+  if (
+    (await exists(join(local, '.git'))) &&
+    (await deps.run('git', ['-C', local, 'cat-file', '-e', `${pin.commit}^{commit}`], {})).code === 0
+  )
+    return local;
   return pin.url;
 }
 
@@ -255,12 +275,15 @@ export async function agbccCache(cx: BenchContext, deps: AgbccCacheDeps): Promis
     };
     await step('git init', 'git', ['init', '-q'], src);
     // A fetch by commit, as setup.sh tries first; a server that refuses one is fetched whole.
-    if ((await deps.run('git', ['fetch', '-q', '--depth', '1', source, pin.commit], { cwd: src })).code !== 0) await step('git fetch', 'git', ['fetch', '-q', source], src);
+    if ((await deps.run('git', ['fetch', '-q', '--depth', '1', source, pin.commit], { cwd: src })).code !== 0)
+      await step('git fetch', 'git', ['fetch', '-q', source], src);
     await step('git checkout', 'git', ['checkout', '-q', pin.commit], src);
     await step('build.sh', './build.sh', [], src);
     await step('install.sh', './install.sh', [root], src);
     const built = join(root, 'tools', 'agbcc');
-    for (const bin of AGBCC_BINARIES) if (!(await exists(join(built, 'bin', bin)))) throw new BenchError(`agbcc: install.sh wrote no ${join('tools', 'agbcc', 'bin', bin)}`);
+    for (const bin of AGBCC_BINARIES)
+      if (!(await exists(join(built, 'bin', bin))))
+        throw new BenchError(`agbcc: install.sh wrote no ${join('tools', 'agbcc', 'bin', bin)}`);
     await writeFile(join(built, AGBCC_CACHE_PIN), pinText(pin));
     await mkdir(join(cache, '..'), { recursive: true });
     await rm(cache, { recursive: true, force: true });
@@ -309,8 +332,14 @@ export async function initBuild(rom: Rom, dir: string, withhold: boolean, deps: 
   const started = performance.now();
   const env = { ROMLIFT_CLI: deps.cli };
   const exits = { initExit: NOT_RUN, setupExit: NOT_RUN, makeExit: NOT_RUN };
-  const done = (sha1Match: boolean, detail: string): InitBuild => ({ ...exits, sha1Match, seconds: Math.round((performance.now() - started) / 100) / 10, detail });
-  const failed = (step: string, run: ProcessResult): InitBuild => done(false, `${step} exited ${run.code}${withhold ? ' (output withheld: sealed)' : `:\n${tail(run)}`}`);
+  const done = (sha1Match: boolean, detail: string): InitBuild => ({
+    ...exits,
+    sha1Match,
+    seconds: Math.round((performance.now() - started) / 100) / 10,
+    detail,
+  });
+  const failed = (step: string, run: ProcessResult): InitBuild =>
+    done(false, `${step} exited ${run.code}${withhold ? ' (output withheld: sealed)' : `:\n${tail(run)}`}`);
   await writeFile(join(dir, BASEROM_FILE), rom.bytes);
   const init = await deps.run(deps.cli, ['init', BASEROM_FILE, '--json'], { cwd: dir });
   exits.initExit = init.code;
@@ -322,10 +351,14 @@ export async function initBuild(rom: Rom, dir: string, withhold: boolean, deps: 
   const make = await deps.run('make', [], { cwd: dir, env });
   exits.makeExit = make.code;
   const built = await builtRom(dir);
-  const sha1Match = built !== undefined && (await exists(built)) && sha1Of(new Uint8Array(await readFile(built))) === rom.sha1;
+  const sha1Match =
+    built !== undefined && (await exists(built)) && sha1Of(new Uint8Array(await readFile(built))) === rom.sha1;
   if (make.code !== 0) return { ...failed('make', make), sha1Match };
   if (built === undefined) return done(false, 'the project has no single <name>.sha1 naming the ROM make builds');
-  return done(sha1Match, sha1Match ? 'SHA-1 match' : withhold ? 'the built ROM differs' : `${built} does not have SHA-1 ${rom.sha1}`);
+  return done(
+    sha1Match,
+    sha1Match ? 'SHA-1 match' : withhold ? 'the built ROM differs' : `${built} does not have SHA-1 ${rom.sha1}`,
+  );
 }
 
 /** The verdict the artifact keeps of an init build (no time, no detail). */
@@ -336,7 +369,11 @@ export function initVerdict(build: InitBuildVerdict): InitBuildVerdict {
 /** The romlift CLI from source as an executable script in `dir`, with the Node options of the bin's launcher. */
 export async function sourceCli(dir: string): Promise<string> {
   const file = join(dir, 'romlift');
-  await writeFile(file, sourceCliScript(process.execPath, launcherOptions(await readFile(CLI_MAIN, 'utf8')), CLI_MAIN), { mode: 0o755 });
+  await writeFile(
+    file,
+    sourceCliScript(process.execPath, launcherOptions(await readFile(CLI_MAIN, 'utf8')), CLI_MAIN),
+    { mode: 0o755 },
+  );
   return file;
 }
 
@@ -369,7 +406,10 @@ export async function initBuildInTemp(input: InitBuildInput, run: CommandRunner 
 export const ROMLIFT_FAMILIES: EmissionFamilies = {
   readability(rom, analysis) {
     const model = discoverModel(rom, analysis);
-    return { stats: readableStats(rom, model), treeDigest: treePass(emitTree(rom, model, { decomp: EMPTY_DECOMP })).treeDigest };
+    return {
+      stats: readableStats(rom, model),
+      treeDigest: treePass(emitTree(rom, model, { decomp: EMPTY_DECOMP })).treeDigest,
+    };
   },
   async scaffold(input) {
     const model = discoverModel(input.rom, input.analysis);
@@ -380,19 +420,18 @@ export const ROMLIFT_FAMILIES: EmissionFamilies = {
     const readable = await inTempDir(input.rom, model, 'readable');
     const readableLinkMs = since(started);
     started = performance.now();
-    const objdiff =
-      readable.ok
-        ? await scoreObjdiff({
-            rom: input.rom,
-            analysis: input.analysis,
-            truth: input.truth,
-            symbols: input.symbols,
-            objectsDir: input.objectsDir,
-            objdiff: input.objdiff,
-            ...(input.linkedObjects === undefined ? {} : { linkedObjects: input.linkedObjects }),
-            ...(input.map === undefined ? {} : { map: input.map }),
-          })
-        : unlinkedSummary();
+    const objdiff = readable.ok
+      ? await scoreObjdiff({
+          rom: input.rom,
+          analysis: input.analysis,
+          truth: input.truth,
+          symbols: input.symbols,
+          objectsDir: input.objectsDir,
+          objdiff: input.objdiff,
+          ...(input.linkedObjects === undefined ? {} : { linkedObjects: input.linkedObjects }),
+          ...(input.map === undefined ? {} : { map: input.map }),
+        })
+      : unlinkedSummary();
     return { raw, readable, objdiff, timings: { rawLinkMs, readableLinkMs, objdiffMs: since(started) } };
   },
   initBuild: (input) => initBuildInTemp(input),

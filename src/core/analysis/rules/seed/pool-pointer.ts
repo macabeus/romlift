@@ -11,7 +11,8 @@ export default defineRule({
   meta: {
     id: 'seed.pool-pointer',
     summary: 'Thumb pointers loaded from the pools of accepted functions are candidate functions',
-    restsOn: 'compiled code takes the address of a Thumb function as a pool word holding func+1 (callbacks, tables of handlers)',
+    restsOn:
+      'compiled code takes the address of a Thumb function as a pool word holding func+1 (callbacks, tables of handlers)',
     recovers: 'functions reached only through a pointer that accepted code loads',
     reads: ['function-set', 'readings', 'rom'],
     adds: ['candidates'],

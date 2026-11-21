@@ -5,19 +5,28 @@ import type { FoundFunction } from '../../../bench/src/classify.ts';
 import { contextFromEnv } from '../../../bench/src/context.ts';
 import { isSealed, loadDatasets, parseDataset } from '../../../bench/src/dataset.ts';
 import {
+  type SealedCounts,
+  type SealedInput,
   adoptRefusal,
   appendReveal,
   assertCountsOnly,
   sealedCounts,
   sealedDataset,
   sealedPasses,
-  type SealedCounts,
-  type SealedInput,
 } from '../../../bench/src/seal.ts';
 import { dataset } from './fixtures.ts';
 
 function fn(entry: number, end: number, overrides: Partial<FoundFunction> = {}): FoundFunction {
-  return { entry, mode: 'thumb', extent: { start: entry, end }, holes: [], branchTargets: [], noReturnSites: [], origin: 'call', ...overrides };
+  return {
+    entry,
+    mode: 'thumb',
+    extent: { start: entry, end },
+    holes: [],
+    branchTargets: [],
+    noReturnSites: [],
+    origin: 'call',
+    ...overrides,
+  };
 }
 
 const t = (addr: number, size: number): { addr: number; size: number; thumb: boolean } => ({ addr, size, thumb: true });
@@ -30,9 +39,9 @@ const INPUT: SealedInput = {
   name: 'sealed-fixture',
   found: [
     fn(0x08000000, 0x08000080),
-    fn(0x08000090, 0x080000A0, { origin: 'gap-scan' }),
+    fn(0x08000090, 0x080000a0, { origin: 'gap-scan' }),
     fn(0x08000100, 0x08000140),
-    fn(0x08000140, 0x0800015E, { branchTargets: [0x08000150] }),
+    fn(0x08000140, 0x0800015e, { branchTargets: [0x08000150] }),
     fn(0x08000180, 0x08000280),
     fn(0x08000300, 0x08000310),
     fn(0x08000400, 0x08000408, { origin: 'veneer' }),
@@ -40,7 +49,15 @@ const INPUT: SealedInput = {
     fn(0x08000120, 0x08000130, { origin: 'gap-scan' }),
     fn(0x08000500, 0x08000510, { origin: 'gap-scan' }),
   ],
-  truth: [t(0x08000000, 0x80), t(0x08000100, 0x40), t(0x08000140, 0x20), t(0x08000150, 0x10), t(0x08000180, 0x80), t(0x08000200, 0x80), t(0x08000300, 0)],
+  truth: [
+    t(0x08000000, 0x80),
+    t(0x08000100, 0x40),
+    t(0x08000140, 0x20),
+    t(0x08000150, 0x10),
+    t(0x08000180, 0x80),
+    t(0x08000200, 0x80),
+    t(0x08000300, 0),
+  ],
   startupEnd: 0x08000100,
   isPrologue: (addr) => addr === 0x08000200,
   codeEnd: 0x08000290,
@@ -64,7 +81,11 @@ test('sealedCounts counts from the end of the startup region and classifies ever
   });
   assert.doesNotThrow(() => assertCountsOnly(counts));
   const f = counts.falseEntries;
-  assert.equal(f.veneer + f.adrCallback + f.insideElfFunction + (f.other ?? 0), counts.entries - counts.tp, 'the non-startup classes are every false entry that counts against precision');
+  assert.equal(
+    f.veneer + f.adrCallback + f.insideElfFunction + (f.other ?? 0),
+    counts.entries - counts.tp,
+    'the non-startup classes are every false entry that counts against precision',
+  );
 });
 
 test('the glued misses split by where they lie: inside a found extent, in no extent below the code end, past the code end', () => {
@@ -78,17 +99,39 @@ test('the glued misses split by where they lie: inside a found extent, in no ext
   assert.equal((g?.insideExtent ?? 0) + (g?.outsideExtents ?? 0) + (g?.pastCodeEnd ?? 0), counts.glued);
 });
 
-test('a glued miss inside a false entry\'s extent is not a glued split: only extents of found functions with an ELF entry count, as for labels', () => {
+test("a glued miss inside a false entry's extent is not a glued split: only extents of found functions with an ELF entry count, as for labels", () => {
   // 0x08000508 lies inside the false entry 0x08000500..0x08000510, below the code end.
-  const counts = sealedCounts({ ...INPUT, truth: [...INPUT.truth, t(0x08000508, 4)], codeEnd: 0x08000600, elfCodeEnd: 0x0800050C });
+  const counts = sealedCounts({
+    ...INPUT,
+    truth: [...INPUT.truth, t(0x08000508, 4)],
+    codeEnd: 0x08000600,
+    elfCodeEnd: 0x0800050c,
+  });
   assert.equal(counts.glued, 2);
   assert.deepEqual(counts.gluedWhere, { insideExtent: 1, outsideExtents: 1, pastCodeEnd: 0 });
 });
 
 test('a sealed entry has exactly the shape g2.held-out reads and nothing its leak check rejects', () => {
   const counts = sealedCounts(INPUT);
-  assert.deepEqual(Object.keys(counts), ['name', 'entries', 'elfFunctions', 'tp', 'glued', 'gluedWhere', 'labelCandidates', 'falseEntries', 'extents', 'codeEnd']);
-  assert.deepEqual(Object.keys(counts.falseEntries), ['startup', 'veneer', 'adrCallback', 'insideElfFunction', 'other']);
+  assert.deepEqual(Object.keys(counts), [
+    'name',
+    'entries',
+    'elfFunctions',
+    'tp',
+    'glued',
+    'gluedWhere',
+    'labelCandidates',
+    'falseEntries',
+    'extents',
+    'codeEnd',
+  ]);
+  assert.deepEqual(Object.keys(counts.falseEntries), [
+    'startup',
+    'veneer',
+    'adrCallback',
+    'insideElfFunction',
+    'other',
+  ]);
   const leak = /0x[0-9a-f]{5,}|"(addr|addrs|names|symbol|symbols|misses|rows|labels|untyped)"\s*:/i;
   assert.doesNotMatch(JSON.stringify(counts), leak);
 });
@@ -130,9 +173,15 @@ test('sealedPasses: an empty run fails rather than dividing by zero', () => {
 
 test('assertCountsOnly rejects an address string, a name, a row list and an address-sized number, without echoing the value', () => {
   const counts = passing();
-  assert.throws(() => assertCountsOnly({ ...counts, codeEnd: { delta: 0, found: '0x08123456' } }), (e: Error) => /codeEnd\.found/.test(e.message) && !e.message.includes('0x08123456'));
+  assert.throws(
+    () => assertCountsOnly({ ...counts, codeEnd: { delta: 0, found: '0x08123456' } }),
+    (e: Error) => /codeEnd\.found/.test(e.message) && !e.message.includes('0x08123456'),
+  );
   assert.throws(() => assertCountsOnly({ ...counts, worst: 'sub_08001234' }), /worst/);
-  assert.throws(() => assertCountsOnly({ ...counts, falseEntries: { ...counts.falseEntries, name: 'x' } }), /falseEntries\.name/);
+  assert.throws(
+    () => assertCountsOnly({ ...counts, falseEntries: { ...counts.falseEntries, name: 'x' } }),
+    /falseEntries\.name/,
+  );
   assert.throws(() => assertCountsOnly({ ...counts, misses: [] }), /misses/);
   assert.throws(() => assertCountsOnly({ ...counts, codeEnd: { delta: 0x08000000 } }), /codeEnd\.delta/);
   assert.throws(() => assertCountsOnly({ entries: 1 }), /name/);
@@ -167,8 +216,32 @@ test('adoptRefusal refuses a sealed dataset only', () => {
 });
 
 test('sealedDataset is a well-formed sealed dataset with the committed key order', () => {
-  const d = sealedDataset({ name: 'x', rom: 'x/x.gba', elf: 'x/x.elf', map: 'x/x.map', sha1: 'a'.repeat(40), elfCommit: 'abc1234', elfSha256: 'b'.repeat(64), family: 'f', buildNote: 'unchanged' });
-  assert.deepEqual(Object.keys(d), ['name', 'rom', 'elf', 'map', 'sha1', 'elfCommit', 'elfSha256', 'family', 'buildNote', 'heldout', 'revealed', 'labels', 'untyped']);
+  const d = sealedDataset({
+    name: 'x',
+    rom: 'x/x.gba',
+    elf: 'x/x.elf',
+    map: 'x/x.map',
+    sha1: 'a'.repeat(40),
+    elfCommit: 'abc1234',
+    elfSha256: 'b'.repeat(64),
+    family: 'f',
+    buildNote: 'unchanged',
+  });
+  assert.deepEqual(Object.keys(d), [
+    'name',
+    'rom',
+    'elf',
+    'map',
+    'sha1',
+    'elfCommit',
+    'elfSha256',
+    'family',
+    'buildNote',
+    'heldout',
+    'revealed',
+    'labels',
+    'untyped',
+  ]);
   assert.ok(isSealed(d));
   assert.deepEqual(parseDataset(d, 'x.json'), { dataset: d, problems: [] });
 });

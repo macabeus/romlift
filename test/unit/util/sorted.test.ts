@@ -16,14 +16,40 @@ test('compareNumbers orders numerically', () => {
 });
 
 test('sortedKeys sorts Map keys and Set members', () => {
-  assert.deepEqual(sortedKeys(new Map([[10, 'a'], [9, 'b'], [100, 'c']])), [9, 10, 100]);
+  assert.deepEqual(
+    sortedKeys(
+      new Map([
+        [10, 'a'],
+        [9, 'b'],
+        [100, 'c'],
+      ]),
+    ),
+    [9, 10, 100],
+  );
   assert.deepEqual(sortedKeys(new Set(['b', 'a', 'B'])), ['B', 'a', 'b']);
-  assert.deepEqual(sortedKeys(new Map<string | number, number>([['x', 1], [2, 2], [1, 3]])), [1, 2, 'x']);
+  assert.deepEqual(
+    sortedKeys(
+      new Map<string | number, number>([
+        ['x', 1],
+        [2, 2],
+        [1, 3],
+      ]),
+    ),
+    [1, 2, 'x'],
+  );
   assert.deepEqual(sortedKeys(new Set<number>()), []);
 });
 
 test('sortedEntries sorts by key and leaves the map unchanged', () => {
-  const m = new Map([['z', 1], ['a', 2], ['m', 3]]);
-  assert.deepEqual(sortedEntries(m), [['a', 2], ['m', 3], ['z', 1]]);
+  const m = new Map([
+    ['z', 1],
+    ['a', 2],
+    ['m', 3],
+  ]);
+  assert.deepEqual(sortedEntries(m), [
+    ['a', 2],
+    ['m', 3],
+    ['z', 1],
+  ]);
   assert.deepEqual([...m.keys()], ['z', 'a', 'm']);
 });

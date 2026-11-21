@@ -7,7 +7,11 @@ import { setImmediate as tick } from 'node:timers/promises';
 import { onTargets, pooled, reportTargets, withSharedAgbcc } from '../../gates/gate.ts';
 
 /** Work that finishes in the reverse of its start order, recording how many items ran at once. */
-function reversing(n: number): { readonly work: (item: number) => Promise<number>; readonly peak: () => number; readonly started: number[] } {
+function reversing(n: number): {
+  readonly work: (item: number) => Promise<number>;
+  readonly peak: () => number;
+  readonly started: number[];
+} {
   let running = 0;
   let peak = 0;
   const started: number[] = [];
@@ -25,7 +29,7 @@ function reversing(n: number): { readonly work: (item: number) => Promise<number
   };
 }
 
-test('pooled returns the results in the items\' order whatever order they finish in, at most `limit` at once', async () => {
+test("pooled returns the results in the items' order whatever order they finish in, at most `limit` at once", async () => {
   const items = [0, 1, 2, 3, 4, 5, 6, 7];
   const r = reversing(items.length);
   assert.deepEqual(await pooled(items, 3, r.work), [0, 10, 20, 30, 40, 50, 60, 70]);
@@ -41,7 +45,7 @@ test('pooled with limit 1 is a serial loop, and an empty list or a limit above i
   assert.deepEqual(await pooled([1, 2], 99, async (x) => x), [1, 2]);
 });
 
-test('pooled: after a failure no item starts, the started ones finish, and the earliest failing item\'s error is thrown', async () => {
+test("pooled: after a failure no item starts, the started ones finish, and the earliest failing item's error is thrown", async () => {
   const started: number[] = [];
   const finished: number[] = [];
   const work = async (item: number): Promise<number> => {
@@ -54,7 +58,8 @@ test('pooled: after a failure no item starts, the started ones finish, and the e
   };
   await assert.rejects(pooled([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 4, work), /^Error: item 1$/);
   assert.ok(!started.includes(9), `started ${started.join(',')}`);
-  for (const item of started) if (item !== 1 && item !== 3) assert.ok(finished.includes(item), `item ${item} was abandoned`);
+  for (const item of started)
+    if (item !== 1 && item !== 3) assert.ok(finished.includes(item), `item ${item} was abandoned`);
 });
 
 test('onTargets runs the fixtures together and the datasets one at a time, fixtures first; reportTargets keeps that order', async () => {
@@ -73,7 +78,13 @@ test('onTargets runs the fixtures together and the datasets one at a time, fixtu
   assert.equal(peaks['d'], 1);
   assert.deepEqual(order.slice(-2), ['d1', 'd2']);
   const notes: string[] = [];
-  assert.deepEqual(reportTargets({ note: (n) => notes.push(n) }, results), ['f1 problem', 'f2 problem', 'f3 problem', 'd1 problem', 'd2 problem']);
+  assert.deepEqual(reportTargets({ note: (n) => notes.push(n) }, results), [
+    'f1 problem',
+    'f2 problem',
+    'f3 problem',
+    'd1 problem',
+    'd2 problem',
+  ]);
   assert.deepEqual(notes, ['f1 note', 'f2 note', 'f3 note', 'd1 note', 'd2 note']);
 });
 
@@ -82,15 +93,22 @@ test('withSharedAgbcc: one at a time until one builds agbcc, then the rest toget
   let running = 0;
   let peak = 0;
   // The first item builds nothing (it fails before setup.sh, say); the second builds agbcc.
-  const results = await withSharedAgbcc(['a', 'b', 'c', 'd', 'e'], async (item, agbcc) => {
-    running++;
-    peak = Math.max(peak, running);
-    given.push(agbcc);
-    await tick();
-    running--;
-    return { item, agbcc: agbcc === undefined && item === 'b' ? '/b/tools/agbcc' : undefined };
-  }, 2);
-  assert.deepEqual(results.map((r) => r.item), ['a', 'b', 'c', 'd', 'e']);
+  const results = await withSharedAgbcc(
+    ['a', 'b', 'c', 'd', 'e'],
+    async (item, agbcc) => {
+      running++;
+      peak = Math.max(peak, running);
+      given.push(agbcc);
+      await tick();
+      running--;
+      return { item, agbcc: agbcc === undefined && item === 'b' ? '/b/tools/agbcc' : undefined };
+    },
+    2,
+  );
+  assert.deepEqual(
+    results.map((r) => r.item),
+    ['a', 'b', 'c', 'd', 'e'],
+  );
   assert.deepEqual(given, [undefined, undefined, '/b/tools/agbcc', '/b/tools/agbcc', '/b/tools/agbcc']);
   assert.equal(peak, 2);
 });
@@ -98,13 +116,19 @@ test('withSharedAgbcc: one at a time until one builds agbcc, then the rest toget
 test('withSharedAgbcc: when no item builds agbcc, every item runs alone, as a serial loop would', async () => {
   let running = 0;
   let peak = 0;
-  const results = await withSharedAgbcc([1, 2, 3], async (item): Promise<{ readonly item: number; readonly agbcc?: string }> => {
-    running++;
-    peak = Math.max(peak, running);
-    await tick();
-    running--;
-    return { item };
-  });
-  assert.deepEqual(results.map((r) => r.item), [1, 2, 3]);
+  const results = await withSharedAgbcc(
+    [1, 2, 3],
+    async (item): Promise<{ readonly item: number; readonly agbcc?: string }> => {
+      running++;
+      peak = Math.max(peak, running);
+      await tick();
+      running--;
+      return { item };
+    },
+  );
+  assert.deepEqual(
+    results.map((r) => r.item),
+    [1, 2, 3],
+  );
   assert.equal(peak, 1);
 });

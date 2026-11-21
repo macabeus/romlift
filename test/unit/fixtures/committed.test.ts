@@ -5,15 +5,20 @@
 // the two startup functions first, and every expect.json is exhaustive (negative: true), so a false
 // entry fails any fixture; every .gba passes checkRom.
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-
-import { checkRom, elfFunctions, parseElf, ROM_BASE, type ElfFile, type ElfFunction } from 'romlift';
+import { type ElfFile, type ElfFunction, ROM_BASE, checkRom, elfFunctions, parseElf } from 'romlift';
 
 import { elfCodeEnd, elfTruth, pocCodeEnd } from '../../../bench/src/truth.ts';
 import { parseToolchainRecord } from '../../../bench/tools/fixtures.ts';
-import { listSyntheticFixtures, parseExpect, readExpect, SYNTHETIC_ROOT, type SyntheticFixture } from '../../helpers/fixtures.ts';
+import {
+  SYNTHETIC_ROOT,
+  type SyntheticFixture,
+  listSyntheticFixtures,
+  parseExpect,
+  readExpect,
+} from '../../helpers/fixtures.ts';
 
 const FIXTURES = listSyntheticFixtures();
 
@@ -27,22 +32,59 @@ const FIXTURES = listSyntheticFixtures();
  * that links it), the only ones built with a GNU map (`MAP := yes`).
  */
 const POSITIVE = [
-  'arm-pools-in-front', 'bx-lr-stub-chain', 'bx-pc-veneer', 'code-copied-to-ram', 'data-table-between-functions',
-  'far-jump', 'handwritten-2mod4', 'leaf-handler-pointer-table', 'noreturn-call-then-next', 'shared-tail',
-  'swi-reset', 'table-jump-hoisted', 'unreferenced-leaf', 'ram-code-entries', 'data-named-between-data',
+  'arm-pools-in-front',
+  'bx-lr-stub-chain',
+  'bx-pc-veneer',
+  'code-copied-to-ram',
+  'data-table-between-functions',
+  'far-jump',
+  'handwritten-2mod4',
+  'leaf-handler-pointer-table',
+  'noreturn-call-then-next',
+  'shared-tail',
+  'swi-reset',
+  'table-jump-hoisted',
+  'unreferenced-leaf',
+  'ram-code-entries',
+  'data-named-between-data',
 ];
 const RULE_SPECIFIC = [
-  'adr-handler-block', 'dead-code-in-extent', 'local-subroutine', 'mixer-tiled-hole', 'mov-lr-pc-bx',
-  'pops-unpushed-frame', 'prologueless-thumb-over-arm', 'computed-jump-callback', 'large-data-referenced',
-  'inline-arm-switch', 'recursive-far-call', 'gap-resume-2mod4', 'veneer-array', 'push-lr-2mod4', 'pointer-word-in-gap',
-  'entry-stub-table', 'ram-copy-memcpy', 'ram-copy-bios', 'ram-copy-setup-bound', 'ram-copy-call-via', 'ram-copy-entry-boundaries',
+  'adr-handler-block',
+  'dead-code-in-extent',
+  'local-subroutine',
+  'mixer-tiled-hole',
+  'mov-lr-pc-bx',
+  'pops-unpushed-frame',
+  'prologueless-thumb-over-arm',
+  'computed-jump-callback',
+  'large-data-referenced',
+  'inline-arm-switch',
+  'recursive-far-call',
+  'gap-resume-2mod4',
+  'veneer-array',
+  'push-lr-2mod4',
+  'pointer-word-in-gap',
+  'entry-stub-table',
+  'ram-copy-memcpy',
+  'ram-copy-bios',
+  'ram-copy-setup-bound',
+  'ram-copy-call-via',
+  'ram-copy-entry-boundaries',
   'adr-function-label',
 ];
 const PHASE_4 = ['composite', 'multi-compiler', 'c-data'];
 const PHASE_6 = ['library', 'library-ref2', 'library-game'];
 const NEGATIVE = [
-  'code-end-data-decodes', 'data-thumb-push-pop', 'false-stub-2byte', 'pointer-table-before-leaf', 'pool-padded-46c0',
-  'pool-word-push-lr', 'thumb-pointer-run', 'adr-label-and-data', 'data-frame-not-function', 'ram-copy-args-straight-line',
+  'code-end-data-decodes',
+  'data-thumb-push-pop',
+  'false-stub-2byte',
+  'pointer-table-before-leaf',
+  'pool-padded-46c0',
+  'pool-word-push-lr',
+  'thumb-pointer-run',
+  'adr-label-and-data',
+  'data-frame-not-function',
+  'ram-copy-args-straight-line',
   'code-end-unsized-last',
 ];
 
@@ -93,12 +135,19 @@ test('the 54 fixtures are committed, and common/ is not one', () => {
   assert.deepEqual(names, [...POSITIVE, ...RULE_SPECIFIC, ...NEGATIVE, ...PHASE_4, ...PHASE_6].sort(byCodeUnit));
   assert.ok(!names.includes('common'));
   for (const name of names) assert.match(name, /^[a-z0-9]+(-[a-z0-9]+)*$/, `${name} is not kebab-case`);
-  const dirs = readdirSync(SYNTHETIC_ROOT, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
-  assert.deepEqual(dirs.filter((d) => !names.includes(d)), ['common'], 'every other directory is a committed fixture');
+  const dirs = readdirSync(SYNTHETIC_ROOT, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name);
+  assert.deepEqual(
+    dirs.filter((d) => !names.includes(d)),
+    ['common'],
+    'every other directory is a committed fixture',
+  );
 });
 
 test('the shared files are in common/: crt0.s, the linker script, the make rules and the macros', () => {
-  for (const file of ['crt0.s', 'rom.ld', 'rules.mk', 'macros.inc']) assert.ok(isFile(join(SYNTHETIC_ROOT, 'common', file)), file);
+  for (const file of ['crt0.s', 'rom.ld', 'rules.mk', 'macros.inc'])
+    assert.ok(isFile(join(SYNTHETIC_ROOT, 'common', file)), file);
   assert.ok(!isFile(join(SYNTHETIC_ROOT, 'common', 'build', 'common.gba')));
 });
 
@@ -115,7 +164,10 @@ test('every fixture has its sources, a build.mk with both toolchain records, an 
     }
     assert.match(mk, /^include \.\.\/common\/rules\.mk$/m, `${f.name}: includes the shared rules`);
     const record = parseToolchainRecord(mk);
-    assert.ok(!('missing' in record), `${f.name}: toolchain record ${'missing' in record ? record.missing.join(', ') : ''}`);
+    assert.ok(
+      !('missing' in record),
+      `${f.name}: toolchain record ${'missing' in record ? record.missing.join(', ') : ''}`,
+    );
     assert.match(record.agbccCommit, /^[0-9a-f]{40}$/, `${f.name}: AGBCC_COMMIT`);
     assert.match(record.asVersion, /^GNU assembler /, `${f.name}: AS_VERSION`);
     assert.ok(isFile(f.expect), `${f.name}: expect.json`);
@@ -160,9 +212,17 @@ test('every committed .gba is a cartridge that checkRom accepts, starting with a
 test('every fixture starts with the startup region of common/crt0.s, which its expect.json lists first, without extents', () => {
   for (const f of FIXTURES) {
     const startup = functionsOf(f).filter((fn) => fn.addr < startupEnd(f));
-    assert.deepEqual(startup.map((fn) => fn.name), STARTUP, f.name);
+    assert.deepEqual(
+      startup.map((fn) => fn.name),
+      STARTUP,
+      f.name,
+    );
     const listed = readExpect(f).entries.filter((entry) => entry.addr < startupEnd(f));
-    assert.deepEqual(listed, startup.map((fn) => ({ addr: fn.addr, mode: 'arm' })), `${f.name}: the startup entries of expect.json`);
+    assert.deepEqual(
+      listed,
+      startup.map((fn) => ({ addr: fn.addr, mode: 'arm' })),
+      `${f.name}: the startup entries of expect.json`,
+    );
   }
 });
 
@@ -176,7 +236,10 @@ test('every expect.json entry is a FUNC symbol of the fixture with its mode and,
       if (entry.extent === undefined) continue;
       const extent = entry.extent.end - entry.extent.start;
       const padded = extent + ((4 - (extent & 3)) & 3);
-      assert.ok(fn.size === extent || fn.size === padded, `${f.name}: ${fn.name} extent ${extent}, ELF size ${fn.size}`);
+      assert.ok(
+        fn.size === extent || fn.size === padded,
+        `${f.name}: ${fn.name} extent ${extent}, ELF size ${fn.size}`,
+      );
     }
   }
 });
@@ -191,7 +254,10 @@ test('the entries are exactly the ELF functions in the ROM', () => {
 
 test('every expect.json is exhaustive: negative, so no entry beyond its real functions is allowed, the negative fixtures included', () => {
   const exhaustive = FIXTURES.filter((f) => readExpect(f).negative).map((f) => f.name);
-  assert.deepEqual(exhaustive, FIXTURES.map((f) => f.name));
+  assert.deepEqual(
+    exhaustive,
+    FIXTURES.map((f) => f.name),
+  );
   for (const name of NEGATIVE) assert.ok(exhaustive.includes(name), name);
 });
 
@@ -227,9 +293,19 @@ test('the handwritten-2mod4 fixture has its entry at 2 mod 4', () => {
 });
 
 test('parseExpect accepts the frozen shape and rejects what the gate could not read', () => {
-  const ok = parseExpect('{"negative": true, "entries": [{"addr": "0x080000F4", "mode": "thumb", "extent": {"start": "0x080000F4", "end": "0x08000100"}}], "codeEnd": "0x08000100"}', 'x');
-  assert.deepEqual(ok, { negative: true, entries: [{ addr: 0x080000f4, mode: 'thumb', extent: { start: 0x080000f4, end: 0x08000100 } }], codeEnd: 0x08000100 });
-  assert.deepEqual(parseExpect('{"entries": [{"addr": 134217972, "mode": "arm"}]}', 'x'), { negative: false, entries: [{ addr: 0x080000f4, mode: 'arm' }] });
+  const ok = parseExpect(
+    '{"negative": true, "entries": [{"addr": "0x080000F4", "mode": "thumb", "extent": {"start": "0x080000F4", "end": "0x08000100"}}], "codeEnd": "0x08000100"}',
+    'x',
+  );
+  assert.deepEqual(ok, {
+    negative: true,
+    entries: [{ addr: 0x080000f4, mode: 'thumb', extent: { start: 0x080000f4, end: 0x08000100 } }],
+    codeEnd: 0x08000100,
+  });
+  assert.deepEqual(parseExpect('{"entries": [{"addr": 134217972, "mode": "arm"}]}', 'x'), {
+    negative: false,
+    entries: [{ addr: 0x080000f4, mode: 'arm' }],
+  });
   const bad = [
     '[]',
     '{"entries": []}',

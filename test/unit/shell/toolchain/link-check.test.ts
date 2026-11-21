@@ -9,17 +9,17 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
 
-import { C_STUB_HEADER, DIALECT } from '../../../../src/foundation/asm/dialect.ts';
-import { stubAssemblyText } from '../../../../src/core/model/c-unit.ts';
 import { cDataAssertLine, cDataSectionLine } from '../../../../src/core/model/c-data-assert.ts';
-import { romFromBytes } from '../../../../src/foundation/rom/rom.ts';
-import type { Rom } from '../../../../src/foundation/rom/rom.ts';
+import { stubAssemblyText } from '../../../../src/core/model/c-unit.ts';
 import type { AssembleUnit } from '../../../../src/core/model/paths.ts';
 import { MACROS_PATH } from '../../../../src/core/model/paths.ts';
+import { C_STUB_HEADER, DIALECT } from '../../../../src/foundation/asm/dialect.ts';
+import { romFromBytes } from '../../../../src/foundation/rom/rom.ts';
+import type { Rom } from '../../../../src/foundation/rom/rom.ts';
 import { BASEROM_FILE } from '../../../../src/foundation/util/project-files.ts';
-import { assembleCheck, linkCheck } from '../../../../src/shell/toolchain/link-check.ts';
-import { findBinutils, runTool } from '../../../../src/shell/toolchain/binutils.ts';
 import { sha1Of } from '../../../../src/shell/hash.ts';
+import { findBinutils, runTool } from '../../../../src/shell/toolchain/binutils.ts';
+import { assembleCheck, linkCheck } from '../../../../src/shell/toolchain/link-check.ts';
 import { stubBinutils } from './stub.ts';
 
 const tools = findBinutils(process.env);
@@ -36,7 +36,9 @@ after(async () => {
  * Helper's address from its pool (ldr r0, [pc, #0]: 4800) and jumps to it (bx r0: 4700); the pool word is
  * Helper | 1 (0x0800000D). Helper is movs r0, #1 (2001) and bx lr (4770).
  */
-const IMAGE = Uint8Array.from([0x00, 0xf0, 0x04, 0xf8, 0x00, 0x48, 0x00, 0x47, 0x0d, 0x00, 0x00, 0x08, 0x01, 0x20, 0x70, 0x47]);
+const IMAGE = Uint8Array.from([
+  0x00, 0xf0, 0x04, 0xf8, 0x00, 0x48, 0x00, 0x47, 0x0d, 0x00, 0x00, 0x08, 0x01, 0x20, 0x70, 0x47,
+]);
 
 const MAIN = `${DIALECT.preamble('thumb')}
 \tthumb_func_start Start
@@ -69,7 +71,12 @@ const LDSCRIPT = `SECTIONS {
 
 const UNITS: readonly AssembleUnit[] = [
   { module: 'main', source: 'asm/main.s', object: 'build/main.o', span: { start: 0x0800_0000, end: 0x0800_000c } },
-  { module: 'helper', source: 'asm/helper.s', object: 'build/helper.o', span: { start: 0x0800_000c, end: 0x0800_0010 } },
+  {
+    module: 'helper',
+    source: 'asm/helper.s',
+    object: 'build/helper.o',
+    span: { start: 0x0800_000c, end: 0x0800_0010 },
+  },
 ];
 
 function romOf(bytes: Uint8Array): Rom {
@@ -123,7 +130,10 @@ test('a source that does not assemble is E_TOOLCHAIN_FAILED', { skip }, async ()
   const result = await linkCheck({ dir, rom: romOf(IMAGE), units: UNITS });
   assert.equal(result.ok, false);
   assert.equal(result.sha1, null);
-  assert.deepEqual(result.diagnostics.map((d) => d.code), ['E_TOOLCHAIN_FAILED']);
+  assert.deepEqual(
+    result.diagnostics.map((d) => d.code),
+    ['E_TOOLCHAIN_FAILED'],
+  );
   assert.match(result.diagnostics[0]?.message ?? '', /asm\/helper\.s/);
 });
 
@@ -134,8 +144,14 @@ test('a missing toolchain is E_TOOLCHAIN_MISSING', async () => {
   try {
     const link = await linkCheck({ dir, rom: romOf(IMAGE), units: UNITS });
     const assemble = await assembleCheck({ dir, rom: romOf(IMAGE), units: UNITS });
-    assert.deepEqual(link.diagnostics.map((d) => d.code), ['E_TOOLCHAIN_MISSING']);
-    assert.deepEqual(assemble.diagnostics.map((d) => d.code), ['E_TOOLCHAIN_MISSING']);
+    assert.deepEqual(
+      link.diagnostics.map((d) => d.code),
+      ['E_TOOLCHAIN_MISSING'],
+    );
+    assert.deepEqual(
+      assemble.diagnostics.map((d) => d.code),
+      ['E_TOOLCHAIN_MISSING'],
+    );
     assert.equal(link.ok || assemble.ok, false);
   } finally {
     process.env['PATH'] = saved;
@@ -147,7 +163,13 @@ test('each module assembles to its ROM range outside the relocated fields', { sk
   const result = await assembleCheck({ dir, rom: romOf(IMAGE), units: UNITS });
   assert.equal(result.id, 'assemble');
   assert.equal(result.ok, true, result.detail);
-  assert.deepEqual(result.modules.map((m) => [m.module, m.ok]), [['main', true], ['helper', true]]);
+  assert.deepEqual(
+    result.modules.map((m) => [m.module, m.ok]),
+    [
+      ['main', true],
+      ['helper', true],
+    ],
+  );
   // the bl pair and the pool word are left to the linker
   assert.match(result.detail, /\(8 relocated bytes left to the linker\)/);
 });
@@ -160,16 +182,21 @@ test('assembleCheck names every module that differs, and where', { skip }, async
   other[2] = 0xff; // inside the bl: relocated, so not compared
   const result = await assembleCheck({ dir, rom: romOf(other), units: UNITS });
   assert.equal(result.ok, false);
-  assert.deepEqual(result.modules.map((m) => [m.module, m.ok, m.detail]), [
-    ['main', false, 'first difference at 0x08000006'],
-    ['helper', false, 'first difference at 0x0800000C'],
-  ]);
+  assert.deepEqual(
+    result.modules.map((m) => [m.module, m.ok, m.detail]),
+    [
+      ['main', false, 'first difference at 0x08000006'],
+      ['helper', false, 'first difference at 0x0800000C'],
+    ],
+  );
   assert.match(result.detail, /2 of 2 modules differ/);
 });
 
 test('assembleCheck reports a module whose object is not its span length', { skip }, async () => {
   const dir = await treeDir();
-  const units = UNITS.map((u) => (u.module === 'helper' ? { ...u, span: { start: 0x0800_000c, end: 0x0800_0012 } } : u));
+  const units = UNITS.map((u) =>
+    u.module === 'helper' ? { ...u, span: { start: 0x0800_000c, end: 0x0800_0012 } } : u,
+  );
   const result = await assembleCheck({ dir, rom: romOf(IMAGE), units });
   assert.equal(result.ok, false);
   assert.match(result.modules[1]?.detail ?? '', /0x4 bytes of \.text, the module spans 0x6/);
@@ -177,16 +204,30 @@ test('assembleCheck reports a module whose object is not its span length', { ski
 
 test('assembleCheck with a unit that does not assemble and one whose object cannot be read checks every unit (stub toolchain)', async () => {
   // as fails on asm/helper.s, and "assembles" asm/main.s without writing its object.
-  const body = 'for a in "$@"; do last="$a"; done\ncase "$last" in *helper.s) echo "helper.s:1: Error: bad" >&2; exit 1;; esac\nexit 0';
+  const body =
+    'for a in "$@"; do last="$a"; done\ncase "$last" in *helper.s) echo "helper.s:1: Error: bad" >&2; exit 1;; esac\nexit 0';
   await stubBinutils({ as: body }, async (bin) => {
     const dir = await treeDir();
-    const tools = { as: join(bin, 'arm-none-eabi-as'), ld: join(bin, 'arm-none-eabi-ld'), objcopy: join(bin, 'arm-none-eabi-objcopy') };
+    const tools = {
+      as: join(bin, 'arm-none-eabi-as'),
+      ld: join(bin, 'arm-none-eabi-ld'),
+      objcopy: join(bin, 'arm-none-eabi-objcopy'),
+    };
     const result = await assembleCheck({ dir, rom: romOf(IMAGE), units: UNITS, tools });
     assert.equal(result.ok, false);
-    assert.deepEqual(result.modules.map((m) => [m.module, m.ok]), [['main', false], ['helper', false]]);
+    assert.deepEqual(
+      result.modules.map((m) => [m.module, m.ok]),
+      [
+        ['main', false],
+        ['helper', false],
+      ],
+    );
     assert.match(result.modules[0]?.detail ?? '', /cannot read build\/main\.o/);
     assert.equal(result.modules[1]?.detail, 'asm/helper.s does not assemble');
-    assert.deepEqual(result.diagnostics.map((d) => d.code), ['E_IO_READ', 'E_TOOLCHAIN_FAILED']);
+    assert.deepEqual(
+      result.diagnostics.map((d) => d.code),
+      ['E_IO_READ', 'E_TOOLCHAIN_FAILED'],
+    );
     assert.match(result.detail, /^2 of 2 modules differ/);
   });
 });
@@ -195,20 +236,52 @@ test('a C unit that is not a stub-only unit is refused before as runs, naming it
   // A stub as that would fail loudly if it ran.
   await stubBinutils({ as: 'echo "as ran" >&2; exit 1' }, async (bin) => {
     const dir = await treeDir({ 'src/main.c': `${C_STUB_HEADER}int Start(void) { return 0; }\n` });
-    const tools = { as: join(bin, 'arm-none-eabi-as'), ld: join(bin, 'arm-none-eabi-ld'), objcopy: join(bin, 'arm-none-eabi-objcopy') };
-    const units = [{ ...(UNITS[0] as AssembleUnit), source: 'src/main.c', object: 'build/src/main.o', compiler: 'agbcc' }];
+    const tools = {
+      as: join(bin, 'arm-none-eabi-as'),
+      ld: join(bin, 'arm-none-eabi-ld'),
+      objcopy: join(bin, 'arm-none-eabi-objcopy'),
+    };
+    const units = [
+      { ...(UNITS[0] as AssembleUnit), source: 'src/main.c', object: 'build/src/main.o', compiler: 'agbcc' },
+    ];
     const assembled = await assembleCheck({ dir, rom: romOf(IMAGE), units, tools });
     assert.equal(assembled.ok, false);
-    assert.deepEqual(assembled.diagnostics.map((d) => [d.code, d.path]), [['E_TOOLCHAIN_FAILED', 'src/main.c']]);
-    assert.match(assembled.diagnostics[0]?.message ?? '', /^src\/main\.c line 3 defines the function Start;.*only a stub-only C unit assembles without a compiler$/);
+    assert.deepEqual(
+      assembled.diagnostics.map((d) => [d.code, d.path]),
+      [['E_TOOLCHAIN_FAILED', 'src/main.c']],
+    );
+    assert.match(
+      assembled.diagnostics[0]?.message ?? '',
+      /^src\/main\.c line 3 defines the function Start;.*only a stub-only C unit assembles without a compiler$/,
+    );
     const linked = await linkCheck({ dir, rom: romOf(IMAGE), units, tools });
     assert.equal(linked.ok, false);
     assert.match(linked.diagnostics[0]?.message ?? '', /^src\/main\.c line 3 defines the function Start/);
-    const missing = await assembleCheck({ dir, rom: romOf(IMAGE), units: [{ ...(UNITS[1] as AssembleUnit), source: 'src/helper.c', object: 'build/src/helper.o', compiler: 'agbcc' }], tools });
-    assert.deepEqual(missing.diagnostics.map((d) => d.code), ['E_IO_READ'], 'a C unit without its file');
+    const missing = await assembleCheck({
+      dir,
+      rom: romOf(IMAGE),
+      units: [
+        { ...(UNITS[1] as AssembleUnit), source: 'src/helper.c', object: 'build/src/helper.o', compiler: 'agbcc' },
+      ],
+      tools,
+    });
+    assert.deepEqual(
+      missing.diagnostics.map((d) => d.code),
+      ['E_IO_READ'],
+      'a C unit without its file',
+    );
     const stub = await treeDir({ 'src/main.c': `${C_STUB_HEADER}` });
-    const uncompiled = await assembleCheck({ dir: stub, rom: romOf(IMAGE), units: [{ ...(UNITS[0] as AssembleUnit), source: 'src/main.c', object: 'build/src/main.o' }], tools });
-    assert.deepEqual(uncompiled.diagnostics.map((d) => [d.code, d.path]), [['E_TOOLCHAIN_FAILED', 'src/main.c']], 'a C unit naming no build compiler');
+    const uncompiled = await assembleCheck({
+      dir: stub,
+      rom: romOf(IMAGE),
+      units: [{ ...(UNITS[0] as AssembleUnit), source: 'src/main.c', object: 'build/src/main.o' }],
+      tools,
+    });
+    assert.deepEqual(
+      uncompiled.diagnostics.map((d) => [d.code, d.path]),
+      [['E_TOOLCHAIN_FAILED', 'src/main.c']],
+      'a C unit naming no build compiler',
+    );
     assert.match(uncompiled.diagnostics[0]?.message ?? '', /names no build compiler/);
   });
 });
@@ -220,35 +293,72 @@ async function cTree(stub: string): Promise<{ readonly dir: string; readonly uni
     `    }\n    ${cDataSectionLine('helper')}\n    ${cDataAssertLine('helper')}\n}`,
   );
   const chunk = HELPER.slice(DIALECT.preamble('thumb').length);
-  const dir = await treeDir({ 'ldscript.txt': ldscript, 'src/helper.c': stub, 'asm/nonmatchings/helper/Helper.s': chunk });
-  const units = UNITS.map((u) => (u.module === 'helper' ? { ...u, source: 'src/helper.c', object: 'build/src/helper.o', compiler: 'agbcc' } : u));
+  const dir = await treeDir({
+    'ldscript.txt': ldscript,
+    'src/helper.c': stub,
+    'asm/nonmatchings/helper/Helper.s': chunk,
+  });
+  const units = UNITS.map((u) =>
+    u.module === 'helper' ? { ...u, source: 'src/helper.c', object: 'build/src/helper.o', compiler: 'agbcc' } : u,
+  );
   return { dir, units };
 }
 
-test('a C unit links and assembles from its stub with binutils alone: build/src/<m>.s is the stub assembly agbcc emits', { skip }, async () => {
-  const { dir, units } = await cTree(`${C_STUB_HEADER}INCLUDE_ASM("asm/nonmatchings/helper", Helper);\n`);
-  const linked = await linkCheck({ dir, rom: romOf(IMAGE), units });
-  assert.equal(linked.ok, true, linked.detail);
-  assert.equal(linked.sha1, sha1Of(IMAGE));
-  assert.equal(await readFile(join(dir, 'build/src/helper.s'), 'utf8'), stubAssemblyText(['asm/nonmatchings/helper/Helper.s'], 'agbcc'));
-  const assembled = await assembleCheck({ dir, rom: romOf(IMAGE), units });
-  assert.equal(assembled.ok, true, assembled.detail);
-  assert.deepEqual(assembled.modules.map((m) => [m.module, m.ok]), [['main', true], ['helper', true]]);
-});
+test(
+  'a C unit links and assembles from its stub with binutils alone: build/src/<m>.s is the stub assembly agbcc emits',
+  { skip },
+  async () => {
+    const { dir, units } = await cTree(`${C_STUB_HEADER}INCLUDE_ASM("asm/nonmatchings/helper", Helper);\n`);
+    const linked = await linkCheck({ dir, rom: romOf(IMAGE), units });
+    assert.equal(linked.ok, true, linked.detail);
+    assert.equal(linked.sha1, sha1Of(IMAGE));
+    assert.equal(
+      await readFile(join(dir, 'build/src/helper.s'), 'utf8'),
+      stubAssemblyText(['asm/nonmatchings/helper/Helper.s'], 'agbcc'),
+    );
+    const assembled = await assembleCheck({ dir, rom: romOf(IMAGE), units });
+    assert.equal(assembled.ok, true, assembled.detail);
+    assert.deepEqual(
+      assembled.modules.map((m) => [m.module, m.ok]),
+      [
+        ['main', true],
+        ['helper', true],
+      ],
+    );
+  },
+);
 
-test('a C object that defines data fails the link with the ldscript ASSERT message naming its C file', { skip }, async () => {
-  // A stub-only unit cannot define data, an object compiled from C can: one with a .data word stands for it.
-  const { dir } = await cTree(`${C_STUB_HEADER}INCLUDE_ASM("asm/nonmatchings/helper", Helper);\n`);
-  await mkdir(join(dir, 'build/src'), { recursive: true });
-  // Link by hand: main from its source, helper from an object that also defines .data.
-  await writeFile(join(dir, 'with-data.s'), `${HELPER}\t.data\n\t.4byte 1\n`);
-  const linkTools = 'code' in tools ? undefined : tools;
-  assert.ok(linkTools !== undefined);
-  await mkdir(join(dir, 'include'), { recursive: true });
-  await writeFile(join(dir, MACROS_PATH), DIALECT.macrosInc);
-  assert.equal((await runTool(linkTools.as, [...DIALECT.asArgs, '-I', dir, '-o', 'build/src/helper.o', 'with-data.s'], dir)).code, 0);
-  assert.equal((await runTool(linkTools.as, [...DIALECT.asArgs, '-I', dir, '-o', 'build/main.o', 'asm/main.s'], dir)).code, 0);
-  const ld = await runTool(linkTools.ld, ['-T', 'ldscript.txt', '-o', 'out.elf', 'build/main.o', 'build/src/helper.o'], dir);
-  assert.notEqual(ld.code, 0);
-  assert.match(ld.stderr, /src\/helper\.c defines data; see AGENTS\.md \(only read-only data is placed, in a data range: data_start\)/);
-});
+test(
+  'a C object that defines data fails the link with the ldscript ASSERT message naming its C file',
+  { skip },
+  async () => {
+    // A stub-only unit cannot define data, an object compiled from C can: one with a .data word stands for it.
+    const { dir } = await cTree(`${C_STUB_HEADER}INCLUDE_ASM("asm/nonmatchings/helper", Helper);\n`);
+    await mkdir(join(dir, 'build/src'), { recursive: true });
+    // Link by hand: main from its source, helper from an object that also defines .data.
+    await writeFile(join(dir, 'with-data.s'), `${HELPER}\t.data\n\t.4byte 1\n`);
+    const linkTools = 'code' in tools ? undefined : tools;
+    assert.ok(linkTools !== undefined);
+    await mkdir(join(dir, 'include'), { recursive: true });
+    await writeFile(join(dir, MACROS_PATH), DIALECT.macrosInc);
+    assert.equal(
+      (await runTool(linkTools.as, [...DIALECT.asArgs, '-I', dir, '-o', 'build/src/helper.o', 'with-data.s'], dir))
+        .code,
+      0,
+    );
+    assert.equal(
+      (await runTool(linkTools.as, [...DIALECT.asArgs, '-I', dir, '-o', 'build/main.o', 'asm/main.s'], dir)).code,
+      0,
+    );
+    const ld = await runTool(
+      linkTools.ld,
+      ['-T', 'ldscript.txt', '-o', 'out.elf', 'build/main.o', 'build/src/helper.o'],
+      dir,
+    );
+    assert.notEqual(ld.code, 0);
+    assert.match(
+      ld.stderr,
+      /src\/helper\.c defines data; see AGENTS\.md \(only read-only data is placed, in a data range: data_start\)/,
+    );
+  },
+);

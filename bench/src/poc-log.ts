@@ -28,8 +28,7 @@
 import { createReadStream } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
-
-import { canonicalJson, type JsonValue, type Mode } from 'romlift';
+import { type JsonValue, type Mode, canonicalJson } from 'romlift';
 import { sha256Stream } from 'romlift/node';
 
 import type { BenchContext } from './context.ts';
@@ -38,7 +37,8 @@ import { BenchError, isRecord } from './files.ts';
 export const QUERIES_SCHEMA = 'romlift-bench/poc-queries@1';
 export const READINGS_FILE = 'readings.ndjson';
 
-export const queriesPath = (cx: BenchContext, rom: string): string => join(cx.repoRoot, 'bench', '.local', 'poc', rom, 'queries.ndjson');
+export const queriesPath = (cx: BenchContext, rom: string): string =>
+  join(cx.repoRoot, 'bench', '.local', 'poc', rom, 'queries.ndjson');
 
 /**
  * The unit of an argument: `bus` is a GBA bus address (0x08000000 is the first ROM byte), `offset` a
@@ -192,13 +192,15 @@ function fail(where: string, message: string): never {
 }
 
 function int(value: unknown, where: string, min = 0): number {
-  if (typeof value !== 'number' || !Number.isInteger(value) || value < min || value > 0xffff_ffff) fail(where, `expected an integer ≥ ${min}, got ${JSON.stringify(value)}`);
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < min || value > 0xffff_ffff)
+    fail(where, `expected an integer ≥ ${min}, got ${JSON.stringify(value)}`);
   return value;
 }
 
 /** A balance entry is a signed stack delta. */
 function signed(value: unknown, where: string): number {
-  if (typeof value !== 'number' || !Number.isInteger(value)) fail(where, `expected an integer, got ${JSON.stringify(value)}`);
+  if (typeof value !== 'number' || !Number.isInteger(value))
+    fail(where, `expected an integer, got ${JSON.stringify(value)}`);
   return value;
 }
 
@@ -240,7 +242,9 @@ function ints(value: unknown, where: string): number[] {
 /** Ascending addresses without duplicates. */
 function ascending(value: unknown, where: string): number[] {
   const out = ints(value, where);
-  for (let i = 1; i < out.length; i++) if ((out[i] ?? 0) <= (out[i - 1] ?? 0)) fail(`${where}[${i}]`, 'not above the item before it (ascending, no duplicates)');
+  for (let i = 1; i < out.length; i++)
+    if ((out[i] ?? 0) <= (out[i - 1] ?? 0))
+      fail(`${where}[${i}]`, 'not above the item before it (ascending, no duplicates)');
   return out;
 }
 
@@ -252,15 +256,33 @@ function pairs(value: unknown, where: string): Array<readonly [number, number]> 
 }
 
 function keyed<T extends readonly [number, ...unknown[]]>(items: readonly T[], where: string): readonly T[] {
-  ascending(items.map((t) => t[0]), `${where} (first items)`);
+  ascending(
+    items.map((t) => t[0]),
+    `${where} (first items)`,
+  );
   return items;
 }
 
 // ---------------------------------------------------------------- reading lines
 
 const READING_KEYS = [
-  'adrs', 'balance', 'blSites', 'calls', 'codeEnd', 'deadEnd', 'end', 'entry', 'errors', 'insnRuns', 'mode', 'pools',
-  'returns', 'tables', 'tailExits', 'tails', 'veneers',
+  'adrs',
+  'balance',
+  'blSites',
+  'calls',
+  'codeEnd',
+  'deadEnd',
+  'end',
+  'entry',
+  'errors',
+  'insnRuns',
+  'mode',
+  'pools',
+  'returns',
+  'tables',
+  'tailExits',
+  'tails',
+  'veneers',
 ] as const;
 
 /** Expands insnRuns into one [addr, len] per instruction, ascending. */
@@ -273,7 +295,8 @@ export function expandInsnRuns(value: unknown, where: string): Array<readonly [n
     const l = int(len, `${at}[1]`, 1);
     const k = int(n, `${at}[2]`, 1);
     const prev = insns[insns.length - 1];
-    if (prev !== undefined && a <= prev[0]) fail(at, 'starts at or before the instruction before it (runs are ascending)');
+    if (prev !== undefined && a <= prev[0])
+      fail(at, 'starts at or before the instruction before it (runs are ascending)');
     for (let j = 0; j < k; j++) insns.push([a + j * l, l]);
   });
   return insns;
@@ -282,7 +305,8 @@ export function expandInsnRuns(value: unknown, where: string): Array<readonly [n
 /** Reads the `reading` member of a readings.ndjson line. */
 export function parseReading(value: unknown, where: string): PocReading {
   const r = record(value, where);
-  for (const key of Object.keys(r)) if (!(READING_KEYS as readonly string[]).includes(key)) fail(`${where}.${key}`, 'not a field of a reading');
+  for (const key of Object.keys(r))
+    if (!(READING_KEYS as readonly string[]).includes(key)) fail(`${where}.${key}`, 'not a field of a reading');
   const tables = array(r['tables'], `${where}.tables`).map((t, i) => {
     const [base, targets] = tuple(t, 2, `${where}.tables[${i}]`);
     return [int(base, `${where}.tables[${i}][0]`), ints(targets, `${where}.tables[${i}][1]`)] as const;
@@ -295,7 +319,11 @@ export function parseReading(value: unknown, where: string): PocReading {
     tables: keyed(tables, `${where}.tables`),
     calls: array(r['calls'], `${where}.calls`).map((c, i) => {
       const [target, m, site] = tuple(c, 3, `${where}.calls[${i}]`);
-      return [int(target, `${where}.calls[${i}][0]`), mode(m, `${where}.calls[${i}][1]`), int(site, `${where}.calls[${i}][2]`)] as const;
+      return [
+        int(target, `${where}.calls[${i}][0]`),
+        mode(m, `${where}.calls[${i}][1]`),
+        int(site, `${where}.calls[${i}][2]`),
+      ] as const;
     }),
     blSites: pairs(r['blSites'], `${where}.blSites`),
     deadEnd: ascending(r['deadEnd'], `${where}.deadEnd`),
@@ -327,14 +355,20 @@ export interface ReadingsOptions {
 }
 
 /** Adds one readings.ndjson line to `into`; `where` names the file and line. */
-export function addReadingLine(line: string, where: string, into: Map<string, PocReading>, options: ReadingsOptions = {}): void {
+export function addReadingLine(
+  line: string,
+  where: string,
+  into: Map<string, PocReading>,
+  options: ReadingsOptions = {},
+): void {
   const value = parseJsonLine(line, where);
   const v = record(value, where);
   const key = text(v['key'], `${where}.key`);
   if (!SHA256.test(key)) fail(`${where}.key`, 'expected a sha256 in lower-case hex');
   if (into.has(key)) fail(`${where}.key`, `the reading ${key} is listed twice`);
   const reading = parseReading(v['reading'], `${where}.reading`);
-  if (options.verifyKeys !== false && readingKey(v['reading']) !== key) fail(`${where}.key`, 'is not the sha256 of the canonical JSON of its reading');
+  if (options.verifyKeys !== false && readingKey(v['reading']) !== key)
+    fail(`${where}.key`, 'is not the sha256 of the canonical JSON of its reading');
   into.set(key, reading);
 }
 
@@ -363,9 +397,11 @@ function parseJsonLine(line: string, where: string): unknown {
 /** Reads line 1 of queries.ndjson. */
 export function parseQueriesHeader(value: unknown, where: string): QueriesHeader {
   const v = record(value, where);
-  if (v['schema'] !== QUERIES_SCHEMA) fail(`${where}.schema`, `is ${JSON.stringify(v['schema'])}, expected ${QUERIES_SCHEMA}`);
+  if (v['schema'] !== QUERIES_SCHEMA)
+    fail(`${where}.schema`, `is ${JSON.stringify(v['schema'])}, expected ${QUERIES_SCHEMA}`);
   const readings = text(v['readings'], `${where}.readings`);
-  if (readings.includes('/') || readings.includes('\\') || readings === '' || readings.startsWith('.')) fail(`${where}.readings`, 'expected a file name beside the log');
+  if (readings.includes('/') || readings.includes('\\') || readings === '' || readings.startsWith('.'))
+    fail(`${where}.readings`, 'expected a file name beside the log');
   return {
     schema: QUERIES_SCHEMA,
     rom: text(v['rom'], `${where}.rom`),
@@ -385,7 +421,9 @@ function resolveReading(value: unknown, readings: ReadingLookup, where: string):
 
 function args(value: unknown, spec: MethodSpec, where: string): unknown[] {
   const items = tuple(value, spec.args.length, where);
-  return spec.args.map((unit, i) => (unit === 'text' ? text(items[i], `${where}[${i}]`) : int(items[i], `${where}[${i}]`)));
+  return spec.args.map((unit, i) =>
+    unit === 'text' ? text(items[i], `${where}[${i}]`) : int(items[i], `${where}[${i}]`),
+  );
 }
 
 function result(shape: ResultShape, value: unknown, readings: ReadingLookup, where: string): unknown {
@@ -396,7 +434,11 @@ function result(shape: ResultShape, value: unknown, readings: ReadingLookup, whe
       return value === null ? null : text(value, where);
     case 'settled': {
       const v = record(value, where);
-      return { ...resolveReading(v, readings, where), far: ascending(v['far'], `${where}.far`), noret: ascending(v['noret'], `${where}.noret`) };
+      return {
+        ...resolveReading(v, readings, where),
+        far: ascending(v['far'], `${where}.far`),
+        noret: ascending(v['noret'], `${where}.noret`),
+      };
     }
     case 'reading':
       return resolveReading(value, readings, where);
@@ -454,7 +496,8 @@ export function parseQueryLine(line: string, where: string, state: QueryLogState
   if (seq !== state.nextSeq) fail(`${where}.seq`, `is ${seq}, expected ${state.nextSeq}`);
   const parent = v['parent'] === null ? null : int(v['parent'], `${where}.parent`);
   while (state.open.length > 0 && state.open[state.open.length - 1] !== parent) state.open.pop();
-  if (parent !== null && state.open.length === 0) fail(`${where}.parent`, `${parent} is not a call that is still running at seq ${seq}`);
+  if (parent !== null && state.open.length === 0)
+    fail(`${where}.parent`, `${parent} is not a call that is still running at seq ${seq}`);
   const epoch = int(v['epoch'], `${where}.epoch`);
   const expected = method === 'forgetCandidates' ? state.epoch + 1 : state.epoch;
   if (epoch !== expected) fail(`${where}.epoch`, `is ${epoch}, expected ${expected}`);

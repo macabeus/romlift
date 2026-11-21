@@ -29,9 +29,10 @@
 //     scaffold's Makefile target, written with the writer
 //   symbols.ld                           the project's RAM and absolute symbols, a linker script fragment
 //   __load_<module>                      the load address of a runs_at module, which its own code may name (§6.7)
-import { appendFile, copyFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { appendFile, copyFile, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { CHECKOUT_CLI_ENV, gate, onTargets, type ExecResult, type GateContext } from './gate.ts';
+
+import { CHECKOUT_CLI_ENV, type ExecResult, type GateContext, gate, onTargets } from './gate.ts';
 
 type Address = number | string;
 
@@ -109,7 +110,14 @@ async function exists(file: string): Promise<boolean> {
   }
 }
 
-async function step(cx: GateContext, what: string, command: string, args: readonly string[], cwd: string, env?: Readonly<Record<string, string>>): Promise<ExecResult> {
+async function step(
+  cx: GateContext,
+  what: string,
+  command: string,
+  args: readonly string[],
+  cwd: string,
+  env?: Readonly<Record<string, string>>,
+): Promise<ExecResult> {
   const run = await cx.exec(command, args, env === undefined ? { cwd } : { cwd, env });
   if (run.code !== 0) throw new Error(`${what} exited ${run.code}:\n${tail(run)}`);
   return run;
@@ -118,11 +126,18 @@ async function step(cx: GateContext, what: string, command: string, args: readon
 /** The fixture's `ramCopy` as an override, or undefined when its expect.json has none. */
 async function ramCopyOf(expect: string): Promise<RamOverride | undefined> {
   if (!(await exists(expect))) return undefined;
-  const ramCopy = (JSON.parse(await readFile(expect, 'utf8')) as { readonly ramCopy?: Readonly<Record<string, unknown>> }).ramCopy;
+  const ramCopy = (
+    JSON.parse(await readFile(expect, 'utf8')) as { readonly ramCopy?: Readonly<Record<string, unknown>> }
+  ).ramCopy;
   if (ramCopy === undefined) return undefined;
   const mode = ramCopy['mode'];
-  if (mode !== undefined && mode !== 'thumb' && mode !== 'arm') throw new Error(`${expect} ramCopy.mode is not 'thumb' or 'arm'`);
-  const base = { start: num(ramCopy['start'], `${expect} ramCopy.start`), size: num(ramCopy['size'], `${expect} ramCopy.size`), runAt: num(ramCopy['runAt'], `${expect} ramCopy.runAt`) };
+  if (mode !== undefined && mode !== 'thumb' && mode !== 'arm')
+    throw new Error(`${expect} ramCopy.mode is not 'thumb' or 'arm'`);
+  const base = {
+    start: num(ramCopy['start'], `${expect} ramCopy.start`),
+    size: num(ramCopy['size'], `${expect} ramCopy.size`),
+    runAt: num(ramCopy['runAt'], `${expect} ramCopy.runAt`),
+  };
   return mode === undefined ? base : { ...base, mode };
 }
 
@@ -192,15 +207,32 @@ function judgeScript(placed: readonly Placed[], symbols: boolean): string {
 }
 
 /** The problems of one linked target: its bytes against the ROM range, and its symbols against the model's places. */
-async function checkLinked(cx: GateContext, p: Placed, i: number, chunks: readonly ChunkLine[], rom: Uint8Array, dir: string): Promise<readonly string[]> {
+async function checkLinked(
+  cx: GateContext,
+  p: Placed,
+  i: number,
+  chunks: readonly ChunkLine[],
+  rom: Uint8Array,
+  dir: string,
+): Promise<readonly string[]> {
   const bin = path.join('build', 'expected', `${p.name}.linked.bin`);
-  await step(cx, `objcopy ${sectionOf(i)}`, 'arm-none-eabi-objcopy', ['-O', 'binary', '-j', sectionOf(i), JUDGE_ELF, bin], dir);
+  await step(
+    cx,
+    `objcopy ${sectionOf(i)}`,
+    'arm-none-eabi-objcopy',
+    ['-O', 'binary', '-j', sectionOf(i), JUDGE_ELF, bin],
+    dir,
+  );
   const bytes = new Uint8Array(await readFile(path.join(dir, bin)));
   const want = rom.subarray(p.start - ROM_BASE, p.end - ROM_BASE);
   const problems: string[] = [];
-  if (bytes.length !== want.length) problems.push(`${p.name}: ${p.object} links to ${bytes.length} bytes, the module spans ${want.length}`);
+  if (bytes.length !== want.length)
+    problems.push(`${p.name}: ${p.object} links to ${bytes.length} bytes, the module spans ${want.length}`);
   const first = want.findIndex((b, k) => bytes[k] !== b);
-  if (first >= 0) problems.push(`${p.name}: ${p.object} linked at ${hex(p.vma)} differs from the ROM at ${hex(p.start + first)} (${(await covering(cx, p.object, first, dir)).join(', ') || 'no symbol'})`);
+  if (first >= 0)
+    problems.push(
+      `${p.name}: ${p.object} linked at ${hex(p.vma)} differs from the ROM at ${hex(p.start + first)} (${(await covering(cx, p.object, first, dir)).join(', ') || 'no symbol'})`,
+    );
   const placed = placedNames(chunks, p.name);
   let misplaced = 0;
   for (const [symbol, offset] of await definedSymbols(cx, p.object, dir)) {
@@ -212,8 +244,18 @@ async function checkLinked(cx: GateContext, p: Placed, i: number, chunks: readon
   return problems;
 }
 
-type ReadProject = (dir: string, options: { readonly withoutC: boolean }) => Promise<{ readonly ok: true; readonly value: { readonly inputs: { readonly rom: unknown } } } | { readonly ok: false; readonly diagnostics: readonly { readonly message: string }[] }>;
-type ConfirmProject = (inputs: unknown) => { readonly ok: true; readonly model: unknown } | { readonly ok: false; readonly diagnostics: readonly { readonly message: string }[] };
+type ReadProject = (
+  dir: string,
+  options: { readonly withoutC: boolean },
+) => Promise<
+  | { readonly ok: true; readonly value: { readonly inputs: { readonly rom: unknown } } }
+  | { readonly ok: false; readonly diagnostics: readonly { readonly message: string }[] }
+>;
+type ConfirmProject = (
+  inputs: unknown,
+) =>
+  | { readonly ok: true; readonly model: unknown }
+  | { readonly ok: false; readonly diagnostics: readonly { readonly message: string }[] };
 type EncodeModel = (model: unknown, rom: unknown) => Iterable<string>;
 
 /** The project's model in `dir` as romlift/model-json@1 NDJSON: readProject, confirmProject, encodeModel (D108). */
@@ -221,13 +263,19 @@ async function projectModel(cx: GateContext, dir: string): Promise<string> {
   const read = await cx.need<ReadProject>('readProject')(dir, { withoutC: true });
   if (!read.ok) throw new Error(`readProject ${dir}: ${read.diagnostics.map((d) => d.message).join('; ')}`);
   const confirmed = cx.need<ConfirmProject>('confirmProject')(read.value.inputs);
-  if (!confirmed.ok) throw new Error(`confirmProject ${dir}: ${confirmed.diagnostics.map((d) => d.message).join('; ')}`);
+  if (!confirmed.ok)
+    throw new Error(`confirmProject ${dir}: ${confirmed.diagnostics.map((d) => d.message).join('; ')}`);
   return [...cx.need<EncodeModel>('encodeModel')(confirmed.model, read.value.inputs.rom)].join('');
 }
 
-async function checkTarget(cx: GateContext, target: Target, dir: string): Promise<{ readonly problems: readonly string[]; readonly modules: number; readonly runsAt: number }> {
+async function checkTarget(
+  cx: GateContext,
+  target: Target,
+  dir: string,
+): Promise<{ readonly problems: readonly string[]; readonly modules: number; readonly runsAt: number }> {
   const main = path.join(cx.repoRoot, 'src', 'cli', 'main.ts');
-  const cli = (what: string, ...args: string[]): Promise<ExecResult> => step(cx, what, process.execPath, ['--conditions=source', main, ...args], dir, CHECKOUT_CLI_ENV);
+  const cli = (what: string, ...args: string[]): Promise<ExecResult> =>
+    step(cx, what, process.execPath, ['--conditions=source', main, ...args], dir, CHECKOUT_CLI_ENV);
   await mkdir(dir, { recursive: true });
   await copyFile(target.rom, path.join(dir, 'baserom.gba'));
   await cli('init', 'init', 'baserom.gba', '--json');
@@ -238,18 +286,27 @@ async function checkTarget(cx: GateContext, target: Target, dir: string): Promis
   }
   const modelLines = (await projectModel(cx, dir)).split('\n');
   const header = JSON.parse(modelLines[0] ?? '{}') as ModelHeader;
-  if (header.schema !== 'romlift/model-json@1') throw new Error(`the model's NDJSON has schema ${String(header.schema)} first`);
+  if (header.schema !== 'romlift/model-json@1')
+    throw new Error(`the model's NDJSON has schema ${String(header.schema)} first`);
   const chunks = modelLines.slice(1).flatMap((line): ChunkLine[] => {
     if (!line.startsWith('{')) return [];
     const parsed = JSON.parse(line) as ChunkLine & { readonly type?: string };
     return parsed.type === undefined && parsed.module !== undefined ? [parsed] : [];
   });
-  const sources = (await readdir(path.join(dir, 'expected')).catch(() => [] as string[])).filter((n) => n.endsWith('.s')).map((n) => n.slice(0, -2));
+  const sources = (await readdir(path.join(dir, 'expected')).catch(() => [] as string[]))
+    .filter((n) => n.endsWith('.s'))
+    .map((n) => n.slice(0, -2));
   const problems: string[] = [];
-  for (const m of header.modules) if (m.kind === 'c' && !sources.includes(m.name)) problems.push(`no expected/${m.name}.s for C module ${m.name}`);
+  for (const m of header.modules)
+    if (m.kind === 'c' && !sources.includes(m.name)) problems.push(`no expected/${m.name}.s for C module ${m.name}`);
   if (sources.length === 0) return { problems: [...problems, 'expected/ holds no module'], modules: 0, runsAt: 0 };
   const override = target.override;
-  if (override !== undefined && !header.modules.some((m) => m.runAt !== undefined && num(m.span.start, `module ${m.name} span.start`) === override.start)) {
+  if (
+    override !== undefined &&
+    !header.modules.some(
+      (m) => m.runAt !== undefined && num(m.span.start, `module ${m.name} span.start`) === override.start,
+    )
+  ) {
     problems.push(`no runs_at module starts at ${hex(override.start)}, the override's range`);
   }
   await step(cx, 'make expected', 'make', ['expected'], dir);
@@ -268,11 +325,30 @@ async function checkTarget(cx: GateContext, target: Target, dir: string): Promis
     }
     const start = num(module.span.start, `module ${name} span.start`);
     const runAt = module.runAt === undefined ? undefined : num(module.runAt, `module ${name} runAt`);
-    placed.push({ name, start, end: num(module.span.end, `module ${name} span.end`), vma: runAt ?? start, runsAt: runAt !== undefined, object });
+    placed.push({
+      name,
+      start,
+      end: num(module.span.end, `module ${name} span.end`),
+      vma: runAt ?? start,
+      runsAt: runAt !== undefined,
+      object,
+    });
   }
   await writeFile(path.join(dir, JUDGE_SCRIPT), judgeScript(placed, await exists(path.join(dir, 'symbols.ld'))));
-  const link = await cx.exec('arm-none-eabi-ld', ['-T', JUDGE_SCRIPT, '-o', JUDGE_ELF, ...placed.map((p) => p.object)], { cwd: dir });
-  if (link.code !== 0) return { problems: [...problems, `the targets do not link at their modules' addresses (ld exited ${link.code}): ${tail(link, 8)}`], modules: sources.length, runsAt: 0 };
+  const link = await cx.exec(
+    'arm-none-eabi-ld',
+    ['-T', JUDGE_SCRIPT, '-o', JUDGE_ELF, ...placed.map((p) => p.object)],
+    { cwd: dir },
+  );
+  if (link.code !== 0)
+    return {
+      problems: [
+        ...problems,
+        `the targets do not link at their modules' addresses (ld exited ${link.code}): ${tail(link, 8)}`,
+      ],
+      modules: sources.length,
+      runsAt: 0,
+    };
   const rom = new Uint8Array(await readFile(target.rom));
   for (const [i, p] of placed.entries()) problems.push(...(await checkLinked(cx, p, i, chunks, rom, dir)));
   return { problems, modules: sources.length, runsAt: placed.filter((p) => p.runsAt).length };
@@ -292,16 +368,23 @@ gate({
       const override = await ramCopyOf(fixture.expect);
       if (override !== undefined) targets.push({ name: `${fixture.name}+runs_at`, rom: fixture.rom, override });
     }
-    if (!targets.some((t) => t.override !== undefined)) throw new Error('no committed fixture declares ramCopy in its expect.json');
-    const datasets: Target[] = cx.tier === 'real' ? cx.datasets.map((d) => ({ name: d.name, rom: path.resolve(cx.benchRoot, d.rom) })) : [];
+    if (!targets.some((t) => t.override !== undefined))
+      throw new Error('no committed fixture declares ramCopy in its expect.json');
+    const datasets: Target[] =
+      cx.tier === 'real' ? cx.datasets.map((d) => ({ name: d.name, rom: path.resolve(cx.benchRoot, d.rom) })) : [];
     const base = await cx.tmpDir('romlift-expected-');
     // Each target in a project of its own: the fixtures FIXTURE_PARALLELISM at once, the tuning ROMs one at a time.
-    const results = await onTargets(targets, datasets, async (target) => ({ target, result: await checkTarget(cx, target, path.join(base, target.name)) }));
+    const results = await onTargets(targets, datasets, async (target) => ({
+      target,
+      result: await checkTarget(cx, target, path.join(base, target.name)),
+    }));
     targets.push(...datasets);
     const problems = results.flatMap(({ target, result }) => result.problems.map((p) => `${target.name}: ${p}`));
     const modules = results.reduce((n, r) => n + r.result.modules, 0);
     const runsAt = results.reduce((n, r) => n + r.result.runsAt, 0);
     if (problems.length > 0) throw new Error(`expected/ against the ROM: ${problems.join(' | ')}`);
-    cx.note(`${modules} expected modules on ${targets.length} targets (${runsAt} runs_at), each linked at its module's address, equal their ROM ranges byte for byte with every symbol where the model places it`);
+    cx.note(
+      `${modules} expected modules on ${targets.length} targets (${runsAt} runs_at), each linked at its module's address, equal their ROM ranges byte for byte with every symbol where the model places it`,
+    );
   },
 });

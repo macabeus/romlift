@@ -40,18 +40,29 @@ export interface ProjectConfig {
   readonly diagnostics: readonly Diagnostic[];
 }
 
-export type LoadConfigResult = { readonly ok: true; readonly value: ProjectConfig } | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
+export type LoadConfigResult =
+  | { readonly ok: true; readonly value: ProjectConfig }
+  | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
 
 const UTF8 = new TextDecoder('utf-8', { fatal: true });
 
 /** The text of `path`, or the diagnostic of reading it (`label` names it in messages). */
-async function readText(path: string, label: string): Promise<{ readonly ok: true; readonly text: string; readonly bytes: Uint8Array } | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] }> {
+async function readText(
+  path: string,
+  label: string,
+): Promise<
+  | { readonly ok: true; readonly text: string; readonly bytes: Uint8Array }
+  | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] }
+> {
   const read = await readBytes(path);
   if (!read.ok) return { ok: false, diagnostics: [{ ...read.diagnostic, path: label }] };
   try {
     return { ok: true, text: UTF8.decode(read.value), bytes: read.value };
   } catch {
-    return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot read ${label}: it is not UTF-8 text`, { path: label })] };
+    return {
+      ok: false,
+      diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot read ${label}: it is not UTF-8 text`, { path: label })],
+    };
   }
 }
 
@@ -65,7 +76,17 @@ export async function loadConfig(projectDir: string): Promise<LoadConfigResult> 
   const found = await decompYamlIn(dir);
   if (!found.ok) return found;
   if (found.path === undefined) {
-    return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_PROJECT_NOT_FOUND', `no decomp.yaml in ${dir}; run \`romlift init <rom>\` to create a project`, { path: dir })] };
+    return {
+      ok: false,
+      diagnostics: [
+        diagnostic(
+          ShellCodes,
+          'E_PROJECT_NOT_FOUND',
+          `no decomp.yaml in ${dir}; run \`romlift init <rom>\` to create a project`,
+          { path: dir },
+        ),
+      ],
+    };
   }
   const yamlName = basename(found.path);
   const yaml = await readText(found.path, yamlName);

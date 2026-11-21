@@ -11,5 +11,7 @@ const profiler = new GCProfiler();
 profiler.start();
 process.on('exit', () => {
   const live = peakLiveHeapOf(profiler.stop());
-  process.stderr.write(`\nromlift-bench-rss ${process.resourceUsage().maxRSS}\nromlift-bench-live-heap ${live === null ? '-' : live.toFixed(2)}\n`);
+  process.stderr.write(
+    `\nromlift-bench-rss ${process.resourceUsage().maxRSS}\nromlift-bench-live-heap ${live === null ? '-' : live.toFixed(2)}\n`,
+  );
 });

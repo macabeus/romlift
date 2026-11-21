@@ -20,7 +20,15 @@ import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 export type CheckId = 'tiling' | 'reencode' | 'module-size' | 'text-layout' | 'paths' | 'assemble' | 'link';
 
 /** Every check, in the order a report lists them. */
-export const CHECK_IDS: readonly CheckId[] = ['tiling', 'reencode', 'module-size', 'text-layout', 'paths', 'assemble', 'link'];
+export const CHECK_IDS: readonly CheckId[] = [
+  'tiling',
+  'reencode',
+  'module-size',
+  'text-layout',
+  'paths',
+  'assemble',
+  'link',
+];
 
 export interface CheckResult {
   readonly id: CheckId;

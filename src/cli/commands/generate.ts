@@ -38,9 +38,20 @@ function writeExitCode(diagnostics: readonly Diagnostic[]): ExitCode {
 }
 
 /** Prints a run's outcome: the op lines (all with --json and --dry-run, the changing ones in text), the diagnostics, the summary. */
-async function printOutcome(io: CliIo, json: boolean, dryRun: boolean, ops: readonly WriteOp[], diagnostics: readonly Diagnostic[], summary: RunSummary): Promise<void> {
+async function printOutcome(
+  io: CliIo,
+  json: boolean,
+  dryRun: boolean,
+  ops: readonly WriteOp[],
+  diagnostics: readonly Diagnostic[],
+  summary: RunSummary,
+): Promise<void> {
   if (json) {
-    await writeLines(io, [...(dryRun ? ops.map(opLine) : []), ...diagnostics.map(diagnosticLine), summaryLine(summary)]);
+    await writeLines(io, [
+      ...(dryRun ? ops.map(opLine) : []),
+      ...diagnostics.map(diagnosticLine),
+      summaryLine(summary),
+    ]);
     return;
   }
   if (diagnostics.length > 0) io.stderr(diagnostics.map((d) => `${formatDiagnosticText(d)}\n`).join(''));
@@ -54,10 +65,24 @@ export const generateCommand: CommandSpec = {
   usage: 'generate [--rom <rom>] [--dry-run] [--json] [--out <dir>]',
   positionals: [],
   options: [
-    { name: 'rom', kind: 'string', summary: "Reads this ROM instead of the config's [rom] path (it must have the recorded SHA-1)", value: '<rom>' },
+    {
+      name: 'rom',
+      kind: 'string',
+      summary: "Reads this ROM instead of the config's [rom] path (it must have the recorded SHA-1)",
+      value: '<rom>',
+    },
     { name: 'dry-run', kind: 'boolean', summary: 'Prints the write plan instead of applying it' },
-    { name: 'json', kind: 'boolean', summary: 'Prints NDJSON: the ops (with --dry-run), the diagnostics, then a summary' },
-    { name: 'out', kind: 'string', summary: 'Writes the tree into this directory instead of the project', value: '<dir>' },
+    {
+      name: 'json',
+      kind: 'boolean',
+      summary: 'Prints NDJSON: the ops (with --dry-run), the diagnostics, then a summary',
+    },
+    {
+      name: 'out',
+      kind: 'string',
+      summary: 'Writes the tree into this directory instead of the project',
+      value: '<dir>',
+    },
   ],
   async run(args, io) {
     const json = args.flags['json'] === true;
@@ -79,7 +104,11 @@ export const generateCommand: CommandSpec = {
     const checked = [...result.diagnostics, ...result.report.checks.flatMap((c) => c.diagnostics)];
     if (!writable(result)) {
       const exitCode = verifyExitCode({ report: result.report, diagnostics: result.diagnostics });
-      printDiagnosticsOnly(io, json, 'generate', checked, { ok: false, exitCode, counts: { files: result.paths.length } });
+      printDiagnosticsOnly(io, json, 'generate', checked, {
+        ok: false,
+        exitCode,
+        counts: { files: result.paths.length },
+      });
       return exitCode;
     }
     const version = await packageVersion();
@@ -89,11 +118,24 @@ export const generateCommand: CommandSpec = {
     }
     const out = args.options['out'];
     const dir = out === undefined ? project.dir : resolveFrom(io.cwd, out);
-    const written = await writeTree(dir, { result, rom: project.inputs.rom, target: dir === project.dir ? 'project' : 'out' }, version.value, dryRun);
+    const written = await writeTree(
+      dir,
+      { result, rom: project.inputs.rom, target: dir === project.dir ? 'project' : 'out' },
+      version.value,
+      dryRun,
+    );
     const ops: readonly WriteOp[] = written.ok ? written.value.plan.ops : [];
-    const diagnostics: readonly Diagnostic[] = [...project.notes, ...checked, ...(written.ok ? written.value.diagnostics : written.diagnostics)];
+    const diagnostics: readonly Diagnostic[] = [
+      ...project.notes,
+      ...checked,
+      ...(written.ok ? written.value.diagnostics : written.diagnostics),
+    ];
     const exitCode = writeExitCode(diagnostics);
-    const summary: RunSummary = { ok: exitCode === ExitCode.ok, exitCode, counts: { ...opCounts(ops), files: result.paths.length } };
+    const summary: RunSummary = {
+      ok: exitCode === ExitCode.ok,
+      exitCode,
+      counts: { ...opCounts(ops), files: result.paths.length },
+    };
     await printOutcome(io, json, dryRun, ops, diagnostics, summary);
     return exitCode;
   },

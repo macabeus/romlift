@@ -62,18 +62,30 @@ interface Verdict {
   readonly scored: number;
   readonly differences: Readonly<Record<string, number>>;
   readonly examples: readonly { readonly function: string; readonly kind: string; readonly detail: string }[];
-  readonly classes: { readonly counts: Readonly<Record<string, number>>; readonly gated: number; readonly uncompared: number; readonly gatedExamples: readonly unknown[] };
+  readonly classes: {
+    readonly counts: Readonly<Record<string, number>>;
+    readonly gated: number;
+    readonly uncompared: number;
+    readonly gatedExamples: readonly unknown[];
+  };
 }
 
-type ChildLine = { readonly unavailable: string } | { readonly version: string; readonly pool: Verdict; readonly same: Verdict };
+type ChildLine =
+  | { readonly unavailable: string }
+  | { readonly version: string; readonly pool: Verdict; readonly same: Verdict };
 
 function runChild(): Promise<{ readonly code: number; readonly stdout: string; readonly stderr: string }> {
   return new Promise((resolve) => {
     execFile(
       process.execPath,
       ['--conditions=source', '--input-type=module', '--eval', CHILD],
-      { cwd: REPO, env: { ...process.env, ROMLIFT_OBJDIFF_REPO: REPO, ROMLIFT_OBJDIFF_BENCH_ROOT: BENCH_ROOT }, encoding: 'utf8' },
-      (error, stdout, stderr) => resolve({ code: error === null ? 0 : typeof error.code === 'number' ? error.code : 1, stdout, stderr }),
+      {
+        cwd: REPO,
+        env: { ...process.env, ROMLIFT_OBJDIFF_REPO: REPO, ROMLIFT_OBJDIFF_BENCH_ROOT: BENCH_ROOT },
+        encoding: 'utf8',
+      },
+      (error, stdout, stderr) =>
+        resolve({ code: error === null ? 0 : typeof error.code === 'number' ? error.code : 1, stdout, stderr }),
     );
   });
 }
@@ -89,7 +101,15 @@ test('the pinned objdiff-cli gates a misnamed pool word and finds no difference 
   }
   t.diagnostic(`${line.version}: PoolFunc ${JSON.stringify(line.pool.differences)}`);
   assert.deepEqual(line.pool.differences, { relocation: 1 });
-  assert.deepEqual(line.pool.examples.map((e) => [e.function, e.kind, e.detail]), [['PoolFunc', 'relocation', '+0x1c R_ARM_ABS32: gTarget | gOther']]);
+  assert.deepEqual(
+    line.pool.examples.map((e) => [e.function, e.kind, e.detail]),
+    [['PoolFunc', 'relocation', '+0x1c R_ARM_ABS32: gTarget | gOther']],
+  );
   assert.equal(line.pool.classes.gated, 1, 'a misnamed pool word is gated under D34 as amended (D102)');
-  assert.deepEqual(line.same, { scored: 1, differences: {}, examples: [], classes: { counts: {}, gated: 0, uncompared: 0, gatedExamples: [] } });
+  assert.deepEqual(line.same, {
+    scored: 1,
+    differences: {},
+    examples: [],
+    classes: { counts: {}, gated: 0, uncompared: 0, gatedExamples: [] },
+  });
 });

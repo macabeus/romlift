@@ -12,8 +12,8 @@ import { pointersTo } from '../pointers.ts';
 import { Claim } from '../types.ts';
 import type { AnalysisOptions, AnalysisResult, AnalysisTuning, ClaimKind, RuleRegistry } from '../types.ts';
 import { anchoredAtEnd, anchoredAtStart } from '../walk/predicates.ts';
-import { RULES } from './rules.ts';
 import { ownerOf } from './facts.ts';
+import { RULES } from './rules.ts';
 import { resultOf, runDriver } from './run.ts';
 import { settle } from './settle.ts';
 import { claimAt, createDriver } from './state.ts';
@@ -75,14 +75,23 @@ export function diagnoseMiss(s: DriverState, miss: MissQuery): MissDiagnosis {
       ...rule('inside-code'),
       claim: c,
       ...(owner === undefined ? {} : { owner }),
-      detail: owner === undefined ? `inside ${CLAIMED_AS[c]} no accepted function owns` : `inside ${CLAIMED_AS[c]} of the accepted function at ${hexAddr(owner)}`,
+      detail:
+        owner === undefined
+          ? `inside ${CLAIMED_AS[c]} no accepted function owns`
+          : `inside ${CLAIMED_AS[c]} of the accepted function at ${hexAddr(owner)}`,
     };
   }
   if (mode === 'arm') {
-    return { ...base, reason: 'arm-unreached', ...rule('arm-unreached'), detail: 'ARM routine never reached: not a bl, adr or veneer target of accepted code, and no ARM gap scan took it' };
+    return {
+      ...base,
+      reason: 'arm-unreached',
+      ...rule('arm-unreached'),
+      detail: 'ARM routine never reached: not a bl, adr or veneer target of accepted code, and no ARM gap scan took it',
+    };
   }
   const failure = whyInvalid(s, addr);
-  if (failure !== undefined) return { ...base, reason: failure.reason, rule: failure.rule, detail: `fails validity: ${failure.detail}` };
+  if (failure !== undefined)
+    return { ...base, reason: failure.reason, rule: failure.rule, detail: `fails validity: ${failure.detail}` };
   const r = settle(s, addr);
   const refs = pointersTo(s.pointers, addr).length;
   const evidence = [
@@ -94,7 +103,13 @@ export function diagnoseMiss(s: DriverState, miss: MissQuery): MissDiagnosis {
   // A gap candidate an accept veto rejected names that veto (its rejection is recorded under the veto's id).
   const recorded = s.rejections.get(rejectionKey(addr, mode));
   const veto = recorded !== undefined && s.rules.veto.some((v) => v.id === recorded.rule) ? recorded : undefined;
-  if (veto !== undefined) return { ...base, reason: veto.reason, rule: veto.rule, detail: `valid but vetoed by ${veto.rule}: ${veto.detail}; ${evidence.join(', ')}` };
+  if (veto !== undefined)
+    return {
+      ...base,
+      reason: veto.reason,
+      rule: veto.rule,
+      detail: `valid but vetoed by ${veto.rule}: ${veto.detail}; ${evidence.join(', ')}`,
+    };
   return { ...base, reason: 'unanchored', detail: `valid but not accepted: ${evidence.join(', ')}` };
 }
 

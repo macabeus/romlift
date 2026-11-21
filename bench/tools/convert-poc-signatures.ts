@@ -19,15 +19,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-
 import {
-  compareCodeUnits,
-  mapPlacements,
-  memberIdOf,
-  parseElf,
-  parseGnuMap,
-  parseSignatureFile,
-  signatureFileText,
   type ElfSymbol,
   type LibraryVersion,
   type LinkOrderMember,
@@ -36,12 +28,19 @@ import {
   type SignatureFile,
   type SignatureFunction,
   type SignatureTable,
+  compareCodeUnits,
+  mapPlacements,
+  memberIdOf,
+  parseElf,
+  parseGnuMap,
+  parseSignatureFile,
+  signatureFileText,
 } from 'romlift';
 import { sha1Of } from 'romlift/node';
 
-import { parseArgs, UsageError } from '../src/args.ts';
-import { contextFromEnv, type BenchContext } from '../src/context.ts';
-import { loadDatasets, type Dataset } from '../src/dataset.ts';
+import { UsageError, parseArgs } from '../src/args.ts';
+import { type BenchContext, contextFromEnv } from '../src/context.ts';
+import { type Dataset, loadDatasets } from '../src/dataset.ts';
 import { BenchError, exists, isRecord, listFiles, readFileBytes, readJson, readText } from '../src/files.ts';
 
 const USAGE = 'usage: node --conditions=source bench/tools/convert-poc-signatures.ts [--out <dir>]';
@@ -70,7 +69,11 @@ export interface PocMember {
 export interface PocVersion {
   readonly version: string;
   readonly note?: string;
-  readonly references: readonly { readonly project: string; readonly commit: string | null; readonly romSha1: string }[];
+  readonly references: readonly {
+    readonly project: string;
+    readonly commit: string | null;
+    readonly romSha1: string;
+  }[];
   readonly functions: readonly PocMember[];
   readonly objects: readonly PocMember[];
 }
@@ -95,26 +98,51 @@ export interface PocSpec {
 function pocMember(value: unknown, where: string): PocMember {
   if (!isRecord(value)) throw new BenchError(`${where}: not an object`);
   const { name, ref, refAddr, size, bytes, mask, mode, pointers } = value;
-  if (typeof name !== 'string' || typeof ref !== 'number' || typeof refAddr !== 'number' || typeof size !== 'number' || typeof bytes !== 'string' || typeof mask !== 'string') {
+  if (
+    typeof name !== 'string' ||
+    typeof ref !== 'number' ||
+    typeof refAddr !== 'number' ||
+    typeof size !== 'number' ||
+    typeof bytes !== 'string' ||
+    typeof mask !== 'string'
+  ) {
     throw new BenchError(`${where}: not a PoC signature member`);
   }
   const member: PocMember = { name, ref, refAddr, size, bytes, mask };
   const withMode: PocMember = mode === 'thumb' || mode === 'arm' ? { ...member, mode } : member;
   if (pointers === undefined) return withMode;
-  if (!Array.isArray(pointers) || !pointers.every((p) => p === null || typeof p === 'string')) throw new BenchError(`${where}: pointers is not a list of names`);
+  if (!Array.isArray(pointers) || !pointers.every((p) => p === null || typeof p === 'string'))
+    throw new BenchError(`${where}: pointers is not a list of names`);
   return { ...withMode, pointers: pointers as readonly (string | null)[] };
 }
 
 /** A PoC signature file of schema 2, checked field by field. */
 export function parsePocFile(value: unknown, where: string): PocFile {
-  if (!isRecord(value) || value['schema'] !== 2 || typeof value['library'] !== 'string' || !Array.isArray(value['versions'])) throw new BenchError(`${where}: not a PoC signature file of schema 2`);
+  if (
+    !isRecord(value) ||
+    value['schema'] !== 2 ||
+    typeof value['library'] !== 'string' ||
+    !Array.isArray(value['versions'])
+  )
+    throw new BenchError(`${where}: not a PoC signature file of schema 2`);
   const versions = value['versions'].map((v: unknown, i: number): PocVersion => {
-    if (!isRecord(v) || typeof v['version'] !== 'string' || !Array.isArray(v['references']) || !Array.isArray(v['functions']) || !Array.isArray(v['objects'])) {
+    if (
+      !isRecord(v) ||
+      typeof v['version'] !== 'string' ||
+      !Array.isArray(v['references']) ||
+      !Array.isArray(v['functions']) ||
+      !Array.isArray(v['objects'])
+    ) {
       throw new BenchError(`${where}: version ${i} is malformed`);
     }
     const references = v['references'].map((r: unknown) => {
-      if (!isRecord(r) || typeof r['project'] !== 'string' || typeof r['romSha1'] !== 'string') throw new BenchError(`${where}: a reference of version ${i} is malformed`);
-      return { project: r['project'], commit: typeof r['commit'] === 'string' ? r['commit'] : null, romSha1: r['romSha1'] };
+      if (!isRecord(r) || typeof r['project'] !== 'string' || typeof r['romSha1'] !== 'string')
+        throw new BenchError(`${where}: a reference of version ${i} is malformed`);
+      return {
+        project: r['project'],
+        commit: typeof r['commit'] === 'string' ? r['commit'] : null,
+        romSha1: r['romSha1'],
+      };
     });
     const note = typeof v['note'] === 'string' ? { note: v['note'] } : {};
     return {
@@ -130,15 +158,22 @@ export function parsePocFile(value: unknown, where: string): PocFile {
 
 /** A PoC signature spec, the fields the conversion reads. */
 export function parsePocSpec(value: unknown, where: string): PocSpec {
-  if (!isRecord(value) || typeof value['library'] !== 'string' || !Array.isArray(value['versions'])) throw new BenchError(`${where}: not a PoC signature spec`);
-  const strings = (x: unknown): readonly string[] | undefined => (Array.isArray(x) && x.every((s) => typeof s === 'string') ? (x as readonly string[]) : undefined);
+  if (!isRecord(value) || typeof value['library'] !== 'string' || !Array.isArray(value['versions']))
+    throw new BenchError(`${where}: not a PoC signature spec`);
+  const strings = (x: unknown): readonly string[] | undefined =>
+    Array.isArray(x) && x.every((s) => typeof s === 'string') ? (x as readonly string[]) : undefined;
   const versions = value['versions'].map((v: unknown) => {
-    if (!isRecord(v) || typeof v['version'] !== 'string' || !Array.isArray(v['references'])) throw new BenchError(`${where}: a version is malformed`);
+    if (!isRecord(v) || typeof v['version'] !== 'string' || !Array.isArray(v['references']))
+      throw new BenchError(`${where}: a version is malformed`);
     const references = v['references'].map((r: unknown): PocSpecReference => {
       if (!isRecord(r) || typeof r['project'] !== 'string') throw new BenchError(`${where}: a reference is malformed`);
       const objects = strings(r['objects']);
       const symbols = strings(r['symbols']);
-      return { project: r['project'], ...(objects === undefined ? {} : { objects }), ...(symbols === undefined ? {} : { symbols }) };
+      return {
+        project: r['project'],
+        ...(objects === undefined ? {} : { objects }),
+        ...(symbols === undefined ? {} : { symbols }),
+      };
     });
     return { version: v['version'], references };
   });
@@ -169,7 +204,12 @@ interface Enumerated {
 
 /** The PoC's `(^|/)glob$` with `*` spanning '/', as a regular expression. */
 function globRegExp(glob: string): RegExp {
-  return new RegExp(`(^|/)${glob.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.')}$`);
+  return new RegExp(
+    `(^|/)${glob
+      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*/g, '.*')
+      .replace(/\?/g, '.')}$`,
+  );
 }
 
 /** The members a reference links (functions in address order, then the tables in spec order), as the PoC enumerated them. */
@@ -185,8 +225,11 @@ function enumerate(build: ReferenceBuild, spec: PocSpecReference): readonly Enum
   const out: Enumerated[] = [];
   const placements = build.text.filter((p) => globs.some((g) => g.test(p.object))).sort((a, b) => a.start - b.start);
   for (const p of placements) {
-    const inside = [...functionAt.values()].filter((s) => s.addr >= p.start && s.addr < p.start + p.size).sort((a, b) => a.addr - b.addr);
-    for (const s of inside) out.push({ symbol: s.name, global: s.bind !== 'local', addr: s.addr, object: p.object, kind: 'function' });
+    const inside = [...functionAt.values()]
+      .filter((s) => s.addr >= p.start && s.addr < p.start + p.size)
+      .sort((a, b) => a.addr - b.addr);
+    for (const s of inside)
+      out.push({ symbol: s.name, global: s.bind !== 'local', addr: s.addr, object: p.object, kind: 'function' });
   }
   for (const name of spec.symbols ?? []) {
     const s = inRom.find((x) => x.name === name && x.type === 'object');
@@ -211,13 +254,27 @@ function wordAt(hex: string, offset: number): number {
 }
 
 /** One PoC version in schema 3, from its references' builds (in the version's reference order). */
-export function convertVersion(library: string, poc: PocVersion, spec: PocSpec['versions'][number], builds: readonly ReferenceBuild[]): LibraryVersion {
+export function convertVersion(
+  library: string,
+  poc: PocVersion,
+  spec: PocSpec['versions'][number],
+  builds: readonly ReferenceBuild[],
+): LibraryVersion {
   const where = `${library} ${poc.version}`;
-  if (spec.references.length !== poc.references.length || builds.length !== poc.references.length) throw new BenchError(`${where}: the PoC file, its spec and the builds name different references`);
+  if (spec.references.length !== poc.references.length || builds.length !== poc.references.length)
+    throw new BenchError(`${where}: the PoC file, its spec and the builds name different references`);
   poc.references.forEach((r, i) => {
     const build = builds[i];
-    if (build === undefined || build.dataset !== datasetOfProject(r.project) || spec.references[i]?.project !== r.project) throw new BenchError(`${where}: reference ${i} is not ${r.project}`);
-    if (r.romSha1 !== build.sha1) throw new BenchError(`${where}: the PoC's ${r.project} ROM is ${r.romSha1}, the ${build.dataset} dataset's ${build.sha1}`);
+    if (
+      build === undefined ||
+      build.dataset !== datasetOfProject(r.project) ||
+      spec.references[i]?.project !== r.project
+    )
+      throw new BenchError(`${where}: reference ${i} is not ${r.project}`);
+    if (r.romSha1 !== build.sha1)
+      throw new BenchError(
+        `${where}: the PoC's ${r.project} ROM is ${r.romSha1}, the ${build.dataset} dataset's ${build.sha1}`,
+      );
   });
 
   // Every member id, from the reference that contributed it.
@@ -229,7 +286,10 @@ export function convertVersion(library: string, poc: PocVersion, spec: PocSpec['
   builds.forEach((build, r) => {
     const specRef = spec.references[r];
     if (specRef === undefined) return;
-    const contributed = [...poc.functions.map((m) => ({ m, kind: 'function' as const })), ...poc.objects.map((m) => ({ m, kind: 'table' as const }))].filter((c) => c.m.ref === r);
+    const contributed = [
+      ...poc.functions.map((m) => ({ m, kind: 'function' as const })),
+      ...poc.objects.map((m) => ({ m, kind: 'table' as const })),
+    ].filter((c) => c.m.ref === r);
     const here: LinkOrderMember[] = [];
     const fnHere = new Map<number, MemberId>();
     for (const e of enumerate(build, specRef)) {
@@ -238,8 +298,16 @@ export function convertVersion(library: string, poc: PocVersion, spec: PocSpec['
       let linked = byId.has(id) ? id : e.global ? byGlobal.get(key) : undefined;
       if (linked === undefined) {
         const own = contributed.find((c) => c.kind === e.kind && c.m.refAddr === e.addr);
-        if (own === undefined || !(own.m.name === e.symbol || (own.m.name.startsWith(e.symbol) && /^_\d+$/.test(own.m.name.slice(e.symbol.length))))) {
-          throw new BenchError(`${where} ${build.dataset}: ${id} at 0x${e.addr.toString(16)} is no member the PoC's file has`);
+        if (
+          own === undefined ||
+          !(
+            own.m.name === e.symbol ||
+            (own.m.name.startsWith(e.symbol) && /^_\d+$/.test(own.m.name.slice(e.symbol.length)))
+          )
+        ) {
+          throw new BenchError(
+            `${where} ${build.dataset}: ${id} at 0x${e.addr.toString(16)} is no member the PoC's file has`,
+          );
         }
         idOfPoc.set(own.m, id);
         byId.set(id, e.kind);
@@ -249,7 +317,11 @@ export function convertVersion(library: string, poc: PocVersion, spec: PocSpec['
       if (e.kind === 'function') fnHere.set(e.addr, linked);
       here.push({ id: linked, addr: e.addr });
     }
-    for (const c of contributed) if (!idOfPoc.has(c.m)) throw new BenchError(`${where} ${build.dataset}: the PoC's ${c.m.name} at 0x${c.m.refAddr.toString(16)} is no member of this reference`);
+    for (const c of contributed)
+      if (!idOfPoc.has(c.m))
+        throw new BenchError(
+          `${where} ${build.dataset}: the PoC's ${c.m.name} at 0x${c.m.refAddr.toString(16)} is no member of this reference`,
+        );
     here.sort((a, b) => a.addr - b.addr || compareCodeUnits(a.id, b.id));
     linkOrder.push({ reference: build.dataset, members: here });
     functionsAt.push(fnHere);
@@ -258,7 +330,8 @@ export function convertVersion(library: string, poc: PocVersion, spec: PocSpec['
   const symbolOf = (id: MemberId): string => id.slice(0, id.lastIndexOf('@'));
   const functions = poc.functions.map((m): SignatureFunction => {
     const id = idOfPoc.get(m);
-    if (id === undefined || m.mode === undefined) throw new BenchError(`${where}: function ${m.name} has no id or mode`);
+    if (id === undefined || m.mode === undefined)
+      throw new BenchError(`${where}: function ${m.name} has no id or mode`);
     return { id, name: symbolOf(id), mode: m.mode, size: m.size, bytes: m.bytes, mask: m.mask };
   });
   const tables = poc.objects.map((m): SignatureTable => {
@@ -275,11 +348,21 @@ export function convertVersion(library: string, poc: PocVersion, spec: PocSpec['
 }
 
 /** A PoC file in schema 3. */
-export function convertPocFile(poc: PocFile, spec: PocSpec, builds: (dataset: string) => ReferenceBuild): SignatureFile {
+export function convertPocFile(
+  poc: PocFile,
+  spec: PocSpec,
+  builds: (dataset: string) => ReferenceBuild,
+): SignatureFile {
   const versions = poc.versions.map((v) => {
     const specVersion = spec.versions.find((s) => s.version === v.version);
-    if (specVersion === undefined) throw new BenchError(`${poc.library} ${v.version}: the PoC's spec has no such version`);
-    return convertVersion(poc.library, v, specVersion, v.references.map((r) => builds(datasetOfProject(r.project))));
+    if (specVersion === undefined)
+      throw new BenchError(`${poc.library} ${v.version}: the PoC's spec has no such version`);
+    return convertVersion(
+      poc.library,
+      v,
+      specVersion,
+      v.references.map((r) => builds(datasetOfProject(r.project))),
+    );
   });
   const file: SignatureFile = { schema: 3, library: poc.library, builtWith: 'poc-converted', versions };
   const check = parseSignatureFile(JSON.parse(signatureFileText(file)));
@@ -293,13 +376,22 @@ async function readBuild(cx: BenchContext, dataset: Dataset): Promise<ReferenceB
   if (dataset.map === undefined) throw new BenchError(`${dataset.name}: the dataset names no map`);
   const rom = await readFileBytes(resolve(cx.benchRoot, dataset.rom));
   const sha1 = sha1Of(rom);
-  if (sha1 !== dataset.sha1) throw new BenchError(`${dataset.name}: ${dataset.rom} has SHA-1 ${sha1}, the dataset records ${dataset.sha1}`);
+  if (sha1 !== dataset.sha1)
+    throw new BenchError(`${dataset.name}: ${dataset.rom} has SHA-1 ${sha1}, the dataset records ${dataset.sha1}`);
   const elf = parseElf(await readFileBytes(resolve(cx.benchRoot, dataset.elf)));
   if (!elf.ok) throw new BenchError(`${dataset.name}: ${elf.error}`);
   const map = parseGnuMap(await readText(resolve(cx.benchRoot, dataset.map)));
   if (!map.ok) throw new BenchError(`${dataset.name}: ${map.error}`);
   const placements = mapPlacements(map.value);
-  return { dataset: dataset.name, commit: dataset.elfCommit, sha1, romEnd: 0x0800_0000 + rom.length, symbols: elf.value.symbols, text: placements.text, data: placements.data };
+  return {
+    dataset: dataset.name,
+    commit: dataset.elfCommit,
+    sha1,
+    romEnd: 0x0800_0000 + rom.length,
+    symbols: elf.value.symbols,
+    text: placements.text,
+    data: placements.data,
+  };
 }
 
 async function main(argv: readonly string[]): Promise<number> {
@@ -308,7 +400,8 @@ async function main(argv: readonly string[]): Promise<number> {
   const out = resolve(args.options['out'] ?? join(cx.repoRoot, 'bench', '.local', 'signatures-poc'));
   const pocRoot = resolve(cx.pocRoot);
   const inside = relative(pocRoot, out);
-  if (inside === '' || (!inside.startsWith('..') && !inside.startsWith('/'))) throw new BenchError(`--out ${out} lies inside the PoC checkout ${pocRoot}, which is read-only`);
+  if (inside === '' || (!inside.startsWith('..') && !inside.startsWith('/')))
+    throw new BenchError(`--out ${out} lies inside the PoC checkout ${pocRoot}, which is read-only`);
   const sigDir = join(pocRoot, 'signatures');
   if (!(await exists(sigDir))) throw new BenchError(`no ${sigDir}: set ROMLIFT_POC to the PoC checkout`);
   const { datasets } = await loadDatasets(cx);
@@ -335,7 +428,9 @@ async function main(argv: readonly string[]): Promise<number> {
       return build;
     });
     await writeFile(join(out, `${file.library}.json`), signatureFileText(file));
-    const counts = file.versions.map((v) => `${v.id} ${v.functions.length} functions, ${v.tables.length} tables`).join('; ');
+    const counts = file.versions
+      .map((v) => `${v.id} ${v.functions.length} functions, ${v.tables.length} tables`)
+      .join('; ');
     process.stdout.write(`${file.library}: ${counts}\n`);
   }
   process.stdout.write(`converted ${names.length} PoC signature files into ${out}\n`);

@@ -15,7 +15,9 @@ test('the fixture modules add up to their spans', () => {
 });
 
 test('every module that misses its span is named with its size and its items’ sum', () => {
-  const modules = model.modules.map((m, i) => (i === 1 || i === 2 ? { ...m, span: { start: m.span.start, end: m.span.end + 4 } } : m));
+  const modules = model.modules.map((m, i) =>
+    i === 1 || i === 2 ? { ...m, span: { start: m.span.start, end: m.span.end + 4 } } : m,
+  );
   const result = checkModuleSize({ ...model, modules });
   assert.equal(result.ok, false);
   assert.deepEqual(
@@ -30,7 +32,9 @@ test('every module that misses its span is named with its size and its items’ 
 });
 
 test('a chunk dropped from a module leaves its items out of the sum', () => {
-  const modules = model.modules.map((m, i) => (i === 2 ? { ...m, chunks: { first: m.chunks.first, count: m.chunks.count - 1 } } : m));
+  const modules = model.modules.map((m, i) =>
+    i === 2 ? { ...m, chunks: { first: m.chunks.first, count: m.chunks.count - 1 } } : m,
+  );
   const d = checkModuleSize({ ...model, modules }).diagnostics;
   assert.equal(d.length, 1);
   assert.match(d[0]?.message ?? '', /module main spans 64 bytes .* add up to 20/);

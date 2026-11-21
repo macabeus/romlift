@@ -34,19 +34,30 @@ test('a head that is valid, not dense or pops the frame is the gap head', () => 
 
 test('declined: any other validity failure', () => {
   for (const reason of ['decode-error', 'calls-non-code', 'no-return-no-prologue', 'pool-claimed'] as const) {
-    assert.equal(rule.head(gapCursor(P, END, P), viewWith({ rom, whyInvalid: () => failing(reason) })), undefined, reason);
+    assert.equal(
+      rule.head(gapCursor(P, END, P), viewWith({ rom, whyInvalid: () => failing(reason) })),
+      undefined,
+      reason,
+    );
   }
 });
 
 test('declined: a function, a claimed byte or a zero word at the cursor', () => {
   assert.equal(rule.head(gapCursor(P, END, P), viewWith({ rom, functions: [P] })), undefined);
-  assert.equal(rule.head(gapCursor(P, END, P), viewWith({ rom, claims: [{ span: { start: P, end: P + 2 }, kind: Claim.dead }] })), undefined);
+  assert.equal(
+    rule.head(gapCursor(P, END, P), viewWith({ rom, claims: [{ span: { start: P, end: P + 2 }, kind: Claim.dead }] })),
+    undefined,
+  );
   assert.equal(rule.head(gapCursor(P, END, P + 0x20), viewWith({ rom })), undefined);
 });
 
 test('declined: code past the current end', () => {
   assert.equal(rule.head(gapCursor(P, END, P, { end: P + 4 }), viewWith({ rom })), undefined);
-  assert.equal(rule.head(gapCursor(P, END, P, { end: P + 6 }), viewWith({ rom }))?.entry, P, 'ending exactly at the end');
+  assert.equal(
+    rule.head(gapCursor(P, END, P, { end: P + 6 }), viewWith({ rom }))?.entry,
+    P,
+    'ending exactly at the end',
+  );
 });
 
 test('at least gapScan.minInsns instructions (profile boundary)', () => {

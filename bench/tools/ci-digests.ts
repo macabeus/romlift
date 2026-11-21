@@ -16,8 +16,11 @@
 import { readFile } from 'node:fs/promises';
 import { arch, platform } from 'node:os';
 import { fileURLToPath } from 'node:url';
-
 import {
+  type AnalysisResult,
+  type CompilerProfile,
+  type FileEntry,
+  type Rom,
   analyze,
   buildModel,
   compareCodeUnits,
@@ -26,17 +29,13 @@ import {
   encodeAnalysis,
   profileById,
   romFromBytes,
-  type AnalysisResult,
-  type CompilerProfile,
-  type FileEntry,
-  type Rom,
 } from 'romlift';
 import { sha1Of, sha256Stream } from 'romlift/node';
 
 import { listFixtures } from '../src/ablate.ts';
 import { discoverOptions } from '../src/analysis-run.ts';
-import { parseArgs, UsageError } from '../src/args.ts';
-import { contextFromEnv, type BenchContext } from '../src/context.ts';
+import { UsageError, parseArgs } from '../src/args.ts';
+import { type BenchContext, contextFromEnv } from '../src/context.ts';
 import { BenchError, isRecord, readFileBytes } from '../src/files.ts';
 
 export const CI_DIGESTS_SCHEMA = 'romlift-bench/ci-digests@2';
@@ -76,7 +75,8 @@ export function fixtureDigest(bytes: Uint8Array, profile: CompilerProfile = agbc
 }
 
 function* treeParts(entries: Iterable<FileEntry>): Generator<string> {
-  for (const entry of entries) yield `${entry.path}\0${entry.ownership === 'reconciled' ? JSON.stringify(entry.edits) : entry.text}\0`;
+  for (const entry of entries)
+    yield `${entry.path}\0${entry.ownership === 'reconciled' ? JSON.stringify(entry.edits) : entry.text}\0`;
 }
 
 /**
@@ -90,7 +90,10 @@ export function treeDigest(rom: Rom, analysis: AnalysisResult): string {
 }
 
 /** The analysis digest of `bytes` and the tree digest emitted from the same analysis. */
-export function fixtureDigests(bytes: Uint8Array, profile: CompilerProfile = agbcc()): { readonly analysis: string; readonly tree: string } {
+export function fixtureDigests(
+  bytes: Uint8Array,
+  profile: CompilerProfile = agbcc(),
+): { readonly analysis: string; readonly tree: string } {
   const rom = romFromBytes(bytes, sha1Of(bytes));
   const result = analyze(rom, profile, discoverOptions());
   return { analysis: sha256Stream(encodeAnalysis(result)), tree: treeDigest(rom, result) };
@@ -119,7 +122,8 @@ function digestMap(value: unknown, where: string, key: string): Record<string, s
   const out: Record<string, string> = {};
   for (const name of Object.keys(value).sort(compareCodeUnits)) {
     const digest = value[name];
-    if (typeof digest !== 'string' || !SHA256.test(digest)) throw new BenchError(`${where}: ${key}.${name} is not a sha256`);
+    if (typeof digest !== 'string' || !SHA256.test(digest))
+      throw new BenchError(`${where}: ${key}.${name} is not a sha256`);
     out[name] = digest;
   }
   if (Object.keys(out).length === 0) throw new BenchError(`${where}: ${key} is empty`);
@@ -129,11 +133,18 @@ function digestMap(value: unknown, where: string, key: string): Record<string, s
 /** Reads one uploaded file's JSON; throws a BenchError naming `where` and the first problem. */
 export function parseCiDigests(value: unknown, where: string): CiDigests {
   if (!isRecord(value)) throw new BenchError(`${where}: not a JSON object`);
-  if (value['schema'] !== CI_DIGESTS_SCHEMA) throw new BenchError(`${where}: schema is ${JSON.stringify(value['schema'])}, expected ${CI_DIGESTS_SCHEMA}`);
+  if (value['schema'] !== CI_DIGESTS_SCHEMA)
+    throw new BenchError(`${where}: schema is ${JSON.stringify(value['schema'])}, expected ${CI_DIGESTS_SCHEMA}`);
   const { node, os } = value;
   if (typeof node !== 'string' || node === '') throw new BenchError(`${where}: node is not a non-empty string`);
   if (typeof os !== 'string' || os === '') throw new BenchError(`${where}: os is not a non-empty string`);
-  return { schema: CI_DIGESTS_SCHEMA, node, os, digests: digestMap(value['digests'], where, 'digests'), trees: digestMap(value['trees'], where, 'trees') };
+  return {
+    schema: CI_DIGESTS_SCHEMA,
+    node,
+    os,
+    digests: digestMap(value['digests'], where, 'digests'),
+    trees: digestMap(value['trees'], where, 'trees'),
+  };
 }
 
 export interface JobDigests {
@@ -156,9 +167,12 @@ const KINDS: readonly { readonly key: 'digests' | 'trees'; readonly what: string
  */
 export function compareCiDigests(jobs: readonly JobDigests[], expect?: number): string[] {
   const problems: string[] = [];
-  if (expect !== undefined && jobs.length !== expect) problems.push(`${jobs.length} digest file(s), expected ${expect}`);
+  if (expect !== undefined && jobs.length !== expect)
+    problems.push(`${jobs.length} digest file(s), expected ${expect}`);
   if (jobs.length === 0) return problems.length > 0 ? problems : ['no digest file to compare'];
-  const names = [...new Set(jobs.flatMap((j) => [...Object.keys(j.report.digests), ...Object.keys(j.report.trees)]))].sort(compareCodeUnits);
+  const names = [
+    ...new Set(jobs.flatMap((j) => [...Object.keys(j.report.digests), ...Object.keys(j.report.trees)])),
+  ].sort(compareCodeUnits);
   for (const name of names) {
     for (const kind of KINDS) {
       const lacking = jobs.filter((j) => j.report[kind.key][name] === undefined);
@@ -169,7 +183,9 @@ export function compareCiDigests(jobs: readonly JobDigests[], expect?: number): 
         if (digest !== undefined) seen.set(digest, [...(seen.get(digest) ?? []), j]);
       }
       if (seen.size > 1) {
-        const groups = [...seen.keys()].sort(compareCodeUnits).map((digest) => `${digest} on ${(seen.get(digest) ?? []).map(jobName).join(', ')}`);
+        const groups = [...seen.keys()]
+          .sort(compareCodeUnits)
+          .map((digest) => `${digest} on ${(seen.get(digest) ?? []).map(jobName).join(', ')}`);
         problems.push(`${name}: ${kind.what}: ${groups.join('; ')}`);
       }
     }
@@ -194,20 +210,24 @@ async function compareFiles(files: readonly string[], expect: number | undefined
     return 1;
   }
   const fixtures = Object.keys(jobs[0]?.report.digests ?? {}).length;
-  process.stdout.write(`${fixtures} fixture analysis and tree digest(s) agree across ${jobs.length} job(s): ${jobs.map((j) => `${j.report.os} Node ${j.report.node}`).join(', ')}\n`);
+  process.stdout.write(
+    `${fixtures} fixture analysis and tree digest(s) agree across ${jobs.length} job(s): ${jobs.map((j) => `${j.report.os} Node ${j.report.node}`).join(', ')}\n`,
+  );
   return 0;
 }
 
 async function main(argv: readonly string[]): Promise<number> {
   const args = parseArgs(argv, { options: ['expect'], flags: ['compare'], maxPositionals: Number.MAX_SAFE_INTEGER });
   if (!args.flags.has('compare')) {
-    if (args.positionals.length > 0 || args.options['expect'] !== undefined) throw new UsageError('files and --expect go with --compare');
+    if (args.positionals.length > 0 || args.options['expect'] !== undefined)
+      throw new UsageError('files and --expect go with --compare');
     process.stdout.write(`${JSON.stringify(await collectCiDigests(contextFromEnv(process.env), thisMachine()))}\n`);
     return 0;
   }
   const expectText = args.options['expect'];
   const expect = expectText === undefined ? undefined : Number(expectText);
-  if (expect !== undefined && (!Number.isInteger(expect) || expect < 1)) throw new UsageError('--expect takes a positive integer');
+  if (expect !== undefined && (!Number.isInteger(expect) || expect < 1))
+    throw new UsageError('--expect takes a positive integer');
   if (args.positionals.length === 0) throw new UsageError('--compare needs the digest files');
   return compareFiles(args.positionals, expect);
 }

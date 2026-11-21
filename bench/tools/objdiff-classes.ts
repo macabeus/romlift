@@ -12,17 +12,30 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { type GnuMap, parseGnuMap } from 'romlift';
 
-import { parseGnuMap, type GnuMap } from 'romlift';
-
-import { analysisTuning, benchProfile, DEFAULT_RUN_TUNING, discoverOptions, readRealInputs, ROMLIFT_RUNNER } from '../src/analysis-run.ts';
-import { parseArgs, UsageError } from '../src/args.ts';
+import {
+  DEFAULT_RUN_TUNING,
+  ROMLIFT_RUNNER,
+  analysisTuning,
+  benchProfile,
+  discoverOptions,
+  readRealInputs,
+} from '../src/analysis-run.ts';
+import { UsageError, parseArgs } from '../src/args.ts';
 import { contextFromEnv } from '../src/context.ts';
 import { loadDatasets, tuningDatasets } from '../src/dataset.ts';
 import { BenchError, prettyJson, writeText } from '../src/files.ts';
-import { compareFunctions, objdiffDifferences } from '../src/objdiff.ts';
 import { ceilingPath, lowerCeilings, readCeilings } from '../src/objdiff-ceiling.ts';
-import { classCounts, classTotals, nameAddresses, OBJDIFF_CLASSES, type ClassTotals, type ObjdiffClass } from '../src/objdiff-classes.ts';
+import {
+  type ClassTotals,
+  OBJDIFF_CLASSES,
+  type ObjdiffClass,
+  classCounts,
+  classTotals,
+  nameAddresses,
+} from '../src/objdiff-classes.ts';
+import { compareFunctions, objdiffDifferences } from '../src/objdiff.ts';
 import { elfSymbols, referenceObjects } from '../src/run.ts';
 import { locateObjdiff } from '../src/toolchain.ts';
 
@@ -50,7 +63,12 @@ async function main(argv: readonly string[]): Promise<number> {
   for (const d of tuningDatasets(datasets, args.options['only'])) {
     if (d.objectsDir === undefined) continue;
     const inputs = await readRealInputs(cx, d);
-    const analysis = ROMLIFT_RUNNER.analyze(inputs.rom, benchProfile(), discoverOptions(), analysisTuning(DEFAULT_RUN_TUNING));
+    const analysis = ROMLIFT_RUNNER.analyze(
+      inputs.rom,
+      benchProfile(),
+      discoverOptions(),
+      analysisTuning(DEFAULT_RUN_TUNING),
+    );
     const objects = await referenceObjects(cx, d);
     const symbols = await elfSymbols(cx, d);
     const map = await datasetMap(cx.benchRoot, d.map);
@@ -68,7 +86,10 @@ async function main(argv: readonly string[]): Promise<number> {
     rows.push({ rom: d.name, scored: compared.length, classes, ...classTotals(classes) });
   }
   if (args.flags.has('write-ceiling')) {
-    const ceilings = lowerCeilings(await readCeilings(cx), Object.fromEntries(rows.map((r) => [r.rom, r.gated] as const)));
+    const ceilings = lowerCeilings(
+      await readCeilings(cx),
+      Object.fromEntries(rows.map((r) => [r.rom, r.gated] as const)),
+    );
     await writeText(ceilingPath(cx), prettyJson(ceilings));
   }
   if (args.flags.has('json')) {
@@ -82,7 +103,11 @@ async function main(argv: readonly string[]): Promise<number> {
     ['same word (reported)', 'sameWord'],
     ['every class but unnamed-target (D34 before D102)', 'beforeAmendment'],
   ];
-  const table = [header, ...OBJDIFF_CLASSES.map((c) => [c, ...rows.map((r) => String(r.classes[c]))]), ...totals.map(([title, key]) => [title, ...rows.map((r) => String(r[key]))])];
+  const table = [
+    header,
+    ...OBJDIFF_CLASSES.map((c) => [c, ...rows.map((r) => String(r.classes[c]))]),
+    ...totals.map(([title, key]) => [title, ...rows.map((r) => String(r[key]))]),
+  ];
   process.stdout.write(`${table.map((row) => `| ${row.join(' | ')} |`).join('\n')}\n`);
   return 0;
 }

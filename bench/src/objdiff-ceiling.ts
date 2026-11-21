@@ -4,10 +4,9 @@
 // be lowered (bench/tools/objdiff-classes.ts --write-ceiling writes a ROM's count only when it is lower, and refuses a ROM
 // without a ceiling), never raised without the owner; g6.objdiff pins the owner's values as the most a ceiling may be.
 import { join } from 'node:path';
-
 import { compareCodeUnits } from 'romlift';
 
-import { baselineDir, type BenchContext } from './context.ts';
+import { type BenchContext, baselineDir } from './context.ts';
 import { BenchError, exists, isRecord, readJson } from './files.ts';
 
 export const CEILING_SCHEMA = 'romlift-bench/objdiff-ceiling@1';
@@ -21,13 +20,15 @@ export interface ObjdiffCeilings {
 export const ceilingPath = (cx: BenchContext): string => join(baselineDir(cx), 'objdiff-ceiling.json');
 
 export function parseCeilings(value: unknown, where: string): ObjdiffCeilings {
-  if (!isRecord(value) || value['schema'] !== CEILING_SCHEMA) throw new BenchError(`${where}: schema must be '${CEILING_SCHEMA}'`);
+  if (!isRecord(value) || value['schema'] !== CEILING_SCHEMA)
+    throw new BenchError(`${where}: schema must be '${CEILING_SCHEMA}'`);
   const roms = value['roms'];
   if (!isRecord(roms)) throw new BenchError(`${where}: roms must be an object`);
   const out: Record<string, number> = {};
   for (const name of Object.keys(roms).sort(compareCodeUnits)) {
     const n = roms[name];
-    if (typeof n !== 'number' || !Number.isInteger(n) || n < 0) throw new BenchError(`${where}: roms.${name} must be a non-negative integer`);
+    if (typeof n !== 'number' || !Number.isInteger(n) || n < 0)
+      throw new BenchError(`${where}: roms.${name} must be a non-negative integer`);
     out[name] = n;
   }
   return { schema: CEILING_SCHEMA, roms: out };
@@ -44,9 +45,15 @@ export async function readCeilings(cx: BenchContext): Promise<ObjdiffCeilings | 
  * without a ceiling (or no ceiling file at all) is refused: setting a ceiling is the owner's (D102, D104 b), so the tool
  * never adds one. ROMs in code-unit order.
  */
-export function lowerCeilings(existing: ObjdiffCeilings | undefined, measured: Readonly<Record<string, number>>): ObjdiffCeilings {
-  const missing = Object.keys(measured).filter((name) => existing?.roms[name] === undefined).sort(compareCodeUnits);
-  if (missing.length > 0) throw new BenchError(`no ceiling to lower for ${missing.join(', ')}: a new ceiling is the owner's (D102)`);
+export function lowerCeilings(
+  existing: ObjdiffCeilings | undefined,
+  measured: Readonly<Record<string, number>>,
+): ObjdiffCeilings {
+  const missing = Object.keys(measured)
+    .filter((name) => existing?.roms[name] === undefined)
+    .sort(compareCodeUnits);
+  if (missing.length > 0)
+    throw new BenchError(`no ceiling to lower for ${missing.join(', ')}: a new ceiling is the owner's (D102)`);
   const roms: Record<string, number> = {};
   for (const name of Object.keys(existing?.roms ?? {}).sort(compareCodeUnits)) {
     const had = existing?.roms[name] ?? 0;

@@ -10,7 +10,12 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 
 import type { Journal } from '../../../../src/core/write-plan/journal.ts';
-import { caseRenameOrigin, caseTemporaryName, renameCase, restoreCaseRenames } from '../../../../src/shell/project/spelling.ts';
+import {
+  caseRenameOrigin,
+  caseTemporaryName,
+  renameCase,
+  restoreCaseRenames,
+} from '../../../../src/shell/project/spelling.ts';
 import type { RenameFn } from '../../../../src/shell/project/spelling.ts';
 
 const roots: string[] = [];
@@ -82,7 +87,14 @@ test('the temporary name keeps the old name, which caseRenameOrigin reads back',
   assert.equal(caseTemporaryName('main', 123), '.romlift-case-123-main');
   assert.equal(caseRenameOrigin(caseTemporaryName('Some.Module-1', 9)), 'Some.Module-1');
   assert.equal(caseRenameOrigin(caseTemporaryName('main')), 'main', 'the default pid is this process');
-  for (const name of ['main', '.romlift-case-main', '.romlift-case--main', '.romlift-case-12-', 'x.romlift-case-1-main']) assert.equal(caseRenameOrigin(name), undefined, name);
+  for (const name of [
+    'main',
+    '.romlift-case-main',
+    '.romlift-case--main',
+    '.romlift-case-12-',
+    'x.romlift-case-1-main',
+  ])
+    assert.equal(caseRenameOrigin(name), undefined, name);
 });
 
 /** `dir/asm/nonmatchings/<temporary name of main>/notes.txt`, as a crash between the two renames leaves it. */
@@ -96,7 +108,10 @@ async function stranded(): Promise<string> {
 
 test('restoreCaseRenames puts an entry a journalled write path names back under its old name', async () => {
   const dir = await stranded();
-  const journal = journalOf({ op: 'delete', path: 'asm/main.s' }, { op: 'write', path: 'asm/nonmatchings/Main/sub_08000100.s', resultSha1: SHA1 });
+  const journal = journalOf(
+    { op: 'delete', path: 'asm/main.s' },
+    { op: 'write', path: 'asm/nonmatchings/Main/sub_08000100.s', resultSha1: SHA1 },
+  );
   assert.equal(await restoreCaseRenames(dir, journal), undefined);
   assert.deepEqual(await readdir(join(dir, 'asm', 'nonmatchings')), ['main']);
   assert.deepEqual(await readdir(join(dir, 'asm', 'nonmatchings', 'main')), ['notes.txt']);
@@ -109,25 +124,45 @@ test('restoreCaseRenames follows an edit path too, and a file component as well 
   roots.push(dir);
   await mkdir(join(dir, 'src'));
   await writeFile(join(dir, 'src', caseTemporaryName('main.c', 7)), 'int x;\n');
-  assert.equal(await restoreCaseRenames(dir, journalOf({ op: 'edit', path: 'src/Main.c', baseSha1: SHA1, resultSha1: SHA1 })), undefined);
+  assert.equal(
+    await restoreCaseRenames(dir, journalOf({ op: 'edit', path: 'src/Main.c', baseSha1: SHA1, resultSha1: SHA1 })),
+    undefined,
+  );
   assert.deepEqual(await readdir(join(dir, 'src')), ['main.c']);
 });
 
 test('restoreCaseRenames leaves alone an entry no journalled write or edit names, and one whose old name is taken again', async () => {
   const dir = await stranded();
   const temporary = caseTemporaryName('main', 4242);
-  await restoreCaseRenames(dir, journalOf({ op: 'delete', path: 'asm/nonmatchings/Main/sub_08000100.s' }, { op: 'write', path: 'asm/nonmatchings/other/f.s', resultSha1: SHA1 }));
-  assert.deepEqual(await readdir(join(dir, 'asm', 'nonmatchings')), [temporary], 'a delete does not respell, and other/ is not main/');
+  await restoreCaseRenames(
+    dir,
+    journalOf(
+      { op: 'delete', path: 'asm/nonmatchings/Main/sub_08000100.s' },
+      { op: 'write', path: 'asm/nonmatchings/other/f.s', resultSha1: SHA1 },
+    ),
+  );
+  assert.deepEqual(
+    await readdir(join(dir, 'asm', 'nonmatchings')),
+    [temporary],
+    'a delete does not respell, and other/ is not main/',
+  );
   await mkdir(join(dir, 'asm', 'nonmatchings', 'MAIN'));
   await restoreCaseRenames(dir, journalOf({ op: 'write', path: 'asm/nonmatchings/Main/f.s', resultSha1: SHA1 }));
-  assert.deepEqual((await readdir(join(dir, 'asm', 'nonmatchings'))).sort(), [temporary, 'MAIN'].sort(), 'nothing is renamed onto a name that is taken');
+  assert.deepEqual(
+    (await readdir(join(dir, 'asm', 'nonmatchings'))).sort(),
+    [temporary, 'MAIN'].sort(),
+    'nothing is renamed onto a name that is taken',
+  );
 });
 
 test('restoreCaseRenames stops at a component that does not exist or is a file', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'romlift-spelling-'));
   roots.push(dir);
   await writeFile(join(dir, 'asm'), 'a file where a directory is expected\n');
-  const journal = journalOf({ op: 'write', path: 'asm/nonmatchings/Main/f.s', resultSha1: SHA1 }, { op: 'write', path: 'data/x/y.s', resultSha1: SHA1 });
+  const journal = journalOf(
+    { op: 'write', path: 'asm/nonmatchings/Main/f.s', resultSha1: SHA1 },
+    { op: 'write', path: 'data/x/y.s', resultSha1: SHA1 },
+  );
   assert.equal(await restoreCaseRenames(dir, journal), undefined);
   assert.deepEqual(await readdir(dir), ['asm']);
 });

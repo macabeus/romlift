@@ -7,10 +7,17 @@
 // the templates (shell/project/templates.ts). A template that spells an unknown placeholder, a manifest source
 // without its text and a rendered target without a renderer are bugs of the package: RomliftInvariantError.
 import { DIALECT, INCLUDE_ASM_HEADER } from '../../foundation/asm/dialect.ts';
-import { INCLUDE_ASM_HEADER_PATH } from '../../foundation/util/project-files.ts';
 import { RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
+import { INCLUDE_ASM_HEADER_PATH } from '../../foundation/util/project-files.ts';
 import { compareCodeUnits } from '../../foundation/util/sorted.ts';
-import { isPlaceholder, PLACEHOLDER, placeholdersIn, placeholderText, placeholderValues, ROMLIFT_RENDERED_TARGETS } from './vars.ts';
+import {
+  PLACEHOLDER,
+  ROMLIFT_RENDERED_TARGETS,
+  isPlaceholder,
+  placeholderText,
+  placeholderValues,
+  placeholdersIn,
+} from './vars.ts';
 import type { ScaffoldPlaceholder, ScaffoldTemplates, ScaffoldVars } from './vars.ts';
 
 /**
@@ -30,7 +37,8 @@ export interface ScaffoldFileEntry {
 function fill(text: string, values: Readonly<Record<ScaffoldPlaceholder, string>>, where: string): string {
   const unknown = placeholdersIn(text).find((name) => !isPlaceholder(name));
   if (unknown !== undefined) throw new RomliftInvariantError(`${where}: unknown placeholder @@${unknown}@@`);
-  if (text.replace(PLACEHOLDER, '').includes('@@')) throw new RomliftInvariantError(`${where}: a lone @@ that is no placeholder`);
+  if (text.replace(PLACEHOLDER, '').includes('@@'))
+    throw new RomliftInvariantError(`${where}: a lone @@ that is no placeholder`);
   return text.replace(PLACEHOLDER, (_match, name: string) => (isPlaceholder(name) ? values[name] : ''));
 }
 
@@ -94,8 +102,10 @@ const RENDERERS: Readonly<Record<string, (vars: ScaffoldVars) => string>> = {
 };
 
 function rendered(target: string, vars: ScaffoldVars): string {
-  const render = ROMLIFT_RENDERED_TARGETS.includes(target) && Object.hasOwn(RENDERERS, target) ? RENDERERS[target] : undefined;
-  if (render === undefined) throw new RomliftInvariantError(`scaffold: no renderer for ${target}, which the manifest says romlift renders`);
+  const render =
+    ROMLIFT_RENDERED_TARGETS.includes(target) && Object.hasOwn(RENDERERS, target) ? RENDERERS[target] : undefined;
+  if (render === undefined)
+    throw new RomliftInvariantError(`scaffold: no renderer for ${target}, which the manifest says romlift renders`);
   return render(vars);
 }
 
@@ -111,10 +121,17 @@ export function renderScaffold(vars: ScaffoldVars, templates: ScaffoldTemplates)
     if (file.source === null) text = rendered(file.target, vars);
     else {
       const template = templates.texts.get(file.source);
-      if (template === undefined) throw new RomliftInvariantError(`scaffold: no text for the template ${file.source} of ${file.target}`);
+      if (template === undefined)
+        throw new RomliftInvariantError(`scaffold: no text for the template ${file.source} of ${file.target}`);
       text = fill(template, values, `templates/${file.source}`);
     }
-    return { ownership: 'scaffold', path, text, writer: 'scaffold', ...(file.executable ? { executable: true as const } : {}) };
+    return {
+      ownership: 'scaffold',
+      path,
+      text,
+      writer: 'scaffold',
+      ...(file.executable ? { executable: true as const } : {}),
+    };
   });
   return out.sort((a, b) => compareCodeUnits(a.path, b.path));
 }

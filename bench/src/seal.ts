@@ -3,9 +3,14 @@
 // test/gates/held-out-verdict.ts, which g2.held-out calls), the guard that keeps addresses and names out
 // of a sealed entry, the append-only reveal log, `adopt`'s refusal and the shape of a dataset created
 // sealed. Pure: plain data in, plain data out; the bench commands do the reading and the printing.
-
+import {
+  type ClassifyInput,
+  classifier,
+  classifyFalseEntry,
+  classifyMiss,
+  gluedWhere as whereGlued,
+} from './classify.ts';
 import type { Dataset, Reveal } from './dataset.ts';
-import { classifier, classifyFalseEntry, classifyMiss, gluedWhere as whereGlued, type ClassifyInput } from './classify.ts';
 import { extentAgrees } from './score.ts';
 
 /** What a sealed run stores and prints for one dataset: counts only (g2.held-out reads exactly this). */
@@ -22,7 +27,11 @@ export interface SealedCounts {
    * address: strictly inside a found function's extent, in no found extent below the run's code end, or
    * at or past the run's code end. The three sum to `glued`. Optional when read from an older artifact.
    */
-  readonly gluedWhere?: { readonly insideExtent: number; readonly outsideExtents: number; readonly pastCodeEnd: number };
+  readonly gluedWhere?: {
+    readonly insideExtent: number;
+    readonly outsideExtents: number;
+    readonly pastCodeEnd: number;
+  };
   readonly labelCandidates: number;
   /**
    * False entries per class; startup ones are outside `entries`, the others count against precision and
@@ -170,11 +179,14 @@ export function assertCountsOnly(value: unknown): void {
       if (top && path === 'name') return;
       throw new Error(`sealed field ${path} is a string; a sealed entry holds counts only`);
     }
-    if (typeof v !== 'object' || v === null || Array.isArray(v)) throw new Error(`sealed field ${path === '' ? '(root)' : path} is not a count or a record of counts`);
+    if (typeof v !== 'object' || v === null || Array.isArray(v))
+      throw new Error(`sealed field ${path === '' ? '(root)' : path} is not a count or a record of counts`);
     for (const [key, child] of Object.entries(v)) visit(child, path === '' ? key : `${path}.${key}`, path === '');
   };
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error('a sealed entry is a record of counts');
-  if (typeof (value as Record<string, unknown>)['name'] !== 'string') throw new Error('a sealed entry carries its dataset name');
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    throw new Error('a sealed entry is a record of counts');
+  if (typeof (value as Record<string, unknown>)['name'] !== 'string')
+    throw new Error('a sealed entry carries its dataset name');
   visit(value, '', true);
 }
 
@@ -183,11 +195,15 @@ export function assertCountsOnly(value: unknown): void {
  * for a dataset that is not held out or a reveal with an empty field (callers check their arguments).
  */
 export function appendReveal(dataset: Dataset, reveal: Reveal): Dataset {
-  if (!dataset.heldout) throw new Error(`${dataset.name} is not a held-out dataset; only a held-out dataset is revealed`);
+  if (!dataset.heldout)
+    throw new Error(`${dataset.name} is not a held-out dataset; only a held-out dataset is revealed`);
   for (const key of ['at', 'commit', 'reason'] as const) {
     if (reveal[key].trim() === '') throw new Error(`a reveal of ${dataset.name} needs a non-empty '${key}'`);
   }
-  return { ...dataset, revealed: [...dataset.revealed, { at: reveal.at, commit: reveal.commit, reason: reveal.reason }] };
+  return {
+    ...dataset,
+    revealed: [...dataset.revealed, { at: reveal.at, commit: reveal.commit, reason: reveal.reason }],
+  };
 }
 
 /** Why `bench adopt` refuses the dataset, or undefined when it may seed its lists: a sealed dataset is never adopted (D25). */

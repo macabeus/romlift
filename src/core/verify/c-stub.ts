@@ -6,10 +6,10 @@
 // core/model/c-unit.ts encodes, so only it can be laid out, assembled or linked without a compiler; anything else
 // is a problem at its line. What the statements must include (the module's chunk files in ROM order) is the
 // text-layout check's.
-import type { BuildCompilerId } from '../config/compilers.ts';
 import { C_STUB_HEADER } from '../../foundation/asm/dialect.ts';
-import { stubAssemblyText } from '../model/c-unit.ts';
 import { chunkFileOf } from '../../foundation/util/project-files.ts';
+import type { BuildCompilerId } from '../config/compilers.ts';
+import { stubAssemblyText } from '../model/c-unit.ts';
 import { scanC } from '../reconcile/c-scan.ts';
 
 /** The header include a stub starts with (C_STUB_HEADER without its blank line). */
@@ -38,29 +38,56 @@ export interface StubReading {
 export function readStub(text: string): StubReading {
   const scan = scanC(text);
   const problems: StubProblem[] = [];
-  for (const t of scan.unterminated) problems.push({ line: t.line, message: `the file ends inside a ${t.kind === 'preprocessor' ? 'directive' : t.kind}` });
+  for (const t of scan.unterminated)
+    problems.push({
+      line: t.line,
+      message: `the file ends inside a ${t.kind === 'preprocessor' ? 'directive' : t.kind}`,
+    });
   const firstStatement = scan.statements[0]?.start ?? text.length;
   let header = false;
   for (const d of scan.directives) {
     if (d.kind !== 'preprocessor') continue;
     if (d.text.trimEnd() === HEADER_INCLUDE && !header && d.start < firstStatement) header = true;
-    else problems.push({ line: d.line, message: `holds the directive \`${d.text.trimEnd()}\`; a stub-only unit has only \`${HEADER_INCLUDE}\`, before its first INCLUDE_ASM` });
+    else
+      problems.push({
+        line: d.line,
+        message: `holds the directive \`${d.text.trimEnd()}\`; a stub-only unit has only \`${HEADER_INCLUDE}\`, before its first INCLUDE_ASM`,
+      });
   }
-  if (!header && scan.statements.length > 0) problems.push({ line: scan.statements[0]?.line ?? 1, message: `uses INCLUDE_ASM without \`${HEADER_INCLUDE}\` before it` });
+  if (!header && scan.statements.length > 0)
+    problems.push({
+      line: scan.statements[0]?.line ?? 1,
+      message: `uses INCLUDE_ASM without \`${HEADER_INCLUDE}\` before it`,
+    });
   for (const d of scan.definitions) {
-    problems.push({ line: d.line, message: `defines the function ${d.name === '' ? '(unnamed)' : d.name}; only a stub-only unit is laid out and linked without a compiler (build decompiled C with make)` });
+    problems.push({
+      line: d.line,
+      message: `defines the function ${d.name === '' ? '(unnamed)' : d.name}; only a stub-only unit is laid out and linked without a compiler (build decompiled C with make)`,
+    });
   }
-  for (const o of scan.others) problems.push({ line: o.line, message: `holds \`${o.first}…\` at file scope; a stub-only unit holds only INCLUDE_ASM statements` });
+  for (const o of scan.others)
+    problems.push({
+      line: o.line,
+      message: `holds \`${o.first}…\` at file scope; a stub-only unit holds only INCLUDE_ASM statements`,
+    });
   problems.sort((a, b) => a.line - b.line);
   return { includes: scan.statements.map((s) => ({ path: chunkFileOf(s.dir, s.name), line: s.line })), problems };
 }
 
 /** The assembly a build compiler emits for a stub-only C text (core/model/c-unit.ts), or why the text is not one. */
-export type StubAssembly = { readonly ok: true; readonly text: string } | { readonly ok: false; readonly problems: readonly StubProblem[] };
+export type StubAssembly =
+  | { readonly ok: true; readonly text: string }
+  | { readonly ok: false; readonly problems: readonly StubProblem[] };
 
 /** The assembly build compiler `compiler` (the module's) emits for C text `text`, or why it is not a stub-only unit. */
 export function stubAssemblyOf(text: string, compiler: BuildCompilerId): StubAssembly {
   const reading = readStub(text);
   if (reading.problems.length > 0) return { ok: false, problems: reading.problems };
-  return { ok: true, text: stubAssemblyText(reading.includes.map((i) => i.path), compiler) };
+  return {
+    ok: true,
+    text: stubAssemblyText(
+      reading.includes.map((i) => i.path),
+      compiler,
+    ),
+  };
 }

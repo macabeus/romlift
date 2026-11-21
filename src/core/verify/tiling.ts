@@ -17,11 +17,11 @@ import { hexAddr } from '../../foundation/util/hex.ts';
 import { modulePieces } from '../model/modules.ts';
 import type { ModulePiece } from '../model/modules.ts';
 import type { Chunk, Model, Module } from '../model/types.ts';
-import { checkResult } from './report.ts';
-import type { CheckResult, VerifyReport } from './report.ts';
 import { VerifyCodes } from './codes.ts';
 import { checkModuleSize } from './module-size.ts';
 import { checkReencode } from './reencode.ts';
+import { checkResult } from './report.ts';
+import type { CheckResult, VerifyReport } from './report.ts';
 
 function tilingError(message: string, addr: Addr, span?: Span): Diagnostic {
   return diagnostic(VerifyCodes, 'E_SELF_CHECK_TILING', message, span === undefined ? { addr } : { addr, span });
@@ -36,21 +36,28 @@ function seam(what: string, at: Addr, next: Addr): Diagnostic | undefined {
   if (next === at) return undefined;
   return next > at
     ? tilingError(`gap ${range({ start: at, end: next })} before ${what}`, at, { start: at, end: next })
-    : tilingError(`${what} overlaps the bytes before it: it starts at ${hexAddr(next)}, below ${hexAddr(at)}`, next, { start: next, end: at });
+    : tilingError(`${what} overlaps the bytes before it: it starts at ${hexAddr(next)}, below ${hexAddr(at)}`, next, {
+        start: next,
+        end: at,
+      });
 }
 
 /** The tail of a level: its running end must be the ROM end. */
 function closing(what: string, at: Addr, end: Addr): Diagnostic | undefined {
   if (at === end) return undefined;
   return at < end
-    ? tilingError(`gap ${range({ start: at, end })} at the end of the ROM: no ${what} covers it`, at, { start: at, end })
+    ? tilingError(`gap ${range({ start: at, end })} at the end of the ROM: no ${what} covers it`, at, {
+        start: at,
+        end,
+      })
     : tilingError(`the ${what} run past the ROM end ${hexAddr(end)} to ${hexAddr(at)}`, end, { start: end, end: at });
 }
 
 /** Items: in address order, back to back, from the ROM base to the ROM end. */
 function itemsProblem(rom: Rom, model: Model): Diagnostic | undefined {
   const items = model.items;
-  if (model.rom.end !== rom.end) return tilingError(`the model is of a ROM ending at ${hexAddr(model.rom.end)}, not ${hexAddr(rom.end)}`, rom.end);
+  if (model.rom.end !== rom.end)
+    return tilingError(`the model is of a ROM ending at ${hexAddr(model.rom.end)}, not ${hexAddr(rom.end)}`, rom.end);
   let at = ROM_BASE;
   for (let i = 0; i < items.count; i++) {
     const start = items.start[i] ?? 0;
@@ -78,7 +85,11 @@ function chunksProblem(rom: Rom, model: Model): Diagnostic | undefined {
   for (const chunk of model.chunks) {
     const what = `chunk ${chunk.name} (${range(chunk.span)})`;
     if (chunk.items.first !== item) {
-      return tilingError(`${what} holds items from ${chunk.items.first}, but the chunk before it ends at item ${item}`, chunk.span.start, chunk.span);
+      return tilingError(
+        `${what} holds items from ${chunk.items.first}, but the chunk before it ends at item ${item}`,
+        chunk.span.start,
+        chunk.span,
+      );
     }
     const covered = itemsSpan(model, chunk);
     if (covered === undefined) return tilingError(`${what} holds no items of the table`, chunk.span.start, chunk.span);
@@ -109,16 +120,26 @@ function chunksSpan(model: Model, module: Module): Span | undefined {
 function textPieceProblem(model: Model, module: Module, chunk: number): Diagnostic | undefined {
   const what = `module ${module.name} (${range(module.span)})`;
   if (module.chunks.first !== chunk) {
-    return tilingError(`${what} holds chunks from ${module.chunks.first}, but the module before it ends at chunk ${chunk}`, module.span.start, module.span);
+    return tilingError(
+      `${what} holds chunks from ${module.chunks.first}, but the module before it ends at chunk ${chunk}`,
+      module.span.start,
+      module.span,
+    );
   }
   const covered = chunksSpan(model, module);
   if (covered === undefined) return tilingError(`${what} holds no chunks`, module.span.start, module.span);
   if (covered.start !== module.span.start || covered.end !== module.span.end) {
     return tilingError(`${what} does not span its chunks, ${range(covered)}`, module.span.start, module.span);
   }
-  const stranger = model.chunks.slice(module.chunks.first, module.chunks.first + module.chunks.count).find((c) => c.module !== module.name);
+  const stranger = model.chunks
+    .slice(module.chunks.first, module.chunks.first + module.chunks.count)
+    .find((c) => c.module !== module.name);
   if (stranger !== undefined) {
-    return tilingError(`chunk ${stranger.name} lies in ${what} but names module ${stranger.module}`, stranger.span.start, stranger.span);
+    return tilingError(
+      `chunk ${stranger.name} lies in ${what} but names module ${stranger.module}`,
+      stranger.span.start,
+      stranger.span,
+    );
   }
   return undefined;
 }
@@ -133,12 +154,17 @@ function dataPieceChunks(model: Model, module: Module, piece: ModulePiece, chunk
     if (next === undefined) break;
     if (next.span.start !== at || next.span.end > piece.span.end) break;
     if (next.module !== module.name || next.kind !== 'data') {
-      return tilingError(`chunk ${next.name} lies in ${what} but is a ${next.kind} chunk of module ${next.module}`, next.span.start, next.span);
+      return tilingError(
+        `chunk ${next.name} lies in ${what} but is a ${next.kind} chunk of module ${next.module}`,
+        next.span.start,
+        next.span,
+      );
     }
     at = next.span.end;
     count++;
   }
-  if (count === 0 || at !== piece.span.end) return tilingError(`${what} is not spanned by data chunks from chunk ${chunk}`, piece.span.start, piece.span);
+  if (count === 0 || at !== piece.span.end)
+    return tilingError(`${what} is not spanned by data chunks from chunk ${chunk}`, piece.span.start, piece.span);
   return count;
 }
 
@@ -149,8 +175,14 @@ function modulesProblem(rom: Rom, model: Model): Diagnostic | undefined {
   for (const piece of modulePieces(model.modules)) {
     const module = model.modules[piece.module];
     if (module === undefined) continue;
-    const what = piece.part === 'text' ? `module ${module.name} (${range(piece.span)})` : `module ${module.name}'s data range (${range(piece.span)})`;
-    const held = piece.part === 'text' ? (textPieceProblem(model, module, chunk) ?? module.chunks.count) : dataPieceChunks(model, module, piece, chunk);
+    const what =
+      piece.part === 'text'
+        ? `module ${module.name} (${range(piece.span)})`
+        : `module ${module.name}'s data range (${range(piece.span)})`;
+    const held =
+      piece.part === 'text'
+        ? (textPieceProblem(model, module, chunk) ?? module.chunks.count)
+        : dataPieceChunks(model, module, piece, chunk);
     if (typeof held !== 'number') return held;
     const problem = seam(what, at, piece.span.start);
     if (problem !== undefined) return problem;
@@ -166,7 +198,9 @@ function modulesProblem(rom: Rom, model: Model): Diagnostic | undefined {
 
 /** The tiling check: the first gap or overlap of the items, of the chunks and of the modules. */
 export function checkTiling(rom: Rom, model: Model): CheckResult {
-  const diagnostics = [itemsProblem(rom, model), chunksProblem(rom, model), modulesProblem(rom, model)].filter((d): d is Diagnostic => d !== undefined);
+  const diagnostics = [itemsProblem(rom, model), chunksProblem(rom, model), modulesProblem(rom, model)].filter(
+    (d): d is Diagnostic => d !== undefined,
+  );
   const detail =
     diagnostics[0]?.message ??
     `${model.items.count} items, ${model.chunks.length} chunks and ${model.modules.length} modules tile ${range({ start: ROM_BASE, end: rom.end })}`;

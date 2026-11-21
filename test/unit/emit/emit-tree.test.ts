@@ -16,7 +16,8 @@ const rom = sampleRom();
 const model = sampleModel(rom);
 const cx = { decomp: { defined: [] } };
 const MINE = new Set(['header', 'crt0', 'function', 'orphan', 'module']);
-const mine = (entries: Iterable<FileEntry>): FileEntry[] => [...entries].filter((e) => e.ownership === 'generated' && MINE.has(e.writer));
+const mine = (entries: Iterable<FileEntry>): FileEntry[] =>
+  [...entries].filter((e) => e.ownership === 'generated' && MINE.has(e.writer));
 
 const EXPECTED = [
   'asm/rom_header.s',
@@ -35,15 +36,45 @@ const EXPECTED = [
   'asm/other.s',
 ];
 
-test('the code writers\' files come module by module in ROM order, each module sorted by path', () => {
-  assert.deepEqual(mine(emitTree(rom, model, cx)).map((e) => e.path), EXPECTED);
+test("the code writers' files come module by module in ROM order, each module sorted by path", () => {
+  assert.deepEqual(
+    mine(emitTree(rom, model, cx)).map((e) => e.path),
+    EXPECTED,
+  );
 });
 
 test('module-scoped writers per module, then global writers, each group sorted by path', () => {
-  const fake = (id: 'ldscript' | 'symbols', path: string): Writer => ({ id, scope: 'global', emit: (_r, _m, _c, module) => (module === null ? [{ ownership: 'generated', path, text: '\n', writer: id }] : []) });
-  const perModule: Writer = { id: 'data', scope: 'module', emit: (_r, m, _c, module) => (module === null ? [] : [{ ownership: 'generated', path: `z/${m.modules[module]?.name ?? ''}`, text: '\n', writer: 'data' }, { ownership: 'generated', path: `a/${m.modules[module]?.name ?? ''}`, text: '\n', writer: 'data' }]) };
-  const paths = [...emitWith(rom, model, cx, [fake('symbols', 'symbols.ld'), perModule, fake('ldscript', 'ldscript.txt')])].map((e) => e.path);
-  assert.deepEqual(paths, ['a/rom_header', 'z/rom_header', 'a/crt0', 'z/crt0', 'a/main', 'z/main', 'a/other', 'z/other', 'ldscript.txt', 'symbols.ld']);
+  const fake = (id: 'ldscript' | 'symbols', path: string): Writer => ({
+    id,
+    scope: 'global',
+    emit: (_r, _m, _c, module) => (module === null ? [{ ownership: 'generated', path, text: '\n', writer: id }] : []),
+  });
+  const perModule: Writer = {
+    id: 'data',
+    scope: 'module',
+    emit: (_r, m, _c, module) =>
+      module === null
+        ? []
+        : [
+            { ownership: 'generated', path: `z/${m.modules[module]?.name ?? ''}`, text: '\n', writer: 'data' },
+            { ownership: 'generated', path: `a/${m.modules[module]?.name ?? ''}`, text: '\n', writer: 'data' },
+          ],
+  };
+  const paths = [
+    ...emitWith(rom, model, cx, [fake('symbols', 'symbols.ld'), perModule, fake('ldscript', 'ldscript.txt')]),
+  ].map((e) => e.path);
+  assert.deepEqual(paths, [
+    'a/rom_header',
+    'z/rom_header',
+    'a/crt0',
+    'z/crt0',
+    'a/main',
+    'z/main',
+    'a/other',
+    'z/other',
+    'ldscript.txt',
+    'symbols.ld',
+  ]);
 });
 
 test('a module whose generated is false yields nothing', () => {
@@ -51,10 +82,17 @@ test('a module whose generated is false yields nothing', () => {
   const m = modelOf(r, {
     modules: [
       { name: 'kept', chunks: [{ kind: 'orphan', name: 'unk_08000200', items: [dataItem(0x0800_0200, 4)] }] },
-      { name: 'retained', generated: false, chunks: [{ kind: 'orphan', name: 'unk_08000204', items: [dataItem(0x0800_0204, 4)] }] },
+      {
+        name: 'retained',
+        generated: false,
+        chunks: [{ kind: 'orphan', name: 'unk_08000204', items: [dataItem(0x0800_0204, 4)] }],
+      },
     ],
   });
-  assert.deepEqual(mine(emitTree(r, m, cx)).map((e) => e.path), ['asm/kept.s', 'asm/nonmatchings/kept/unk_08000200.s']);
+  assert.deepEqual(
+    mine(emitTree(r, m, cx)).map((e) => e.path),
+    ['asm/kept.s', 'asm/nonmatchings/kept/unk_08000200.s'],
+  );
 });
 
 test('a module with a hand-written source yields no file of its own; the global files name its source and no objdiff target (D109)', () => {
@@ -62,26 +100,47 @@ test('a module with a hand-written source yields no file of its own; the global 
   const m = modelOf(r, {
     modules: [
       { name: 'kept', chunks: [{ kind: 'orphan', name: 'unk_08000200', items: [dataItem(0x0800_0200, 4)] }] },
-      { name: 'hand', source: 'src/asm/hand.s', chunks: [{ kind: 'orphan', name: 'unk_08000204', items: [dataItem(0x0800_0204, 4)] }] },
+      {
+        name: 'hand',
+        source: 'src/asm/hand.s',
+        chunks: [{ kind: 'orphan', name: 'unk_08000204', items: [dataItem(0x0800_0204, 4)] }],
+      },
     ],
   });
   const entries = [...emitTree(r, m, cx)];
-  assert.deepEqual(mine(entries).map((e) => e.path), ['asm/kept.s', 'asm/nonmatchings/kept/unk_08000200.s']);
-  assert.ok(!entries.some((e) => e.path.includes('/hand') || e.path.startsWith('expected/hand')), entries.map((e) => e.path).join(' '));
+  assert.deepEqual(
+    mine(entries).map((e) => e.path),
+    ['asm/kept.s', 'asm/nonmatchings/kept/unk_08000200.s'],
+  );
+  assert.ok(
+    !entries.some((e) => e.path.includes('/hand') || e.path.startsWith('expected/hand')),
+    entries.map((e) => e.path).join(' '),
+  );
   const ldscript = entries.find((e) => e.path === 'ldscript.txt');
   assert.ok(ldscript?.ownership === 'generated' && ldscript.text.includes('build/hand.o(.text);'));
   const objdiff = entries.find((e) => e.path === 'objdiff.json');
   assert.ok(objdiff?.ownership === 'generated' && !objdiff.text.includes('hand'));
 });
 
-test('the stream is lazy: the first module\'s entries come without printing a later module', () => {
+test("the stream is lazy: the first module's entries come without printing a later module", () => {
   const at = 0x0800_0200;
   const r = romWith([{ at, bytes: thumbAt(at)`bx lr` }]);
   const m: Model = modelOf(r, {
     modules: [
-      { name: 'good', chunks: [{ name: 'Good', items: [...codeItems(r, at, at + 2, 'thumb'), { kind: 'padding', start: at + 2, length: 2 }] }] },
+      {
+        name: 'good',
+        chunks: [
+          {
+            name: 'Good',
+            items: [...codeItems(r, at, at + 2, 'thumb'), { kind: 'padding', start: at + 2, length: 2 }],
+          },
+        ],
+      },
       // the bytes at at + 4 are zeros, not the branch this item records: printing it throws
-      { name: 'broken', chunks: [{ name: 'Broken', items: [{ kind: 'insn', start: at + 4, length: 2, specId: 'thumb.b' }] }] },
+      {
+        name: 'broken',
+        chunks: [{ name: 'Broken', items: [{ kind: 'insn', start: at + 4, length: 2, specId: 'thumb.b' }] }],
+      },
     ],
     labels: [label('Good', at), label('Broken', at + 4)],
   });
@@ -111,5 +170,8 @@ test('every generated text ends with a newline and names no absolute path', () =
 });
 
 test('the raw printer writes the same paths', () => {
-  assert.deepEqual(mine(emitTree(rom, model, { ...cx, printer: 'raw' })).map((e) => e.path), EXPECTED);
+  assert.deepEqual(
+    mine(emitTree(rom, model, { ...cx, printer: 'raw' })).map((e) => e.path),
+    EXPECTED,
+  );
 });

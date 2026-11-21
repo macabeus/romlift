@@ -3,11 +3,17 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { RomliftInvariantError } from '../../../src/foundation/diagnostics/diagnostic.ts';
 import type { FileEntry, TextEdit } from '../../../src/core/emit/tree.ts';
 import type { Journal } from '../../../src/core/write-plan/journal.ts';
-import { applyTextEdits, planHasErrors, planWrites, staleEdit, UNKNOWN_ROMLIFT_VERSION } from '../../../src/core/write-plan/plan-writes.ts';
+import {
+  UNKNOWN_ROMLIFT_VERSION,
+  applyTextEdits,
+  planHasErrors,
+  planWrites,
+  staleEdit,
+} from '../../../src/core/write-plan/plan-writes.ts';
 import type { DiskFileState, Manifest, WritePlan, WritePlanInputs } from '../../../src/core/write-plan/types.ts';
+import { RomliftInvariantError } from '../../../src/foundation/diagnostics/diagnostic.ts';
 
 /** A deterministic 40-hex-digit stand-in for SHA-1: five FNV-1a lanes with different seeds. */
 function fakeHash(text: string): string {
@@ -32,11 +38,23 @@ function manifestOf(files: Readonly<Record<string, string>>, romlift = '1.0.0'):
 
 /** A disk snapshot from texts (null marks a path the snapshot names with no file). */
 function diskOf(files: Readonly<Record<string, string | null>>): ReadonlyMap<string, DiskFileState> {
-  return new Map(Object.entries(files).map(([path, text]): [string, DiskFileState] => [path, text === null ? { kind: 'absent' } : { kind: 'present', sha1: fakeHash(text) }]));
+  return new Map(
+    Object.entries(files).map(([path, text]): [string, DiskFileState] => [
+      path,
+      text === null ? { kind: 'absent' } : { kind: 'present', sha1: fakeHash(text) },
+    ]),
+  );
 }
 
 function plan(partial: Partial<WritePlanInputs> & Pick<WritePlanInputs, 'entries'>): WritePlan {
-  return planWrites({ manifest: null, disk: new Map(), reconciledTexts: new Map(), hash: fakeHash, retained: [], ...partial });
+  return planWrites({
+    manifest: null,
+    disk: new Map(),
+    reconciledTexts: new Map(),
+    hash: fakeHash,
+    retained: [],
+    ...partial,
+  });
 }
 
 function codes(p: WritePlan): readonly string[] {
@@ -66,14 +84,23 @@ test('generated: different content is overwritten when the manifest lists it', (
     manifest: manifestOf({ 'tools/gen.s': 'old' }),
     disk: diskOf({ 'tools/gen.s': 'edited' }),
   });
-  assert.deepEqual(p.ops.map((o) => o.op), ['write']);
+  assert.deepEqual(
+    p.ops.map((o) => o.op),
+    ['write'],
+  );
   assert.deepEqual(p.diagnostics, []);
 });
 
 test('generated: an unlisted file with other content is overwritten under every generated root', () => {
   const roots = ['asm/x.s', 'data/x.s', 'expected/x.s', 'ldscript.txt', 'symbols.ld', 'modules.mk', 'objdiff.json'];
-  const p = plan({ entries: roots.map((path) => gen(path, 'new')), disk: diskOf(Object.fromEntries(roots.map((r) => [r, 'foreign']))) });
-  assert.deepEqual(p.ops.map((o) => o.op), roots.map(() => 'write'));
+  const p = plan({
+    entries: roots.map((path) => gen(path, 'new')),
+    disk: diskOf(Object.fromEntries(roots.map((r) => [r, 'foreign']))),
+  });
+  assert.deepEqual(
+    p.ops.map((o) => o.op),
+    roots.map(() => 'write'),
+  );
   assert.deepEqual(p.diagnostics, []);
 });
 
@@ -82,8 +109,15 @@ test('generated: an unlisted file with other content outside the roots is E_PATH
     entries: [gen('asm/a.s', 'A'), gen('src/notes.s', 'mine?'), gen('asmx/b.s', 'B'), gen('ldscript.txt.bak', 'C')],
     disk: diskOf({ 'asm/a.s': null, 'src/notes.s': 'user text', 'asmx/b.s': 'x', 'ldscript.txt.bak': 'y' }),
   });
-  assert.deepEqual(p.ops.map((o) => o.path), ['asm/a.s']);
-  assert.deepEqual(codes(p), ['E_PATH_NOT_OWNED asmx/b.s', 'E_PATH_NOT_OWNED ldscript.txt.bak', 'E_PATH_NOT_OWNED src/notes.s']);
+  assert.deepEqual(
+    p.ops.map((o) => o.path),
+    ['asm/a.s'],
+  );
+  assert.deepEqual(codes(p), [
+    'E_PATH_NOT_OWNED asmx/b.s',
+    'E_PATH_NOT_OWNED ldscript.txt.bak',
+    'E_PATH_NOT_OWNED src/notes.s',
+  ]);
   assert.ok(p.diagnostics.every((d) => d.severity === 'error'));
   assert.deepEqual(Object.keys(p.manifest.files), ['asm/a.s']);
   assert.equal(planHasErrors(p), true);
@@ -113,9 +147,18 @@ test('a manifest path the tree no longer has is deleted when it is on disk, and 
 test('without a manifest nothing is deleted, and an unknown file under a generated root is W_UNOWNED_FILE', () => {
   const p = plan({
     entries: [gen('asm/a.s', 'A')],
-    disk: diskOf({ 'asm/a.s': 'A', 'asm/stale.s': 'old', 'data/x.s': 'old', 'src/main.c': 'user', 'asm/missing.s': null }),
+    disk: diskOf({
+      'asm/a.s': 'A',
+      'asm/stale.s': 'old',
+      'data/x.s': 'old',
+      'src/main.c': 'user',
+      'asm/missing.s': null,
+    }),
   });
-  assert.deepEqual(p.ops.map((o) => o.op), ['keep']);
+  assert.deepEqual(
+    p.ops.map((o) => o.op),
+    ['keep'],
+  );
   assert.deepEqual(codes(p), ['W_UNOWNED_FILE asm/stale.s', 'W_UNOWNED_FILE data/x.s']);
   assert.ok(p.diagnostics.every((d) => d.severity === 'warning'));
   assert.equal(planHasErrors(p), false);
@@ -128,7 +171,10 @@ test('with a manifest an unlisted file under a generated root is left in place w
     manifest: manifestOf({ 'asm/a.s': 'A' }),
     disk: diskOf({ 'asm/a.s': 'A', 'asm/foreign.s': 'f' }),
   });
-  assert.deepEqual(p.ops.map((o) => o.op), ['keep']);
+  assert.deepEqual(
+    p.ops.map((o) => o.op),
+    ['keep'],
+  );
   assert.deepEqual(codes(p), ['W_UNOWNED_FILE asm/foreign.s']);
 });
 
@@ -137,7 +183,13 @@ test('retained prefixes are never written, never deleted, never warned about, an
   const p = plan({
     entries: [gen('asm/m4a.s', 'new'), gen('asm/nonmatchings/m4a/F.s', 'new'), gen('asm/main.s', 'M')],
     manifest: manifestOf({ 'asm/m4a.s': 'old', 'asm/nonmatchings/m4a/Gone.s': 'g', 'asm/main.s': 'M' }),
-    disk: diskOf({ 'asm/m4a.s': 'user', 'asm/nonmatchings/m4a/F.s': null, 'asm/nonmatchings/m4a/Gone.s': 'g', 'asm/nonmatchings/m4a/Own.s': 'o', 'asm/main.s': 'M' }),
+    disk: diskOf({
+      'asm/m4a.s': 'user',
+      'asm/nonmatchings/m4a/F.s': null,
+      'asm/nonmatchings/m4a/Gone.s': 'g',
+      'asm/nonmatchings/m4a/Own.s': 'o',
+      'asm/main.s': 'M',
+    }),
     retained,
   });
   assert.deepEqual(p.ops, [{ op: 'keep', path: 'asm/main.s', sha1: fakeHash('M') }]);
@@ -145,7 +197,10 @@ test('retained prefixes are never written, never deleted, never warned about, an
   assert.deepEqual(p.diagnostics, []);
   // a file prefix matches the path exactly, not as a string prefix
   const q = plan({ entries: [gen('asm/m4a.s.bak', 'x')], disk: diskOf({ 'asm/m4a.s.bak': null }), retained });
-  assert.deepEqual(q.ops.map((o) => o.op), ['write']);
+  assert.deepEqual(
+    q.ops.map((o) => o.op),
+    ['write'],
+  );
 });
 
 test('scaffold: written only when absent, kept otherwise, never in the manifest', () => {
@@ -158,18 +213,47 @@ test('scaffold: written only when absent, kept otherwise, never in the manifest'
   });
   assert.deepEqual(p.ops, [
     { op: 'keep', path: 'Makefile', sha1: fakeHash('my own makefile') },
-    { op: 'write', path: 'src/main.c', text: '#include "global.h"\n', sha1: fakeHash('#include "global.h"\n'), writer: 'c-stub' },
+    {
+      op: 'write',
+      path: 'src/main.c',
+      text: '#include "global.h"\n',
+      sha1: fakeHash('#include "global.h"\n'),
+      writer: 'c-stub',
+    },
   ]);
   assert.deepEqual(p.manifest.files, {});
 });
 
 test('scaffold: an executable entry is written executable; one on disk without its executable bits gets a mode op (architecture-4)', () => {
-  const setup: FileEntry = { ownership: 'scaffold', path: 'setup.sh', text: '#!/bin/sh\n', writer: 'scaffold', executable: true };
+  const setup: FileEntry = {
+    ownership: 'scaffold',
+    path: 'setup.sh',
+    text: '#!/bin/sh\n',
+    writer: 'scaffold',
+    executable: true,
+  };
   const absent = plan({ entries: [setup], disk: diskOf({ 'setup.sh': null }) });
-  assert.deepEqual(absent.ops, [{ op: 'write', path: 'setup.sh', text: '#!/bin/sh\n', sha1: fakeHash('#!/bin/sh\n'), writer: 'scaffold', executable: true }]);
+  assert.deepEqual(absent.ops, [
+    {
+      op: 'write',
+      path: 'setup.sh',
+      text: '#!/bin/sh\n',
+      sha1: fakeHash('#!/bin/sh\n'),
+      writer: 'scaffold',
+      executable: true,
+    },
+  ]);
   const lost = plan({ entries: [setup], disk: diskOf({ 'setup.sh': 'my own setup' }) });
-  assert.deepEqual(lost.ops, [{ op: 'mode', path: 'setup.sh', executable: true }], 'the content is the user\'s, only the mode is set');
-  const fine = plan({ entries: [setup], disk: diskOf({ 'setup.sh': 'my own setup' }), executables: new Set(['setup.sh']) });
+  assert.deepEqual(
+    lost.ops,
+    [{ op: 'mode', path: 'setup.sh', executable: true }],
+    "the content is the user's, only the mode is set",
+  );
+  const fine = plan({
+    entries: [setup],
+    disk: diskOf({ 'setup.sh': 'my own setup' }),
+    executables: new Set(['setup.sh']),
+  });
   assert.deepEqual(fine.ops, [{ op: 'keep', path: 'setup.sh', sha1: fakeHash('my own setup') }]);
   assert.deepEqual(fine.manifest.files, {});
 });
@@ -188,7 +272,9 @@ test('reconciled: edited while the file still has its base sha1, with the result
     reconciledTexts: new Map([['src/main.c', BASE]]),
   });
   const result = `int b;${BASE.slice(6)}`;
-  assert.deepEqual(p.ops, [{ op: 'edit', path: 'src/main.c', baseSha1: fakeHash(BASE), resultSha1: fakeHash(result), text: result }]);
+  assert.deepEqual(p.ops, [
+    { op: 'edit', path: 'src/main.c', baseSha1: fakeHash(BASE), resultSha1: fakeHash(result), text: result },
+  ]);
   assert.deepEqual(p.manifest.files, {});
   assert.deepEqual(p.diagnostics, []);
 });
@@ -241,9 +327,24 @@ test('a journal: its paths count as owned, a done edit is kept, a base edit is r
     ],
   };
   const p = plan({
-    entries: [gen('tools/gen.s', 'new'), reconciled('src/a.c', BASE, [edit]), reconciled('src/b.c', BASE, [edit]), reconciled('src/c.c', BASE, [edit])],
-    disk: diskOf({ 'tools/gen.s': 'half-old', 'asm/new-then-dropped.s': 'x', 'src/a.c': result, 'src/b.c': BASE, 'src/c.c': 'user' }),
-    reconciledTexts: new Map([['src/a.c', result], ['src/b.c', BASE], ['src/c.c', 'user']]),
+    entries: [
+      gen('tools/gen.s', 'new'),
+      reconciled('src/a.c', BASE, [edit]),
+      reconciled('src/b.c', BASE, [edit]),
+      reconciled('src/c.c', BASE, [edit]),
+    ],
+    disk: diskOf({
+      'tools/gen.s': 'half-old',
+      'asm/new-then-dropped.s': 'x',
+      'src/a.c': result,
+      'src/b.c': BASE,
+      'src/c.c': 'user',
+    }),
+    reconciledTexts: new Map([
+      ['src/a.c', result],
+      ['src/b.c', BASE],
+      ['src/c.c', 'user'],
+    ]),
     journal,
   });
   assert.deepEqual(p.ops, [
@@ -254,15 +355,24 @@ test('a journal: its paths count as owned, a done edit is kept, a base edit is r
   ]);
   assert.deepEqual(codes(p), ['E_STALE_EDIT src/c.c']);
   // without the journal the outside-root write is refused, and the dropped file is only warned about
-  const without = plan({ entries: [gen('tools/gen.s', 'new')], disk: diskOf({ 'tools/gen.s': 'half-old', 'asm/new-then-dropped.s': 'x' }) });
+  const without = plan({
+    entries: [gen('tools/gen.s', 'new')],
+    disk: diskOf({ 'tools/gen.s': 'half-old', 'asm/new-then-dropped.s': 'x' }),
+  });
   assert.deepEqual(codes(without), ['W_UNOWNED_FILE asm/new-then-dropped.s', 'E_PATH_NOT_OWNED tools/gen.s']);
 });
 
 test('ops, manifest and diagnostics are sorted by path whatever the stream order', () => {
   const paths = ['asm/z.s', 'asm/B.s', 'asm/a.s', 'asm/nonmatchings/m/É.s', 'asm/nonmatchings/m/E.s', 'data/m.s'];
-  const p = plan({ entries: paths.map((path) => gen(path, path)), disk: diskOf(Object.fromEntries(paths.map((x) => [x, null]))) });
+  const p = plan({
+    entries: paths.map((path) => gen(path, path)),
+    disk: diskOf(Object.fromEntries(paths.map((x) => [x, null]))),
+  });
   const sorted = [...paths].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-  assert.deepEqual(p.ops.map((o) => o.path), sorted);
+  assert.deepEqual(
+    p.ops.map((o) => o.path),
+    sorted,
+  );
   assert.deepEqual(Object.keys(p.manifest.files), sorted);
 });
 
@@ -291,7 +401,10 @@ test('the manifest version: the input, else the old manifest, else unknown', () 
 });
 
 test('a broken caller contract throws RomliftInvariantError', () => {
-  assert.throws(() => plan({ entries: [gen('asm/a.s', 'A'), gen('asm/a.s', 'B')], disk: diskOf({ 'asm/a.s': null }) }), RomliftInvariantError);
+  assert.throws(
+    () => plan({ entries: [gen('asm/a.s', 'A'), gen('asm/a.s', 'B')], disk: diskOf({ 'asm/a.s': null }) }),
+    RomliftInvariantError,
+  );
   assert.throws(() => plan({ entries: [gen('asm/a.s', 'A')] }), RomliftInvariantError);
   for (const bad of ['../x.s', '/abs.s', 'asm//a.s', 'asm\\a.s', 'asm/./a.s', '']) {
     assert.throws(() => plan({ entries: [gen(bad, 'A')], disk: diskOf({ [bad]: null }) }), RomliftInvariantError, bad);
@@ -307,16 +420,37 @@ test('applyTextEdits applies non-overlapping edits by offset, insertions at one 
   ];
   assert.equal(applyTextEdits('hello world', edits), 'HELLO 23world!');
   assert.equal(applyTextEdits('abc', []), 'abc');
-  assert.throws(() => applyTextEdits('abc', [{ start: 0, end: 2, text: '', reason: 'remove-stub' }, { start: 1, end: 3, text: '', reason: 'remove-stub' }]), RomliftInvariantError);
-  assert.throws(() => applyTextEdits('abc', [{ start: 2, end: 4, text: '', reason: 'remove-stub' }]), RomliftInvariantError);
-  assert.throws(() => applyTextEdits('abc', [{ start: 2, end: 1, text: '', reason: 'remove-stub' }]), RomliftInvariantError);
+  assert.throws(
+    () =>
+      applyTextEdits('abc', [
+        { start: 0, end: 2, text: '', reason: 'remove-stub' },
+        { start: 1, end: 3, text: '', reason: 'remove-stub' },
+      ]),
+    RomliftInvariantError,
+  );
+  assert.throws(
+    () => applyTextEdits('abc', [{ start: 2, end: 4, text: '', reason: 'remove-stub' }]),
+    RomliftInvariantError,
+  );
+  assert.throws(
+    () => applyTextEdits('abc', [{ start: 2, end: 1, text: '', reason: 'remove-stub' }]),
+    RomliftInvariantError,
+  );
 });
 
 test('a case-only rename: the old spelling is deleted before every other op and the new one is written, even when the snapshot reads the old file (correctness-2)', () => {
   // A case-insensitive file system: the snapshot of the new spellings reads the old files' bytes.
-  const manifest = manifestOf({ 'asm/nonmatchings/main/sub_0800.s': 'F', 'asm/main.s': 'M', 'asm/nonmatchings/main/z.s': 'Z' });
+  const manifest = manifestOf({
+    'asm/nonmatchings/main/sub_0800.s': 'F',
+    'asm/main.s': 'M',
+    'asm/nonmatchings/main/z.s': 'Z',
+  });
   const p = plan({
-    entries: [gen('asm/Main.s', 'M'), gen('asm/nonmatchings/Main/z.s', 'Z'), gen('asm/nonmatchings/main/SUB_0800.s', 'F')],
+    entries: [
+      gen('asm/Main.s', 'M'),
+      gen('asm/nonmatchings/Main/z.s', 'Z'),
+      gen('asm/nonmatchings/main/SUB_0800.s', 'F'),
+    ],
     manifest,
     disk: diskOf({
       'asm/Main.s': 'M',
@@ -338,14 +472,35 @@ test('a case-only rename: the old spelling is deleted before every other op and 
       ['write', 'asm/nonmatchings/main/SUB_0800.s'],
     ],
   );
-  assert.deepEqual(Object.keys(p.manifest.files), ['asm/Main.s', 'asm/nonmatchings/Main/z.s', 'asm/nonmatchings/main/SUB_0800.s']);
+  assert.deepEqual(Object.keys(p.manifest.files), [
+    'asm/Main.s',
+    'asm/nonmatchings/Main/z.s',
+    'asm/nonmatchings/main/SUB_0800.s',
+  ]);
   assert.deepEqual(p.diagnostics, []);
   // A case-sensitive file system: the new spellings are absent, the old ones still deleted first.
-  const q = plan({ entries: [gen('asm/Main.s', 'M')], manifest: manifestOf({ 'asm/main.s': 'M' }), disk: diskOf({ 'asm/Main.s': null, 'asm/main.s': 'M' }) });
-  assert.deepEqual(q.ops.map((o) => [o.op, o.path]), [['delete', 'asm/main.s'], ['write', 'asm/Main.s']]);
+  const q = plan({
+    entries: [gen('asm/Main.s', 'M')],
+    manifest: manifestOf({ 'asm/main.s': 'M' }),
+    disk: diskOf({ 'asm/Main.s': null, 'asm/main.s': 'M' }),
+  });
+  assert.deepEqual(
+    q.ops.map((o) => [o.op, o.path]),
+    [
+      ['delete', 'asm/main.s'],
+      ['write', 'asm/Main.s'],
+    ],
+  );
   // The old spelling already gone (an interrupted run): only the write.
-  const r = plan({ entries: [gen('asm/Main.s', 'M')], manifest: manifestOf({ 'asm/main.s': 'M' }), disk: diskOf({ 'asm/Main.s': null, 'asm/main.s': null }) });
-  assert.deepEqual(r.ops.map((o) => [o.op, o.path]), [['write', 'asm/Main.s']]);
+  const r = plan({
+    entries: [gen('asm/Main.s', 'M')],
+    manifest: manifestOf({ 'asm/main.s': 'M' }),
+    disk: diskOf({ 'asm/Main.s': null, 'asm/main.s': null }),
+  });
+  assert.deepEqual(
+    r.ops.map((o) => [o.op, o.path]),
+    [['write', 'asm/Main.s']],
+  );
 });
 
 test('staleEdit: the one staleness rule, at plan time and at write time (fix round 5, architecture-b0-1)', () => {
@@ -355,14 +510,25 @@ test('staleEdit: the one staleness rule, at plan time and at write time (fix rou
   const planned = staleEdit(op, { kind: 'absent' }, 'planned');
   assert.deepEqual([planned?.code, planned?.severity, planned?.path], ['E_STALE_EDIT', 'error', 'src/main.c']);
   assert.match(planned?.message ?? '', /changed since its edits were planned: it is absent/);
-  assert.match(staleEdit(op, { kind: 'unread' }, 'planned')?.message ?? '', /changed since its edits were planned: it is not the text its edits were planned on, the edits expect a{40}/);
-  assert.match(staleEdit(op, { kind: 'sha1', sha1: 'b'.repeat(40) }, 'written')?.message ?? '', /changed while its edits were being written: it has sha1 b{40}/);
-  assert.match(staleEdit(op, { kind: 'absent' }, 'written')?.message ?? '', /changed while its edits were being written: it is absent/);
+  assert.match(
+    staleEdit(op, { kind: 'unread' }, 'planned')?.message ?? '',
+    /changed since its edits were planned: it is not the text its edits were planned on, the edits expect a{40}/,
+  );
+  assert.match(
+    staleEdit(op, { kind: 'sha1', sha1: 'b'.repeat(40) }, 'written')?.message ?? '',
+    /changed while its edits were being written: it has sha1 b{40}/,
+  );
+  assert.match(
+    staleEdit(op, { kind: 'absent' }, 'written')?.message ?? '',
+    /changed while its edits were being written: it is absent/,
+  );
 });
 
 test('the write of modules.mk, the staleness stamp, is the last op, after every src edit and symbols.ld (fix round 7, correctness-b2-2)', () => {
   const base = 'INCLUDE_ASM("asm/nonmatchings/main", A);\n';
-  const edits: readonly TextEdit[] = [{ start: base.length, end: base.length, text: 'INCLUDE_ASM("asm/nonmatchings/main", B);\n', reason: 'add-stub' }];
+  const edits: readonly TextEdit[] = [
+    { start: base.length, end: base.length, text: 'INCLUDE_ASM("asm/nonmatchings/main", B);\n', reason: 'add-stub' },
+  ];
   const p = plan({
     entries: [
       { ownership: 'generated', path: 'modules.mk', text: 'ROMLIFT_TOML_SHA1 := new\n', writer: 'modules-mk' },
@@ -371,9 +537,24 @@ test('the write of modules.mk, the staleness stamp, is the last op, after every 
       { ownership: 'generated', path: 'symbols.ld', text: 'S', writer: 'symbols' },
       gen('ldscript.txt', 'L'),
     ],
-    disk: diskOf({ 'modules.mk': 'ROMLIFT_TOML_SHA1 := old\n', 'asm/nonmatchings/main/B.s': null, 'src/main.c': base, 'symbols.ld': null, 'ldscript.txt': null }),
+    disk: diskOf({
+      'modules.mk': 'ROMLIFT_TOML_SHA1 := old\n',
+      'asm/nonmatchings/main/B.s': null,
+      'src/main.c': base,
+      'symbols.ld': null,
+      'ldscript.txt': null,
+    }),
     reconciledTexts: new Map([['src/main.c', base]]),
   });
   assert.deepEqual(codes(p), []);
-  assert.deepEqual(p.ops.map((op) => `${op.op} ${op.path}`), ['write asm/nonmatchings/main/B.s', 'write ldscript.txt', 'edit src/main.c', 'write symbols.ld', 'write modules.mk']);
+  assert.deepEqual(
+    p.ops.map((op) => `${op.op} ${op.path}`),
+    [
+      'write asm/nonmatchings/main/B.s',
+      'write ldscript.txt',
+      'edit src/main.c',
+      'write symbols.ld',
+      'write modules.mk',
+    ],
+  );
 });

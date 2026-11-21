@@ -6,22 +6,32 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
+import { parseResultsText } from '../../../bench/src/artifact.ts';
+import { type BenchIo, COMMANDS, main } from '../../../bench/src/cli.ts';
 import type { BenchContext } from '../../../bench/src/context.ts';
-import { main, COMMANDS, type BenchIo } from '../../../bench/src/cli.ts';
-import { datasetCheck } from '../../../bench/src/dataset-check.ts';
-import { pocCheck } from '../../../bench/src/poc-check.ts';
-import { provenanceChecks, provenanceInputs } from '../../../bench/src/provenance.ts';
 import { cpuProfPath, topSelfTime } from '../../../bench/src/cpu-prof.ts';
-import { benchRun } from '../../../bench/src/run.ts';
-import { resultParityDigest } from '../../../bench/src/parity.ts';
+import { datasetCheck } from '../../../bench/src/dataset-check.ts';
 import { LOCKSTEP_SETS, PARITY_EVIDENCE_SCHEMA } from '../../../bench/src/parity-evidence.ts';
+import { resultParityDigest } from '../../../bench/src/parity.ts';
+import { pocCheck } from '../../../bench/src/poc-check.ts';
 import { pocSourceDigest } from '../../../bench/src/poc-source.ts';
+import { provenanceChecks, provenanceInputs } from '../../../bench/src/provenance.ts';
+import { benchRun } from '../../../bench/src/run.ts';
 import { assertCountsOnly } from '../../../bench/src/seal.ts';
 import { signaturesDigest } from '../../../bench/src/signatures.ts';
-import { parseResultsText } from '../../../bench/src/artifact.ts';
 import { signatureFile } from '../../helpers/signatures.ts';
 import { failingRunner, withTempDir } from './fixtures.ts';
-import { EXPECTED_ROMLIFT_ROW, ROM_BYTES, runWith, syntheticTier, TINY_DEPS, tinyDeps, tinyDump, TINY_MEMORY, tinyResult } from './harness.ts';
+import {
+  EXPECTED_ROMLIFT_ROW,
+  ROM_BYTES,
+  TINY_DEPS,
+  TINY_MEMORY,
+  runWith,
+  syntheticTier,
+  tinyDeps,
+  tinyDump,
+  tinyResult,
+} from './harness.ts';
 
 function capture(): BenchIo & { readonly lines: string[]; readonly errors: string[] } {
   const lines: string[] = [];
@@ -33,7 +43,10 @@ const RUNNER = TINY_DEPS.runner;
 
 /** Adds a held-out dataset over the same ROM and ELF; sealed unless `revealed` holds an entry. */
 async function addHeldOut(cx: BenchContext, name: string, revealed: readonly unknown[] = []): Promise<void> {
-  const tiny = JSON.parse(await readFile(join(cx.repoRoot, 'bench', 'dataset', 'real', 'tiny.json'), 'utf8')) as Record<string, unknown>;
+  const tiny = JSON.parse(await readFile(join(cx.repoRoot, 'bench', 'dataset', 'real', 'tiny.json'), 'utf8')) as Record<
+    string,
+    unknown
+  >;
   const d = { ...tiny, name, family: 'other-family', heldout: true, revealed, labels: [], untyped: [] };
   await writeFile(join(cx.repoRoot, 'bench', 'dataset', 'real', `${name}.json`), `${JSON.stringify(d, null, 2)}\n`);
 }
@@ -49,17 +62,37 @@ test("bench run scores romlift's analysis and writes results.json without volati
     // The memory family of a lead run (the large-ROM script, faked here) sits after the printer summary.
     assert.deepEqual(Object.keys(written), ['meta', 'memory', 'gates', 'roms']);
     assert.deepEqual(results?.memory, TINY_MEMORY.member);
-    assert.deepEqual(Object.keys(written.meta), ['commit', 'dirty', 'sourceDigest', 'nodeMajor', 'romliftVersion', 'inputs', 'toolchain', 'families', 'source', 'profile']);
+    assert.deepEqual(Object.keys(written.meta), [
+      'commit',
+      'dirty',
+      'sourceDigest',
+      'nodeMajor',
+      'romliftVersion',
+      'inputs',
+      'toolchain',
+      'families',
+      'source',
+      'profile',
+    ]);
     assert.equal(written.meta['romliftVersion'], '1.2.3');
     assert.equal(written.meta['source'], 'romlift');
     assert.equal(written.meta['profile'], 'agbcc');
     // Determinism ran (the two digests agree) and readability always runs; the scaffold family comes from
     // romlift's raw link under --scaffold only (the PoC dump's verdict is no longer read); no speed baseline.
-    assert.deepEqual(written.meta['families'], { tiny: ['code-end', 'determinism', 'entries', 'extents', 'readability'] });
+    assert.deepEqual(written.meta['families'], {
+      tiny: ['code-end', 'determinism', 'entries', 'extents', 'readability'],
+    });
     assert.deepEqual(Object.keys(written.meta['inputs'] as object), ['tiny', 'pocSourceDigest']);
     assert.ok(!/generatedAt|"seconds"|scoreMs|CpuMs|wallMs/.test(text));
-    const timings = JSON.parse(await readFile(join(cx.repoRoot, 'bench', 'timings.json'), 'utf8')) as { roms: Record<string, Record<string, unknown>> };
-    assert.deepEqual(Object.keys(timings.roms['tiny'] ?? {}), ['scoreMs', 'analysisCpuMs', 'analysisWallMs', 'readabilityMs']);
+    const timings = JSON.parse(await readFile(join(cx.repoRoot, 'bench', 'timings.json'), 'utf8')) as {
+      roms: Record<string, Record<string, unknown>>;
+    };
+    assert.deepEqual(Object.keys(timings.roms['tiny'] ?? {}), [
+      'scoreMs',
+      'analysisCpuMs',
+      'analysisWallMs',
+      'readabilityMs',
+    ]);
     assert.deepEqual(timings.roms['large-rom'], TINY_MEMORY.timings);
     // A second run on the same sources and inputs writes the same artifact.
     await benchRun(cx, runWith());
@@ -71,7 +104,10 @@ test('with a built signature file the run judges it on the scored run: the row m
   await withTempDir('romlift-run-', async (root) => {
     const cx = await syntheticTier(root);
     // A 12-byte member on the bytes at 0x08000008, where the ELF has thumb_one (6 bytes) and the run a 6-byte function.
-    const file = signatureFile('tinylib', { id: '1', members: [{ name: 'thumb_one', bytes: ROM_BYTES.slice(0x08, 0x14) }] });
+    const file = signatureFile('tinylib', {
+      id: '1',
+      members: [{ name: 'thumb_one', bytes: ROM_BYTES.slice(0x08, 0x14) }],
+    });
     await mkdir(join(cx.repoRoot, 'signatures'), { recursive: true });
     await writeFile(join(cx.repoRoot, 'signatures', 'tinylib.json'), JSON.stringify(file));
     const { results, report } = await benchRun(cx, runWith());
@@ -84,21 +120,33 @@ test('with a built signature file the run judges it on the scored run: the row m
       names: { reference: false, total: 0, equal: 0, differ: 0, reviewed: 0 },
     };
     assert.deepEqual(report.roms, [{ ...EXPECTED_ROMLIFT_ROW, signatures: member }]);
-    assert.deepEqual(results?.meta.families, { tiny: ['code-end', 'determinism', 'entries', 'extents', 'readability', 'signatures'] });
+    assert.deepEqual(results?.meta.families, {
+      tiny: ['code-end', 'determinism', 'entries', 'extents', 'readability', 'signatures'],
+    });
     assert.equal(results?.meta.inputs['signaturesDigest'], signaturesDigest([file]));
     const text = await readFile(join(cx.repoRoot, 'bench', 'results.json'), 'utf8');
-    assert.deepEqual(parseResultsText(text, 'results.json').roms[0]?.signatures, member, 'the artifact reads the member back');
+    assert.deepEqual(
+      parseResultsText(text, 'results.json').roms[0]?.signatures,
+      member,
+      'the artifact reads the member back',
+    );
     // A file the locator cannot read stops the run rather than dropping the family.
     await writeFile(join(cx.repoRoot, 'signatures', 'broken.json'), '{}');
     await assert.rejects(benchRun(cx, runWith()), /signatures: .*broken\.json/);
     // With no built file, a run that would write an artifact without the family the committed one carries is refused
     // when asked to (`bench run` without --json), and only logs that the family does not run otherwise (clean-clone-3).
     await rm(join(cx.repoRoot, 'signatures'), { recursive: true });
-    await assert.rejects(benchRun(cx, { ...runWith(), requireSignatures: true }), /no built signature file in .*: build them first with/);
+    await assert.rejects(
+      benchRun(cx, { ...runWith(), requireSignatures: true }),
+      /no built signature file in .*: build them first with/,
+    );
     assert.equal(await readFile(join(cx.repoRoot, 'bench', 'results.json'), 'utf8'), text, 'nothing is written');
     const lines: string[] = [];
     await benchRun(cx, { ...runWith(), json: true, requireSignatures: true, log: (l) => lines.push(l) });
-    assert.ok(lines.some((l) => l.startsWith('signatures: no built signature file')), lines.join('\n'));
+    assert.ok(
+      lines.some((l) => l.startsWith('signatures: no built signature file')),
+      lines.join('\n'),
+    );
   });
 });
 
@@ -113,7 +161,10 @@ test("bench run refuses to write when a committed row compares with the PoC's du
     const text = `${JSON.stringify(committed, null, 2)}\n`;
     await writeFile(path, text);
     await rm(join(cx.repoRoot, 'bench', '.local', 'poc'), { recursive: true });
-    await assert.rejects(benchRun(cx, runWith()), /not writing bench\/results\.json: .*PoC's dump, and .*tiny\/scored\.json is missing; run npm run export-poc -- --mode scored/);
+    await assert.rejects(
+      benchRun(cx, runWith()),
+      /not writing bench\/results\.json: .*PoC's dump, and .*tiny\/scored\.json is missing; run npm run export-poc -- --mode scored/,
+    );
     assert.equal(await readFile(path, 'utf8'), text, 'nothing is written');
     // A --json run writes no artifact and is not refused.
     await benchRun(cx, { ...runWith(), json: true });
@@ -123,12 +174,17 @@ test("bench run refuses to write when a committed row compares with the PoC's du
 test('bench run records a non-deterministic analysis and a missing dump', async () => {
   await withTempDir('romlift-run-nondet-', async (root) => {
     const cx = await syntheticTier(root);
-    const { report } = await benchRun(cx, { ...runWith(tinyDeps(tinyResult(), { second: tinyResult([0x0800_0018]) })), json: true });
+    const { report } = await benchRun(cx, {
+      ...runWith(tinyDeps(tinyResult(), { second: tinyResult([0x0800_0018]) })),
+      json: true,
+    });
     assert.equal(report.roms[0]?.deterministic, false);
     await rm(join(cx.repoRoot, 'bench', '.local'), { recursive: true });
     const { results } = await benchRun(cx, runWith());
     assert.equal(results?.roms[0]?.scaffold, undefined);
-    assert.deepEqual(results?.meta.families, { tiny: ['code-end', 'determinism', 'entries', 'extents', 'readability'] });
+    assert.deepEqual(results?.meta.families, {
+      tiny: ['code-end', 'determinism', 'entries', 'extents', 'readability'],
+    });
   });
 });
 
@@ -149,7 +205,15 @@ test('--json prints the frozen bench-run line, writes no results.json, and passe
     const calls: { trail: string; disabled: readonly string[] }[] = [];
     const deps = tinyDeps(tinyResult(), { onAnalyze: (c) => calls.push(c) });
     const io = capture();
-    assert.equal(await main(['run', '--json', '--disable', 'valid.dense', '--disable', 'bl.near-is-call,gap.arm-scan'], cx, io, deps), 0);
+    assert.equal(
+      await main(
+        ['run', '--json', '--disable', 'valid.dense', '--disable', 'bl.near-is-call,gap.arm-scan'],
+        cx,
+        io,
+        deps,
+      ),
+      0,
+    );
     const line = JSON.parse(io.lines.at(-1) ?? '') as Record<string, unknown>;
     assert.deepEqual(Object.keys(line), ['schema', 'roms', 'sealed', 'failed']);
     assert.equal(line['schema'], 'romlift/bench-run@1');
@@ -160,7 +224,11 @@ test('--json prints the frozen bench-run line, writes no results.json, and passe
     assert.ok((await readFile(join(cx.repoRoot, 'bench', 'timings.json'), 'utf8')).includes('generatedAt'));
     // The tuning is refused where it would reach the committed artifact, and a bad value is a usage error.
     assert.equal(await main(['run', '--disable', 'valid.dense'], cx, capture(), deps), 1);
-    assert.equal(await main(['run', '--json', '--worklist', 'poc-lifo'], cx, capture(), deps), 2, "'poc-lifo' is deleted");
+    assert.equal(
+      await main(['run', '--json', '--worklist', 'poc-lifo'], cx, capture(), deps),
+      2,
+      "'poc-lifo' is deleted",
+    );
     assert.equal(await main(['run', '--json', '--disable', 'not-a-rule'], cx, capture(), deps), 2);
     assert.equal(await main(['run', '--json', '--disable'], cx, capture(), deps), 2);
   });
@@ -174,7 +242,10 @@ test('an analysis that throws is a failed ROM: --json exits 1 with it listed; th
     assert.equal(await main(['run', '--json'], cx, io, deps), 1);
     const line = JSON.parse(io.lines.at(-1) ?? '') as { roms: unknown[]; failed: { name: string; detail: string }[] };
     assert.deepEqual(line.roms, []);
-    assert.deepEqual(line.failed.map((f) => f.name), ['tiny']);
+    assert.deepEqual(
+      line.failed.map((f) => f.name),
+      ['tiny'],
+    );
     assert.match(io.errors[0] ?? '', /^tiny: profile agbcc: pipeline rule seed\.rom-entry has no implementation$/);
     const plain = capture();
     assert.equal(await main(['run'], cx, plain, deps), 1);
@@ -215,13 +286,25 @@ test('a sealed dataset runs sealed: counts and a verdict only, never an address,
     assert.equal(await main(['run', '--json'], cx, tuning, TINY_DEPS), 0);
     assert.deepEqual((JSON.parse(tuning.lines.at(-1) ?? '') as { sealed: unknown[] }).sealed, []);
     assert.equal(await main(['run'], cx, capture(), TINY_DEPS), 0);
-    const written = JSON.parse(await readFile(join(cx.repoRoot, 'bench', 'results.json'), 'utf8')) as { roms: { name: string }[]; sealed: unknown[] };
-    assert.deepEqual(written.roms.map((r) => r.name), ['tiny']);
+    const written = JSON.parse(await readFile(join(cx.repoRoot, 'bench', 'results.json'), 'utf8')) as {
+      roms: { name: string }[];
+      sealed: unknown[];
+    };
+    assert.deepEqual(
+      written.roms.map((r) => r.name),
+      ['tiny'],
+    );
     assert.deepEqual(written.sealed, [entry]);
     assert.ok(provenanceChecks(await provenanceInputs(cx)).every((c) => c.ok));
     // A failing sealed analysis withholds its detail.
     const failed = capture();
-    assert.equal(await main(['run', '--only', 'held', '--json'], cx, failed, { ...TINY_DEPS, runner: failingRunner('boom at 0x08000010') }), 1);
+    assert.equal(
+      await main(['run', '--only', 'held', '--json'], cx, failed, {
+        ...TINY_DEPS,
+        runner: failingRunner('boom at 0x08000010'),
+      }),
+      1,
+    );
     assert.ok(![...failed.lines, ...failed.errors].some((l) => l.includes('0x08000010')));
   });
 });
@@ -236,11 +319,21 @@ test('--reveal appends to the revealed log, prints the rows, and writes no rows 
     assert.equal(await main(['run', '--reason', 'x'], cx, capture(), TINY_DEPS), 2);
     const io = capture();
     assert.equal(await main(['run', '--reveal', 'held', '--reason', 'diagnose a glued miss'], cx, io, TINY_DEPS), 0);
-    assert.ok(io.lines.some((l) => l.includes('"0x0800000E"')), 'the rows are printed');
-    const file = JSON.parse(await readFile(join(cx.repoRoot, 'bench', 'dataset', 'real', 'held.json'), 'utf8')) as { revealed: { at: string; commit: string; reason: string }[]; heldout: boolean; family: string };
+    assert.ok(
+      io.lines.some((l) => l.includes('"0x0800000E"')),
+      'the rows are printed',
+    );
+    const file = JSON.parse(await readFile(join(cx.repoRoot, 'bench', 'dataset', 'real', 'held.json'), 'utf8')) as {
+      revealed: { at: string; commit: string; reason: string }[];
+      heldout: boolean;
+      family: string;
+    };
     assert.equal(file.heldout, true);
     assert.equal(file.family, 'other-family');
-    assert.deepEqual(file.revealed.map((r) => [r.at, r.reason]), [['2026-10-17T00:00:00.000Z', 'diagnose a glued miss']]);
+    assert.deepEqual(
+      file.revealed.map((r) => [r.at, r.reason]),
+      [['2026-10-17T00:00:00.000Z', 'diagnose a glued miss']],
+    );
     assert.equal(await readFile(join(cx.repoRoot, 'bench', 'results.json'), 'utf8'), before);
     // A dataset that is not held out is never revealed.
     assert.equal(await main(['run', '--reveal', 'tiny', '--reason', 'x'], cx, capture(), TINY_DEPS), 1);
@@ -260,7 +353,26 @@ test('a written artifact keeps the PoC-parity evidence an earlier run recorded',
       dirty: false,
       worklist: 'poc-lifo',
       pocSourceDigest: pocSourceDigest({}),
-      roms: { tiny: { digest, expected: digest, rowDiffs: 0, lockstep: LOCKSTEP_SETS.map((s) => ({ set: s.name, real: [...s.real], queries: 4, matched: 3, answered: 1, compared: 2, markers: 1, skipped: 1, recalled: 0, parityDigest: digest, divergence: null })) } },
+      roms: {
+        tiny: {
+          digest,
+          expected: digest,
+          rowDiffs: 0,
+          lockstep: LOCKSTEP_SETS.map((s) => ({
+            set: s.name,
+            real: [...s.real],
+            queries: 4,
+            matched: 3,
+            answered: 1,
+            compared: 2,
+            markers: 1,
+            skipped: 1,
+            recalled: 0,
+            parityDigest: digest,
+            divergence: null,
+          })),
+        },
+      },
     };
     await writeFile(path, JSON.stringify({ ...value, parity: evidence }));
     const { results } = await benchRun(cx, runWith());
@@ -273,7 +385,21 @@ test('poc-check, dataset-check and provenance pass on the synthetic tier', async
   await withTempDir('romlift-checks-', async (root) => {
     const cx = await syntheticTier(root);
     const report = await pocCheck(cx);
-    assert.deepEqual(report, { ok: true, roms: [{ name: 'tiny', rowsEqual: true, pocRowEqual: true, baselineRow: true, diffs: [], scaffoldOk: true, deterministic: true, pocSourceDigestOk: true }] });
+    assert.deepEqual(report, {
+      ok: true,
+      roms: [
+        {
+          name: 'tiny',
+          rowsEqual: true,
+          pocRowEqual: true,
+          baselineRow: true,
+          diffs: [],
+          scaffoldOk: true,
+          deterministic: true,
+          pocSourceDigestOk: true,
+        },
+      ],
+    });
     assert.deepEqual(await datasetCheck(cx, RUNNER), { ok: true, problems: [] });
     await benchRun(cx, runWith());
     assert.ok(provenanceChecks(await provenanceInputs(cx)).every((c) => c.ok));
@@ -287,16 +413,40 @@ test('poc-check, dataset-check and provenance pass on the synthetic tier', async
 test('poc-check reports a dump whose rescored row differs from the baseline', async () => {
   await withTempDir('romlift-pocdiff-', async (root) => {
     const base = tinyDump();
-    const cx = await syntheticTier(root, { dump: { ...base, analysis: { ...base.analysis, codeRange: ['0x08000000', '0x08000020'] }, digests: ['a', 'b'] } });
+    const cx = await syntheticTier(root, {
+      dump: { ...base, analysis: { ...base.analysis, codeRange: ['0x08000000', '0x08000020'] }, digests: ['a', 'b'] },
+    });
     const [r] = (await pocCheck(cx)).roms;
     assert.equal(r?.rowsEqual, false);
     assert.equal(r?.deterministic, false);
-    assert.deepEqual(r?.diffs, ['row codeEnd.delta: expected 0, got 4', 'row codeEnd.found: expected "0x0800001C", got "0x08000020"', 'row deterministic: expected true, got false']);
+    assert.deepEqual(r?.diffs, [
+      'row codeEnd.delta: expected 0, got 4',
+      'row codeEnd.found: expected "0x0800001C", got "0x08000020"',
+      'row deterministic: expected true, got false',
+    ]);
   });
 });
 
 test('the CLI dispatches the phase-2 commands and prints the frozen --json lines', async () => {
-  assert.deepEqual(Object.keys(COMMANDS).sort(), ['ablate', 'adopt', 'baseline', 'dataset-check', 'diff', 'doctor-real', 'explain', 'gates', 'large-rom', 'poc-check', 'provenance', 'regression', 'run', 'signatures', 'speed', 'stale-check', 'web']);
+  assert.deepEqual(Object.keys(COMMANDS).sort(), [
+    'ablate',
+    'adopt',
+    'baseline',
+    'dataset-check',
+    'diff',
+    'doctor-real',
+    'explain',
+    'gates',
+    'large-rom',
+    'poc-check',
+    'provenance',
+    'regression',
+    'run',
+    'signatures',
+    'speed',
+    'stale-check',
+    'web',
+  ]);
   await withTempDir('romlift-cli-', async (root) => {
     const cx = await syntheticTier(root);
     let io = capture();
@@ -310,15 +460,30 @@ test('the CLI dispatches the phase-2 commands and prints the frozen --json lines
     assert.equal(await main(['poc-check', '--json'], cx, (io = capture()), TINY_DEPS), 0);
     const poc = JSON.parse(io.lines.at(-1) ?? '') as { ok: boolean; roms: Record<string, unknown>[] };
     assert.equal(poc.ok, true);
-    assert.deepEqual(Object.keys(poc.roms[0] ?? {}), ['name', 'rowsEqual', 'pocRowEqual', 'baselineRow', 'diffs', 'scaffoldOk', 'deterministic', 'pocSourceDigestOk']);
+    assert.deepEqual(Object.keys(poc.roms[0] ?? {}), [
+      'name',
+      'rowsEqual',
+      'pocRowEqual',
+      'baselineRow',
+      'diffs',
+      'scaffoldOk',
+      'deterministic',
+      'pocSourceDigestOk',
+    ]);
 
     assert.equal(await main(['dataset-check', '--json'], cx, (io = capture()), TINY_DEPS), 0);
     assert.deepEqual(JSON.parse(io.lines.at(-1) ?? ''), { ok: true, problems: [] });
 
     assert.equal(await main(['provenance', '--json'], cx, (io = capture()), TINY_DEPS), 0);
-    const prov = JSON.parse(io.lines.at(-1) ?? '') as { ok: boolean; checks: { id: string; ok: boolean; detail: string }[] };
+    const prov = JSON.parse(io.lines.at(-1) ?? '') as {
+      ok: boolean;
+      checks: { id: string; ok: boolean; detail: string }[];
+    };
     assert.equal(prov.ok, true);
-    assert.deepEqual(prov.checks.map((c) => c.id), ['source-digest', 'gate-record', 'families', 'dataset-rows', 'heldout-rows']);
+    assert.deepEqual(
+      prov.checks.map((c) => c.id),
+      ['source-digest', 'gate-record', 'families', 'dataset-rows', 'heldout-rows'],
+    );
     assert.equal(await main(['stale-check'], cx, (io = capture()), TINY_DEPS), 0);
 
     const artifact = join(cx.repoRoot, 'bench', 'results.json');
@@ -326,24 +491,45 @@ test('the CLI dispatches the phase-2 commands and prints the frozen --json lines
     assert.match(io.lines[0] ?? '', /^tiny .*\nbaseline: .*rows from romlift$/);
     // The synthetic run misses thumb_two and its dataset does not list it: a regression.
     assert.equal(await main(['regression', '--base', artifact], cx, (io = capture()), TINY_DEPS), 1);
-    assert.deepEqual(io.lines.slice(1), [`REGRESSION against ${artifact}: 1 failure(s)`, '  tiny: miss 0x0800000E thumb_two (unanchored) is not in the labels list']);
+    assert.deepEqual(io.lines.slice(1), [
+      `REGRESSION against ${artifact}: 1 failure(s)`,
+      '  tiny: miss 0x0800000E thumb_two (unanchored) is not in the labels list',
+    ]);
     assert.equal(await main(['regression', '--base', artifact, '--json'], cx, (io = capture()), TINY_DEPS), 1);
     assert.deepEqual(JSON.parse(io.lines.at(-1) ?? ''), {
       schema: 'romlift/bench-regression@1',
       ok: false,
       base: artifact,
-      problems: [{ kind: 'unlisted-miss', rom: 'tiny', detail: 'miss 0x0800000E thumb_two (unanchored) is not in the labels list' }],
+      problems: [
+        {
+          kind: 'unlisted-miss',
+          rom: 'tiny',
+          detail: 'miss 0x0800000E thumb_two (unanchored) is not in the labels list',
+        },
+      ],
     });
     assert.equal(await main(['diff', '--base', artifact], cx, (io = capture()), TINY_DEPS), 0);
     assert.match(io.lines.at(-1) ?? '', /^no row moved/);
-    assert.equal(await main(['regression', '--base', join(root, 'none.json'), '--json'], cx, (io = capture()), TINY_DEPS), 0);
+    assert.equal(
+      await main(['regression', '--base', join(root, 'none.json'), '--json'], cx, (io = capture()), TINY_DEPS),
+      0,
+    );
     assert.match(io.lines[0] ?? '', /^note: the base .* has no bench\/results\.json/);
-    assert.deepEqual(JSON.parse(io.lines.at(-1) ?? ''), { schema: 'romlift/bench-regression@1', ok: true, base: join(root, 'none.json'), problems: [] });
+    assert.deepEqual(JSON.parse(io.lines.at(-1) ?? ''), {
+      schema: 'romlift/bench-regression@1',
+      ok: true,
+      base: join(root, 'none.json'),
+      problems: [],
+    });
   });
 });
 
 test('topSelfTime attributes each sample delta to its node and sums by function, most first', () => {
-  const frame = (functionName: string, url: string, lineNumber: number): { functionName: string; url: string; lineNumber: number } => ({ functionName, url, lineNumber });
+  const frame = (
+    functionName: string,
+    url: string,
+    lineNumber: number,
+  ): { functionName: string; url: string; lineNumber: number } => ({ functionName, url, lineNumber });
   const profile = {
     nodes: [
       { id: 1, callFrame: frame('(root)', '', -1) },
@@ -361,8 +547,18 @@ test('topSelfTime attributes each sample delta to its node and sums by function,
     { functionName: '(anonymous)', url: 'node:internal', line: 1, selfMs: 0.5 },
   ]);
   // Without samples the hit counts share the profiled time.
-  const hits = { nodes: [{ id: 1, callFrame: frame('f', 'x', 0), hitCount: 3 }, { id: 2, callFrame: frame('g', 'x', 1), hitCount: 1 }], startTime: 0, endTime: 4000 };
-  assert.deepEqual(topSelfTime(hits, 1).map((t) => [t.functionName, t.selfMs]), [['f', 3]]);
+  const hits = {
+    nodes: [
+      { id: 1, callFrame: frame('f', 'x', 0), hitCount: 3 },
+      { id: 2, callFrame: frame('g', 'x', 1), hitCount: 1 },
+    ],
+    startTime: 0,
+    endTime: 4000,
+  };
+  assert.deepEqual(
+    topSelfTime(hits, 1).map((t) => [t.functionName, t.selfMs]),
+    [['f', 3]],
+  );
 });
 
 test("--cpu-prof profiles each tuning ROM's analysis and writes its top self-time functions to bench/.local", async () => {

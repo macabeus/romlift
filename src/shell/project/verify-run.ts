@@ -3,12 +3,12 @@
 // the tree (writeFreshTree), finds binutils, assembles each unit against its ROM range and links the image against
 // the ROM's SHA-1, as the plan lists them; it decides nothing (D36). Exported from `romlift/node` so the bench and
 // the gates run the same composition the CLI does.
-import type { Rom } from '../../foundation/rom/rom.ts';
+import type { CheckResult } from '../../core/verify/report.ts';
 import { generatedEntries } from '../../core/workflow/generate.ts';
 import type { GenerateResult } from '../../core/workflow/generate.ts';
 import { notRunOutcome, toolchainPlan } from '../../core/workflow/verify.ts';
 import type { ToolchainFlags, ToolchainOutcome } from '../../core/workflow/verify.ts';
-import type { CheckResult } from '../../core/verify/report.ts';
+import type { Rom } from '../../foundation/rom/rom.ts';
 import { withTempDir } from '../temp-dir.ts';
 import { findBinutils } from '../toolchain/binutils.ts';
 import { assembleCheck, linkCheck } from '../toolchain/link-check.ts';
@@ -33,7 +33,11 @@ export async function runToolchainChecks(
   if (plan.kind === 'none') return { checks: [] };
   if (plan.kind === 'not-run') return plan.outcome;
   const ran = await withTempDir(tempPrefix, async (dir): Promise<ToolchainOutcome> => {
-    const applied = await writeFreshTree(dir, { model: result.model, entries: generatedEntries(rom, result), paths: result.paths });
+    const applied = await writeFreshTree(dir, {
+      model: result.model,
+      entries: generatedEntries(rom, result),
+      paths: result.paths,
+    });
     if (!applied.ok) return notRunOutcome(plan.ids, 'the tree could not be written', applied.diagnostics);
     const tools = findBinutils(env);
     if ('code' in tools) return notRunOutcome(plan.ids, 'binutils not found', [tools]);

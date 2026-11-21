@@ -86,7 +86,9 @@ export function sourceKey(source: ProposalSource): string | undefined {
  * a `from` key `sig:<library>@<version>` names (split at its first `@`, both parts non-empty); undefined for any other
  * key.
  */
-export function parseSourceKey(from: string | undefined): { readonly library: string; readonly version: string } | undefined {
+export function parseSourceKey(
+  from: string | undefined,
+): { readonly library: string; readonly version: string } | undefined {
   if (from === undefined || !from.startsWith(SIGNATURE_KEY_PREFIX)) return undefined;
   const key = from.slice(SIGNATURE_KEY_PREFIX.length);
   const at = key.indexOf('@');

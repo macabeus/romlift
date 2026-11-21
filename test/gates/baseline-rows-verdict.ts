@@ -12,8 +12,7 @@
 // the ROM and ELF it was decided on (dataset-binding.ts): for another build of that name it is stale and
 // fails, and the ROM is judged as without it; a benchmark row whose ROM is not a tuning dataset, or whose
 // PoC reference is not the PoC's own run of it, is stale and fails too (staleBenchmarkRows).
-
-import { bindingMismatch, TMC_AT_D61, type DatasetBinding, type DatasetIdentity } from './dataset-binding.ts';
+import { type DatasetBinding, type DatasetIdentity, TMC_AT_D61, bindingMismatch } from './dataset-binding.ts';
 import { byCodeUnit } from './order.ts';
 
 export interface RowDiff {
@@ -36,7 +35,11 @@ export interface BaselineRowsInput {
   readonly poc: { readonly source: 'baseline' | 'dump' | 'none' };
   readonly misses: readonly ListedRow[];
   readonly falseEntries: readonly ListedRow[];
-  readonly baselineRows: { readonly diffs: readonly RowDiff[]; readonly unaccepted: readonly RowDiff[]; readonly staleAccepted: readonly RowDiff[] };
+  readonly baselineRows: {
+    readonly diffs: readonly RowDiff[];
+    readonly unaccepted: readonly RowDiff[];
+    readonly staleAccepted: readonly RowDiff[];
+  };
 }
 
 /** A ROM the owner kept as a benchmark row at its current numbers, not held to the PoC's run of it. */
@@ -94,15 +97,23 @@ export function staleBenchmarkRows(
   for (const name of Object.keys(benchmarkRows).sort(byCodeUnit)) {
     const decision = benchmarkRows[name]?.decision ?? '?';
     const rom = roms.find((r) => r.name === name);
-    if (!tuning.includes(name)) problems.push(`${name}: a benchmark row (${decision}) is recorded but ${name} is not a tuning dataset, the record is stale`);
+    if (!tuning.includes(name))
+      problems.push(
+        `${name}: a benchmark row (${decision}) is recorded but ${name} is not a tuning dataset, the record is stale`,
+      );
     else if (rom !== undefined && rom.poc.source !== 'dump')
-      problems.push(`${name}: a benchmark row (${decision}) is recorded but ${name}'s PoC reference is '${rom.poc.source}', not the pinned PoC's own run of it ('dump'), the record is stale`);
+      problems.push(
+        `${name}: a benchmark row (${decision}) is recorded but ${name}'s PoC reference is '${rom.poc.source}', not the pinned PoC's own run of it ('dump'), the record is stale`,
+      );
   }
   return problems;
 }
 
 function rows(list: readonly RowDiff[]): string {
-  return list.slice(0, 8).map((d) => `${d.kind} ${d.addr}`).join(', ');
+  return list
+    .slice(0, 8)
+    .map((d) => `${d.kind} ${d.addr}`)
+    .join(', ');
 }
 
 /** The verdict on one ROM's rows against its PoC reference; `dataset` is the ROM's dataset (its ROM SHA-1 and ELF SHA-256). */
@@ -122,15 +133,26 @@ export function baselineRowsVerdict(
     for (const d of unaccepted) {
       const list = LISTABLE[d.kind];
       const row = list === undefined ? undefined : rom[list].find((r) => r.addr === d.addr);
-      if (row !== undefined && row.listed && row.category !== undefined) acceptedListed.push({ ...d, category: row.category });
+      if (row !== undefined && row.listed && row.category !== undefined)
+        acceptedListed.push({ ...d, category: row.category });
       else left.push(d);
     }
     const floorRecall = bench.floor.tp / bench.floor.elfFunctions;
-    if (rom.tp < bench.floor.tp) problems.push(`${rom.name}: true positives ${rom.tp}, below the benchmark row's ${bench.floor.tp} (${bench.decision})`);
-    if (rom.recall < floorRecall) problems.push(`${rom.name}: recall ${(rom.recall * 100).toFixed(2)}%, below the benchmark row's ${(floorRecall * 100).toFixed(2)}% (${bench.decision})`);
+    if (rom.tp < bench.floor.tp)
+      problems.push(
+        `${rom.name}: true positives ${rom.tp}, below the benchmark row's ${bench.floor.tp} (${bench.decision})`,
+      );
+    if (rom.recall < floorRecall)
+      problems.push(
+        `${rom.name}: recall ${(rom.recall * 100).toFixed(2)}%, below the benchmark row's ${(floorRecall * 100).toFixed(2)}% (${bench.decision})`,
+      );
   }
-  if (left.length > 0) problems.push(`${rom.name}: ${left.length} rows differ from the PoC baseline without an accepted diff${bench === undefined ? '' : ' or a listed category'}: ${rows(left)}`);
-  if (staleAccepted.length > 0) problems.push(`${rom.name}: ${staleAccepted.length} stale accepted diffs: ${rows(staleAccepted)}`);
+  if (left.length > 0)
+    problems.push(
+      `${rom.name}: ${left.length} rows differ from the PoC baseline without an accepted diff${bench === undefined ? '' : ' or a listed category'}: ${rows(left)}`,
+    );
+  if (staleAccepted.length > 0)
+    problems.push(`${rom.name}: ${staleAccepted.length} stale accepted diffs: ${rows(staleAccepted)}`);
   const accepted = diffs.length - unaccepted.length;
   const note =
     bench === undefined

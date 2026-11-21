@@ -2,7 +2,15 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { elfFunctions, implicitAddend, parseElf, R_ARM, R_ARM_BRANCHES, relocationsOf, SHT } from '../../../src/foundation/formats/elf.ts';
+import {
+  R_ARM,
+  R_ARM_BRANCHES,
+  SHT,
+  elfFunctions,
+  implicitAddend,
+  parseElf,
+  relocationsOf,
+} from '../../../src/foundation/formats/elf.ts';
 import type { ElfFile } from '../../../src/foundation/formats/types.ts';
 
 const tinyElf = new Uint8Array(readFileSync(new URL('../../fixtures/formats/tiny.elf', import.meta.url)));
@@ -65,12 +73,18 @@ test('func symbols: Thumb flag from bit 0, addr with bit 0 cleared, value kept r
 test('object, notype, section and file symbols keep their raw value', () => {
   const elf = parsed(tinyElf);
   const table = symbol(elf, 'tiny_table');
-  assert.deepEqual([table.type, table.bind, table.addr, table.size, table.thumb], ['object', 'global', 0x0800_0020, 8, false]);
+  assert.deepEqual(
+    [table.type, table.bind, table.addr, table.size, table.thumb],
+    ['object', 'global', 0x0800_0020, 8, false],
+  );
   assert.equal(table.sectionName, '.rodata');
   const counter = symbol(elf, 'tiny_counter');
   assert.deepEqual([counter.type, counter.addr, counter.sectionName], ['object', 0x0300_0000, '.data']);
   const local = symbol(elf, 'tiny_local');
-  assert.deepEqual([local.type, local.bind, local.value, local.addr, local.thumb], ['notype', 'local', 0x0800_000a, 0x0800_000a, false]);
+  assert.deepEqual(
+    [local.type, local.bind, local.value, local.addr, local.thumb],
+    ['notype', 'local', 0x0800_000a, 0x0800_000a, false],
+  );
   const file = symbol(elf, 'tiny.o');
   assert.equal(file.type, 'file');
   assert.equal(file.sectionIndex, 0xfff1, 'SHN_ABS');
@@ -88,7 +102,10 @@ test('elfFunctions merges func symbols by address inside a span, in address orde
     { addr: 0x0800_000e, size: 10, name: 'thumb_two', thumb: true },
     { addr: 0x0800_0018, size: 4, name: 'lib_helper', thumb: true },
   ]);
-  assert.deepEqual(elfFunctions(elf, { start: 0x0800_0008, end: 0x0800_000e }).map((f) => f.name), ['thumb_one']);
+  assert.deepEqual(
+    elfFunctions(elf, { start: 0x0800_0008, end: 0x0800_000e }).map((f) => f.name),
+    ['thumb_one'],
+  );
   const duplicated: ElfFile = {
     ...elf,
     symbols: [...elf.symbols, { ...symbol(elf, 'thumb_one'), name: 'alias', size: 12 }],
@@ -99,10 +116,21 @@ test('elfFunctions merges func symbols by address inside a span, in address orde
   const reversed: ElfFile = { ...elf, symbols: [...elf.symbols].reverse() };
   const span = { start: 0x0800_0000, end: 0x0a00_0000 };
   const firsts: number[] = [];
-  for (const s of reversed.symbols) if (s.type === 'func' && s.addr >= span.start && s.addr < span.end && !firsts.includes(s.addr)) firsts.push(s.addr);
-  assert.deepEqual(elfFunctions(reversed, span, 'symbol-table').map((f) => f.addr), firsts);
-  assert.notDeepEqual(firsts, [...firsts].sort((x, y) => x - y), 'the fixture tells the two orders apart');
-  assert.deepEqual([...elfFunctions(reversed, span, 'symbol-table')].sort((x, y) => x.addr - y.addr), [...elfFunctions(reversed, span)]);
+  for (const s of reversed.symbols)
+    if (s.type === 'func' && s.addr >= span.start && s.addr < span.end && !firsts.includes(s.addr)) firsts.push(s.addr);
+  assert.deepEqual(
+    elfFunctions(reversed, span, 'symbol-table').map((f) => f.addr),
+    firsts,
+  );
+  assert.notDeepEqual(
+    firsts,
+    [...firsts].sort((x, y) => x - y),
+    'the fixture tells the two orders apart',
+  );
+  assert.deepEqual(
+    [...elfFunctions(reversed, span, 'symbol-table')].sort((x, y) => x.addr - y.addr),
+    [...elfFunctions(reversed, span)],
+  );
 });
 
 test('every truncation of the fixture returns ok:false, never throws', () => {
@@ -164,14 +192,25 @@ test('implicitAddend reads the addend each ARM REL type keeps in its field (arch
   assert.equal(implicitAddend(R_ARM.THM_JUMP8, view([0xfe, 0xd0]), 0), -4, 'R_ARM_THM_JUMP8: beq .');
   assert.equal(implicitAddend(R_ARM.ABS16, view([0xff, 0xff]), 0), -1);
   assert.equal(implicitAddend(R_ARM.ABS8, view([0x80]), 0), -128);
-  assert.equal(implicitAddend(R_ARM.V4BX, view([0, 0, 0, 0]), 0), undefined, 'R_ARM_V4BX changes no addend this reader knows');
+  assert.equal(
+    implicitAddend(R_ARM.V4BX, view([0, 0, 0, 0]), 0),
+    undefined,
+    'R_ARM_V4BX changes no addend this reader knows',
+  );
   assert.equal(implicitAddend(R_ARM.ABS32, view([0, 0]), 0), undefined, 'a field past the bytes');
-  assert.deepEqual([...R_ARM_BRANCHES].sort((a, b) => a - b), [1, 10, 28, 29, 102, 103]);
+  assert.deepEqual(
+    [...R_ARM_BRANCHES].sort((a, b) => a - b),
+    [1, 10, 28, 29, 102, 103],
+  );
   assert.deepEqual(SHT, { SYMTAB: 2, RELA: 4, NOBITS: 8, REL: 9 });
 });
 
 /** A relocatable ARM ELF32 with `.text` = `text`, a `.rel.text` of `rel` and a `.rela.text` of `rela` ([offset, type, addend]). */
-function relocatable(text: readonly number[], rel: readonly (readonly [number, number])[], rela: readonly (readonly [number, number, number])[]): Uint8Array {
+function relocatable(
+  text: readonly number[],
+  rel: readonly (readonly [number, number])[],
+  rela: readonly (readonly [number, number, number])[],
+): Uint8Array {
   const names = '\0.text\0.rel.text\0.rela.text\0.shstrtab\0';
   const nameAt = (n: string): number => names.indexOf(n);
   const textOff = 52;
@@ -200,7 +239,15 @@ function relocatable(text: readonly number[], rel: readonly (readonly [number, n
     v.setInt32(relaOff + 12 * i + 8, addend, true);
   });
   for (let i = 0; i < names.length; i++) bytes[strOff + i] = names.charCodeAt(i);
-  const section = (i: number, name: number, type: number, offset: number, size: number, info = 0, entsize = 0): void => {
+  const section = (
+    i: number,
+    name: number,
+    type: number,
+    offset: number,
+    size: number,
+    info = 0,
+    entsize = 0,
+  ): void => {
     const o = shOff + 40 * i;
     v.setUint32(o, name, true);
     v.setUint32(o + 4, type, true);
@@ -231,12 +278,16 @@ test('relocationsOf reads REL and RELA entries alike: a REL addend from its fiel
   assert.ok(text !== undefined);
   const rels = relocationsOf(object, elf, text);
   assert.ok(rels.ok);
-  assert.deepEqual(rels.value, [
-    { offset: 0, type: R_ARM.ABS32, symbol: 1, width: 4, addend: 0x10 },
-    { offset: 4, type: R_ARM.THM_CALL, symbol: 1, width: 4, addend: -4 },
-    { offset: 10, type: R_ARM.ABS32, symbol: 1, width: 4 },
-    { offset: 8, type: R_ARM.ABS32, symbol: 2, width: 4, addend: -8 },
-  ], 'a REL field past the section has no addend');
+  assert.deepEqual(
+    rels.value,
+    [
+      { offset: 0, type: R_ARM.ABS32, symbol: 1, width: 4, addend: 0x10 },
+      { offset: 4, type: R_ARM.THM_CALL, symbol: 1, width: 4, addend: -4 },
+      { offset: 10, type: R_ARM.ABS32, symbol: 1, width: 4 },
+      { offset: 8, type: R_ARM.ABS32, symbol: 2, width: 4, addend: -8 },
+    ],
+    'a REL field past the section has no addend',
+  );
   const broken = relocatable([0, 0, 0, 0], [], [[0, R_ARM.ABS32, 0]]);
   new DataView(broken.buffer).setUint32(new DataView(broken.buffer).getUint32(32, true) + 3 * 40 + 36, 8, true);
   const refused = relocationsOf(broken, parsed(broken), parsed(broken).sections[1] ?? text);

@@ -28,11 +28,11 @@
 import { HEADER_END } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Span } from '../../foundation/rom/span.ts';
+import { lowerBound } from '../../foundation/util/arrays.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
 import { compareNumbers } from '../../foundation/util/sorted.ts';
-import { lowerBound } from '../../foundation/util/arrays.ts';
 import type { AnalysisResult } from '../analysis/types.ts';
-import { alignWord, WORD } from './align.ts';
+import { WORD, alignWord } from './align.ts';
 import { asmOnlyRanges } from './asm-only.ts';
 import { factsByEntry, listedEntriesOf, placeEntries } from './entries.ts';
 import { borderRefs } from './refs.ts';
@@ -41,7 +41,14 @@ import { tileCode } from './tiling.ts';
 import type { TiledChunk } from './tiling.ts';
 
 // What core/model and core/workflow use of the sibling files, through this one entry.
-export { appliedOverrides, coveredEntries, factsByEntry, headerCoveredEntries, isLabelEntry, placeEntries } from './entries.ts';
+export {
+  appliedOverrides,
+  coveredEntries,
+  factsByEntry,
+  headerCoveredEntries,
+  isLabelEntry,
+  placeEntries,
+} from './entries.ts';
 export type { ExtentSource, ListedEntry, PlacedEntry } from './entries.ts';
 export { tileCode } from './tiling.ts';
 export { alignWord, WORD } from './align.ts';
@@ -121,13 +128,21 @@ export function codeLayout(rom: Rom, analysis: AnalysisResult): CodeLayout {
   const codeEnd = alignWord(Math.max(analysis.codeEnd, headerEnd));
   const refs = borderRefs(rom, analysis);
   const pcRelative = refs.pcRelative;
-  const dataStart = Math.min(rom.end, alignWord(pcRelative.reduce((end, r) => (r.site < codeEnd && r.target >= end ? r.target + 1 : end), codeEnd)));
+  const dataStart = Math.min(
+    rom.end,
+    alignWord(pcRelative.reduce((end, r) => (r.site < codeEnd && r.target >= end ? r.target + 1 : end), codeEnd)),
+  );
   const startupEnd = Math.min(dataStart, Math.max(headerEnd, analysis.startup.span.end));
   const placed = placeEntries(listedEntriesOf(analysis, headerEnd), analysis).filter((p) => !p.label);
   const chunks = tileCode(placed, headerEnd, dataStart, [startupEnd]);
   const asmOnly = asmOnlyRanges(chunks, factsByEntry(analysis), startupEnd);
 
-  const candidates = [rom.base, ...(headerEnd < rom.end ? [headerEnd] : []), ...chunks.map((c) => c.span.start), ...(dataStart < rom.end ? [dataStart] : [])]
+  const candidates = [
+    rom.base,
+    ...(headerEnd < rom.end ? [headerEnd] : []),
+    ...chunks.map((c) => c.span.start),
+    ...(dataStart < rom.end ? [dataStart] : []),
+  ]
     .sort(compareNumbers)
     .filter((a, i, all) => i === 0 || all[i - 1] !== a);
   const free = uncrossed(candidates, [...refs.shortBranches, ...pcRelative]);
@@ -139,9 +154,11 @@ export function codeLayout(rom: Rom, analysis: AnalysisResult): CodeLayout {
     if (candidates[firstAbove(candidates, a) - 1] !== a) return 'no function or orphan chunk starts there';
     const crosses = (r: ShortBranch): boolean => a > Math.min(r.site, r.target) && a <= Math.max(r.site, r.target);
     const branch = refs.shortBranches.find(crosses);
-    if (branch !== undefined) return `the short branch at ${hexAddr(branch.site)} to ${hexAddr(branch.target)} crosses it, and a short branch cannot reach another object`;
+    if (branch !== undefined)
+      return `the short branch at ${hexAddr(branch.site)} to ${hexAddr(branch.target)} crosses it, and a short branch cannot reach another object`;
     const load = pcRelative.find(crosses);
-    if (load !== undefined) return `the PC-relative load or adr at ${hexAddr(load.site)} of ${hexAddr(load.target)} crosses it, and as has no relocation for one into another object`;
+    if (load !== undefined)
+      return `the PC-relative load or adr at ${hexAddr(load.site)} of ${hexAddr(load.target)} crosses it, and as has no relocation for one into another object`;
     return undefined;
   };
   return { headerEnd, startupEnd, dataStart, end: rom.end, chunks, asmOnly, borders, why };
@@ -181,7 +198,10 @@ export function legalBorders(rom: Rom, analysis: AnalysisResult): readonly Addr[
 }
 
 /** The nearest legal borders below and above `a` (either undefined when there is none). */
-export function nearestBorders(borders: readonly Addr[], a: Addr): { readonly below: Addr | undefined; readonly above: Addr | undefined } {
+export function nearestBorders(
+  borders: readonly Addr[],
+  a: Addr,
+): { readonly below: Addr | undefined; readonly above: Addr | undefined } {
   const i = firstAbove(borders, a);
   const atOrBelow = borders[i - 1];
   const below = atOrBelow === a ? borders[i - 2] : atOrBelow;
@@ -189,7 +209,10 @@ export function nearestBorders(borders: readonly Addr[], a: Addr): { readonly be
 }
 
 /** The nearest legal starts below and above `a` under `rule` (isLegalStart), either undefined when there is none. */
-export function nearestLegalStarts(rule: BorderRule, a: Addr): { readonly below: Addr | undefined; readonly above: Addr | undefined } {
+export function nearestLegalStarts(
+  rule: BorderRule,
+  a: Addr,
+): { readonly below: Addr | undefined; readonly above: Addr | undefined } {
   const near = nearestBorders(rule.borders, a);
   // The nearest words below and above `a`; the first word of the data region when `a` lies before it.
   const wordBelow = alignWord(a) - WORD;
@@ -197,6 +220,7 @@ export function nearestLegalStarts(rule: BorderRule, a: Addr): { readonly below:
   const wordAbove = Math.max(alignWord(a + 1), firstData);
   const dataBelow = inDataRegion(rule, wordBelow) ? wordBelow : undefined;
   const dataAbove = inDataRegion(rule, wordAbove) ? wordAbove : undefined;
-  const pick = (x: Addr | undefined, y: Addr | undefined, f: (p: Addr, q: Addr) => Addr): Addr | undefined => (x === undefined ? y : y === undefined ? x : f(x, y));
+  const pick = (x: Addr | undefined, y: Addr | undefined, f: (p: Addr, q: Addr) => Addr): Addr | undefined =>
+    x === undefined ? y : y === undefined ? x : f(x, y);
   return { below: pick(near.below, dataBelow, Math.max), above: pick(near.above, dataAbove, Math.min) };
 }

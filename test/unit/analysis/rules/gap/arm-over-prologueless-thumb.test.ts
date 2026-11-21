@@ -18,7 +18,12 @@ const rom = romWith([
 
 function reading(r: Rom, entry: number, mode: 'thumb' | 'arm', codeBytes: number, end = entry + codeBytes): Reading {
   const size = mode === 'arm' ? 4 : 2;
-  return readingOf(r, { entry, mode, insns: Array.from({ length: codeBytes / size }, (_, i) => ({ addr: entry + size * i, len: size })), end });
+  return readingOf(r, {
+    entry,
+    mode,
+    insns: Array.from({ length: codeBytes / size }, (_, i) => ({ addr: entry + size * i, len: size })),
+    end,
+  });
 }
 
 test('a Thumb reading that opens with push {.., lr} on a word boundary wins', () => {
@@ -27,12 +32,23 @@ test('a Thumb reading that opens with push {.., lr} on a word boundary wins', ()
 
 test('without a prologue, ARM at the same entry wins only when its code ends past the Thumb extent', () => {
   const v = viewWith({ rom });
-  assert.equal(rule.prefer(reading(rom, P, 'thumb', 6, P + 12), reading(rom, P, 'arm', 12), v), 'thumb', 'ARM code ends at the Thumb end');
-  assert.equal(rule.prefer(reading(rom, P, 'thumb', 6), reading(rom, P, 'arm', 8), v), 'arm', 'ARM explains more bytes');
+  assert.equal(
+    rule.prefer(reading(rom, P, 'thumb', 6, P + 12), reading(rom, P, 'arm', 12), v),
+    'thumb',
+    'ARM code ends at the Thumb end',
+  );
+  assert.equal(
+    rule.prefer(reading(rom, P, 'thumb', 6), reading(rom, P, 'arm', 8), v),
+    'arm',
+    'ARM explains more bytes',
+  );
 });
 
 test('without a prologue, ARM found ahead of the cursor wins', () => {
-  assert.equal(rule.prefer(reading(rom, P, 'thumb', 6, P + 0x20), reading(rom, P + 4, 'arm', 8), viewWith({ rom })), 'arm');
+  assert.equal(
+    rule.prefer(reading(rom, P, 'thumb', 6, P + 0x20), reading(rom, P + 4, 'arm', 8), viewWith({ rom })),
+    'arm',
+  );
 });
 
 test('a push {.., lr} off a word boundary is no prologue', () => {

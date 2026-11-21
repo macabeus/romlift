@@ -4,17 +4,21 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 
 import {
+  POC_METHODS,
+  type PocQuery,
   expandInsnRuns,
   openPocLog,
-  POC_METHODS,
-  readingKey,
   readReadings,
-  type PocQuery,
+  readingKey,
 } from '../../../bench/src/poc-log.ts';
 import { withTempDir } from './fixtures.ts';
 
 /** A stored reading (insnRuns form), as export-poc-child writes it. */
-function stored(entry: number, mode: 'thumb' | 'arm', overrides: Record<string, unknown> = {}): Record<string, unknown> {
+function stored(
+  entry: number,
+  mode: 'thumb' | 'arm',
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
   return {
     adrs: [],
     balance: [0],
@@ -25,7 +29,13 @@ function stored(entry: number, mode: 'thumb' | 'arm', overrides: Record<string, 
     end: entry + 12,
     entry,
     errors: [],
-    insnRuns: mode === 'arm' ? [[entry, 4, 2]] : [[entry, 2, 2], [entry + 4, 4, 1]],
+    insnRuns:
+      mode === 'arm'
+        ? [[entry, 4, 2]]
+        : [
+            [entry, 2, 2],
+            [entry + 4, 4, 1],
+          ],
     mode,
     pools: [[entry + 8, 0x0800_0101]],
     returns: 1,
@@ -49,11 +59,24 @@ const ARM = stored(0x0800_0000, 'arm');
 const K_THUMB = readingKey(THUMB);
 const K_ARM = readingKey(ARM);
 
-const HEADER = { schema: 'romlift-bench/poc-queries@1', rom: 'tiny', sha1: 'f'.repeat(40), pocSourceDigest: 'p'.repeat(64), readings: 'readings.ndjson' };
+const HEADER = {
+  schema: 'romlift-bench/poc-queries@1',
+  rom: 'tiny',
+  sha1: 'f'.repeat(40),
+  pocSourceDigest: 'p'.repeat(64),
+  readings: 'readings.ndjson',
+};
 
 /** One record of every method, with nesting (seq 3..5 inside seq 2) and two epochs. */
 function records(): Record<string, unknown>[] {
-  const r = (seq: number, parent: number | null, epoch: number, method: string, args: unknown[], result: unknown) => ({ seq, parent, epoch, method, args, result });
+  const r = (seq: number, parent: number | null, epoch: number, method: string, args: unknown[], result: unknown) => ({
+    seq,
+    parent,
+    epoch,
+    method,
+    args,
+    result,
+  });
   return [
     r(0, null, 0, 'analyzeArm', [0x0800_0000], { reading: K_ARM }),
     r(1, null, 0, 'claim', [0x0800_0000], { entry: 0x0800_0000, mode: 'arm', origin: 'rom entry', absorbed: false }),
@@ -87,7 +110,12 @@ function records(): Record<string, unknown>[] {
 async function writeLog(dir: string, recs: readonly unknown[], readingLines?: readonly string[]): Promise<string> {
   const path = join(dir, 'queries.ndjson');
   await writeFile(path, [HEADER, ...recs].map((v) => `${JSON.stringify(v)}\n`).join(''));
-  const lines = readingLines ?? [{ key: K_ARM, reading: ARM }, { key: K_THUMB, reading: THUMB }].map((v) => JSON.stringify(v));
+  const lines =
+    readingLines ??
+    [
+      { key: K_ARM, reading: ARM },
+      { key: K_THUMB, reading: THUMB },
+    ].map((v) => JSON.stringify(v));
   await writeFile(join(dir, 'readings.ndjson'), lines.map((l) => `${l}\n`).join(''));
   return path;
 }
@@ -110,12 +138,19 @@ test('openPocLog reads a hand-written log: nesting, epochs and every result shap
     assert.equal(qs.length, 26);
     assert.deepEqual(new Set(qs.map((q) => q.method)), new Set(Object.keys(POC_METHODS)), 'every method appears');
     assert.deepEqual(qs.map((q) => q.parent).slice(2, 6), [null, 2, 3, 3]);
-    assert.deepEqual(qs.map((q) => q.epoch), [0, 0, 0, 0, 0, 0, ...Array<number>(19).fill(1), 2]);
+    assert.deepEqual(
+      qs.map((q) => q.epoch),
+      [0, 0, 0, 0, 0, 0, ...Array<number>(19).fill(1), 2],
+    );
     const settle = qs[4];
     assert.ok(settle?.method === 'settle');
     assert.equal(settle.result.key, K_THUMB);
     assert.deepEqual(settle.result.far, [0x0800_0104]);
-    assert.deepEqual(settle.result.reading.insns, [[0x0800_0100, 2], [0x0800_0102, 2], [0x0800_0104, 4]]);
+    assert.deepEqual(settle.result.reading.insns, [
+      [0x0800_0100, 2],
+      [0x0800_0102, 2],
+      [0x0800_0104, 4],
+    ]);
     assert.deepEqual(settle.result.reading.calls, [[0x0800_0200, 'thumb', 0x0800_0104]]);
     assert.deepEqual(settle.result.reading.tables, [[0x0800_0120, [0x0800_0100, 0x0800_0102]]]);
     assert.deepEqual(settle.result.reading.balance, [-4, 0]);
@@ -137,17 +172,41 @@ test('openPocLog reads a hand-written log: nesting, epochs and every result shap
 
 test('a malformed record is rejected with its file, line number and field', async () => {
   const cases: ReadonlyArray<readonly [(recs: Record<string, unknown>[]) => void, RegExp]> = [
-    [(recs) => ((recs[1] as Record<string, unknown>)['method'] = 'fillGaps'), /queries\.ndjson:3\.method: "fillGaps" is not a recorded method/],
-    [(recs) => ((recs[4] as Record<string, unknown>)['result'] = { reading: 'e'.repeat(64), far: [], noret: [] }), /queries\.ndjson:6\.result\.reading: no reading has the key e+/],
-    [(recs) => ((recs[0] as Record<string, unknown>)['result'] = { reading: 'nope' }), /queries\.ndjson:2\.result\.reading: no reading has the key nope/],
-    [(recs) => ((recs[7] as Record<string, unknown>)['parent'] = 3), /queries\.ndjson:9\.parent: 3 is not a call that is still running/],
+    [
+      (recs) => ((recs[1] as Record<string, unknown>)['method'] = 'fillGaps'),
+      /queries\.ndjson:3\.method: "fillGaps" is not a recorded method/,
+    ],
+    [
+      (recs) => ((recs[4] as Record<string, unknown>)['result'] = { reading: 'e'.repeat(64), far: [], noret: [] }),
+      /queries\.ndjson:6\.result\.reading: no reading has the key e+/,
+    ],
+    [
+      (recs) => ((recs[0] as Record<string, unknown>)['result'] = { reading: 'nope' }),
+      /queries\.ndjson:2\.result\.reading: no reading has the key nope/,
+    ],
+    [
+      (recs) => ((recs[7] as Record<string, unknown>)['parent'] = 3),
+      /queries\.ndjson:9\.parent: 3 is not a call that is still running/,
+    ],
     [(recs) => ((recs[7] as Record<string, unknown>)['epoch'] = 0), /queries\.ndjson:9\.epoch: is 0, expected 1/],
     [(recs) => ((recs[6] as Record<string, unknown>)['epoch'] = 2), /queries\.ndjson:8\.epoch: is 2, expected 1/],
     [(recs) => recs.splice(3, 1), /queries\.ndjson:5\.seq: is 4, expected 3/],
-    [(recs) => ((recs[8] as Record<string, unknown>)['args'] = [0x0800_0100]), /queries\.ndjson:10\.args: expected 2 items/],
-    [(recs) => ((recs[8] as Record<string, unknown>)['args'] = [0x0800_0100, 7]), /queries\.ndjson:10\.args\[1\]: expected a string/],
-    [(recs) => ((recs[2] as Record<string, unknown>)['result'] = 1), /queries\.ndjson:4\.result: expected true or false/],
-    [(recs) => ((recs[7] as Record<string, unknown>)['result'] = { pool: [2, 1], data: [] }), /queries\.ndjson:9\.result\.pool\[1\]: not above/],
+    [
+      (recs) => ((recs[8] as Record<string, unknown>)['args'] = [0x0800_0100]),
+      /queries\.ndjson:10\.args: expected 2 items/,
+    ],
+    [
+      (recs) => ((recs[8] as Record<string, unknown>)['args'] = [0x0800_0100, 7]),
+      /queries\.ndjson:10\.args\[1\]: expected a string/,
+    ],
+    [
+      (recs) => ((recs[2] as Record<string, unknown>)['result'] = 1),
+      /queries\.ndjson:4\.result: expected true or false/,
+    ],
+    [
+      (recs) => ((recs[7] as Record<string, unknown>)['result'] = { pool: [2, 1], data: [] }),
+      /queries\.ndjson:9\.result\.pool\[1\]: not above/,
+    ],
     [(recs) => ((recs[6] as Record<string, unknown>)['result'] = 0), /queries\.ndjson:8\.result: expected null/],
   ];
   for (const [mutate, pattern] of cases) {
@@ -166,16 +225,46 @@ test('a parent is the previous record or one of its ancestors, never a call a la
     // seq 5 nests inside seq 4 (the previous record) instead of 3: still a well-formed tree.
     (recs[5] as Record<string, unknown>)['parent'] = 4;
     const qs = await collect(await writeLog(dir, recs));
-    assert.deepEqual(qs.slice(2, 6).map((q) => q.parent), [null, 2, 3, 4]);
+    assert.deepEqual(
+      qs.slice(2, 6).map((q) => q.parent),
+      [null, 2, 3, 4],
+    );
     // seq 17 nests in 16; seq 18 may go back to null, but seq 19 cannot then name 16.
     (recs[19] as Record<string, unknown>)['parent'] = 16;
-    await assert.rejects(collect(await writeLog(dir, recs)), /queries\.ndjson:21\.parent: 16 is not a call that is still running at seq 19/);
+    await assert.rejects(
+      collect(await writeLog(dir, recs)),
+      /queries\.ndjson:21\.parent: 16 is not a call that is still running at seq 19/,
+    );
   });
 });
 
 test('readings: insnRuns expand, keys are verified, duplicates and bad fields are rejected with the line', async () => {
-  assert.deepEqual(expandInsnRuns([[0x100, 2, 3], [0x106, 4, 1]], 'r'), [[0x100, 2], [0x102, 2], [0x104, 2], [0x106, 4]]);
-  assert.throws(() => expandInsnRuns([[0x100, 2, 2], [0x102, 2, 1]], 'r'), /r\[1\]: starts at or before/);
+  assert.deepEqual(
+    expandInsnRuns(
+      [
+        [0x100, 2, 3],
+        [0x106, 4, 1],
+      ],
+      'r',
+    ),
+    [
+      [0x100, 2],
+      [0x102, 2],
+      [0x104, 2],
+      [0x106, 4],
+    ],
+  );
+  assert.throws(
+    () =>
+      expandInsnRuns(
+        [
+          [0x100, 2, 2],
+          [0x102, 2, 1],
+        ],
+        'r',
+      ),
+    /r\[1\]: starts at or before/,
+  );
   await withTempDir('poc-log-', async (dir) => {
     const path = join(dir, 'readings.ndjson');
     const good = JSON.stringify({ key: K_ARM, reading: ARM });

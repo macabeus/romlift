@@ -30,7 +30,11 @@ const SLOTS = {
 
 test('each seed rule sits in its agbcc slot, in the PoC order, with its contract kind and origin', () => {
   for (const kind of ['seed', 'harvest', 'queue'] as const) {
-    assert.deepEqual(AGBCC.pipeline[kind], SLOTS[kind].map(([id]) => id), kind);
+    assert.deepEqual(
+      AGBCC.pipeline[kind],
+      SLOTS[kind].map(([id]) => id),
+      kind,
+    );
     for (const [id, origin] of SLOTS[kind]) {
       const rule = SEED_RULES[id];
       assert.equal(rule.kind, kind, id);

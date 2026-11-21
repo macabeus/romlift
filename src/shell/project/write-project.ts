@@ -9,18 +9,23 @@
 import { copyFile, mkdir, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
+import type { FileEntry } from '../../core/emit/tree.ts';
+import { retainedPrefixes } from '../../core/model/paths.ts';
+import {
+  generatedEntries,
+  outTreeEntriesOf,
+  projectTreeEntries,
+  reconciledTextsOf,
+} from '../../core/workflow/generate.ts';
+import type { GenerateResult } from '../../core/workflow/generate.ts';
+import { replacedProblems } from '../../core/workflow/init.ts';
+import type { InitFile } from '../../core/workflow/types.ts';
+import { planWrites } from '../../core/write-plan/plan-writes.ts';
+import { planChangesNothing, projectPlanInputs } from '../../core/write-plan/project-plan.ts';
+import type { WritePlan } from '../../core/write-plan/types.ts';
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
-import type { FileEntry } from '../../core/emit/tree.ts';
-import type { InitFile } from '../../core/workflow/types.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
-import { retainedPrefixes } from '../../core/model/paths.ts';
-import { generatedEntries, outTreeEntriesOf, projectTreeEntries, reconciledTextsOf } from '../../core/workflow/generate.ts';
-import { replacedProblems } from '../../core/workflow/init.ts';
-import { planChangesNothing, projectPlanInputs } from '../../core/write-plan/project-plan.ts';
-import type { GenerateResult } from '../../core/workflow/generate.ts';
-import { planWrites } from '../../core/write-plan/plan-writes.ts';
-import type { WritePlan } from '../../core/write-plan/types.ts';
 import { ShellCodes } from '../codes.ts';
 import { saveConfig } from '../config/save.ts';
 import { errorReason } from '../fs.ts';
@@ -39,7 +44,9 @@ export interface TreeWrite {
 }
 
 /** A tree write, or why it could not be planned (the snapshot could not be read, the lock is held). */
-export type WriteOutcome = { readonly ok: true; readonly value: TreeWrite } | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
+export type WriteOutcome =
+  | { readonly ok: true; readonly value: TreeWrite }
+  | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
 
 /**
  * Which directory a tree is written into, which decides how its C files are written:
@@ -80,7 +87,12 @@ function* streamOf(source: TreeSource): Generator<FileEntry> {
  * done are put back first, then the snapshot, planWrites, and applyWrites when the plan has no error and changes
  * something. The caller holds the project lock when it applies.
  */
-export async function planAndApply(dir: string, source: TreeSource, romlift: string, dryRun: boolean): Promise<WriteOutcome> {
+export async function planAndApply(
+  dir: string,
+  source: TreeSource,
+  romlift: string,
+  dryRun: boolean,
+): Promise<WriteOutcome> {
   const paths = [...source.result.paths, ...(source.extra ?? []).map((e) => e.path)];
   let state = await readWriteState(dir, paths);
   if (!state.ok) return state;
@@ -91,10 +103,22 @@ export async function planAndApply(dir: string, source: TreeSource, romlift: str
     if (!state.ok) return state;
   }
   const reconciledTexts = source.target === 'project' ? reconciledTextsOf(source.result) : state.value.reconciledTexts;
-  const executables = await readExecutables(dir, (source.extra ?? []).filter((e) => e.ownership === 'scaffold' && e.executable === true).map((e) => e.path));
-  const plan = planWrites(projectPlanInputs(streamOf(source), { ...state.value, reconciledTexts, executables }, (text) => sha1Of(text), romlift, retainedPrefixes(source.result.model)));
+  const executables = await readExecutables(
+    dir,
+    (source.extra ?? []).filter((e) => e.ownership === 'scaffold' && e.executable === true).map((e) => e.path),
+  );
+  const plan = planWrites(
+    projectPlanInputs(
+      streamOf(source),
+      { ...state.value, reconciledTexts, executables },
+      (text) => sha1Of(text),
+      romlift,
+      retainedPrefixes(source.result.model),
+    ),
+  );
   const errors = plan.diagnostics.some((d) => d.severity === 'error');
-  if (dryRun || errors || planChangesNothing(plan, state.value)) return { ok: true, value: { plan, applied: false, diagnostics: plan.diagnostics } };
+  if (dryRun || errors || planChangesNothing(plan, state.value))
+    return { ok: true, value: { plan, applied: false, diagnostics: plan.diagnostics } };
   const applied = await applyWrites(dir, plan);
   return { ok: true, value: { plan, applied: applied.ok, diagnostics: [...plan.diagnostics, ...applied.diagnostics] } };
 }
@@ -109,12 +133,20 @@ export async function underProjectLock(dir: string, fn: () => Promise<WriteOutco
 }
 
 /** `generate`'s write: plan the tree into `dir` (the project, or `--out`), then apply it under the lock unless `dryRun`. */
-export async function writeTree(dir: string, source: TreeSource, romlift: string, dryRun: boolean): Promise<WriteOutcome> {
+export async function writeTree(
+  dir: string,
+  source: TreeSource,
+  romlift: string,
+  dryRun: boolean,
+): Promise<WriteOutcome> {
   if (dryRun) return planAndApply(dir, source, romlift, true);
   try {
     await mkdir(dir, { recursive: true });
   } catch (error) {
-    return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_WRITE', `cannot create ${dir}: ${errorReason(error)}`, { path: dir })] };
+    return {
+      ok: false,
+      diagnostics: [diagnostic(ShellCodes, 'E_IO_WRITE', `cannot create ${dir}: ${errorReason(error)}`, { path: dir })],
+    };
   }
   return underProjectLock(dir, () => planAndApply(dir, source, romlift, false));
 }
@@ -149,7 +181,9 @@ async function writeInitFiles(dir: string, files: InitFiles): Promise<Diagnostic
     try {
       await copyFile(files.romPath, rom);
     } catch (error) {
-      return diagnostic(ShellCodes, 'E_IO_WRITE', `cannot copy ${files.romPath} to ${rom}: ${errorReason(error)}`, { path: files.romCopy });
+      return diagnostic(ShellCodes, 'E_IO_WRITE', `cannot copy ${files.romPath} to ${rom}: ${errorReason(error)}`, {
+        path: files.romCopy,
+      });
     }
   }
   for (const [path, text] of files.files) {
@@ -165,7 +199,9 @@ async function writeInitFiles(dir: string, files: InitFiles): Promise<Diagnostic
  * written (one of init's own files differs from what init writes, or its digest could not be read), so the command
  * prints only that refusal.
  */
-export type InitWriteOutcome = { readonly ok: true; readonly value: TreeWrite } | { readonly ok: false; readonly refused: boolean; readonly diagnostics: readonly Diagnostic[] };
+export type InitWriteOutcome =
+  | { readonly ok: true; readonly value: TreeWrite }
+  | { readonly ok: false; readonly refused: boolean; readonly diagnostics: readonly Diagnostic[] };
 
 /** What init's own files must be on disk (absent or these digests): each text file's and the ROM copy's. */
 function initDigests(files: InitFiles, rom: Rom): ReadonlyMap<string, string> {
@@ -180,11 +216,20 @@ function initDigests(files: InitFiles, rom: Rom): ReadonlyMap<string, string> {
  * skipped, D78 f); then its own files (writeInitFiles, the same set), then the tree and the scaffold (planAndApply
  * with `source.extra` the scaffold; setup.sh is written executable).
  */
-export async function writeInitProject(dir: string, files: InitFiles, source: TreeSource, romlift: string): Promise<InitWriteOutcome> {
+export async function writeInitProject(
+  dir: string,
+  files: InitFiles,
+  source: TreeSource,
+  romlift: string,
+): Promise<InitWriteOutcome> {
   try {
     await mkdir(dir, { recursive: true });
   } catch (error) {
-    return { ok: false, refused: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_WRITE', `cannot create ${dir}: ${errorReason(error)}`, { path: dir })] };
+    return {
+      ok: false,
+      refused: false,
+      diagnostics: [diagnostic(ShellCodes, 'E_IO_WRITE', `cannot create ${dir}: ${errorReason(error)}`, { path: dir })],
+    };
   }
   const wanted = initDigests(files, source.rom);
   let refused = false;

@@ -171,7 +171,10 @@ function pcLoadLiteral(a: Addr, mode: Mode, v: AnalysisView): Addr | undefined {
 
 /** Rows that copy one register into another unchanged. */
 function movedFrom(insn: Insn): number | undefined {
-  const plain = insn.specId === 'thumb.movs_reg' || insn.specId === 'thumb.mov_hi' || (insn.specId === 'thumb.add_imm3' && insn.fields['imm'] === 0);
+  const plain =
+    insn.specId === 'thumb.movs_reg' ||
+    insn.specId === 'thumb.mov_hi' ||
+    (insn.specId === 'thumb.add_imm3' && insn.fields['imm'] === 0);
   const from = registerEffect(insn).from;
   return plain && from.length === 1 ? from[0] : undefined;
 }
@@ -186,8 +189,11 @@ function writtenRegister(insn: Insn): number | undefined {
 function computed(insn: Insn, regs: readonly (number | undefined)[]): number | undefined {
   const f = insn.fields;
   const reg = (name: string): number | undefined => regs[f[name] ?? 16];
-  const both = (x: number | undefined, y: number | undefined, op: (a: number, b: number) => number): number | undefined =>
-    x === undefined || y === undefined ? undefined : op(x, y) >>> 0;
+  const both = (
+    x: number | undefined,
+    y: number | undefined,
+    op: (a: number, b: number) => number,
+  ): number | undefined => (x === undefined || y === undefined ? undefined : op(x, y) >>> 0);
   switch (insn.specId) {
     case 'thumb.mov_imm':
       return f['imm'];
@@ -262,7 +268,17 @@ function biosSwiAt(a: Addr, v: AnalysisView): number | undefined {
   return matches(h, THUMB_SWI) && biosCall(h & 0xff) !== undefined ? h & 0xff : undefined;
 }
 
-const LOADS: ReadonlySet<string> = new Set(['thumb.ldr_imm', 'thumb.ldrb_imm', 'thumb.ldrh_imm', 'thumb.ldr_reg', 'thumb.ldrb_reg', 'thumb.ldrh_reg', 'thumb.ldrsb_reg', 'thumb.ldrsh_reg', 'thumb.ldmia']);
+const LOADS: ReadonlySet<string> = new Set([
+  'thumb.ldr_imm',
+  'thumb.ldrb_imm',
+  'thumb.ldrh_imm',
+  'thumb.ldr_reg',
+  'thumb.ldrb_reg',
+  'thumb.ldrh_reg',
+  'thumb.ldrsb_reg',
+  'thumb.ldrsh_reg',
+  'thumb.ldmia',
+]);
 const STORE_WIDTH: ReadonlyMap<string, number> = new Map([
   ['thumb.str_imm', 4],
   ['thumb.str_reg', 4],
@@ -289,14 +305,20 @@ function transfer(insn: Insn, s: Tags): (number | null)[] {
   const f = insn.fields;
   const rd = f['rd'];
   const base = f['rn'];
-  if ((insn.specId === 'thumb.add_imm8' || insn.specId === 'thumb.sub_imm8') && rd !== undefined && s[rd] !== null) return out;
+  if ((insn.specId === 'thumb.add_imm8' || insn.specId === 'thumb.sub_imm8') && rd !== undefined && s[rd] !== null)
+    return out;
   if (insn.specId === 'thumb.sub_imm3' && rd !== undefined && base !== undefined && s[base] !== null) {
     out[rd] = s[base] ?? null;
     return out;
   }
   const from = movedFrom(insn);
   const written = writtenRegister(insn);
-  const stepped = (insn.specId === 'thumb.ldmia' || insn.specId === 'thumb.stmia') && base !== undefined && ((f['rlist'] ?? 0) & (1 << base)) === 0 ? base : undefined;
+  const stepped =
+    (insn.specId === 'thumb.ldmia' || insn.specId === 'thumb.stmia') &&
+    base !== undefined &&
+    ((f['rlist'] ?? 0) & (1 << base)) === 0
+      ? base
+      : undefined;
   const writes = registerEffect(insn).writes;
   for (let k = 0; k < 16; k++) if ((writes & (1 << k)) !== 0) out[k] = null;
   if (written !== undefined && from !== undefined) out[written] = s[from] ?? null;
@@ -312,7 +334,8 @@ function successors(insn: Insn, r: Reading): Addr[] {
   if (f.kind === 'branch') {
     out.push(f.target);
     if (f.conditional) out.push(next);
-  } else if (f.kind === 'next' || f.kind === 'bl' || f.kind === 'pool-load' || f.kind === 'adr' || f.kind === 'swi') out.push(next);
+  } else if (f.kind === 'next' || f.kind === 'bl' || f.kind === 'pool-load' || f.kind === 'adr' || f.kind === 'swi')
+    out.push(next);
   return out.filter((a) => r.insnAt.has(a));
 }
 
@@ -431,7 +454,10 @@ function loopCall(callee: Reading, v: AnalysisView): CopyCall | undefined {
 /** How the call to `target` copies: a BIOS stub (the `swi` of a copy call, then a return) or a copy loop. */
 function calleeCall(target: Addr, v: AnalysisView): CopyCall | undefined {
   const swi = biosSwiAt(target, v);
-  if (swi !== undefined) return contains(v.rom, target + 2, 2) && decodedAt(target + 2, 'thumb', v).flow.kind === 'return' ? biosCall(swi) : undefined;
+  if (swi !== undefined)
+    return contains(v.rom, target + 2, 2) && decodedAt(target + 2, 'thumb', v).flow.kind === 'return'
+      ? biosCall(swi)
+      : undefined;
   return loopCall(v.read(target, 'thumb'), v);
 }
 
@@ -451,12 +477,23 @@ function copiesOf(by: Addr, r: Reading, v: AnalysisView): Copy[] {
   for (const site of sites.sort((a, b) => compareNumbers(a.at, b.at))) {
     // The destination is an IWRAM pool literal loaded in the window: without one there is nothing to decode.
     const run = straightLineBefore(r, site.at, argInsns, v);
-    if (!run.some((a) => { const literal = pcLoadLiteral(a, 'thumb', v); return literal !== undefined && iwram.has(literal); })) continue;
+    if (
+      !run.some((a) => {
+        const literal = pcLoadLiteral(a, 'thumb', v);
+        return literal !== undefined && iwram.has(literal);
+      })
+    )
+      continue;
     // Only a call with an IWRAM address, a ROM address and a third known value among r0..r2 can copy code
     // to IWRAM: the callee is read only then.
     const args = constantsAlong(r, run, v);
     const known = [args[0], args[1], args[2]];
-    if (!known.some((x) => x !== undefined && inIwram(x)) || !known.some((x) => x !== undefined && contains(v.rom, x & ~1)) || known.includes(undefined)) continue;
+    if (
+      !known.some((x) => x !== undefined && inIwram(x)) ||
+      !known.some((x) => x !== undefined && contains(v.rom, x & ~1)) ||
+      known.includes(undefined)
+    )
+      continue;
     const call = site.call();
     if (call === undefined) continue;
     const source = args[call.source];
@@ -464,7 +501,8 @@ function copiesOf(by: Addr, r: Reading, v: AnalysisView): Copy[] {
     const bytes = call.bytes(args);
     if (source === undefined || dest === undefined || bytes === undefined) continue;
     const start = source & ~1;
-    if (!inIwram(dest) || bytes <= 0 || dest + bytes > IWRAM.start + IWRAM.size || !contains(v.rom, start, bytes)) continue;
+    if (!inIwram(dest) || bytes <= 0 || dest + bytes > IWRAM.start + IWRAM.size || !contains(v.rom, start, bytes))
+      continue;
     out.push({ by, source: start, dest, bytes });
   }
   return out;
@@ -489,7 +527,8 @@ function jumpsThrough(r: Reading, load: Addr, rd: number, v: AnalysisView): bool
     // Most IWRAM loads address variables: without a jump in the window there is nothing to decode.
     let any = false;
     let steps = 0;
-    for (let a = following(r, load); a !== undefined && steps < jumpInsns && !any; a = following(r, a), steps++) any = mayJump(u16(v.rom, a));
+    for (let a = following(r, load); a !== undefined && steps < jumpInsns && !any; a = following(r, a), steps++)
+      any = mayJump(u16(v.rom, a));
     if (!any) return false;
   }
   let live = 1 << rd;
@@ -564,7 +603,9 @@ function opensFunction(entry: Addr, mode: Mode, copy: Copy, isPool: (word: Addr)
   if (contains(v.rom, prev, size) && exits(decodedAt(prev, mode, v))) return true;
   // A literal pool sits on the profile's pool alignment, so only an entry on it can follow one.
   const word = entry - 4;
-  return entry % v.profile.alignment.pool === 0 && word >= copy.source && (v.claimAt(word) === Claim.pool || isPool(word));
+  return (
+    entry % v.profile.alignment.pool === 0 && word >= copy.source && (v.claimAt(word) === Claim.pool || isPool(word))
+  );
 }
 
 /** The entry a jump names in a copied block, and its mode; undefined when it names none. */
@@ -587,10 +628,12 @@ function readsAsFunction(entry: Addr, mode: Mode, v: AnalysisView): boolean {
 export default defineRule({
   meta: {
     id: 'seed.ram-copy',
-    summary: 'the entries of a code block copied from the ROM to IWRAM, at the load addresses of the IWRAM pointers accepted code jumps through',
+    summary:
+      'the entries of a code block copied from the ROM to IWRAM, at the load addresses of the IWRAM pointers accepted code jumps through',
     restsOn:
       'code that runs from IWRAM is copied there from its load image in the ROM by a call naming the source, the destination and the size (a BIOS CpuSet or CpuFastSet, or a routine that loads through one argument and stores through another), and the rest of the program reaches it only by jumping through its IWRAM addresses',
-    recovers: 'functions that run from IWRAM, linked at their load address, which no ROM address names (past the code end, or between unreferenced data)',
+    recovers:
+      'functions that run from IWRAM, linked at their load address, which no ROM address names (past the code end, or between unreferenced data)',
     reads: ['function-set', 'readings', 'rom', 'claims', 'validity'],
     adds: ['candidates'],
     origin: 'ram-copy',
@@ -620,18 +663,20 @@ export default defineRule({
     // entry follows no exit (each pair is proposed in its own call, so the entry whose pool it is may not
     // be accepted, and its pool not claimed, yet).
     const poolsOf = new Map<Copy, Set<Addr>>();
-    const isPoolOf = (copy: Copy) => (word: Addr): boolean => {
-      let pools = poolsOf.get(copy);
-      if (pools === undefined) {
-        pools = new Set<Addr>();
-        for (const j of everyJump()) {
-          const e = namedEntry(copy, j);
-          if (e !== undefined) for (const q of v.read(e.entry, e.mode).pools) pools.add(q.addr);
+    const isPoolOf =
+      (copy: Copy) =>
+      (word: Addr): boolean => {
+        let pools = poolsOf.get(copy);
+        if (pools === undefined) {
+          pools = new Set<Addr>();
+          for (const j of everyJump()) {
+            const e = namedEntry(copy, j);
+            if (e !== undefined) for (const q of v.read(e.entry, e.mode).pools) pools.add(q.addr);
+          }
+          poolsOf.set(copy, pools);
         }
-        poolsOf.set(copy, pools);
-      }
-      return pools.has(word);
-    };
+        return pools.has(word);
+      };
     for (const entry of sortedKeys(named)) {
       const p = named.get(entry);
       if (p === undefined || covered.has(entry) || v.isFunction(entry) || v.claimAt(entry) !== Claim.free) continue;

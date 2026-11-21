@@ -7,7 +7,7 @@
 // stored value.
 import { hex } from '../../../foundation/util/hex.ts';
 import { addendTo } from '../../model/resolver.ts';
-import { visibleLabelsAt, type WordScope } from './pool.ts';
+import { type WordScope, visibleLabelsAt } from './pool.ts';
 
 /** The operand of a table entry storing `target | thumbBit`, in the scope's module (pool.ts wordScope). */
 export function tableEntryOperand(scope: WordScope, target: number, thumbBit: boolean): string {

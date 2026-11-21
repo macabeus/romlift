@@ -6,8 +6,8 @@
 // throws, naming it.
 import { assemble } from '../../src/foundation/isa/assemble.ts';
 import { parse } from '../../src/foundation/isa/parse.ts';
-import type { Mode } from '../../src/foundation/rom/span.ts';
 import type { SymbolResolver } from '../../src/foundation/isa/types.ts';
+import type { Mode } from '../../src/foundation/rom/span.ts';
 
 export type ByteBuilder = (strings: TemplateStringsArray, ...values: readonly unknown[]) => Uint8Array;
 
@@ -54,12 +54,18 @@ export function assembleSnippet(mode: Mode, text: string, origin: number): Uint8
   for (const line of program) {
     for (const label of line.labels) labels.set(label, addr);
     if (line.text === '') continue;
-    const sizing: SymbolResolver = { labelFor: () => undefined, addressOf: (name) => absolute(name) ?? labels.get(name) ?? addr };
+    const sizing: SymbolResolver = {
+      labelFor: () => undefined,
+      addressOf: (name) => absolute(name) ?? labels.get(name) ?? addr,
+    };
     const parsed = parse(line.text, mode, addr, sizing);
     addr += parsed?.candidates.some((c) => c.specId === 'thumb.bl') ? 4 : mode === 'arm' ? 4 : 2;
   }
   // Pass 2: the bytes.
-  const resolver: SymbolResolver = { labelFor: () => undefined, addressOf: (name) => absolute(name) ?? labels.get(name) };
+  const resolver: SymbolResolver = {
+    labelFor: () => undefined,
+    addressOf: (name) => absolute(name) ?? labels.get(name),
+  };
   const bytes: number[] = [];
   addr = origin;
   for (const line of program) {

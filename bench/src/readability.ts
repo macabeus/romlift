@@ -11,10 +11,18 @@
 // each 1 when its denominator is 0 (D62 d; the header of test/gates/g3.readability.test.ts).
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
+import {
+  type FileEntry,
+  type Model,
+  type PrintStats,
+  type Rom,
+  addPrintStats,
+  compareCodeUnits,
+  emptyPrintStats,
+  printChunk,
+} from 'romlift';
 
-import { addPrintStats, compareCodeUnits, emptyPrintStats, printChunk, type FileEntry, type Model, type PrintStats, type Rom } from 'romlift';
-
-import { baselineDir, type BenchContext } from './context.ts';
+import { type BenchContext, baselineDir } from './context.ts';
 import { BenchError, exists, isRecord, prettyJson, readJson, writeText } from './files.ts';
 
 export const SHARE_NAMES = ['mnemonicShare', 'symbolicBranchShare', 'symbolicPoolShare'] as const;
@@ -97,15 +105,21 @@ function sharesFrom(value: unknown, at: string): Shares {
     if (typeof v !== 'number' || !(v >= 0 && v <= 1)) throw new BenchError(`${at}.${name} must be a number in [0, 1]`);
     out[name] = v;
   }
-  return { mnemonicShare: out.mnemonicShare ?? 0, symbolicBranchShare: out.symbolicBranchShare ?? 0, symbolicPoolShare: out.symbolicPoolShare ?? 0 };
+  return {
+    mnemonicShare: out.mnemonicShare ?? 0,
+    symbolicBranchShare: out.symbolicBranchShare ?? 0,
+    symbolicPoolShare: out.symbolicPoolShare ?? 0,
+  };
 }
 
 export function parseReadabilityFloors(value: unknown, where: string): ReadabilityFloors {
-  if (!isRecord(value) || value['schema'] !== READABILITY_FLOOR_SCHEMA) throw new BenchError(`${where}: schema must be '${READABILITY_FLOOR_SCHEMA}'`);
+  if (!isRecord(value) || value['schema'] !== READABILITY_FLOOR_SCHEMA)
+    throw new BenchError(`${where}: schema must be '${READABILITY_FLOOR_SCHEMA}'`);
   const roms = value['roms'];
   if (!isRecord(roms)) throw new BenchError(`${where}: roms must be an object`);
   const out: Record<string, Shares> = {};
-  for (const name of Object.keys(roms).sort(compareCodeUnits)) out[name] = sharesFrom(roms[name], `${where}: roms.${name}`);
+  for (const name of Object.keys(roms).sort(compareCodeUnits))
+    out[name] = sharesFrom(roms[name], `${where}: roms.${name}`);
   return { schema: READABILITY_FLOOR_SCHEMA, roms: out };
 }
 
@@ -128,7 +142,10 @@ export interface FloorUpdate {
  * The floors after adding `measured` for every ROM that has none. An existing floor is never overwritten
  * or lowered: those ROMs are kept as committed.
  */
-export function addFloors(current: ReadabilityFloors | undefined, measured: Readonly<Record<string, Shares>>): FloorUpdate {
+export function addFloors(
+  current: ReadabilityFloors | undefined,
+  measured: Readonly<Record<string, Shares>>,
+): FloorUpdate {
   const roms: Record<string, Shares> = { ...(current?.roms ?? {}) };
   const added: string[] = [];
   const kept: string[] = [];

@@ -5,6 +5,7 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+
 import type { GateContext } from './gate.ts';
 
 export type CheckId = 'tiling' | 'reencode' | 'module-size' | 'text-layout' | 'paths' | 'assemble' | 'link';
@@ -23,13 +24,25 @@ interface Check {
 }
 
 type Generated =
-  | { readonly ok: true; readonly diagnostics: readonly Diagnostic[]; readonly report: { readonly ok: boolean; readonly checks: readonly Check[] } }
+  | {
+      readonly ok: true;
+      readonly diagnostics: readonly Diagnostic[];
+      readonly report: { readonly ok: boolean; readonly checks: readonly Check[] };
+    }
   | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
 
 type RomFromBytes = (bytes: Uint8Array, sha1: string) => unknown;
 type Sha1Of = (bytes: Uint8Array) => string;
-type GenerateFromRom = (rom: unknown, inputs: { readonly decomp: { readonly defined: readonly string[] }; readonly printer: 'readable' | 'raw' }) => Generated;
-type RunToolchainChecks = (rom: unknown, result: Extract<Generated, { ok: true }>, flags: { readonly assemble: boolean; readonly link: boolean }, env: NodeJS.ProcessEnv) => Promise<{ readonly checks: readonly Check[]; readonly sha1?: string }>;
+type GenerateFromRom = (
+  rom: unknown,
+  inputs: { readonly decomp: { readonly defined: readonly string[] }; readonly printer: 'readable' | 'raw' },
+) => Generated;
+type RunToolchainChecks = (
+  rom: unknown,
+  result: Extract<Generated, { ok: true }>,
+  flags: { readonly assemble: boolean; readonly link: boolean },
+  env: NodeJS.ProcessEnv,
+) => Promise<{ readonly checks: readonly Check[]; readonly sha1?: string }>;
 
 /** What a gate needs exported for verifyRom. */
 export const VERIFY_NEEDS: readonly string[] = ['romFromBytes', 'sha1Of', 'generateFromRom', 'runToolchainChecks'];
@@ -55,8 +68,16 @@ export interface Verified {
 export async function targets(cx: GateContext): Promise<readonly Target[]> {
   if (cx.fixtures.length === 0) throw new Error('no committed fixture under bench/dataset/synthetic');
   const out: Target[] = [];
-  for (const f of cx.fixtures) out.push({ name: f.name, rom: f.rom, sha1: createHash('sha1').update(await readFile(f.rom)).digest('hex') });
-  if (cx.tier === 'real') for (const d of cx.datasets) out.push({ name: d.name, rom: path.resolve(cx.benchRoot, d.rom), sha1: d.sha1 });
+  for (const f of cx.fixtures)
+    out.push({
+      name: f.name,
+      rom: f.rom,
+      sha1: createHash('sha1')
+        .update(await readFile(f.rom))
+        .digest('hex'),
+    });
+  if (cx.tier === 'real')
+    for (const d of cx.datasets) out.push({ name: d.name, rom: path.resolve(cx.benchRoot, d.rom), sha1: d.sha1 });
   return out;
 }
 
@@ -68,11 +89,22 @@ export async function verifyRom(
 ): Promise<Verified> {
   const bytes = new Uint8Array(await readFile(target.rom));
   const rom = cx.need<RomFromBytes>('romFromBytes')(bytes, cx.need<Sha1Of>('sha1Of')(bytes));
-  const result = cx.need<GenerateFromRom>('generateFromRom')(rom, { decomp: { defined: [] }, printer: options.printer ?? 'readable' });
-  if (!result.ok) return { ok: false, checks: new Map(), errors: result.diagnostics.map((d) => `${d.code}: ${d.message}`) };
-  const toolchain = await cx.need<RunToolchainChecks>('runToolchainChecks')(rom, result, { assemble: options.assemble === true, link: options.link === true }, process.env);
+  const result = cx.need<GenerateFromRom>('generateFromRom')(rom, {
+    decomp: { defined: [] },
+    printer: options.printer ?? 'readable',
+  });
+  if (!result.ok)
+    return { ok: false, checks: new Map(), errors: result.diagnostics.map((d) => `${d.code}: ${d.message}`) };
+  const toolchain = await cx.need<RunToolchainChecks>('runToolchainChecks')(
+    rom,
+    result,
+    { assemble: options.assemble === true, link: options.link === true },
+    process.env,
+  );
   const all = [...result.report.checks, ...toolchain.checks];
-  const errors = [...result.diagnostics, ...all.flatMap((c) => c.diagnostics)].filter((d) => d.severity === 'error').map((d) => `${d.code}: ${d.message}`);
+  const errors = [...result.diagnostics, ...all.flatMap((c) => c.diagnostics)]
+    .filter((d) => d.severity === 'error')
+    .map((d) => `${d.code}: ${d.message}`);
   return {
     ok: errors.length === 0 && all.every((c) => c.ok),
     checks: new Map(all.map((c) => [c.id, { ok: c.ok, detail: c.detail }])),

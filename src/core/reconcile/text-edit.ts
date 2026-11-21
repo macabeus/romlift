@@ -29,10 +29,21 @@ export function applyTextEdits(text: string, edits: readonly TextEdit[]): string
   const parts: string[] = [];
   let at = 0;
   for (const { edit } of order) {
-    if (!(Number.isInteger(edit.start) && Number.isInteger(edit.end) && edit.start >= 0 && edit.start <= edit.end && edit.end <= text.length)) {
+    if (
+      !(
+        Number.isInteger(edit.start) &&
+        Number.isInteger(edit.end) &&
+        edit.start >= 0 &&
+        edit.start <= edit.end &&
+        edit.end <= text.length
+      )
+    ) {
       throw new RomliftInvariantError(`text edit [${edit.start}, ${edit.end}) lies outside a ${text.length}-unit text`);
     }
-    if (edit.start < at) throw new RomliftInvariantError(`text edit [${edit.start}, ${edit.end}) overlaps the previous edit, which ends at ${at}`);
+    if (edit.start < at)
+      throw new RomliftInvariantError(
+        `text edit [${edit.start}, ${edit.end}) overlaps the previous edit, which ends at ${at}`,
+      );
     parts.push(text.slice(at, edit.start), edit.text);
     at = edit.end;
   }

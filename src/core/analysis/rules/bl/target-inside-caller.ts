@@ -10,8 +10,8 @@ import { defineRule } from '../define-rule.ts';
 export default defineRule({
   meta: {
     id: 'bl.target-inside-caller',
-    summary: 'a bl to an address below the caller\'s code end is a far jump inside the caller',
-    restsOn: 'a callee is never inside its caller; agbcc places a function\'s code contiguously',
+    summary: "a bl to an address below the caller's code end is a far jump inside the caller",
+    restsOn: "a callee is never inside its caller; agbcc places a function's code contiguously",
     recovers: 'far tails of long functions split off as functions of their own',
     reads: ['readings'],
     adds: ['bl-verdicts'],

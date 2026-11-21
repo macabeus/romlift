@@ -5,8 +5,8 @@
 import type { Dialect } from '../isa/types.ts';
 import { ROM_BASE } from '../rom/rom.ts';
 import type { Mode } from '../rom/span.ts';
-import { BASEROM_FILE, INCLUDE_ASM_HEADER_NAME, nonmatchingDir } from '../util/project-files.ts';
 import { hexSize } from '../util/hex.ts';
+import { BASEROM_FILE, INCLUDE_ASM_HEADER_NAME, nonmatchingDir } from '../util/project-files.ts';
 
 /** A function-start macro: word alignment (unless the entry is at 2 mod 4), visibility, mode and type. */
 function startMacro(name: string, mode: Mode, aligned: boolean, global: boolean): string {

@@ -18,10 +18,19 @@
 // Every helper takes a WordScope, made once per chunk for its module (correctness-r0-5): the relocated modules and
 // the sized entries are computed once, not per word.
 import type { Addr } from '../../../foundation/rom/span.ts';
-import { hex } from '../../../foundation/util/hex.ts';
 import { lowerBound } from '../../../foundation/util/arrays.ts';
+import { hex } from '../../../foundation/util/hex.ts';
 import { moduleIndexAt, relocatedModules } from '../../model/modules.ts';
-import { compareLabels, entryLabelOf, loadOperandIn, sizedEntries, wordNameOf, wordValueOf, type SizedEntries, type SizedEntry } from '../../model/resolver.ts';
+import {
+  type SizedEntries,
+  type SizedEntry,
+  compareLabels,
+  entryLabelOf,
+  loadOperandIn,
+  sizedEntries,
+  wordNameOf,
+  wordValueOf,
+} from '../../model/resolver.ts';
 import type { Label, Model, Module } from '../../model/types.ts';
 
 /** What naming a word inside one module reads: the model's labels and modules, computed once for the module. */
@@ -37,8 +46,17 @@ export interface WordScope {
 }
 
 /** The WordScope of `module`. */
-export function wordScope(model: Pick<Model, 'labels' | 'modules' | 'symbols' | 'functions'>, module: string): WordScope {
-  return { labels: model.labels, modules: model.modules, module, relocated: relocatedModules(model.modules), entries: sizedEntries(model) };
+export function wordScope(
+  model: Pick<Model, 'labels' | 'modules' | 'symbols' | 'functions'>,
+  module: string,
+): WordScope {
+  return {
+    labels: model.labels,
+    modules: model.modules,
+    module,
+    relocated: relocatedModules(model.modules),
+    entries: sizedEntries(model),
+  };
 }
 
 /** The labels at run address `addr` that the scope's module can see, preferred first (compareLabels). */
@@ -58,7 +76,10 @@ export function visibleLabelsAt(scope: WordScope, addr: Addr): readonly Label[] 
 /** The labels `.4byte <name>` of which links to exactly `value`, visible in the scope's module, preferred first. */
 function exactLabels(scope: WordScope, value: number): readonly Label[] {
   const word = value >>> 0;
-  const candidates = (word & 1) === 1 ? [...visibleLabelsAt(scope, word - 1), ...visibleLabelsAt(scope, word)] : visibleLabelsAt(scope, word);
+  const candidates =
+    (word & 1) === 1
+      ? [...visibleLabelsAt(scope, word - 1), ...visibleLabelsAt(scope, word)]
+      : visibleLabelsAt(scope, word);
   return candidates.filter((l) => l.kind !== 'local' && wordValueOf(l) === word);
 }
 

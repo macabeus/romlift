@@ -8,14 +8,14 @@
 // the build name is the header's game code.
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
+import { BASEROM_FILE, defaultFunctionName } from '../../foundation/util/project-files.ts';
 import type { AnalysisResult } from '../analysis/types.ts';
 import { DEFAULT_BUILD_COMPILER } from '../config/compilers.ts';
 import type { EntryPointConfig, FunctionConfig, ModuleConfig, RomliftConfig } from '../config/schema.ts';
-import type { Proposal } from '../proposals/types.ts';
 import { coveredEntries } from '../layout/borders.ts';
 import { inferModules } from '../layout/infer-modules.ts';
 import type { ConfigFromDiscoverOptions } from '../layout/types.ts';
-import { BASEROM_FILE, defaultFunctionName } from '../../foundation/util/project-files.ts';
+import type { Proposal } from '../proposals/types.ts';
 
 /** The build name when the header's game code is not four letters or digits. */
 const FALLBACK_BUILD_NAME = 'rom';
@@ -33,7 +33,11 @@ function moduleKindOf(p: Extract<Proposal, { kind: 'module' }>): ModuleConfig['k
 }
 
 /** The config of a ROM and its discover analysis: every found entry listed, the inferred modules, no symbols or overrides. */
-export function configFromDiscover(rom: Rom, analysis: AnalysisResult, options: ConfigFromDiscoverOptions = {}): RomliftConfig {
+export function configFromDiscover(
+  rom: Rom,
+  analysis: AnalysisResult,
+  options: ConfigFromDiscoverOptions = {},
+): RomliftConfig {
   const modules = inferModules(rom, analysis, options).flatMap((p): ModuleConfig[] => {
     if (p.kind !== 'module') return [];
     return [
@@ -47,9 +51,14 @@ export function configFromDiscover(rom: Rom, analysis: AnalysisResult, options: 
     ];
   });
   const nested = coveredEntries(analysis.functions);
-  const listed = (f: AnalysisResult['functions'][number]): readonly [Addr, FunctionConfig] => [f.entry, { name: defaultFunctionName(f.entry), mode: f.mode, aliases: [] }];
+  const listed = (f: AnalysisResult['functions'][number]): readonly [Addr, FunctionConfig] => [
+    f.entry,
+    { name: defaultFunctionName(f.entry), mode: f.mode, aliases: [] },
+  ];
   const functions = new Map<Addr, FunctionConfig>(analysis.functions.filter((f) => !nested.has(f.entry)).map(listed));
-  const entryPoints = new Map<Addr, EntryPointConfig>(analysis.functions.filter((f) => nested.has(f.entry)).map(listed));
+  const entryPoints = new Map<Addr, EntryPointConfig>(
+    analysis.functions.filter((f) => nested.has(f.entry)).map(listed),
+  );
   return {
     schema: 1,
     rom: { path: BASEROM_FILE, sha1: rom.sha1 },

@@ -38,7 +38,11 @@ export function settle(s: DriverState, entry: Addr): Reading {
 }
 
 /** The first verdict rule's answer for a site. */
-function verdictOf(s: DriverState, site: BlSite, caller: Reading): { readonly verdict: BlVerdict | 'defer'; readonly rule?: RuleId } {
+function verdictOf(
+  s: DriverState,
+  site: BlSite,
+  caller: Reading,
+): { readonly verdict: BlVerdict | 'defer'; readonly rule?: RuleId } {
   for (const { id, rule } of s.rules.blVerdict) {
     const answer = rule.decide(site, caller, s.view);
     if (answer !== undefined) return { verdict: answer, rule: id };
@@ -94,7 +98,9 @@ function settleNow(s: DriverState, entry: Addr): Reading {
     const deadEnd = new Set(r.deadEnd);
     for (const site of r.blSites) {
       // A call stays a call (its record, possibly refined to noreturn, is kept).
-      const { verdict, rule } = calls.has(site.site) ? { verdict: 'call' as const, rule: undefined } : verdictOf(s, site, r);
+      const { verdict, rule } = calls.has(site.site)
+        ? { verdict: 'call' as const, rule: undefined }
+        : verdictOf(s, site, r);
       if (verdict === 'far' && rule !== undefined) {
         far.add(site.site);
         record(site, 'far', rule);
@@ -119,9 +125,15 @@ function settleNow(s: DriverState, entry: Addr): Reading {
       break;
     }
   }
-  if (!settled && !s.diagnostics.some((d) => d.code === 'W_SETTLE_LIMIT' && d.addr === entry)) s.diagnostics.push(settleLimit(entry, LIMITS.settleRounds));
+  if (!settled && !s.diagnostics.some((d) => d.code === 'W_SETTLE_LIMIT' && d.addr === entry))
+    s.diagnostics.push(settleLimit(entry, LIMITS.settleRounds));
   s.inProgress.delete(entry);
-  const final = withVerdicts(r, { far: sortedKeys(far), noret: sortedKeys(noret), blVerdicts: sortedEntries(verdicts).map(([, v]) => v), steps });
+  const final = withVerdicts(r, {
+    far: sortedKeys(far),
+    noret: sortedKeys(noret),
+    blVerdicts: sortedEntries(verdicts).map(([, v]) => v),
+    steps,
+  });
   // The facts are recorded before hold, so a reading budget eviction in hold drops them with the reading.
   if (s.reuse !== undefined) endReading(s.reuse, entry);
   hold(s, entry, final);
@@ -133,7 +145,8 @@ function settleNow(s: DriverState, entry: Addr): Reading {
 function limited(s: DriverState, r: Reading): void {
   const at = r.errors.find((e) => e.reason === 'walk-limit')?.at;
   if (at === undefined) return;
-  if (!s.diagnostics.some((d) => d.code === 'W_WALK_LIMIT' && d.addr === r.entry)) s.diagnostics.push(walkLimit(r.entry, r.mode, at));
+  if (!s.diagnostics.some((d) => d.code === 'W_WALK_LIMIT' && d.addr === r.entry))
+    s.diagnostics.push(walkLimit(r.entry, r.mode, at));
 }
 
 /** 'epoch-reuse': the reading carried over an epoch boundary, when every fact it read still holds. */

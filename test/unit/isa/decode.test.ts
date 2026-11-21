@@ -3,7 +3,16 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { decode, isConditional, isThumbBlPrefix, isThumbBlSuffix, thumbMayBranchShort, thumbMayName, thumbMayReachPcRelative, thumbWordAt } from '../../../src/foundation/isa/decode.ts';
+import {
+  decode,
+  isConditional,
+  isThumbBlPrefix,
+  isThumbBlSuffix,
+  thumbMayBranchShort,
+  thumbMayName,
+  thumbMayReachPcRelative,
+  thumbWordAt,
+} from '../../../src/foundation/isa/decode.ts';
 import { romFromBytes } from '../../../src/foundation/rom/rom.ts';
 
 const A = 0x0800_0200;

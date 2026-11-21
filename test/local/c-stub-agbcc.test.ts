@@ -24,22 +24,21 @@ import path from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-
 import {
+  INCLUDE_ASM_HEADER,
+  INCLUDE_ASM_HEADER_PATH,
+  type Model,
+  type Rom,
   analyze,
   buildModel,
   buildUnits,
   cAssemblyPath,
   configFromDiscover,
   emitTree,
-  INCLUDE_ASM_HEADER,
-  INCLUDE_ASM_HEADER_PATH,
   isCSource,
   profileById,
   romFromBytes,
   stubUnitAssembly,
-  type Model,
-  type Rom,
 } from 'romlift';
 import { DIALECT } from 'romlift/isa';
 import { findBinutils, sha1Of } from 'romlift/node';
@@ -72,7 +71,8 @@ after(async () => {
 
 /** Why the compilers or binutils cannot run here, or undefined. */
 function missingTools(): string | undefined {
-  for (const id of COMPILERS) if (!existsSync(path.join(AGBCC, 'bin', id))) return `unavailable: ${path.join(AGBCC, 'bin', id)}`;
+  for (const id of COMPILERS)
+    if (!existsSync(path.join(AGBCC, 'bin', id))) return `unavailable: ${path.join(AGBCC, 'bin', id)}`;
   return 'code' in tools ? `unavailable: ${tools.message}` : undefined;
 }
 
@@ -146,22 +146,40 @@ async function proveUnits(name: string, rom: Rom, model: Model): Promise<readonl
     await assemble(dir, stubSource, `build/stub/${module.name}.o`);
     const stub = await textOf(dir, `build/stub/${module.name}.o`);
     const range = rom.bytes.subarray(module.span.start - rom.base, module.span.end - rom.base);
-    assert.equal(stub.bytes.length, range.length, `${name} ${module.name}: the stub object's .text is the module's length`);
+    assert.equal(
+      stub.bytes.length,
+      range.length,
+      `${name} ${module.name}: the stub object's .text is the module's length`,
+    );
 
-    const { stdout: preprocessed } = await run(HOSTCC, ['-E', '-x', 'c', '-nostdinc', '-undef', '-I', 'include', unit.source], { cwd: dir, maxBuffer: 1 << 26 });
+    const { stdout: preprocessed } = await run(
+      HOSTCC,
+      ['-E', '-x', 'c', '-nostdinc', '-undef', '-I', 'include', unit.source],
+      { cwd: dir, maxBuffer: 1 << 26 },
+    );
     const input = `build/src/${module.name}.i`;
     await mkdir(path.join(dir, 'build/src'), { recursive: true });
     await writeFile(path.join(dir, input), preprocessed);
     for (const compiler of COMPILERS) {
-      const output: string = compiler === module.compiler ? cAssemblyPath(module.name) : `build/src/${module.name}.${compiler}.s`;
+      const output: string =
+        compiler === module.compiler ? cAssemblyPath(module.name) : `build/src/${module.name}.${compiler}.s`;
       await run(path.join(AGBCC, 'bin', compiler), [...module.cflags, input, '-o', output], { cwd: dir });
       const compiled: string = await readFile(path.join(dir, output), 'utf8');
-      const encoded: string = compiler === module.compiler ? expected : stubUnitAssembly(model, { ...module, compiler });
-      assert.equal(compiled, encoded, `${name} ${module.name}: ${compiler}'s assembly is the stub assembly of a module built with ${compiler}`);
+      const encoded: string =
+        compiler === module.compiler ? expected : stubUnitAssembly(model, { ...module, compiler });
+      assert.equal(
+        compiled,
+        encoded,
+        `${name} ${module.name}: ${compiler}'s assembly is the stub assembly of a module built with ${compiler}`,
+      );
       const object = `${output.slice(0, -2)}.o`;
       await assemble(dir, output, object);
       const text = await textOf(dir, object);
-      assert.deepEqual(text, stub, `${name} ${module.name}: ${compiler}'s object has the stub object's .text and alignment`);
+      assert.deepEqual(
+        text,
+        stub,
+        `${name} ${module.name}: ${compiler}'s object has the stub object's .text and alignment`,
+      );
       proofs.push({ module: module.name, compiler, bytes: text.bytes.length });
     }
   }
@@ -177,28 +195,45 @@ function modelOf(rom: Rom): Model {
 const unavailableTools = missingTools();
 
 for (const fixture of FIXTURES) {
-  test(`c stubs of fixture ${fixture} compile to the stub assembly with agbcc and old_agbcc`, { skip: REQUIRE ? false : (unavailableTools ?? false) }, async (t) => {
-    assert.equal(unavailableTools, undefined, unavailableTools);
-    const bytes = new Uint8Array(readFileSync(path.join(REPO, 'bench', 'dataset', 'synthetic', fixture, 'build', `${fixture}.gba`)));
-    const rom = romFromBytes(bytes, sha1Of(bytes));
-    const proofs = await proveUnits(fixture, rom, modelOf(rom));
-    assert.ok(proofs.length >= 4, `${fixture}: ${proofs.length} compiled units`);
-    t.diagnostic(`${fixture}: ${proofs.length / COMPILERS.length} C units, each compiled by ${COMPILERS.join(' and ')} to the stub assembly (${proofs.filter((p) => p.compiler === 'agbcc').reduce((n, p) => n + p.bytes, 0)} bytes of .text)`);
-  });
+  test(
+    `c stubs of fixture ${fixture} compile to the stub assembly with agbcc and old_agbcc`,
+    { skip: REQUIRE ? false : (unavailableTools ?? false) },
+    async (t) => {
+      assert.equal(unavailableTools, undefined, unavailableTools);
+      const bytes = new Uint8Array(
+        readFileSync(path.join(REPO, 'bench', 'dataset', 'synthetic', fixture, 'build', `${fixture}.gba`)),
+      );
+      const rom = romFromBytes(bytes, sha1Of(bytes));
+      const proofs = await proveUnits(fixture, rom, modelOf(rom));
+      assert.ok(proofs.length >= 4, `${fixture}: ${proofs.length} compiled units`);
+      t.diagnostic(
+        `${fixture}: ${proofs.length / COMPILERS.length} C units, each compiled by ${COMPILERS.join(' and ')} to the stub assembly (${proofs.filter((p) => p.compiler === 'agbcc').reduce((n, p) => n + p.bytes, 0)} bytes of .text)`,
+      );
+    },
+  );
 }
 
 {
-  const dataset = JSON.parse(readFileSync(path.join(REPO, 'bench', 'dataset', 'real', 'klonoa.json'), 'utf8')) as { readonly rom: string; readonly sha1: string };
+  const dataset = JSON.parse(readFileSync(path.join(REPO, 'bench', 'dataset', 'real', 'klonoa.json'), 'utf8')) as {
+    readonly rom: string;
+    readonly sha1: string;
+  };
   const romPath = path.join(BENCH_ROOT, dataset.rom);
   const unavailable = unavailableTools ?? (existsSync(romPath) ? undefined : `unavailable: rom ${romPath}`);
-  test('c stubs of klonoa compile to the stub assembly with agbcc and old_agbcc', { skip: REQUIRE ? false : (unavailable ?? false) }, async (t) => {
-    assert.equal(unavailable, undefined, unavailable);
-    const bytes = new Uint8Array(readFileSync(romPath));
-    const sha1 = sha1Of(bytes);
-    assert.equal(sha1, dataset.sha1, `${romPath} is not the dataset's ROM`);
-    const rom = romFromBytes(bytes, sha1);
-    const proofs = await proveUnits('klonoa', rom, modelOf(rom));
-    assert.ok(proofs.length > 0, 'klonoa has C units');
-    t.diagnostic(`klonoa: ${proofs.length / COMPILERS.length} C units, each compiled by ${COMPILERS.join(' and ')} to the stub assembly (${proofs.filter((p) => p.compiler === 'agbcc').reduce((n, p) => n + p.bytes, 0)} bytes of .text)`);
-  });
+  test(
+    'c stubs of klonoa compile to the stub assembly with agbcc and old_agbcc',
+    { skip: REQUIRE ? false : (unavailable ?? false) },
+    async (t) => {
+      assert.equal(unavailable, undefined, unavailable);
+      const bytes = new Uint8Array(readFileSync(romPath));
+      const sha1 = sha1Of(bytes);
+      assert.equal(sha1, dataset.sha1, `${romPath} is not the dataset's ROM`);
+      const rom = romFromBytes(bytes, sha1);
+      const proofs = await proveUnits('klonoa', rom, modelOf(rom));
+      assert.ok(proofs.length > 0, 'klonoa has C units');
+      t.diagnostic(
+        `klonoa: ${proofs.length / COMPILERS.length} C units, each compiled by ${COMPILERS.join(' and ')} to the stub assembly (${proofs.filter((p) => p.compiler === 'agbcc').reduce((n, p) => n + p.bytes, 0)} bytes of .text)`,
+      );
+    },
+  );
 }

@@ -27,7 +27,10 @@ if (FIXTURE === undefined) throw new Error('the table-jump-hoisted fixture is no
 const rom = readFixtureRom(FIXTURE);
 const CASE_A = 0x0800_013c;
 const base = configFromDiscover(rom, discover(rom));
-const config = { ...base, entryPoints: new Map([...base.entryPoints, [CASE_A, { name: 'CaseA', mode: 'thumb' as const, aliases: [] }]]) };
+const config = {
+  ...base,
+  entryPoints: new Map([...base.entryPoints, [CASE_A, { name: 'CaseA', mode: 'thumb' as const, aliases: [] }]]),
+};
 const { model } = confirmModel({ rom, config });
 const tools = findBinutils(process.env);
 const roots: string[] = [];
@@ -38,7 +41,9 @@ after(async () => {
 
 /** Every `.4byte` line of the tree a printer writes. */
 function words(printer: Printer): readonly string[] {
-  return [...emitTree(rom, model, { decomp: { defined: [] }, printer })].flatMap((e) => ('text' in e ? e.text.split('\n').filter((l) => l.includes('.4byte ')) : []));
+  return [...emitTree(rom, model, { decomp: { defined: [] }, printer })].flatMap((e) =>
+    'text' in e ? e.text.split('\n').filter((l) => l.includes('.4byte ')) : [],
+  );
 }
 
 test('the model: CaseA is a Thumb function label with a local label beside it', () => {
@@ -64,20 +69,30 @@ test('the even entry names the local label, never `CaseA - 1`', () => {
 
 test('the readable tree passes the text-layout check', () => {
   const report = checkEntries(rom, model, emitTree(rom, model, { decomp: { defined: [] } }));
-  assert.ok(report.ok, report.checks.filter((k) => !k.ok).map((k) => k.detail).join('; '));
+  assert.ok(
+    report.ok,
+    report.checks
+      .filter((k) => !k.ok)
+      .map((k) => k.detail)
+      .join('; '),
+  );
 });
 
 for (const printer of ['readable', 'raw'] as const satisfies readonly Printer[]) {
-  test(`the ${printer} tree links to the fixture's SHA-1`, { skip: 'code' in tools ? `unavailable: ${tools.message}` : false }, async () => {
-    assert.ok(!('code' in tools));
-    const dir = await mkdtemp(join(tmpdir(), `romlift-table-function-target-${printer}-`));
-    roots.push(dir);
-    for (const e of emitTree(rom, model, { decomp: { defined: [] }, printer })) {
-      if (!('text' in e)) throw new Error(`${e.path}: a reconciled entry`);
-      await mkdir(dirname(join(dir, e.path)), { recursive: true });
-      await writeFile(join(dir, e.path), e.text);
-    }
-    const linked = await linkCheck({ dir, rom, units: buildUnits(model), tools });
-    assert.equal(linked.sha1, rom.sha1, `${linked.detail} ${linked.diagnostics.map((d) => d.message).join('; ')}`);
-  });
+  test(
+    `the ${printer} tree links to the fixture's SHA-1`,
+    { skip: 'code' in tools ? `unavailable: ${tools.message}` : false },
+    async () => {
+      assert.ok(!('code' in tools));
+      const dir = await mkdtemp(join(tmpdir(), `romlift-table-function-target-${printer}-`));
+      roots.push(dir);
+      for (const e of emitTree(rom, model, { decomp: { defined: [] }, printer })) {
+        if (!('text' in e)) throw new Error(`${e.path}: a reconciled entry`);
+        await mkdir(dirname(join(dir, e.path)), { recursive: true });
+        await writeFile(join(dir, e.path), e.text);
+      }
+      const linked = await linkCheck({ dir, rom, units: buildUnits(model), tools });
+      assert.equal(linked.sha1, rom.sha1, `${linked.detail} ${linked.diagnostics.map((d) => d.message).join('; ')}`);
+    },
+  );
 }

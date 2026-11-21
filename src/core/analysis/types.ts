@@ -29,7 +29,9 @@ export type ClaimKind = (typeof Claim)[keyof typeof Claim];
 /** Every claim kind, ascending. */
 export const CLAIM_KINDS: readonly ClaimKind[] = Object.values(Claim);
 
-const CLAIM_NAMES: ReadonlyMap<ClaimKind, string> = new Map(Object.entries(Claim).map(([name, kind]) => [kind, name] as const));
+const CLAIM_NAMES: ReadonlyMap<ClaimKind, string> = new Map(
+  Object.entries(Claim).map(([name, kind]) => [kind, name] as const),
+);
 
 /** The name of a claim kind ('free', 'code', 'pool', …). */
 export function claimName(kind: ClaimKind): string {

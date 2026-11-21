@@ -8,8 +8,8 @@
 import { C_STUB_HEADER } from '../../../foundation/asm/dialect.ts';
 import type { Rom } from '../../../foundation/rom/rom.ts';
 import { isCSource } from '../../../foundation/util/project-files.ts';
-import { moduleSource } from '../../model/paths.ts';
 import { stubChunks } from '../../model/c-unit.ts';
+import { moduleSource } from '../../model/paths.ts';
 import type { Model, Module } from '../../model/types.ts';
 import { planIncludeAsm } from '../../reconcile/include-asm.ts';
 import { applyTextEdits } from '../../reconcile/text-edit.ts';
@@ -17,7 +17,11 @@ import type { EmitContext, FileEntry, Writer } from '../tree.ts';
 
 /** The generated text of src/<module>.c: the header, then one INCLUDE_ASM per chunk file in ROM order. */
 export function cStubText(model: Pick<Model, 'chunks'>, module: Module): string {
-  const plan = planIncludeAsm(C_STUB_HEADER, { module: module.name, chunks: stubChunks(model, module), path: moduleSource(model, module) });
+  const plan = planIncludeAsm(C_STUB_HEADER, {
+    module: module.name,
+    chunks: stubChunks(model, module),
+    path: moduleSource(model, module),
+  });
   return applyTextEdits(C_STUB_HEADER, plan.edits);
 }
 

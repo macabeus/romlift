@@ -4,11 +4,18 @@
 // and off.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import {
+  type AnalysisOptions,
+  type AnalysisResult,
+  type CompilerProfile,
+  type JsonValue,
+  type TrailEvent,
+  canonicalJson,
+  profileById,
+} from 'romlift';
+import { DEFAULT_TUNING, analyzeTuned } from 'romlift/internal';
 
-import { canonicalJson, profileById, type AnalysisOptions, type AnalysisResult, type CompilerProfile, type JsonValue, type TrailEvent } from 'romlift';
-import { analyzeTuned, DEFAULT_TUNING } from 'romlift/internal';
-
-import { listSyntheticFixtures, readFixtureRom, type SyntheticFixture } from '../../../helpers/fixtures.ts';
+import { type SyntheticFixture, listSyntheticFixtures, readFixtureRom } from '../../../helpers/fixtures.ts';
 
 const FIXTURES = listSyntheticFixtures();
 const OPTIONS: AnalysisOptions = { mode: 'discover', seeds: [], overrides: [], trail: 'off' };
@@ -27,7 +34,13 @@ function fixture(name: string): SyntheticFixture {
 
 function traced(name: string): { readonly result: AnalysisResult; readonly events: readonly TrailEvent[] } {
   const events: TrailEvent[] = [];
-  const result = analyzeTuned(readFixtureRom(fixture(name)), agbcc(), { ...OPTIONS, trail: 'decisions' }, DEFAULT_TUNING, { event: (e) => events.push(e) });
+  const result = analyzeTuned(
+    readFixtureRom(fixture(name)),
+    agbcc(),
+    { ...OPTIONS, trail: 'decisions' },
+    DEFAULT_TUNING,
+    { event: (e) => events.push(e) },
+  );
   return { result, events };
 }
 
@@ -37,7 +50,9 @@ const without = (r: AnalysisResult): AnalysisResult => ({ ...r, options: { ...r.
 test('tracing changes no analysis result on any fixture', () => {
   for (const f of FIXTURES) {
     const off = analyzeTuned(readFixtureRom(f), agbcc(), OPTIONS, DEFAULT_TUNING);
-    const on = analyzeTuned(readFixtureRom(f), agbcc(), { ...OPTIONS, trail: 'decisions' }, DEFAULT_TUNING, { event: () => undefined });
+    const on = analyzeTuned(readFixtureRom(f), agbcc(), { ...OPTIONS, trail: 'decisions' }, DEFAULT_TUNING, {
+      event: () => undefined,
+    });
     assert.equal(digest(without(on)), digest(off), f.name);
   }
 });
@@ -46,7 +61,11 @@ test('an accept rule that takes a harvested candidate has its own accept event b
   const { events } = traced('leaf-handler-pointer-table');
   const taken = events.filter((e) => e.kind === 'accept' && e.rule === 'accept.pointer-table-run');
   assert.ok(taken.length > 0);
-  for (const e of taken) assert.ok(events.some((p) => p.kind === 'accept' && p.at === e.at && p.rule.startsWith('seed.')), `proposer of ${e.at}`);
+  for (const e of taken)
+    assert.ok(
+      events.some((p) => p.kind === 'accept' && p.at === e.at && p.rule.startsWith('seed.')),
+      `proposer of ${e.at}`,
+    );
 });
 
 test('a walk step of an accepted reading is a verdict at its instruction, cited with the entry', () => {
@@ -63,17 +82,36 @@ test('a walk step of an accepted reading is a verdict at its instruction, cited 
 
 test('an earlier settle round decides a noreturn call; its walk answers are still cited', () => {
   const { events } = traced('noreturn-call-then-next');
-  assert.ok(events.some((e) => e.kind === 'verdict' && e.rule === 'walk.noreturn-call-before-noncode' && e.detail === 'end-path'));
-  assert.ok(events.some((e) => e.kind === 'verdict' && e.rule === 'walk.trailing-zero-padding' && e.detail === 'padding'));
+  assert.ok(
+    events.some(
+      (e) => e.kind === 'verdict' && e.rule === 'walk.noreturn-call-before-noncode' && e.detail === 'end-path',
+    ),
+  );
+  assert.ok(
+    events.some((e) => e.kind === 'verdict' && e.rule === 'walk.trailing-zero-padding' && e.detail === 'padding'),
+  );
 });
 
 test('the gap slots prefer and skip decide at a cursor and are cited as verdicts', () => {
-  assert.ok(traced('prologueless-thumb-over-arm').events.some((e) => e.kind === 'verdict' && e.rule === 'gap.arm-over-prologueless-thumb' && e.detail === 'arm over thumb'));
-  assert.ok(traced('thumb-pointer-run').events.some((e) => e.kind === 'verdict' && e.rule === 'gap.skip-padding-and-pointers' && e.detail?.startsWith('skips to 0x') === true));
+  assert.ok(
+    traced('prologueless-thumb-over-arm').events.some(
+      (e) => e.kind === 'verdict' && e.rule === 'gap.arm-over-prologueless-thumb' && e.detail === 'arm over thumb',
+    ),
+  );
+  assert.ok(
+    traced('thumb-pointer-run').events.some(
+      (e) =>
+        e.kind === 'verdict' &&
+        e.rule === 'gap.skip-padding-and-pointers' &&
+        e.detail?.startsWith('skips to 0x') === true,
+    ),
+  );
 });
 
 test('a trail of level off records nothing', () => {
   const events: TrailEvent[] = [];
-  analyzeTuned(readFixtureRom(fixture('pool-padded-46c0')), agbcc(), OPTIONS, DEFAULT_TUNING, { event: (e) => events.push(e) });
+  analyzeTuned(readFixtureRom(fixture('pool-padded-46c0')), agbcc(), OPTIONS, DEFAULT_TUNING, {
+    event: (e) => events.push(e),
+  });
   assert.deepEqual(events, []);
 });

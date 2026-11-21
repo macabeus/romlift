@@ -4,12 +4,21 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { DEFAULT_PRINTER, WRITER_IDS, addPrintStats, emptyPrintStats } from '../../../src/core/emit/tree.ts';
+import type {
+  DecompState,
+  EmitContext,
+  FileEntry,
+  PrintStats,
+  PrintedChunk,
+  TextEdit,
+  Writer,
+  WriterId,
+} from '../../../src/core/emit/tree.ts';
 import { WRITERS } from '../../../src/core/emit/writers/index.ts';
-import { addPrintStats, DEFAULT_PRINTER, emptyPrintStats, WRITER_IDS } from '../../../src/core/emit/tree.ts';
-import type { DecompState, EmitContext, FileEntry, PrintedChunk, PrintStats, TextEdit, Writer, WriterId } from '../../../src/core/emit/tree.ts';
 import type { Model } from '../../../src/core/model/types.ts';
-import type { Manifest, WriteOp, WritePlan, WritePlanInputs } from '../../../src/core/write-plan/types.ts';
 import type { CheckResult, VerifyReport } from '../../../src/core/verify/report.ts';
+import type { Manifest, WriteOp, WritePlan, WritePlanInputs } from '../../../src/core/write-plan/types.ts';
 import type { Rom } from '../../../src/foundation/rom/rom.ts';
 import { dataItem, modelOf, romWith } from '../../helpers/model.ts';
 
@@ -20,7 +29,12 @@ function expectType<T extends true>(_: T): void {}
 const generated = { ownership: 'generated', path: 'asm/main.s', text: '', writer: 'module' } satisfies FileEntry;
 const scaffold = { ownership: 'scaffold', path: 'src/main.c', text: '', writer: 'c-stub' } satisfies FileEntry;
 const edit: TextEdit = { start: 0, end: 0, text: 'INCLUDE_ASM("asm/nonmatchings/main", F);\n', reason: 'add-stub' };
-const reconciled = { ownership: 'reconciled', path: 'src/main.c', baseSha1: '0'.repeat(40), edits: [edit] } satisfies FileEntry;
+const reconciled = {
+  ownership: 'reconciled',
+  path: 'src/main.c',
+  baseSha1: '0'.repeat(40),
+  edits: [edit],
+} satisfies FileEntry;
 // @ts-expect-error a scaffold entry is written by the scaffold or c-stub writer only
 const wrongScaffold: FileEntry = { ownership: 'scaffold', path: 'Makefile', text: '', writer: 'module' };
 void wrongScaffold;
@@ -38,7 +52,13 @@ const writer: Writer = {
   id: 'function',
   scope: 'module',
   *emit(_rom: Rom, model: Model, _cx: EmitContext, module: number | null): Iterable<FileEntry> {
-    if (module !== null) yield { ownership: 'generated', path: `asm/${model.modules[module]?.name ?? ''}.s`, text: '', writer: 'function' };
+    if (module !== null)
+      yield {
+        ownership: 'generated',
+        path: `asm/${model.modules[module]?.name ?? ''}.s`,
+        text: '',
+        writer: 'function',
+      };
   },
 };
 expectType<Equal<Parameters<Writer['emit']>, [rom: Rom, model: Model, cx: EmitContext, module: number | null]>>(true);
@@ -46,10 +66,19 @@ expectType<Equal<Writer['scope'], 'module' | 'global'>>(true);
 
 // PrintedChunk and PrintStats.
 const printed: PrintedChunk = { lines: ['\tthumb_func_start F', 'F:'], stats: { ...emptyPrintStats(), insns: 1 } };
-expectType<Equal<keyof PrintStats, 'insns' | 'rawInsns' | 'branches' | 'symbolicBranches' | 'poolLoads' | 'symbolicPoolLoads' | 'rawReasons'>>(true);
+expectType<
+  Equal<
+    keyof PrintStats,
+    'insns' | 'rawInsns' | 'branches' | 'symbolicBranches' | 'poolLoads' | 'symbolicPoolLoads' | 'rawReasons'
+  >
+>(true);
 
 // The write plan's shapes, with `retained`.
-const manifest: Manifest = { schema: 1, romlift: '0.0.0', files: { 'asm/main.s': { sha1: '0'.repeat(40), writer: 'module' } } };
+const manifest: Manifest = {
+  schema: 1,
+  romlift: '0.0.0',
+  files: { 'asm/main.s': { sha1: '0'.repeat(40), writer: 'module' } },
+};
 const inputs: WritePlanInputs = {
   entries: [generated, scaffold, reconciled],
   manifest,
@@ -61,7 +90,13 @@ const inputs: WritePlanInputs = {
 const ops: readonly WriteOp[] = [{ op: 'keep', path: 'asm/main.s', sha1: '0'.repeat(40) }];
 const plan: WritePlan = { ops, manifest, diagnostics: [] };
 // @ts-expect-error retained is required
-const noRetained: WritePlanInputs = { entries: [], manifest: null, disk: new Map(), reconciledTexts: new Map(), hash: (t: string) => t };
+const noRetained: WritePlanInputs = {
+  entries: [],
+  manifest: null,
+  disk: new Map(),
+  reconciledTexts: new Map(),
+  hash: (t: string) => t,
+};
 void noRetained;
 
 // The verify report.
@@ -72,7 +107,10 @@ const badCheck: CheckResult = { id: 'objdiff', ok: true, detail: '', diagnostics
 void badCheck;
 
 test('the frozen shapes hold at runtime too', () => {
-  assert.deepEqual([generated.ownership, scaffold.ownership, reconciled.ownership], ['generated', 'scaffold', 'reconciled']);
+  assert.deepEqual(
+    [generated.ownership, scaffold.ownership, reconciled.ownership],
+    ['generated', 'scaffold', 'reconciled'],
+  );
   assert.equal(cxDefault.printer, undefined);
   assert.equal(DEFAULT_PRINTER, 'readable');
   assert.equal(cxRaw.printer, 'raw');
@@ -81,12 +119,17 @@ test('the frozen shapes hold at runtime too', () => {
   assert.equal(plan.ops.length, 1);
   assert.ok(report.ok);
   const rom = romWith([], { size: 0x400 });
-  const model = modelOf(rom, { modules: [{ name: 'main', chunks: [{ name: 'F', items: [dataItem(0x0800_0000, 0x400)] }] }] });
-  assert.deepEqual([...writer.emit(rom, model, cxDefault, 0)].map((e) => e.path), ['asm/main.s']);
+  const model = modelOf(rom, {
+    modules: [{ name: 'main', chunks: [{ name: 'F', items: [dataItem(0x0800_0000, 0x400)] }] }],
+  });
+  assert.deepEqual(
+    [...writer.emit(rom, model, cxDefault, 0)].map((e) => e.path),
+    ['asm/main.s'],
+  );
   assert.deepEqual([...writer.emit(rom, model, cxDefault, null)], []);
 });
 
-test('the registry holds the eight phase-3 writers, phase 4\'s modules-mk and c-stub and phase 6\'s expected and objdiff; ldscript, symbols, modules-mk and objdiff global', () => {
+test("the registry holds the eight phase-3 writers, phase 4's modules-mk and c-stub and phase 6's expected and objdiff; ldscript, symbols, modules-mk and objdiff global", () => {
   assert.deepEqual(
     WRITERS.map((w) => [w.id, w.scope]),
     [
@@ -110,10 +153,34 @@ test('the registry holds the eight phase-3 writers, phase 4\'s modules-mk and c-
 });
 
 test('addPrintStats sums every count and merges the raw reasons', () => {
-  const a: PrintStats = { insns: 10, rawInsns: 2, branches: 4, symbolicBranches: 3, poolLoads: 2, symbolicPoolLoads: 1, rawReasons: { 'no-roundtrip': 1, 'as-alias': 1 } };
-  const b: PrintStats = { insns: 5, rawInsns: 1, branches: 1, symbolicBranches: 1, poolLoads: 0, symbolicPoolLoads: 0, rawReasons: { 'cross-module-short-branch': 1, 'no-roundtrip': 2 } };
+  const a: PrintStats = {
+    insns: 10,
+    rawInsns: 2,
+    branches: 4,
+    symbolicBranches: 3,
+    poolLoads: 2,
+    symbolicPoolLoads: 1,
+    rawReasons: { 'no-roundtrip': 1, 'as-alias': 1 },
+  };
+  const b: PrintStats = {
+    insns: 5,
+    rawInsns: 1,
+    branches: 1,
+    symbolicBranches: 1,
+    poolLoads: 0,
+    symbolicPoolLoads: 0,
+    rawReasons: { 'cross-module-short-branch': 1, 'no-roundtrip': 2 },
+  };
   const sum = addPrintStats(a, b);
-  assert.deepEqual(sum, { insns: 15, rawInsns: 3, branches: 5, symbolicBranches: 4, poolLoads: 2, symbolicPoolLoads: 1, rawReasons: { 'as-alias': 1, 'cross-module-short-branch': 1, 'no-roundtrip': 3 } });
+  assert.deepEqual(sum, {
+    insns: 15,
+    rawInsns: 3,
+    branches: 5,
+    symbolicBranches: 4,
+    poolLoads: 2,
+    symbolicPoolLoads: 1,
+    rawReasons: { 'as-alias': 1, 'cross-module-short-branch': 1, 'no-roundtrip': 3 },
+  });
   assert.deepEqual(Object.keys(sum.rawReasons), ['as-alias', 'cross-module-short-branch', 'no-roundtrip']);
   assert.deepEqual(addPrintStats(emptyPrintStats(), emptyPrintStats()), emptyPrintStats());
 });

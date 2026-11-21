@@ -20,14 +20,25 @@ test('the entry itself and an accepted function are calls; anything else is left
   assert.equal(rule.decide({ site: F + 2, target: F }, caller, viewWith({ rom })), 'call');
   assert.equal(rule.decide({ site: F + 2, target: G }, caller, viewWith({ rom, functions: [G] })), 'call');
   assert.equal(rule.decide({ site: F + 2, target: G }, caller, viewWith({ rom })), undefined);
-  assert.equal(rule.decide({ site: F + 2, target: F + 2 }, caller, viewWith({ rom })), undefined, 'the entry, not any address of the caller');
+  assert.equal(
+    rule.decide({ site: F + 2, target: F + 2 }, caller, viewWith({ rom })),
+    undefined,
+    'the entry, not any address of the caller',
+  );
 });
 
 test('a far bl to an accepted function that pops a frame it never pushed is still a call', () => {
-  const rom = romWith([{ at: F, bytes: thumbAt(F)`push {lr}; bl _08000A00; pop {pc}` }, { at: G, bytes: thumbAt(G)`pop {pc}` }]);
+  const rom = romWith([
+    { at: F, bytes: thumbAt(F)`push {lr}; bl _08000A00; pop {pc}` },
+    { at: G, bytes: thumbAt(G)`pop {pc}` },
+  ]);
   const s = driverOver(rom);
   accept(s, { entry: G, mode: 'thumb', proposedBy: 'seed.listed', cites: [] });
   assert.deepEqual(settle(s, F).blVerdicts, [{ site: F + 2, target: G, verdict: 'call', rule: ID }]);
   const fresh = driverOver(rom);
-  assert.deepEqual(settle(fresh, F).blVerdicts.map((v) => [v.verdict, v.rule]), [['far', 'bl.target-pops-unpushed-frame']], 'unknown, the same bl is a far jump');
+  assert.deepEqual(
+    settle(fresh, F).blVerdicts.map((v) => [v.verdict, v.rule]),
+    [['far', 'bl.target-pops-unpushed-frame']],
+    'unknown, the same bl is a far jump',
+  );
 });

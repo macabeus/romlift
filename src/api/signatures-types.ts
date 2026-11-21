@@ -15,7 +15,12 @@ export type {
   SignatureTable,
 } from '../core/signatures/schema.ts';
 export { isMemberId, parseSignatureFile, SIGNATURE_RULE_IDS } from '../core/signatures/schema.ts';
-export type { SignatureSpec, SignatureSpecParse, SignatureSpecReference, SignatureSpecVersion } from '../core/signatures/spec.ts';
+export type {
+  SignatureSpec,
+  SignatureSpecParse,
+  SignatureSpecReference,
+  SignatureSpecVersion,
+} from '../core/signatures/spec.ts';
 export { parseSignatureSpec } from '../core/signatures/spec.ts';
 export type { SignatureCode } from '../core/signatures/codes.ts';
 export { SignatureCodes } from '../core/signatures/codes.ts';

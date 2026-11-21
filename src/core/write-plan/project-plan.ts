@@ -20,7 +20,13 @@ export interface ProjectWriteState {
 }
 
 /** The planWrites inputs of writing `entries` (a model's stream, plus any scaffold entries) over `state`. */
-export function projectPlanInputs(entries: Iterable<FileEntry>, state: ProjectWriteState, hash: (text: string) => string, romlift: string, retained: readonly string[]): WritePlanInputs {
+export function projectPlanInputs(
+  entries: Iterable<FileEntry>,
+  state: ProjectWriteState,
+  hash: (text: string) => string,
+  romlift: string,
+  retained: readonly string[],
+): WritePlanInputs {
   return {
     entries,
     manifest: state.manifest,
@@ -38,7 +44,12 @@ export function projectPlanInputs(entries: Iterable<FileEntry>, state: ProjectWr
  * The planWrites inputs of writing `entries` (whose paths are `paths`) into an empty directory, as a fresh project is
  * written: no manifest, every path absent on disk, no reconciled text, and `retained` left alone.
  */
-export function freshTreePlanInputs(entries: Iterable<FileEntry>, paths: readonly string[], hash: (text: string) => string, retained: readonly string[]): WritePlanInputs {
+export function freshTreePlanInputs(
+  entries: Iterable<FileEntry>,
+  paths: readonly string[],
+  hash: (text: string) => string,
+  retained: readonly string[],
+): WritePlanInputs {
   return {
     entries,
     manifest: null,
@@ -58,7 +69,10 @@ function manifestText(manifest: Manifest): string {
  * and the manifest it would write is the one already there. The shell then skips the apply step, so `generate`
  * right after `init` leaves every file, the manifest included, with its modification time (g4.generate-idempotent).
  */
-export function planChangesNothing(plan: Pick<WritePlan, 'ops' | 'manifest'>, state: Pick<ProjectWriteState, 'manifest' | 'journal'>): boolean {
+export function planChangesNothing(
+  plan: Pick<WritePlan, 'ops' | 'manifest'>,
+  state: Pick<ProjectWriteState, 'manifest' | 'journal'>,
+): boolean {
   if (state.journal !== null || state.manifest === null) return false;
   if (!plan.ops.every((op) => op.op === 'keep')) return false;
   return manifestText(plan.manifest) === manifestText(state.manifest);

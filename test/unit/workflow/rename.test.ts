@@ -7,7 +7,13 @@ import { test } from 'node:test';
 import { parseConfig } from '../../../src/core/config/parse.ts';
 import type { RomliftConfig } from '../../../src/core/config/schema.ts';
 import { applyTextEdits } from '../../../src/core/reconcile/text-edit.ts';
-import { isRenameTarget, planRename, renameJournalProblems, renameProblems, staleRenameConfig } from '../../../src/core/workflow/rename.ts';
+import {
+  isRenameTarget,
+  planRename,
+  renameJournalProblems,
+  renameProblems,
+  staleRenameConfig,
+} from '../../../src/core/workflow/rename.ts';
 import type { RenameInputs } from '../../../src/core/workflow/rename.ts';
 
 const TOML = `schema = 1
@@ -44,7 +50,10 @@ function config(text: string = TOML): RomliftConfig {
 }
 
 const TEXTS: ReadonlyMap<string, string> = new Map([
-  ['src/main.c', '#include "include_asm.h"\n\nINCLUDE_ASM("asm/nonmatchings/main", sub_08000100);\n/* sub_08000100 */ const char *s = "sub_08000100";\n'],
+  [
+    'src/main.c',
+    '#include "include_asm.h"\n\nINCLUDE_ASM("asm/nonmatchings/main", sub_08000100);\n/* sub_08000100 */ const char *s = "sub_08000100";\n',
+  ],
   ['include/main.h', '#define CALL sub_08000100()\nvoid sub_08000100(void);\n'],
   ['src/other.c', 'int unrelated;\n'],
 ]);
@@ -58,7 +67,15 @@ const MODEL_NAMES: ReadonlyMap<string, number> = new Map([
 ]);
 
 function inputs(from: string, to: string, texts: ReadonlyMap<string, string> = TEXTS): RenameInputs {
-  return { configText: TOML, config: config(), from, to, texts, sha1s: new Map([...texts.keys()].map((p) => [p, `sha1-of-${p}`] as const)), modelNames: MODEL_NAMES };
+  return {
+    configText: TOML,
+    config: config(),
+    from,
+    to,
+    texts,
+    sha1s: new Map([...texts.keys()].map((p) => [p, `sha1-of-${p}`] as const)),
+    modelNames: MODEL_NAMES,
+  };
 }
 
 function codes(plan: ReturnType<typeof planRename>): readonly string[] {
@@ -71,13 +88,22 @@ test('a rename: one TOML line, and the identifier edits of every text that names
   assert.deepEqual(plan.diagnostics, []);
   const before = TOML.split('\n');
   const after = plan.tomlText.split('\n');
-  assert.deepEqual(after.filter((line, i) => line !== before[i]), ['0x08000100 = "InitGame"']);
-  assert.deepEqual(plan.edits.map((e) => [e.ownership, e.path, e.baseSha1, e.edits.length]), [
-    ['reconciled', 'include/main.h', 'sha1-of-include/main.h', 2],
-    ['reconciled', 'src/main.c', 'sha1-of-src/main.c', 1],
-  ]);
+  assert.deepEqual(
+    after.filter((line, i) => line !== before[i]),
+    ['0x08000100 = "InitGame"'],
+  );
+  assert.deepEqual(
+    plan.edits.map((e) => [e.ownership, e.path, e.baseSha1, e.edits.length]),
+    [
+      ['reconciled', 'include/main.h', 'sha1-of-include/main.h', 2],
+      ['reconciled', 'src/main.c', 'sha1-of-src/main.c', 1],
+    ],
+  );
   const main = plan.edits.find((e) => e.path === 'src/main.c');
-  assert.equal(applyTextEdits(TEXTS.get('src/main.c') ?? '', main?.edits ?? []), '#include "include_asm.h"\n\nINCLUDE_ASM("asm/nonmatchings/main", InitGame);\n/* sub_08000100 */ const char *s = "sub_08000100";\n');
+  assert.equal(
+    applyTextEdits(TEXTS.get('src/main.c') ?? '', main?.edits ?? []),
+    '#include "include_asm.h"\n\nINCLUDE_ASM("asm/nonmatchings/main", InitGame);\n/* sub_08000100 */ const char *s = "sub_08000100";\n',
+  );
 });
 
 test("the entry's from key is dropped; an alias and a symbol rename too; a name in no text plans no edit", () => {
@@ -92,16 +118,36 @@ test("the entry's from key is dropped; an alias and a symbol rename too; a name 
 });
 
 test("a module's hand-written source is renamed as assembly, by its GNU as symbol tokens (D109)", () => {
-  const toml = TOML.replace('[functions]', '[[modules]]\nname = "hand"\nstart = 0x08000100\nkind = "asm"\nsource = "src/asm/hand.s"\n\n[functions]');
+  const toml = TOML.replace(
+    '[functions]',
+    '[[modules]]\nname = "hand"\nstart = 0x08000100\nkind = "asm"\nsource = "src/asm/hand.s"\n\n[functions]',
+  );
   const asm = '@ sub_08000100 by hand\n\t.global sub_08000100\nsub_08000100:\n\tbx lr\n';
   // The same text under a path that is no source is read as C: the `@` is no comment there.
-  const texts = new Map([['src/asm/hand.s', asm], ['src/main.c', 'void sub_08000100(void); /* @ sub_08000100 */\n']]);
-  const plan = planRename({ configText: toml, config: config(toml), from: 'sub_08000100', to: 'InitGame', texts, sha1s: new Map([...texts.keys()].map((p) => [p, `sha1-of-${p}`] as const)), modelNames: MODEL_NAMES });
+  const texts = new Map([
+    ['src/asm/hand.s', asm],
+    ['src/main.c', 'void sub_08000100(void); /* @ sub_08000100 */\n'],
+  ]);
+  const plan = planRename({
+    configText: toml,
+    config: config(toml),
+    from: 'sub_08000100',
+    to: 'InitGame',
+    texts,
+    sha1s: new Map([...texts.keys()].map((p) => [p, `sha1-of-${p}`] as const)),
+    modelNames: MODEL_NAMES,
+  });
   assert.ok(plan.ok);
   const hand = plan.edits.find((e) => e.path === 'src/asm/hand.s');
-  assert.equal(applyTextEdits(asm, hand?.edits ?? []), '@ sub_08000100 by hand\n\t.global InitGame\nInitGame:\n\tbx lr\n');
+  assert.equal(
+    applyTextEdits(asm, hand?.edits ?? []),
+    '@ sub_08000100 by hand\n\t.global InitGame\nInitGame:\n\tbx lr\n',
+  );
   const main = plan.edits.find((e) => e.path === 'src/main.c');
-  assert.equal(applyTextEdits(texts.get('src/main.c') ?? '', main?.edits ?? []), 'void InitGame(void); /* @ sub_08000100 */\n');
+  assert.equal(
+    applyTextEdits(texts.get('src/main.c') ?? '', main?.edits ?? []),
+    'void InitGame(void); /* @ sub_08000100 */\n',
+  );
 });
 
 test('refusals: an invalid new name, an unknown old one, a name the project has; each plans nothing', () => {
@@ -115,21 +161,33 @@ test('refusals: an invalid new name, an unknown old one, a name the project has;
   // Another default name of the model: the message names the entry to add first (end-to-end-user-r1-2).
   const orphan = planRename(inputs('unk_0800032C', 'gVision'));
   assert.deepEqual(codes(orphan), ['E_RENAME_UNKNOWN']);
-  assert.match(orphan.diagnostics[0]?.message ?? '', /unk_0800032C is a default name of the project's model at 0x0800032C: add `0x0800032C = "unk_0800032C"` to \[symbols\]/);
-  for (const taken of ['Third', 'ThirdAlias', 'gMain', 'main', 'sub_08000100']) assert.deepEqual(codes(planRename(inputs('m4aSoundMain', taken))), ['E_RENAME_EXISTS'], taken);
-  assert.deepEqual(codes(planRename(inputs('NoSuchName', 'main'))), ['E_RENAME_UNKNOWN', 'E_RENAME_EXISTS'], 'every refusal at once');
+  assert.match(
+    orphan.diagnostics[0]?.message ?? '',
+    /unk_0800032C is a default name of the project's model at 0x0800032C: add `0x0800032C = "unk_0800032C"` to \[symbols\]/,
+  );
+  for (const taken of ['Third', 'ThirdAlias', 'gMain', 'main', 'sub_08000100'])
+    assert.deepEqual(codes(planRename(inputs('m4aSoundMain', taken))), ['E_RENAME_EXISTS'], taken);
+  assert.deepEqual(
+    codes(planRename(inputs('NoSuchName', 'main'))),
+    ['E_RENAME_UNKNOWN', 'E_RENAME_EXISTS'],
+    'every refusal at once',
+  );
   assert.deepEqual(renameProblems(config(), 'sub_08000100', 'InitGame'), []);
   assert.ok(isRenameTarget('_x9') && isRenameTarget('Foo_Bar') && !isRenameTarget('$x'));
 });
 
-test('a name the project\'s model emits is refused (correctness-1): a default orphan, a default data symbol, a local label', () => {
+test("a name the project's model emits is refused (correctness-1): a default orphan, a default data symbol, a local label", () => {
   for (const emitted of ['unk_0800032C', 'gUnk_0809B670', '_08004808']) {
     const plan = planRename(inputs('sub_08000100', emitted));
     assert.equal(plan.ok, false, emitted);
     assert.deepEqual(codes(plan), ['E_RENAME_EXISTS'], emitted);
     assert.match(plan.diagnostics[0]?.message ?? '', /the project's model already names 0x[0-9A-F]{8} /);
   }
-  assert.deepEqual(renameProblems(config(), 'sub_08000100', 'unk_0800032C'), [], 'without the model names, only the TOML is read');
+  assert.deepEqual(
+    renameProblems(config(), 'sub_08000100', 'unk_0800032C'),
+    [],
+    'without the model names, only the TOML is read',
+  );
 });
 
 test('a file rename does not edit (a link, not UTF-8, binary) warns, or refuses when it names the old name (architecture-5)', () => {
@@ -143,21 +201,35 @@ test('a file rename does not edit (a link, not UTF-8, binary) warns, or refuses 
     ],
   });
   assert.ok(clean.ok);
-  assert.deepEqual(clean.diagnostics.map((d) => [d.code, d.path]), [
-    ['W_RENAME_SKIPPED', 'include/linked.h'],
-    ['W_RENAME_SKIPPED', 'include/gba'],
-    ['W_RENAME_SKIPPED', 'include/blob.bin'],
-  ], 'a longer token is not the name');
+  assert.deepEqual(
+    clean.diagnostics.map((d) => [d.code, d.path]),
+    [
+      ['W_RENAME_SKIPPED', 'include/linked.h'],
+      ['W_RENAME_SKIPPED', 'include/gba'],
+      ['W_RENAME_SKIPPED', 'include/blob.bin'],
+    ],
+    'a longer token is not the name',
+  );
   for (const reason of ['link', 'not-utf8', 'binary'] as const) {
-    const refused = planRename({ ...inputs('sub_08000100', 'InitGame'), skipped: [{ path: 'src/x.h', reason, bytes: bytes('void sub_08000100(void);\n') }] });
+    const refused = planRename({
+      ...inputs('sub_08000100', 'InitGame'),
+      skipped: [{ path: 'src/x.h', reason, bytes: bytes('void sub_08000100(void);\n') }],
+    });
     assert.equal(refused.ok, false, reason);
     assert.deepEqual(codes(refused), ['E_RENAME_SKIPPED_FILE'], reason);
   }
 });
 
 test('a TOML entry one line cannot hold is refused with E_TOML_PATCH_REFUSED and plans no edit', () => {
-  const restructured = TOML.replace('0x08000100 = "sub_08000100"\n', '').replace('[symbols]', '[functions.0x08000100]\nname = "sub_08000100"\n\n[symbols]');
-  const plan = planRename({ ...inputs('sub_08000100', 'InitGame'), configText: restructured, config: config(restructured) });
+  const restructured = TOML.replace('0x08000100 = "sub_08000100"\n', '').replace(
+    '[symbols]',
+    '[functions.0x08000100]\nname = "sub_08000100"\n\n[symbols]',
+  );
+  const plan = planRename({
+    ...inputs('sub_08000100', 'InitGame'),
+    configText: restructured,
+    config: config(restructured),
+  });
   assert.equal(plan.ok, false);
   assert.deepEqual(codes(plan), ['E_TOML_PATCH_REFUSED']);
 });
@@ -168,9 +240,15 @@ test('a text without its sha1 is a broken caller contract', () => {
 
 test('the journal and stale-config checks', () => {
   assert.deepEqual(renameJournalProblems(null), []);
-  assert.deepEqual(renameJournalProblems({ schema: 1, ops: [] }).map((d) => d.code), ['E_RENAME_INTERRUPTED']);
+  assert.deepEqual(
+    renameJournalProblems({ schema: 1, ops: [] }).map((d) => d.code),
+    ['E_RENAME_INTERRUPTED'],
+  );
   assert.deepEqual(staleRenameConfig('romlift.toml', 'a', 'a'), []);
-  assert.deepEqual(staleRenameConfig('romlift.toml', 'a', 'b').map((d) => [d.code, d.path]), [['E_STALE_CONFIG', 'romlift.toml']]);
+  assert.deepEqual(
+    staleRenameConfig('romlift.toml', 'a', 'b').map((d) => [d.code, d.path]),
+    [['E_STALE_CONFIG', 'romlift.toml']],
+  );
   assert.match(staleRenameConfig('romlift.toml', 'a', undefined)[0]?.message ?? '', /is gone since rename read it/);
 });
 
@@ -178,17 +256,52 @@ test('a default data name (gUnk_<ADDR>, ROM or RAM) renames directly: rename add
   const names = new Map([...MODEL_NAMES, ['gUnk_03004FD4', 0x0300_4fd4]]);
   const texts = new Map([['src/main.c', 'extern int gUnk_03004FD4;\nint f(void) { return gUnk_03004FD4; }\n']]);
   const sha1s = new Map([['src/main.c', 'sha1-of-src/main.c']]);
-  for (const [from, key] of [['gUnk_03004FD4', '0x03004FD4'], ['gUnk_0809B670', '0x0809B670']] as const) {
-    const plan = planRename({ configText: TOML, config: config(), from, to: 'gVision', texts, sha1s, modelNames: names });
+  for (const [from, key] of [
+    ['gUnk_03004FD4', '0x03004FD4'],
+    ['gUnk_0809B670', '0x0809B670'],
+  ] as const) {
+    const plan = planRename({
+      configText: TOML,
+      config: config(),
+      from,
+      to: 'gVision',
+      texts,
+      sha1s,
+      modelNames: names,
+    });
     assert.ok(plan.ok, from);
     const patched = config(plan.tomlText);
     assert.equal(patched.symbols.get(Number.parseInt(key, 16))?.name, 'gVision', from);
     assert.ok(plan.tomlText.includes(`${key} = "gVision"`), plan.tomlText);
     assert.equal(patched.symbols.get(0x0300_0000)?.name, 'gMain', 'every other entry kept');
   }
-  const ram = planRename({ configText: TOML, config: config(), from: 'gUnk_03004FD4', to: 'gVision', texts, sha1s, modelNames: names });
+  const ram = planRename({
+    configText: TOML,
+    config: config(),
+    from: 'gUnk_03004FD4',
+    to: 'gVision',
+    texts,
+    sha1s,
+    modelNames: names,
+  });
   assert.ok(ram.ok);
-  assert.equal(applyTextEdits(texts.get('src/main.c') ?? '', ram.edits[0]?.edits ?? []), 'extern int gVision;\nint f(void) { return gVision; }\n');
+  assert.equal(
+    applyTextEdits(texts.get('src/main.c') ?? '', ram.edits[0]?.edits ?? []),
+    'extern int gVision;\nint f(void) { return gVision; }\n',
+  );
   // A gUnk_ spelling that is not the default name of its address, or one the model does not emit, stays unknown.
-  assert.deepEqual(codes(planRename({ configText: TOML, config: config(), from: 'gUnk_03000004', to: 'gVision', texts, sha1s, modelNames: names })), ['E_RENAME_UNKNOWN']);
+  assert.deepEqual(
+    codes(
+      planRename({
+        configText: TOML,
+        config: config(),
+        from: 'gUnk_03000004',
+        to: 'gVision',
+        texts,
+        sha1s,
+        modelNames: names,
+      }),
+    ),
+    ['E_RENAME_UNKNOWN'],
+  );
 });

@@ -5,7 +5,13 @@ export { init, initDirVerdict, replacedProblems, wantsLockStep } from '../core/w
 export type { InitDirListing } from '../core/workflow/init.ts';
 export type { InitFile } from '../core/workflow/types.ts';
 export { BUILD_NAME_SUFFIX, builtRomCollides, initBuildName } from '../core/workflow/init-config.ts';
-export { confirmProject, decompStateOf, generateProject, projectTreeEntries, reconciledTextsOf } from '../core/workflow/generate.ts';
+export {
+  confirmProject,
+  decompStateOf,
+  generateProject,
+  projectTreeEntries,
+  reconciledTextsOf,
+} from '../core/workflow/generate.ts';
 export type { ProjectGenerateOptions } from '../core/workflow/generate.ts';
 export { reconcileStubs } from '../core/workflow/c-stubs.ts';
 export type { ReconciledStub, StubReconciliation } from '../core/workflow/c-stubs.ts';

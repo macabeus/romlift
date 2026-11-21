@@ -43,6 +43,7 @@
 // foundation/util/line-diff.ts renders the change for printing. Pure: the shell reads the project and, with `--write`, saves the text (shell/config/save.ts)
 // if it still has the sha1 the plan was made from.
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
+import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { checkRom } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
@@ -52,22 +53,27 @@ import { analyze } from '../analysis/driver/run.ts';
 import type { AnalysisResult } from '../analysis/types.ts';
 import { parseConfig } from '../config/parse.ts';
 import { planPatch } from '../config/patch.ts';
+import { romSha1Problems } from '../config/rom-sha1.ts';
 import type { RomliftConfig } from '../config/schema.ts';
 import { codeLayout, coveredEntries } from '../layout/borders.ts';
+import { planRunsAtBorders } from '../layout/module-proposals.ts';
 import { ModelCodes } from '../model/codes.ts';
 import type { ModelCode } from '../model/codes.ts';
 import { planModules, runsAtOverrides } from '../model/modules.ts';
 import type { CompilerProfile } from '../profile/types.ts';
 import type { Proposal } from '../proposals/types.ts';
+import type { ModuleProposal } from '../proposals/types.ts';
+import type { SignatureFile } from '../signatures/schema.ts';
+import { WorkflowCodes } from './codes.ts';
 import { discoverOptions, profileOrDefault } from './discover.ts';
 import { confirmOptions, overrideFactsOf } from './generate.ts';
-import { romSha1Problems } from '../config/rom-sha1.ts';
-import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
-import { WorkflowCodes } from './codes.ts';
-import { planRunsAtBorders } from '../layout/module-proposals.ts';
-import type { ModuleProposal } from '../proposals/types.ts';
-import { filesFor, libraryModuleProposals, signatureLayer, signatureNotes, updateProposals } from './signature-layer.ts';
-import type { SignatureFile } from '../signatures/schema.ts';
+import {
+  filesFor,
+  libraryModuleProposals,
+  signatureLayer,
+  signatureNotes,
+  updateProposals,
+} from './signature-layer.ts';
 import type { UpdateInputs, UpdatePlan } from './types.ts';
 
 /** The report a listed entry that fails validity gets. */
@@ -92,7 +98,10 @@ interface Discovered {
 }
 
 /** The function proposals of a discover result against `config`: every found entry the config does not list. */
-export function unlistedProposals(result: Pick<AnalysisResult, 'functions'>, config: Pick<RomliftConfig, 'functions' | 'entryPoints'>): readonly Proposal[] {
+export function unlistedProposals(
+  result: Pick<AnalysisResult, 'functions'>,
+  config: Pick<RomliftConfig, 'functions' | 'entryPoints'>,
+): readonly Proposal[] {
   const nested = coveredEntries(result.functions);
   return result.functions
     .filter((f) => !config.functions.has(f.entry) && !config.entryPoints.has(f.entry))
@@ -108,11 +117,24 @@ export function unlistedProposals(result: Pick<AnalysisResult, 'functions'>, con
 }
 
 /** Step 1 of the header, with the signature layer over its result; the discover result does not outlive this call. */
-function discovered(rom: Rom, config: RomliftConfig, profile: CompilerProfile, files: readonly SignatureFile[], ram: readonly ModuleProposal[]): Discovered {
+function discovered(
+  rom: Rom,
+  config: RomliftConfig,
+  profile: CompilerProfile,
+  files: readonly SignatureFile[],
+  ram: readonly ModuleProposal[],
+): Discovered {
   const result = analyze(rom, profile, { ...discoverOptions(), overrides: overrideFactsOf(config) });
   const unlisted = unlistedProposals(result, config);
   const layer = signatureLayer(rom, result, files, config);
-  if (layer.placements.length === 0) return { proposals: unlisted, modules: [], replaces: [], diagnostics: result.diagnostics, notes: layer.diagnostics };
+  if (layer.placements.length === 0)
+    return {
+      proposals: unlisted,
+      modules: [],
+      replaces: [],
+      diagnostics: result.diagnostics,
+      notes: layer.diagnostics,
+    };
   const libraries = libraryModuleProposals(rom, result, config, layer.regions, ram);
   return {
     proposals: [...unlisted, ...updateProposals(config, result, layer.proposals)],
@@ -135,17 +157,31 @@ interface RunsAtBorders {
 /** E_OVERRIDE_INVALID for a runs_at range that cannot be its own module, with the model's message and why. */
 function rangeRefusal(start: Addr, end: Addr, why: string): Diagnostic {
   const message = `the runs_at range [${hexAddr(start)}, ${hexAddr(end)}) does not start and end on module borders; a range that runs from RAM is its own module`;
-  return diagnostic(ModelCodes, OVERRIDE_INVALID, `update cannot propose its borders, so nothing is saved: ${message}, and ${why}`, { span: { start, end }, addr: start });
+  return diagnostic(
+    ModelCodes,
+    OVERRIDE_INVALID,
+    `update cannot propose its borders, so nothing is saved: ${message}, and ${why}`,
+    { span: { start, end }, addr: start },
+  );
 }
 
 /**
  * The module proposals that make every runs_at range of `config` its own module (see the header; core/layout's
  * planRunsAtBorders), with E_OVERRIDE_INVALID for each range it refuses.
  */
-export function runsAtBorders(rom: Pick<Rom, 'base' | 'end'>, config: Pick<RomliftConfig, 'modules' | 'overrides'>): RunsAtBorders {
+export function runsAtBorders(
+  rom: Pick<Rom, 'base' | 'end'>,
+  config: Pick<RomliftConfig, 'modules' | 'overrides'>,
+): RunsAtBorders {
   const plan = planRunsAtBorders(rom, config.modules, runsAtOverrides(config));
   const refusals = plan.refused.map(({ span, why }) =>
-    rangeRefusal(span.start, span.end, why.kind === 'outside-rom' ? `it does not lie inside the ROM [${hexAddr(rom.base)}, ${hexAddr(rom.end)})` : `the c module ${why.module.name} starts inside it at ${hexAddr(why.module.start)}: a c module's code cannot run from RAM`),
+    rangeRefusal(
+      span.start,
+      span.end,
+      why.kind === 'outside-rom'
+        ? `it does not lie inside the ROM [${hexAddr(rom.base)}, ${hexAddr(rom.end)})`
+        : `the c module ${why.module.name} starts inside it at ${hexAddr(why.module.start)}: a c module's code cannot run from RAM`,
+    ),
   );
   return { proposals: plan.proposals, refusals };
 }
@@ -164,15 +200,32 @@ interface Confirmed {
 }
 
 /** Step 2 (and step 3 over the patched config); the confirm result does not outlive this call. */
-function confirmed(rom: Rom, config: RomliftConfig, profile: CompilerProfile, entries: ReadonlySet<Addr> = new Set()): Confirmed {
+function confirmed(
+  rom: Rom,
+  config: RomliftConfig,
+  profile: CompilerProfile,
+  entries: ReadonlySet<Addr> = new Set(),
+): Confirmed {
   const result = analyze(rom, profile, confirmOptions(config));
-  const borders = planModules(rom, config, codeLayout(rom, result)).diagnostics.filter((d) => d.code === MODULE_BORDER || d.code === OVERRIDE_INVALID);
+  const borders = planModules(rom, config, codeLayout(rom, result)).diagnostics.filter(
+    (d) => d.code === MODULE_BORDER || d.code === OVERRIDE_INVALID,
+  );
   const covering = new Map<Addr, readonly Addr[]>();
   for (const d of borders) {
     const at = d.addr;
-    if (at !== undefined) covering.set(at, result.functions.filter((f) => entries.has(f.entry) && f.extent.start < at && at < f.extent.end).map((f) => f.entry));
+    if (at !== undefined)
+      covering.set(
+        at,
+        result.functions
+          .filter((f) => entries.has(f.entry) && f.extent.start < at && at < f.extent.end)
+          .map((f) => f.entry),
+      );
   }
-  return { reports: result.diagnostics.filter((d) => d.code === LISTED_INVALID || d.severity === 'error'), borders, covering };
+  return {
+    reports: result.diagnostics.filter((d) => d.code === LISTED_INVALID || d.severity === 'error'),
+    borders,
+    covering,
+  };
 }
 
 /** The proposals a refused start is laid at: those whose extent holds it, else the nearest function proposal below it. */
@@ -188,7 +241,13 @@ function responsible(at: Addr, covering: readonly Addr[], proposals: readonly Pr
  * E_OVERRIDE_INVALID left (the borders the plan proposed did not make the range its own module). Empty when the patch
  * leaves every start legal and every runs_at range its own module.
  */
-function patchedBorderProblems(rom: Rom, text: string, profile: CompilerProfile, proposals: readonly Proposal[], before: readonly Diagnostic[]): readonly Diagnostic[] {
+function patchedBorderProblems(
+  rom: Rom,
+  text: string,
+  profile: CompilerProfile,
+  proposals: readonly Proposal[],
+  before: readonly Diagnostic[],
+): readonly Diagnostic[] {
   const parsed = parseConfig(text);
   if (!parsed.ok) return parsed.diagnostics;
   const known = new Set(before.filter((d) => d.code === MODULE_BORDER).map((d) => d.addr));
@@ -196,17 +255,30 @@ function patchedBorderProblems(rom: Rom, text: string, profile: CompilerProfile,
   const after = confirmed(rom, parsed.value, profile, entries);
   const ranges = after.borders
     .filter((d) => d.code === OVERRIDE_INVALID)
-    .map((d) => diagnostic(ModelCodes, OVERRIDE_INVALID, `update refuses its patch, so nothing is saved: ${d.message}`, { ...(d.span === undefined ? {} : { span: d.span }), ...(d.addr === undefined ? {} : { addr: d.addr }) }));
+    .map((d) =>
+      diagnostic(ModelCodes, OVERRIDE_INVALID, `update refuses its patch, so nothing is saved: ${d.message}`, {
+        ...(d.span === undefined ? {} : { span: d.span }),
+        ...(d.addr === undefined ? {} : { addr: d.addr }),
+      }),
+    );
   const starts = after.borders
     .filter((d) => d.code === MODULE_BORDER && !known.has(d.addr))
     .map((d) => {
       const at = d.addr ?? 0;
       const named = responsible(at, after.covering.get(at) ?? [], proposals);
-      const who = named.length === 0 ? 'the patch' : `the proposed function${named.length === 1 ? '' : 's'} ${named.map(hexAddr).join(', ')}`;
-      return diagnostic(ModelCodes, MODULE_BORDER, `update refuses its patch, so nothing is saved: with ${who}, generate would refuse romlift.toml: ${d.message}`, {
-        addr: at,
-        cites: [...named, ...(d.cites ?? [])],
-      });
+      const who =
+        named.length === 0
+          ? 'the patch'
+          : `the proposed function${named.length === 1 ? '' : 's'} ${named.map(hexAddr).join(', ')}`;
+      return diagnostic(
+        ModelCodes,
+        MODULE_BORDER,
+        `update refuses its patch, so nothing is saved: with ${who}, generate would refuse romlift.toml: ${d.message}`,
+        {
+          addr: at,
+          cites: [...named, ...(d.cites ?? [])],
+        },
+      );
     });
   return [...starts, ...ranges];
 }
@@ -232,7 +304,9 @@ export function updateProject(inputs: UpdateInputs): UpdatePlan {
   if (found.diagnostics.some((d) => d.severity === 'error')) return { ok: false, diagnostics: found.diagnostics };
   // A runs_at range that cannot be its own module refuses the plan, as before the signatures existed.
   if (ram.refusals.length > 0) return { ok: false, diagnostics: ram.refusals };
-  const modules = [...ram.proposals.filter((p) => !found.replaces.includes(p.start)), ...found.modules].sort((a, b) => a.start - b.start);
+  const modules = [...ram.proposals.filter((p) => !found.replaces.includes(p.start)), ...found.modules].sort(
+    (a, b) => a.start - b.start,
+  );
   const proposals = [...found.proposals, ...modules];
   const current = confirmed(rom, config, profile);
   const reports = [...notes, ...current.reports, ...found.notes];
@@ -251,5 +325,12 @@ export function updateProject(inputs: UpdateInputs): UpdatePlan {
  */
 export function staleConfigProblems(path: string, read: string, now: string): readonly Diagnostic[] {
   if (read === now) return [];
-  return [diagnostic(WorkflowCodes, 'E_STALE_CONFIG', `${path} changed on disk since update read it; nothing was saved: run update --write again`, { path })];
+  return [
+    diagnostic(
+      WorkflowCodes,
+      'E_STALE_CONFIG',
+      `${path} changed on disk since update read it; nothing was saved: run update --write again`,
+      { path },
+    ),
+  ];
 }

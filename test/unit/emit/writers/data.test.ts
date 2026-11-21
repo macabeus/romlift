@@ -4,12 +4,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { dataWriter } from '../../../../src/core/emit/writers/data.ts';
 import type { FileEntry } from '../../../../src/core/emit/tree.ts';
+import { dataWriter } from '../../../../src/core/emit/writers/data.ts';
 import type { Model } from '../../../../src/core/model/types.ts';
-import { entryDiagnostics } from '../../../helpers/text-layout.ts';
 import type { Rom } from '../../../../src/foundation/rom/rom.ts';
 import { codeItems, dataItem, label, modelOf, romWith, words } from '../../../helpers/model.ts';
+import { entryDiagnostics } from '../../../helpers/text-layout.ts';
 import { thumbAt } from '../../../helpers/thumb.ts';
 
 const CX = { decomp: { defined: [] } };
@@ -131,7 +131,19 @@ test('a Thumb function label inside a data module is marked `.thumb_func`, so `.
     { kind: 'table-entry' as const, start: 0x0800_0104, target: 0x0800_0120, thumbBit: true },
   ];
   const m = modelOf(r, {
-    modules: [{ name: 'all', kind: 'data', chunks: [{ kind: 'data', name: 'all', items: [dataItem(0x0800_0000, 0x100), ...entries, dataItem(0x0800_0108, 0x2f8)] }] }],
+    modules: [
+      {
+        name: 'all',
+        kind: 'data',
+        chunks: [
+          {
+            kind: 'data',
+            name: 'all',
+            items: [dataItem(0x0800_0000, 0x100), ...entries, dataItem(0x0800_0108, 0x2f8)],
+          },
+        ],
+      },
+    ],
     labels: [label('Stray', 0x0800_0110), label('gWord', 0x0800_0120, { kind: 'data', thumb: false })],
   });
   const text = textOf(emitted(r, m, 0));
@@ -153,13 +165,26 @@ test('a runs_at data module: labels at their run addresses, slices at their load
         name: 'ram',
         kind: 'data',
         runAt: 0x0300_0000,
-        chunks: [{ kind: 'data', name: 'gRamTable', runAt: 0x0300_0000, items: [{ kind: 'table-entry', start: 0x0800_0100, target: 0x0300_0004, thumbBit: false }, dataItem(0x0800_0104, 0x2fc)] }],
+        chunks: [
+          {
+            kind: 'data',
+            name: 'gRamTable',
+            runAt: 0x0300_0000,
+            items: [
+              { kind: 'table-entry', start: 0x0800_0100, target: 0x0300_0004, thumbBit: false },
+              dataItem(0x0800_0104, 0x2fc),
+            ],
+          },
+        ],
       },
     ],
     labels: [label('gRamWord', 0x0300_0004, { kind: 'data', thumb: false, scope: 'global' })],
   });
   const text = textOf(emitted(r, m, 1));
-  assert.match(text, /gRamTable: @ 0x03000000\n\t\.4byte gRamWord\n\n\t\.global gRamWord\ngRamWord: @ 0x03000004\n\t\.incbin "baserom\.gba", 0x104, 0x2FC\n$/);
+  assert.match(
+    text,
+    /gRamTable: @ 0x03000000\n\t\.4byte gRamWord\n\n\t\.global gRamWord\ngRamWord: @ 0x03000004\n\t\.incbin "baserom\.gba", 0x104, 0x2FC\n$/,
+  );
   const [e] = emitted(r, m, 1);
   assert.ok(e !== undefined);
   assert.deepEqual(entryDiagnostics(r, m, e), []);

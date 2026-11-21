@@ -25,8 +25,13 @@
 // file, a fragment it includes or a header either reaches, as `cpp -nostdinc -I include` finds them, behind symbolic
 // links too (headerCandidates: a quoted include from the including file's real directory, phase 6; include-asm.ts's
 // module comment says how the planner uses each).
-import { INCLUDE_ASM_HEADER_NAME, INCLUDE_ASM_HEADER_PATH, INCLUDE_DIR, isHeaderPath } from '../../foundation/util/project-files.ts';
-import { directiveOf, tokenizeC, isTrivia } from './c-tokens.ts';
+import {
+  INCLUDE_ASM_HEADER_NAME,
+  INCLUDE_ASM_HEADER_PATH,
+  INCLUDE_DIR,
+  isHeaderPath,
+} from '../../foundation/util/project-files.ts';
+import { directiveOf, isTrivia, tokenizeC } from './c-tokens.ts';
 import type { CToken } from './c-tokens.ts';
 
 /** The macro every stub calls (include/include_asm.h, foundation/asm/dialect.ts INCLUDE_ASM_HEADER). */
@@ -194,7 +199,15 @@ function definedMacro(text: string): string | undefined {
 function conditionalsOf(tokens: readonly CToken[], length: number): readonly CConditional[] {
   const out: CConditional[] = [];
   let depth = 0;
-  let open: { readonly start: number; branchStart: number; readonly branches: COffsets[]; hasElse: boolean; readonly nested: COffsets[] } | undefined;
+  let open:
+    | {
+        readonly start: number;
+        branchStart: number;
+        readonly branches: COffsets[];
+        hasElse: boolean;
+        readonly nested: COffsets[];
+      }
+    | undefined;
   /** The opening offsets of the nested conditionals open now, innermost last. */
   const inner: number[] = [];
   for (const t of tokens) {
@@ -215,14 +228,28 @@ function conditionalsOf(tokens: readonly CToken[], length: number): readonly CCo
         if (start !== undefined) open?.nested.push({ start, end: t.end });
       } else if (open !== undefined) {
         open.branches.push({ start: open.branchStart, end: t.start });
-        out.push({ start: open.start, end: t.end, terminated: true, branches: open.branches, hasElse: open.hasElse, nested: open.nested });
+        out.push({
+          start: open.start,
+          end: t.end,
+          terminated: true,
+          branches: open.branches,
+          hasElse: open.hasElse,
+          nested: open.nested,
+        });
         open = undefined;
       }
     }
   }
   if (open !== undefined) {
     open.branches.push({ start: open.branchStart, end: length });
-    out.push({ start: open.start, end: length, terminated: false, branches: open.branches, hasElse: open.hasElse, nested: open.nested });
+    out.push({
+      start: open.start,
+      end: length,
+      terminated: false,
+      branches: open.branches,
+      hasElse: open.hasElse,
+      nested: open.nested,
+    });
   }
   return out;
 }
@@ -378,8 +405,11 @@ interface OpenConditional {
  * initializer's braces no head is read).
  */
 function sameShape(a: ScanState, b: ScanState): boolean {
-  const group = (s: ScanState): boolean => s.braces === 0 && s.definition === undefined && s.item.some((t) => isPunct(t, '('));
-  return a.braces === b.braces && a.parens === b.parens && a.definition?.name === b.definition?.name && group(a) === group(b);
+  const group = (s: ScanState): boolean =>
+    s.braces === 0 && s.definition === undefined && s.item.some((t) => isPunct(t, '('));
+  return (
+    a.braces === b.braces && a.parens === b.parens && a.definition?.name === b.definition?.name && group(a) === group(b)
+  );
 }
 
 /** What a C text holds at file scope (the module comment above says how it splits). */
@@ -415,7 +445,15 @@ export function scanC(text: string): CFileScan {
         item = [...to.item];
         ({ parens, braces, definition } = to);
       };
-      if (name === 'if' || name === 'ifdef' || name === 'ifndef') open.push({ opened: state(), line: t.line, inside: definition !== undefined, broken: false, sawElse: false, ends: [] });
+      if (name === 'if' || name === 'ifdef' || name === 'ifndef')
+        open.push({
+          opened: state(),
+          line: t.line,
+          inside: definition !== undefined,
+          broken: false,
+          sawElse: false,
+          ends: [],
+        });
       else if (name === 'elif' || name === 'else' || name === 'endif') {
         const at = open[open.length - 1];
         if (at !== undefined) {
@@ -430,12 +468,23 @@ export function scanC(text: string): CFileScan {
             if (!at.inside && !ends.every((e) => sameShape(e, first))) {
               // At file scope the branches must agree: which one's items continue after the #endif decides what
               // the next definition is called.
-              unscannable.push({ line: at.line, reason: `the branches of the conditional on line ${at.line} end (line ${t.line}) with other braces, parentheses or an unfinished head open than each other` });
+              unscannable.push({
+                line: at.line,
+                reason: `the branches of the conditional on line ${at.line} end (line ${t.line}) with other braces, parentheses or an unfinished head open than each other`,
+              });
             }
             restore(first);
             // A bare unfinished item the region leaves at file scope (`END_NONMATCH`, a `static` alone) names no
             // head: it ends with the region, so the next definition starts at its own head, outside the region.
-            if (!at.inside && definition === undefined && braces === 0 && parens === 0 && item.length > 0 && !item.some((k) => isPunct(k, '('))) closeOther(t.end);
+            if (
+              !at.inside &&
+              definition === undefined &&
+              braces === 0 &&
+              parens === 0 &&
+              item.length > 0 &&
+              !item.some((k) => isPunct(k, '('))
+            )
+              closeOther(t.end);
           }
         }
         if (name === 'endif') open.pop();
@@ -451,8 +500,16 @@ export function scanC(text: string): CFileScan {
         const name = definitionName(item.slice(0, -1));
         const first = item[0];
         if (name !== undefined && first !== undefined) definition = { name, first };
-        if (item.length === 1) unscannable.push({ line: t.line, reason: `a block at file scope (line ${t.line}) follows no head, as in a K&R definition` });
-        else if (name === '') unscannable.push({ line: first?.line ?? t.line, reason: `the function defined on line ${first?.line ?? t.line} has a head whose name the scanner cannot read` });
+        if (item.length === 1)
+          unscannable.push({
+            line: t.line,
+            reason: `a block at file scope (line ${t.line}) follows no head, as in a K&R definition`,
+          });
+        else if (name === '')
+          unscannable.push({
+            line: first?.line ?? t.line,
+            reason: `the function defined on line ${first?.line ?? t.line} has a head whose name the scanner cannot read`,
+          });
       }
       braces++;
     } else if (isPunct(t, '}')) {
@@ -461,10 +518,18 @@ export function scanC(text: string): CFileScan {
       if (closing !== undefined) {
         // A branch of a conditional opened inside a body closes that body: the items after it differ by branch.
         closing.broken = true;
-        unscannable.push({ line: closing.line, reason: `a branch of the conditional on line ${closing.line}, inside a definition, closes that definition (line ${t.line})` });
+        unscannable.push({
+          line: closing.line,
+          reason: `a branch of the conditional on line ${closing.line}, inside a definition, closes that definition (line ${t.line})`,
+        });
       }
       if (braces === 0 && definition !== undefined) {
-        definitions.push({ name: definition.name, start: definition.first.start, end: t.end, line: definition.first.line });
+        definitions.push({
+          name: definition.name,
+          start: definition.first.start,
+          end: t.end,
+          line: definition.first.line,
+        });
         definition = undefined;
         item = [];
       }
@@ -477,13 +542,30 @@ export function scanC(text: string): CFileScan {
     }
   }
   if (definition !== undefined) {
-    definitions.push({ name: definition.name, start: definition.first.start, end: text.length, line: definition.first.line });
-    unscannable.push({ line: definition.first.line, reason: `the definition${definition.name === '' ? '' : ` of ${definition.name}`} on line ${definition.first.line} never closes its body` });
+    definitions.push({
+      name: definition.name,
+      start: definition.first.start,
+      end: text.length,
+      line: definition.first.line,
+    });
+    unscannable.push({
+      line: definition.first.line,
+      reason: `the definition${definition.name === '' ? '' : ` of ${definition.name}`} on line ${definition.first.line} never closes its body`,
+    });
   } else closeOther(text.length);
   const last = tokens[tokens.length - 1];
   const unterminated = last !== undefined && !last.terminated ? [last] : [];
   unscannable.sort((a, b) => a.line - b.line);
-  return { statements, definitions, others, directives, unterminated, tokens, conditionals: conditionalsOf(tokens, text.length), unscannable };
+  return {
+    statements,
+    definitions,
+    others,
+    directives,
+    unterminated,
+    tokens,
+    conditionals: conditionalsOf(tokens, text.length),
+    unscannable,
+  };
 }
 
 /**
@@ -504,9 +586,14 @@ export function insideRegion(scan: CFileScan, d: COffsets): boolean {
  */
 function inEveryBranch(scan: CFileScan, region: CConditional, d: CDefinition): boolean {
   if (!region.terminated || !region.hasElse) return false;
-  const holds = (branch: COffsets, e: CDefinition): boolean => e.start >= branch.start && e.end <= branch.end && !region.nested.some((n) => e.start >= n.start && e.start < n.end);
+  const holds = (branch: COffsets, e: CDefinition): boolean =>
+    e.start >= branch.start && e.end <= branch.end && !region.nested.some((n) => e.start >= n.start && e.start < n.end);
   const [first, ...others] = region.branches;
-  return first !== undefined && holds(first, d) && others.every((branch) => scan.definitions.some((e) => e.name === d.name && holds(branch, e)));
+  return (
+    first !== undefined &&
+    holds(first, d) &&
+    others.every((branch) => scan.definitions.some((e) => e.name === d.name && holds(branch, e)))
+  );
 }
 
 /** The named definitions of `scan` the default build compiles: outside every region (insideRegion), or in every branch of one (inEveryBranch). */
@@ -526,7 +613,11 @@ function compiledOf(scan: CFileScan): readonly CDefinition[] {
  */
 export type CompiledDefinitions =
   | { readonly scannable: true; readonly definitions: readonly CDefinition[] }
-  | { readonly scannable: false; readonly definitions: readonly CDefinition[]; readonly unscannable: readonly CUnscannable[] };
+  | {
+      readonly scannable: false;
+      readonly definitions: readonly CDefinition[];
+      readonly unscannable: readonly CUnscannable[];
+    };
 
 /**
  * The one rule for "the C defines it" (architecture-a2-3, fix round 5 architecture-b0-2), the scanner's precondition
@@ -536,7 +627,9 @@ export type CompiledDefinitions =
  */
 export function compiledDefinitions(scan: CFileScan): CompiledDefinitions {
   const definitions = compiledOf(scan);
-  return scan.unscannable.length === 0 ? { scannable: true, definitions } : { scannable: false, definitions, unscannable: scan.unscannable };
+  return scan.unscannable.length === 0
+    ? { scannable: true, definitions }
+    : { scannable: false, definitions, unscannable: scan.unscannable };
 }
 
 /**
@@ -593,7 +686,10 @@ function providesMacro(scan: CFileScan, from: string, realPaths: IncludeRealPath
     if (definedMacro(t.text) === INCLUDE_ASM_MACRO) return true;
     const include = includeSpelling(t.text);
     if (include === undefined) return false;
-    return (!include.angle && include.spelled === INCLUDE_ASM_HEADER_NAME) || headerCandidates(from, include.spelled, include.angle, realPaths).includes(INCLUDE_ASM_HEADER_PATH);
+    return (
+      (!include.angle && include.spelled === INCLUDE_ASM_HEADER_NAME) ||
+      headerCandidates(from, include.spelled, include.angle, realPaths).includes(INCLUDE_ASM_HEADER_PATH)
+    );
   });
 }
 
@@ -636,7 +732,12 @@ function includeJoin(base: string, spelled: string): string {
  * `include/` alone. The first that is a file is the one cpp reads; the shell reads it under that key
  * (readHeaderTexts), so headerPath finds it.
  */
-export function headerCandidates(from: string, spelled: string, angle: boolean, realPaths?: IncludeRealPaths): readonly string[] {
+export function headerCandidates(
+  from: string,
+  spelled: string,
+  angle: boolean,
+  realPaths?: IncludeRealPaths,
+): readonly string[] {
   // An absolute include is opened as written, searched nowhere.
   if (spelled.startsWith('/')) return [includeJoin('/', spelled)];
   const rooted = includeJoin('', `${INCLUDE_DIR}/${spelled}`);
@@ -651,10 +752,18 @@ export function headerCandidates(from: string, spelled: string, angle: boolean, 
  * `realPaths`). Undefined when none is (without `headers`: from a file under `include/`, its own-directory key, from any
  * other, the `include/` one).
  */
-export function headerPath(from: string, spelled: string, angle: boolean, headers?: ReadonlyMap<string, string>, realPaths?: IncludeRealPaths): string | undefined {
+export function headerPath(
+  from: string,
+  spelled: string,
+  angle: boolean,
+  headers?: ReadonlyMap<string, string>,
+  realPaths?: IncludeRealPaths,
+): string | undefined {
   const candidates = headerCandidates(from, spelled, angle, realPaths);
   if (headers !== undefined) return candidates.find((c) => headers.has(c));
-  return !angle && (realPaths?.get(from) ?? from).startsWith(`${INCLUDE_DIR}/`) ? candidates[0] : candidates[candidates.length - 1];
+  return !angle && (realPaths?.get(from) ?? from).startsWith(`${INCLUDE_DIR}/`)
+    ? candidates[0]
+    : candidates[candidates.length - 1];
 }
 
 /**
@@ -680,7 +789,8 @@ export function macroProvided(scan: CFileScan, wanted: CIncludeInputs, included:
   for (let next = pending.shift(); next !== undefined; next = pending.shift()) {
     for (const t of next.scan.directives) {
       const include = t.kind === 'preprocessor' ? includeSpelling(t.text) : undefined;
-      const found = include === undefined ? undefined : headerPath(next.from, include.spelled, include.angle, headers, realPaths);
+      const found =
+        include === undefined ? undefined : headerPath(next.from, include.spelled, include.angle, headers, realPaths);
       if (found === undefined || seen.has(found)) continue;
       seen.add(found);
       const header = scanC(headers.get(found) ?? '');
@@ -728,7 +838,9 @@ function fileScopeIncludes(scan: CFileScan): readonly { readonly token: CToken; 
   const items: readonly COffsets[] = [...scan.statements, ...scan.definitions, ...scan.others];
   return scan.directives.flatMap((token) => {
     const spelled = token.kind === 'preprocessor' ? quotedInclude(token.text) : undefined;
-    return spelled === undefined || items.some((i) => token.start >= i.start && token.start < i.end) ? [] : [{ token, spelled }];
+    return spelled === undefined || items.some((i) => token.start >= i.start && token.start < i.end)
+      ? []
+      : [{ token, spelled }];
   });
 }
 
@@ -740,7 +852,15 @@ function fileScopeIncludes(scan: CFileScan): readonly { readonly token: CToken; 
  * no header (`.h`), a module's source among them (architecture-b2-5); and the fragments the scanner cannot split
  * (architecture-b2-4).
  */
-export function withFragments(scan: CFileScan, wanted: CIncludeInputs): { readonly scan: CFileScan; readonly included: readonly string[]; readonly unread: readonly UnreadInclude[]; readonly unscannable: readonly UnscannableFragment[] } {
+export function withFragments(
+  scan: CFileScan,
+  wanted: CIncludeInputs,
+): {
+  readonly scan: CFileScan;
+  readonly included: readonly string[];
+  readonly unread: readonly UnreadInclude[];
+  readonly unscannable: readonly UnscannableFragment[];
+} {
   const { fragments, path } = wanted;
   if (fragments === undefined || path === undefined) return { scan, included: [], unread: [], unscannable: [] };
   const definitions: CDefinition[] = [];
@@ -749,7 +869,13 @@ export function withFragments(scan: CFileScan, wanted: CIncludeInputs): { readon
   const unread: UnreadInclude[] = [];
   const unscannable: UnscannableFragment[] = [];
   // `chain` and `prefix`: the #include lines that reach `from`, and their offsets (CDefinition chain, order).
-  const visit = (from: string, fileScan: CFileScan, top: CToken | undefined, chain: readonly CIncludeLink[], prefix: readonly number[]): void => {
+  const visit = (
+    from: string,
+    fileScan: CFileScan,
+    top: CToken | undefined,
+    chain: readonly CIncludeLink[],
+    prefix: readonly number[],
+  ): void => {
     for (const { token, spelled } of fileScopeIncludes(fileScan)) {
       const at = top ?? token;
       const resolved = resolveInclude(from, spelled);
@@ -767,15 +893,26 @@ export function withFragments(scan: CFileScan, wanted: CIncludeInputs): { readon
       const offsets = [...prefix, token.start];
       const fragment = scanC(text);
       const compiled = compiledDefinitions(fragment);
-      if (!compiled.scannable) unscannable.push({ path: resolved, line: at.line, chain: links, why: compiled.unscannable });
+      if (!compiled.scannable)
+        unscannable.push({ path: resolved, line: at.line, chain: links, why: compiled.unscannable });
       const place = { start: at.start, end: at.end, line: at.line, via: resolved, chain: links };
       for (const d of compiled.definitions) definitions.push({ ...place, name: d.name, order: [...offsets, d.start] });
-      for (const s of compiled.scannable ? fragment.statements : anyDepthStatements(fragment)) statements.push({ ...place, dir: s.dir, name: s.name, fragmentLine: s.line, order: [...offsets, s.start] });
+      for (const s of compiled.scannable ? fragment.statements : anyDepthStatements(fragment))
+        statements.push({ ...place, dir: s.dir, name: s.name, fragmentLine: s.line, order: [...offsets, s.start] });
       visit(resolved, fragment, at, links, offsets);
     }
   };
   visit(path, scan, undefined, [], []);
   if (definitions.length === 0 && statements.length === 0) return { scan, included, unread, unscannable };
   const byStart = (a: COffsets, b: COffsets): number => a.start - b.start;
-  return { scan: { ...scan, definitions: [...scan.definitions, ...definitions].sort(byStart), statements: [...scan.statements, ...statements].sort(byStart) }, included, unread, unscannable };
+  return {
+    scan: {
+      ...scan,
+      definitions: [...scan.definitions, ...definitions].sort(byStart),
+      statements: [...scan.statements, ...statements].sort(byStart),
+    },
+    included,
+    unread,
+    unscannable,
+  };
 }

@@ -94,11 +94,24 @@ function againstAnalysis(p: Proposal, analysis: AnalysisResult): readonly Contra
   if (p.kind === 'function') {
     const found = functionAt(analysis.functions, p.addr);
     if (found !== undefined && found.mode !== p.mode) {
-      return [{ text: `the analysis found a ${found.mode} function there (${found.accepted.rule})`, at: found.entry, span: found.extent }];
+      return [
+        {
+          text: `the analysis found a ${found.mode} function there (${found.accepted.rule})`,
+          at: found.entry,
+          span: found.extent,
+        },
+      ];
     }
     const entry = { start: p.addr, end: p.addr + insnUnit(p.mode) };
     const data = claimsOver(analysis.claims, entry).find((c) => NOT_CODE.has(c.kind));
-    if (data !== undefined) return [{ text: `the analysis claims [${hexAddr(data.span.start)}, ${hexAddr(data.span.end)}) as ${claimName(data.kind)}`, at: data.span.start, span: data.span }];
+    if (data !== undefined)
+      return [
+        {
+          text: `the analysis claims [${hexAddr(data.span.start)}, ${hexAddr(data.span.end)}) as ${claimName(data.kind)}`,
+          at: data.span.start,
+          span: data.span,
+        },
+      ];
     return [];
   }
   if (p.kind === 'symbol') {
@@ -106,7 +119,13 @@ function againstAnalysis(p: Proposal, analysis: AnalysisResult): readonly Contra
     const code = claimsOver(analysis.claims, span).find((c) => c.kind === Claim.code);
     if (code !== undefined) {
       const owner = code.owner === undefined ? '' : ` of the function at ${hexAddr(code.owner)}`;
-      return [{ text: `the analysis claims [${hexAddr(code.span.start)}, ${hexAddr(code.span.end)}) as code${owner}`, at: code.owner ?? code.span.start, span: code.span }];
+      return [
+        {
+          text: `the analysis claims [${hexAddr(code.span.start)}, ${hexAddr(code.span.end)}) as code${owner}`,
+          at: code.owner ?? code.span.start,
+          span: code.span,
+        },
+      ];
     }
   }
   return [];
@@ -122,21 +141,36 @@ function againstConfig(p: Proposal, config: RomliftConfig): readonly Contradicti
   const out: Contradiction[] = [];
   if (p.kind === 'function') {
     const listed = listedEntries(config).get(p.addr);
-    if (listed !== undefined && listed.mode !== p.mode) out.push({ text: `romlift.toml lists ${listed.name} there as a ${listed.mode} function`, at: p.addr });
+    if (listed !== undefined && listed.mode !== p.mode)
+      out.push({ text: `romlift.toml lists ${listed.name} there as a ${listed.mode} function`, at: p.addr });
     for (const o of config.overrides) {
       const span = { start: o.start, end: o.start + o.size };
-      if (o.kind === 'data' && p.addr >= span.start && p.addr < span.end) out.push({ text: `a data override of romlift.toml covers [${hexAddr(span.start)}, ${hexAddr(span.end)})`, at: o.start, span });
+      if (o.kind === 'data' && p.addr >= span.start && p.addr < span.end)
+        out.push({
+          text: `a data override of romlift.toml covers [${hexAddr(span.start)}, ${hexAddr(span.end)})`,
+          at: o.start,
+          span,
+        });
     }
   } else if (p.kind === 'symbol') {
     const end = p.addr + Math.max(p.size ?? 1, 1);
     for (const o of config.overrides) {
       const span = { start: o.start, end: o.start + o.size };
-      if (o.kind === 'code' && overlaps(p.addr, end, span)) out.push({ text: `a code override of romlift.toml covers [${hexAddr(span.start)}, ${hexAddr(span.end)})`, at: o.start, span });
+      if (o.kind === 'code' && overlaps(p.addr, end, span))
+        out.push({
+          text: `a code override of romlift.toml covers [${hexAddr(span.start)}, ${hexAddr(span.end)})`,
+          at: o.start,
+          span,
+        });
     }
   } else if (p.kind === 'module') {
     for (const span of runsAtSpans(config)) {
       if (p.start > span.start && p.start < span.end) {
-        out.push({ text: `it would cut the runs_at range [${hexAddr(span.start)}, ${hexAddr(span.end)}) of romlift.toml, which is its own module`, at: span.start, span });
+        out.push({
+          text: `it would cut the runs_at range [${hexAddr(span.start)}, ${hexAddr(span.end)}) of romlift.toml, which is its own module`,
+          at: span.start,
+          span,
+        });
       }
     }
   }
@@ -152,8 +186,10 @@ function proposedName(p: Proposal): string | undefined {
 function configNames(config: RomliftConfig | undefined): Map<string, Addr> {
   const names = new Map<string, Addr>();
   if (config === undefined) return names;
-  for (const [addr, f] of sortedEntries(listedEntries(config))) for (const n of [f.name, ...f.aliases]) if (!names.has(n)) names.set(n, addr);
-  for (const [addr, s] of sortedEntries(config.symbols)) for (const n of [s.name, ...s.aliases]) if (!names.has(n)) names.set(n, addr);
+  for (const [addr, f] of sortedEntries(listedEntries(config)))
+    for (const n of [f.name, ...f.aliases]) if (!names.has(n)) names.set(n, addr);
+  for (const [addr, s] of sortedEntries(config.symbols))
+    for (const n of [s.name, ...s.aliases]) if (!names.has(n)) names.set(n, addr);
   return names;
 }
 
@@ -167,19 +203,31 @@ export function checkProposals(proposals: readonly Proposal[], cx: CheckProposal
   const names = configNames(cx.config);
   for (const p of proposals) {
     const addr = proposalAddr(p);
-    const found: Contradiction[] = [...againstAnalysis(p, cx.analysis), ...(cx.config === undefined ? [] : againstConfig(p, cx.config))];
+    const found: Contradiction[] = [
+      ...againstAnalysis(p, cx.analysis),
+      ...(cx.config === undefined ? [] : againstConfig(p, cx.config)),
+    ];
     const name = proposedName(p);
     const holder = name === undefined ? undefined : names.get(name);
-    if (name !== undefined && holder !== undefined && holder !== addr) found.push({ text: `the name ${name} is already given to ${hexAddr(holder)}`, at: holder });
+    if (name !== undefined && holder !== undefined && holder !== addr)
+      found.push({ text: `the name ${name} is already given to ${hexAddr(holder)}`, at: holder });
     if (found.length === 0) {
       kept.push(p);
       if (name !== undefined && holder === undefined) names.set(name, addr);
       continue;
     }
     const first = found[0];
-    const cites = [addr, ...found.flatMap((c) => (c.at === undefined || c.at === addr ? [] : [c.at]))].filter((a, i, all) => all.indexOf(a) === i);
+    const cites = [addr, ...found.flatMap((c) => (c.at === undefined || c.at === addr ? [] : [c.at]))].filter(
+      (a, i, all) => all.indexOf(a) === i,
+    );
     const message = `${sourceText(p.source)} proposes ${proposalText(p)}, but ${found.map((c) => c.text).join('; and ')}; the proposal is dropped`;
-    conflicts.push(diagnostic(WorkflowCodes, 'W_EVIDENCE_CONFLICT', message, { addr, ...(first?.span === undefined ? {} : { span: first.span }), cites }));
+    conflicts.push(
+      diagnostic(WorkflowCodes, 'W_EVIDENCE_CONFLICT', message, {
+        addr,
+        ...(first?.span === undefined ? {} : { span: first.span }),
+        cites,
+      }),
+    );
   }
   return { kept, conflicts };
 }

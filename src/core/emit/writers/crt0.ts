@@ -12,7 +12,12 @@ function* crt0File(rom: Rom, model: Model, cx: EmitContext, module: number | nul
   const m = moduleWithSource(model, module, () => CRT0_PATH);
   if (m === undefined) return;
   const preface = [`@ startup region ${hex(m.span.start)}..${hex(m.span.end)}`];
-  yield { ownership: 'generated', path: CRT0_PATH, text: unitText(rom, model, cx, m, { preface, spaced: true }), writer: 'crt0' };
+  yield {
+    ownership: 'generated',
+    path: CRT0_PATH,
+    text: unitText(rom, model, cx, m, { preface, spaced: true }),
+    writer: 'crt0',
+  };
 }
 
 export const crt0Writer: Writer = {

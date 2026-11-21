@@ -6,4 +6,10 @@ import { initCommand } from './init.ts';
 import { renameCommand } from './rename.ts';
 import { updateCommand } from './update.ts';
 
-export const COMMANDS: readonly CommandSpec[] = [initCommand, generateCommand, updateCommand, renameCommand, explainCommand];
+export const COMMANDS: readonly CommandSpec[] = [
+  initCommand,
+  generateCommand,
+  updateCommand,
+  renameCommand,
+  explainCommand,
+];

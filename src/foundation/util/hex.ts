@@ -1,7 +1,9 @@
 // Hexadecimal formatting and parsing of 32-bit addresses, the one spelling every output uses.
 
 /** The two upper-case hex digits of each byte value. */
-const BYTE_HEX: readonly string[] = Array.from({ length: 256 }, (_, b) => b.toString(16).toUpperCase().padStart(2, '0'));
+const BYTE_HEX: readonly string[] = Array.from({ length: 256 }, (_, b) =>
+  b.toString(16).toUpperCase().padStart(2, '0'),
+);
 
 /** `value` as upper-case hex, zero-padded to `digits`, without a prefix; read as an unsigned 32-bit word. */
 export function hex(value: number, digits = 8): string {

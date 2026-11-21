@@ -65,7 +65,10 @@ test('confirmOptions lists every [functions] and [entry_points] entry as seed.li
       [0x0800_0100, { name: 'First', mode: 'thumb' as const, aliases: ['Alias'] }],
     ]),
     entryPoints: new Map([[0x0800_0104, { name: 'Inner', mode: 'thumb' as const, aliases: [] }]]),
-    overrides: [{ start: 0x0800_0300, size: 0x20, kind: 'code', mode: 'thumb', runsAt: 0x0300_0000 }, { start: 0x0800_0400, size: 4, kind: 'data' }],
+    overrides: [
+      { start: 0x0800_0300, size: 0x20, kind: 'code', mode: 'thumb', runsAt: 0x0300_0000 },
+      { start: 0x0800_0400, size: 4, kind: 'data' },
+    ],
   });
   assert.deepEqual(listedSeedsOf(c), [
     { entry: 0x0800_0100, mode: 'thumb', rule: 'seed.listed', name: 'First' },
@@ -83,14 +86,16 @@ test('confirmOptions lists every [functions] and [entry_points] entry as seed.li
   assert.deepEqual(options.overrides, overrideFactsOf(c));
 });
 
-test('listedSeedsOf validates exactly the entries with `from` (another source\'s proposal), not those the analysis or a person wrote', () => {
+test("listedSeedsOf validates exactly the entries with `from` (another source's proposal), not those the analysis or a person wrote", () => {
   const c = config({
     functions: new Map([
       [0x0800_0100, { name: 'Found', mode: 'thumb' as const, aliases: [] }],
       [0x0800_0104, { name: 'Legacy', mode: 'thumb' as const, aliases: [], from: 'legacy' }],
       [0x0800_0108, { name: 'SoundMain', mode: 'arm' as const, aliases: [], size: 0x10, from: 'sig:m4a@2001' }],
     ]),
-    entryPoints: new Map([[0x0800_0118, { name: 'Inner', mode: 'thumb' as const, aliases: [], from: 'evidence:trace' }]]),
+    entryPoints: new Map([
+      [0x0800_0118, { name: 'Inner', mode: 'thumb' as const, aliases: [], from: 'evidence:trace' }],
+    ]),
   });
   assert.deepEqual(listedSeedsOf(c), [
     { entry: 0x0800_0100, mode: 'thumb', rule: 'seed.listed', name: 'Found' },
@@ -113,7 +118,9 @@ for (const fixture of fixtures) {
     test(`${fixture.name} (${printer}): generate's check pass lays every file out, and generatedEntries re-emits the stream it read`, () => {
       const result = generate({ rom, config: cfg, decomp: NO_C, printer });
       assert.equal(result.analysis.mode, 'confirm');
-      const failed = result.report.checks.filter((c) => MODEL_CHECKS.includes(c.id) && !c.ok).map((c) => `${c.id}: ${c.detail}`);
+      const failed = result.report.checks
+        .filter((c) => MODEL_CHECKS.includes(c.id) && !c.ok)
+        .map((c) => `${c.id}: ${c.detail}`);
       assert.deepEqual(failed, []);
       assert.deepEqual(
         result.report.checks.map((c) => c.id),
@@ -139,10 +146,15 @@ test('on every fixture the report is ok with no error diagnostic, and the tree i
       const result = generate({ rom, config: cfg, decomp: NO_C, printer });
       const failed = result.report.checks.filter((c) => !c.ok).map((c) => `${c.id}: ${c.detail}`);
       const errors = result.diagnostics.filter((d) => d.severity === 'error').map((d) => d.message);
-      if (failed.length + errors.length > 0) problems.push(`${fixture.name} ${printer}: ${[...failed, ...errors].join('; ')}`);
+      if (failed.length + errors.length > 0)
+        problems.push(`${fixture.name} ${printer}: ${[...failed, ...errors].join('; ')}`);
       // Confirm equals discover: the tree is the one the discover run's own model emits.
-      if (shape(result.analysis) !== shape(found)) problems.push(`${fixture.name}: the confirm run differs from discover`);
-      else if (JSON.stringify(tree(generatedEntries(rom, result))) !== JSON.stringify(tree(emitTree(rom, buildModel(rom, found, cfg), { decomp: NO_C, printer })))) {
+      if (shape(result.analysis) !== shape(found))
+        problems.push(`${fixture.name}: the confirm run differs from discover`);
+      else if (
+        JSON.stringify(tree(generatedEntries(rom, result))) !==
+        JSON.stringify(tree(emitTree(rom, buildModel(rom, found, cfg), { decomp: NO_C, printer })))
+      ) {
         problems.push(`${fixture.name} ${printer}: the tree differs from the discover run's`);
       }
     }
@@ -181,7 +193,12 @@ test('a generate result is plain data: no function anywhere in it (D19)', () => 
     if (value === null || typeof value !== 'object' || seen.has(value)) return;
     seen.add(value);
     if (ArrayBuffer.isView(value)) return;
-    const members = value instanceof Map ? [...value.entries()] : value instanceof Set ? [...value].map((v, i) => [i, v] as const) : Object.entries(value);
+    const members =
+      value instanceof Map
+        ? [...value.entries()]
+        : value instanceof Set
+          ? [...value].map((v, i) => [i, v] as const)
+          : Object.entries(value);
     for (const [k, v] of members) visit(v, `${path}.${String(k)}`);
   };
   visit(result, 'result');
@@ -201,11 +218,19 @@ test('initConfigOf, initModel and generateFromRom: the config configFromDiscover
   assert.ok(init.ok);
   const built = configFromDiscover(rom, found);
   // init's config enables the signature layer (phase 6), which configFromDiscover leaves off; no file, so no library.
-  assert.deepEqual(init.config, { ...built, build: { ...built.build, name: init.config.build.name }, signatures: { enabled: true } });
+  assert.deepEqual(init.config, {
+    ...built,
+    build: { ...built.build, name: init.config.build.name },
+    signatures: { enabled: true },
+  });
   const sized = initConfigOf(rom, { moduleSize: 0x40, name: 'named' });
   assert.ok(sized.ok);
   assert.equal(sized.config.build.name, 'named');
-  assert.deepEqual(sized.config.modules, configFromDiscover(rom, found, { moduleSize: 0x40 }).modules, 'the --module-size init passes');
+  assert.deepEqual(
+    sized.config.modules,
+    configFromDiscover(rom, found, { moduleSize: 0x40 }).modules,
+    'the --module-size init passes',
+  );
   const model = initModel(rom);
   assert.ok(model.ok);
   assert.deepEqual(model.model, confirmModel({ rom, config: init.config }).model);
@@ -214,7 +239,11 @@ test('initConfigOf, initModel and generateFromRom: the config configFromDiscover
   assert.equal(writable(generated), true);
   const bytes = Uint8Array.from({ length: 0x30 }, (_, i) => (i * 7) & 0xff);
   const notGba = romFromBytes(bytes, SHA1);
-  for (const refused of [initConfigOf(notGba), initModel(notGba), generateFromRom(notGba, { decomp: NO_C, printer: 'readable' })]) {
+  for (const refused of [
+    initConfigOf(notGba),
+    initModel(notGba),
+    generateFromRom(notGba, { decomp: NO_C, printer: 'readable' }),
+  ]) {
     assert.equal(refused.ok, false);
     if (!refused.ok) assert.ok(refused.diagnostics.some((d) => d.code === 'E_ROM_NOT_GBA'));
   }

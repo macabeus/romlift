@@ -2,7 +2,7 @@
 // the ROM, merged by address with the Thumb bit cleared, the first name and the largest size kept:
 // romlift's elfFunctions (the PoC's truth.ts rule), in symbol-table order of first appearance, because
 // the PoC names the owner of a false entry by the first containing function in that order.
-import { elfFunctions, ROM_BASE, type ElfFile, type ElfFunction } from 'romlift';
+import { type ElfFile, type ElfFunction, ROM_BASE, elfFunctions } from 'romlift';
 
 export type TruthFunction = ElfFunction;
 
@@ -35,7 +35,10 @@ function endsCode(s: Symbol): boolean {
 export function elfTruth(elf: ElfFile, romSize: number): Truth {
   const functions = elfFunctions(elf, { start: ROM_BASE, end: ROM_BASE + romSize }, 'symbol-table');
   const end = ROM_BASE + romSize;
-  const addrs = (keep: (s: Symbol) => boolean): number[] => [...new Set(elf.symbols.filter((s) => keep(s) && s.addr >= ROM_BASE && s.addr <= end).map((s) => s.addr))].sort((a, b) => a - b);
+  const addrs = (keep: (s: Symbol) => boolean): number[] =>
+    [...new Set(elf.symbols.filter((s) => keep(s) && s.addr >= ROM_BASE && s.addr <= end).map((s) => s.addr))].sort(
+      (a, b) => a - b,
+    );
   return {
     functions,
     byAddr: new Map(functions.map((f) => [f.addr, f] as const)),
@@ -80,7 +83,10 @@ function unsizedEnd(truth: Pick<Truth, 'ends' | 'typed' | 'code'>, addr: number)
  * hand-written asm is data the file's functions share, so it is not given to the last of them.
  */
 export function elfCodeEnd(truth: Pick<Truth, 'functions' | 'ends' | 'typed' | 'code'>): number {
-  return truth.functions.reduce((e, t) => Math.max(e, t.size > 0 ? t.addr + t.size : (unsizedEnd(truth, t.addr) ?? t.addr)), 0);
+  return truth.functions.reduce(
+    (e, t) => Math.max(e, t.size > 0 ? t.addr + t.size : (unsizedEnd(truth, t.addr) ?? t.addr)),
+    0,
+  );
 }
 
 /**

@@ -9,11 +9,10 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
-
-import { discover, emitTree, parseElf, profileById, romFromBytes, type Rom } from 'romlift';
+import { type Rom, discover, emitTree, parseElf, profileById, romFromBytes } from 'romlift';
 import { findBinutils, readAgbccPin } from 'romlift/node';
 
 import type { BenchContext } from '../../../../bench/src/context.ts';
@@ -22,6 +21,9 @@ import type { ProcessOptions, ProcessResult } from '../../../../bench/src/proces
 import { readableStats, treePass } from '../../../../bench/src/readability.ts';
 import {
   AGBCC_CACHE_PIN,
+  type CommandRunner,
+  NOT_RUN,
+  ROMLIFT_FAMILIES,
   agbccCache,
   agbccCachePath,
   agbccPinProblem,
@@ -29,12 +31,9 @@ import {
   discoverModel,
   initBuild,
   initVerdict,
-  NOT_RUN,
-  ROMLIFT_FAMILIES,
   scaffoldTree,
   sourceCli,
   sourceCliScript,
-  type CommandRunner,
 } from '../../../../bench/src/scaffold.ts';
 import { agreeingFunctions } from '../../../../bench/src/score.ts';
 import { elfTruth } from '../../../../bench/src/truth.ts';
@@ -100,7 +99,14 @@ test('the scaffold step: both links, then every agreeing function compared', { s
   );
   assert.ok(agreeing.length > 0);
   await withTempDir('romlift-scaffold-objects-', async (objectsDir) => {
-    const run = await ROMLIFT_FAMILIES.scaffold({ rom, analysis, truth, symbols: elf.value.symbols, objectsDir, objdiff: '/nonexistent/objdiff-cli' });
+    const run = await ROMLIFT_FAMILIES.scaffold({
+      rom,
+      analysis,
+      truth,
+      symbols: elf.value.symbols,
+      objectsDir,
+      objdiff: '/nonexistent/objdiff-cli',
+    });
     assert.ok(run.raw.ok && run.readable.ok, `${run.raw.detail} / ${run.readable.detail}`);
     assert.deepEqual(run.objdiff.linked, true);
     assert.equal(run.objdiff.scored, agreeing.length);
@@ -123,12 +129,18 @@ const ok = (stdout = ''): ProcessResult => ({ code: 0, stdout, stderr: '' });
  * A fake user build: `init` writes the project's sha1 file, setup.sh checks tools/agbcc was copied in, make writes
  * `built` as the ROM. Any step can be made to fail.
  */
-function fakeBuild(calls: Call[], built: Uint8Array, fail: { readonly step?: string; readonly code?: number } = {}): CommandRunner {
+function fakeBuild(
+  calls: Call[],
+  built: Uint8Array,
+  fail: { readonly step?: string; readonly code?: number } = {},
+): CommandRunner {
   return async (command, args, options) => {
     calls.push({ command, args, options });
     const cwd = options.cwd ?? '';
-    const step = command === 'make' ? 'make' : command === './setup.sh' ? 'setup' : args[0] === 'init' ? 'init' : command;
-    if (fail.step === step) return { code: fail.code ?? 1, stdout: `${step} output\n`, stderr: `${step} failed at 0x0906A56C\n` };
+    const step =
+      command === 'make' ? 'make' : command === './setup.sh' ? 'setup' : args[0] === 'init' ? 'init' : command;
+    if (fail.step === step)
+      return { code: fail.code ?? 1, stdout: `${step} output\n`, stderr: `${step} failed at 0x0906A56C\n` };
     if (step === 'init') await writeFile(join(cwd, 'far-jump.sha1'), `${rom.sha1}  far-jump.gba\n`);
     if (step === 'setup') await stat(join(cwd, 'tools', 'agbcc', 'bin', 'agbcc'));
     if (step === 'make') await writeFile(join(cwd, 'far-jump.gba'), built);
@@ -148,13 +160,23 @@ test('initBuild: the ROM as baserom.gba, init, the agbcc copy, setup.sh and make
     const project = join(root, 'project');
     await mkdir(project);
     const calls: Call[] = [];
-    const build = await initBuild(rom, project, false, { run: fakeBuild(calls, rom.bytes), agbcc: await agbccDir(root), cli: '/bin/romlift' });
+    const build = await initBuild(rom, project, false, {
+      run: fakeBuild(calls, rom.bytes),
+      agbcc: await agbccDir(root),
+      cli: '/bin/romlift',
+    });
     assert.deepEqual(initVerdict(build), { initExit: 0, setupExit: 0, makeExit: 0, sha1Match: true });
     assert.equal(build.detail, 'SHA-1 match');
     assert.ok(build.seconds >= 0);
-    assert.deepEqual(calls.map((c) => [c.command, ...c.args]), [['/bin/romlift', 'init', 'baserom.gba', '--json'], ['./setup.sh'], ['make']]);
+    assert.deepEqual(
+      calls.map((c) => [c.command, ...c.args]),
+      [['/bin/romlift', 'init', 'baserom.gba', '--json'], ['./setup.sh'], ['make']],
+    );
     assert.ok(calls.every((c) => c.options.cwd === project));
-    assert.deepEqual(calls.slice(1).map((c) => c.options.env), [{ ROMLIFT_CLI: '/bin/romlift' }, { ROMLIFT_CLI: '/bin/romlift' }]);
+    assert.deepEqual(
+      calls.slice(1).map((c) => c.options.env),
+      [{ ROMLIFT_CLI: '/bin/romlift' }, { ROMLIFT_CLI: '/bin/romlift' }],
+    );
     assert.deepEqual(new Uint8Array(await readFile(join(project, 'baserom.gba'))), rom.bytes);
   });
 });
@@ -165,7 +187,11 @@ test('initBuild: a built ROM with other bytes is no match, though make exited 0'
     await mkdir(project);
     const other = rom.bytes.slice();
     other[0] = (other[0] ?? 0) ^ 0xff;
-    const build = await initBuild(rom, project, false, { run: fakeBuild([], other), agbcc: await agbccDir(root), cli: '/bin/romlift' });
+    const build = await initBuild(rom, project, false, {
+      run: fakeBuild([], other),
+      agbcc: await agbccDir(root),
+      cli: '/bin/romlift',
+    });
     assert.deepEqual(initVerdict(build), { initExit: 0, setupExit: 0, makeExit: 0, sha1Match: false });
     assert.match(build.detail, /far-jump\.gba does not have SHA-1 [0-9a-f]{40}$/);
   });
@@ -182,7 +208,11 @@ test('initBuild: a failed step stops the build, the later ones are NOT_RUN, and 
         const project = join(root, 'project');
         await mkdir(project);
         const calls: Call[] = [];
-        const build = await initBuild(rom, project, withhold, { run: fakeBuild(calls, rom.bytes, { step, code: 3 }), agbcc: await agbccDir(root), cli: '/bin/romlift' });
+        const build = await initBuild(rom, project, withhold, {
+          run: fakeBuild(calls, rom.bytes, { step, code: 3 }),
+          agbcc: await agbccDir(root),
+          cli: '/bin/romlift',
+        });
         assert.deepEqual(initVerdict(build), expected, `${step}, withhold ${withhold}`);
         assert.equal(calls.length, step === 'init' ? 1 : step === 'setup' ? 2 : 3);
         if (withhold) {
@@ -195,10 +225,16 @@ test('initBuild: a failed step stops the build, the later ones are NOT_RUN, and 
 });
 
 test('the CLI script quotes its words and runs the source CLI with the launcher options', async () => {
-  assert.equal(sourceCliScript('/n o/node', ['--max-old-space-size=1024'], "/it's/main.ts"), `#!/bin/sh\nexec '/n o/node' '--conditions=source' '--max-old-space-size=1024' '/it'\\''s/main.ts' "$@"\n`);
+  assert.equal(
+    sourceCliScript('/n o/node', ['--max-old-space-size=1024'], "/it's/main.ts"),
+    `#!/bin/sh\nexec '/n o/node' '--conditions=source' '--max-old-space-size=1024' '/it'\\''s/main.ts' "$@"\n`,
+  );
   await withTempDir('romlift-source-cli-', async (dir) => {
     const cli = await sourceCli(dir);
-    assert.equal((await readFile(cli, 'utf8')).split('\n')[1], `exec '${process.execPath}' '--conditions=source' '--max-old-space-size=1024' '${CLI_MAIN}' "$@"`);
+    assert.equal(
+      (await readFile(cli, 'utf8')).split('\n')[1],
+      `exec '${process.execPath}' '--conditions=source' '--max-old-space-size=1024' '${CLI_MAIN}' "$@"`,
+    );
     const ran = spawnSync(cli, [], { encoding: 'utf8' });
     assert.equal(ran.status, 0, ran.stderr);
     assert.match(ran.stdout, /^Usage: romlift <command>/);
@@ -217,10 +253,14 @@ async function cacheTier(root: string): Promise<BenchContext> {
 }
 
 /** pret/agbcc's scripts faked: install.sh lays out <root>/tools/agbcc as the real one does; a fetch by commit can fail. */
-function fakeAgbcc(calls: Call[], options: { readonly shallowFails?: boolean; readonly buildFails?: boolean } = {}): CommandRunner {
+function fakeAgbcc(
+  calls: Call[],
+  options: { readonly shallowFails?: boolean; readonly buildFails?: boolean } = {},
+): CommandRunner {
   return async (command, args, opts) => {
     calls.push({ command, args, options: opts });
-    if (command === 'git' && args[1] === '-q' && args[2] === '--depth' && options.shallowFails === true) return { code: 128, stdout: '', stderr: 'not our ref' };
+    if (command === 'git' && args[1] === '-q' && args[2] === '--depth' && options.shallowFails === true)
+      return { code: 128, stdout: '', stderr: 'not our ref' };
     if (command === './build.sh' && options.buildFails === true) return { code: 2, stdout: '', stderr: 'gcc: error' };
     if (command === './install.sh') {
       const dir = join(args[0] ?? '', 'tools', 'agbcc');
@@ -231,7 +271,7 @@ function fakeAgbcc(calls: Call[], options: { readonly shallowFails?: boolean; re
   };
 }
 
-test('agbccCache reads the pin with romlift\'s readAgbccPin: the repository pins pret/agbcc, and a malformed pin throws', async () => {
+test("agbccCache reads the pin with romlift's readAgbccPin: the repository pins pret/agbcc, and a malformed pin throws", async () => {
   const pin = await readAgbccPin(join(import.meta.dirname, '..', '..', '..', '..'));
   assert.ok(pin.ok);
   assert.equal(pin.value.url, PIN.url);
@@ -239,19 +279,35 @@ test('agbccCache reads the pin with romlift\'s readAgbccPin: the repository pins
   await withTempDir('romlift-agbcc-pin-', async (root) => {
     const cx = await cacheTier(root);
     await writeFile(join(cx.repoRoot, 'templates', 'agbcc.json'), '{"url":"x"}');
-    await assert.rejects(agbccCache(cx, { run: fakeAgbcc([]), env: {}, log: () => {} }), /agbcc\.json: commit is not forty/);
+    await assert.rejects(
+      agbccCache(cx, { run: fakeAgbcc([]), env: {}, log: () => {} }),
+      /agbcc\.json: commit is not forty/,
+    );
   });
 });
 
-test('agbccPinProblem: the one pin-stamp check, with the caller\'s policy for a directory without a stamp', async () => {
+test("agbccPinProblem: the one pin-stamp check, with the caller's policy for a directory without a stamp", async () => {
   await withTempDir('romlift-agbcc-stamp-', async (dir) => {
-    assert.match((await agbccPinProblem(dir, PIN, 'refuse')) ?? '', /records no pin \(no romlift-agbcc-pin\.json\)/, 'the bench cache rebuilds an unstamped directory');
-    assert.equal(await agbccPinProblem(dir, PIN, 'accept'), undefined, 'a prebuilt directory without a stamp is taken as built at the pin');
+    assert.match(
+      (await agbccPinProblem(dir, PIN, 'refuse')) ?? '',
+      /records no pin \(no romlift-agbcc-pin\.json\)/,
+      'the bench cache rebuilds an unstamped directory',
+    );
+    assert.equal(
+      await agbccPinProblem(dir, PIN, 'accept'),
+      undefined,
+      'a prebuilt directory without a stamp is taken as built at the pin',
+    );
     await writeFile(join(dir, AGBCC_CACHE_PIN), `${JSON.stringify(PIN)}\n`);
-    for (const policy of ['refuse', 'accept'] as const) assert.equal(await agbccPinProblem(dir, PIN, policy), undefined, policy);
+    for (const policy of ['refuse', 'accept'] as const)
+      assert.equal(await agbccPinProblem(dir, PIN, policy), undefined, policy);
     const other = { ...PIN, commit: 'a'.repeat(40) };
     for (const policy of ['refuse', 'accept'] as const) {
-      assert.match((await agbccPinProblem(dir, other, policy)) ?? '', /was built at .*, not at templates\/agbcc\.json's .*aaaa/, `another pin is refused (${policy})`);
+      assert.match(
+        (await agbccPinProblem(dir, other, policy)) ?? '',
+        /was built at .*, not at templates\/agbcc\.json's .*aaaa/,
+        `another pin is refused (${policy})`,
+      );
     }
   });
 });
@@ -294,7 +350,10 @@ test('agbccCache builds once from the pin, then reuses the cache while its pin i
     await rm(join(cache, AGBCC_CACHE_PIN));
     calls.length = 0;
     await agbccCache(cx, deps);
-    assert.ok(calls.some((c) => c.command === './build.sh'), 'an unstamped cache is rebuilt');
+    assert.ok(
+      calls.some((c) => c.command === './build.sh'),
+      'an unstamped cache is rebuilt',
+    );
     assert.equal(await agbccPinProblem(cache, { ...PIN, commit: 'a'.repeat(40) }, 'refuse'), undefined);
   });
 });
@@ -302,15 +361,20 @@ test('agbccCache builds once from the pin, then reuses the cache while its pin i
 test('agbccCache: a failing build throws with its output and leaves no cache', async () => {
   await withTempDir('romlift-agbcc-cache-fail-', async (root) => {
     const cx = await cacheTier(root);
-    await assert.rejects(agbccCache(cx, { run: fakeAgbcc([], { buildFails: true }), env: {}, log: () => {} }), /agbcc: build\.sh exited 2:\ngcc: error/);
+    await assert.rejects(
+      agbccCache(cx, { run: fakeAgbcc([], { buildFails: true }), env: {}, log: () => {} }),
+      /agbcc: build\.sh exited 2:\ngcc: error/,
+    );
     assert.notEqual(await agbccPinProblem(agbccCachePath(cx), PIN, 'refuse'), undefined);
   });
 });
 
-test('agbccSource: AGBCC_URL, else the benchmark root\'s agbcc checkout holding the commit, else the pin', async () => {
+test("agbccSource: AGBCC_URL, else the benchmark root's agbcc checkout holding the commit, else the pin", async () => {
   await withTempDir('romlift-agbcc-source-', async (root) => {
     const cx = await cacheTier(root);
-    const holds = (code: number): CommandRunner => async () => ({ code, stdout: '', stderr: '' });
+    const holds =
+      (code: number): CommandRunner =>
+      async () => ({ code, stdout: '', stderr: '' });
     assert.equal(await agbccSource(cx, PIN, { run: holds(0), env: { AGBCC_URL: '/mirror' } }), '/mirror');
     assert.equal(await agbccSource(cx, PIN, { run: holds(0), env: {} }), PIN.url, 'no checkout');
     await mkdir(join(cx.benchRoot, 'agbcc', '.git'), { recursive: true });

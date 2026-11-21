@@ -15,7 +15,13 @@ export {
   resolveFrom,
 } from '../shell/project/read-inputs.ts';
 export type { ReadProject, ReadProjectOptions, ReadResult, ScaffoldInputs } from '../shell/project/read-inputs.ts';
-export { hasPackageLock, planAndApply, underProjectLock, writeInitProject, writeTree } from '../shell/project/write-project.ts';
+export {
+  hasPackageLock,
+  planAndApply,
+  underProjectLock,
+  writeInitProject,
+  writeTree,
+} from '../shell/project/write-project.ts';
 export type { InitFiles, TreeSource, TreeWrite, WriteOutcome } from '../shell/project/write-project.ts';
 export { NPM_LOCK_ARGS, NPM_LOCK_TIME_LIMIT_MS, writePackageLock } from '../shell/toolchain/npm.ts';
 export type { NpmLockOptions, NpmLockResult } from '../shell/toolchain/npm.ts';

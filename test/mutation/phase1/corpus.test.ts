@@ -6,9 +6,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { DIALECT } from '../../../src/foundation/asm/dialect.ts';
-import { corpusOk } from '../../../src/foundation/corpus/threshold.ts';
 import { armCoverage, compareCorpusFile, corpusFiles, summarizeCorpus } from '../../../src/foundation/corpus/corpus.ts';
 import type { CorpusAssembly, CorpusOptions } from '../../../src/foundation/corpus/corpus.ts';
+import { corpusOk } from '../../../src/foundation/corpus/threshold.ts';
 import { assembleWithBinutils, findBinutils } from '../../../src/shell/toolchain/binutils.ts';
 import { perfectAs } from '../../unit/corpus/simulate.ts';
 
@@ -21,7 +21,10 @@ test('a flipped byte in an assembled corpus file fails exactly its case and the 
 
   let assembled: CorpusAssembly = perfectAs(target);
   if (!('code' in findBinutils(process.env))) {
-    const real = await assembleWithBinutils(target.text, { mode: 'thumb', files: { 'include/macros.inc': DIALECT.macrosInc } });
+    const real = await assembleWithBinutils(target.text, {
+      mode: 'thumb',
+      files: { 'include/macros.inc': DIALECT.macrosInc },
+    });
     assert.ok(real.ok, real.ok ? '' : real.stderr);
     assembled = { ok: true, bytes: real.bytes };
   }

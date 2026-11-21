@@ -47,17 +47,25 @@ async function rendered(): Promise<readonly ScaffoldFileEntry[]> {
   if (!templates.ok) throw new Error(templates.diagnostic.message);
   const pin = await readAgbccPin(PACKAGE_ROOT);
   if (!pin.ok) throw new Error(pin.diagnostic.message);
-  const vars = scaffoldVars({ name: 'klonoa-eod', sha1: 'a0a298d9dba1ba15d04a42fc2eb35893d1a9569b', romliftVersion: '0.4.0', agbcc: pin.value, title: 'KLONOA' });
+  const vars = scaffoldVars({
+    name: 'klonoa-eod',
+    sha1: 'a0a298d9dba1ba15d04a42fc2eb35893d1a9569b',
+    romliftVersion: '0.4.0',
+    agbcc: pin.value,
+    title: 'KLONOA',
+  });
   return renderScaffold(vars, templates.value);
 }
 
 test('golden scaffold: every file for a fixed ScaffoldVars', async () => {
   const entries = await rendered();
-  const text = entries.map((e) => `==> ${e.path} (${e.ownership}, ${e.writer}${e.executable ? ', executable' : ''}) <==\n${e.text}`).join('');
+  const text = entries
+    .map((e) => `==> ${e.path} (${e.ownership}, ${e.writer}${e.executable ? ', executable' : ''}) <==\n${e.text}`)
+    .join('');
   check('scaffold.txt', text);
 });
 
-test('golden scaffold: each of setup.sh\'s five duties', async () => {
+test("golden scaffold: each of setup.sh's five duties", async () => {
   const setup = (await rendered()).find((e) => e.path === 'setup.sh');
   assert.ok(setup !== undefined, 'the scaffold has setup.sh');
   DUTIES.forEach((duty, i) => {

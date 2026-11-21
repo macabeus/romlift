@@ -61,7 +61,13 @@ test('hi-register operations and bx', () => {
     { word: 0x4770, spec: 'thumb.bx', text: 'bx lr', flow: { kind: 'return', via: 'bx-lr' } },
     { word: 0x4718, spec: 'thumb.bx', text: 'bx r3', flow: { kind: 'indirect', reg: 3, via: 'bx' } },
     { word: 0x4778, spec: 'thumb.bx', text: 'bx pc', flow: { kind: 'mode-switch', target: 0x0800_0004 } },
-    { word: 0x4778, addr: 0x0800_0002, spec: 'thumb.bx', text: 'bx pc', flow: { kind: 'mode-switch', target: 0x0800_0004 } },
+    {
+      word: 0x4778,
+      addr: 0x0800_0002,
+      spec: 'thumb.bx',
+      text: 'bx pc',
+      flow: { kind: 'mode-switch', target: 0x0800_0004 },
+    },
     { word: 0x4771, spec: 'thumb.bx', raw: 'sbz-set', flow: { kind: 'return', via: 'bx-lr' } },
     { word: 0x4780, spec: 'thumb.blx_reg', raw: 'unpredictable', flow: { kind: 'invalid' } },
   ]);
@@ -69,7 +75,12 @@ test('hi-register operations and bx', () => {
 
 test('pc-relative load and adr use Align(addr + 4, 4)', () => {
   run([
-    { word: 0x4801, spec: 'thumb.ldr_pc', text: 'ldr r0, _08000008', flow: { kind: 'pool-load', pool: 0x0800_0008, rd: 0 } },
+    {
+      word: 0x4801,
+      spec: 'thumb.ldr_pc',
+      text: 'ldr r0, _08000008',
+      flow: { kind: 'pool-load', pool: 0x0800_0008, rd: 0 },
+    },
     { word: 0x4801, addr: 0x0800_0002, spec: 'thumb.ldr_pc', text: 'ldr r0, _08000008' },
     { word: 0x4fff, addr: 0x0800_0002, spec: 'thumb.ldr_pc', text: 'ldr r7, _08000400' },
     { word: 0xa001, spec: 'thumb.adr', text: 'adr r0, _08000008', flow: { kind: 'adr', target: 0x0800_0008 } },
@@ -117,11 +128,21 @@ test('ldmia and stmia: writeback only when the base is not loaded', () => {
 
 test('branches, swi and the undefined spaces', () => {
   run([
-    { word: 0xd0fe, spec: 'thumb.bcc', text: 'beq _08000000', flow: { kind: 'branch', target: 0x0800_0000, conditional: true } },
+    {
+      word: 0xd0fe,
+      spec: 'thumb.bcc',
+      text: 'beq _08000000',
+      flow: { kind: 'branch', target: 0x0800_0000, conditional: true },
+    },
     { word: 0xd87f, spec: 'thumb.bcc', text: 'bhi _08000102' },
     { word: 0xde00, spec: 'thumb.b_cond_undefined', raw: 'undefined', flow: { kind: 'invalid' } },
     { word: 0xdf06, spec: 'thumb.swi', text: 'swi #6', flow: { kind: 'swi', imm: 6 } },
-    { word: 0xe7fe, spec: 'thumb.b', text: 'b _08000000', flow: { kind: 'branch', target: 0x0800_0000, conditional: false } },
+    {
+      word: 0xe7fe,
+      spec: 'thumb.b',
+      text: 'b _08000000',
+      flow: { kind: 'branch', target: 0x0800_0000, conditional: false },
+    },
     { word: 0xe400, spec: 'thumb.b', text: 'b _07FFF804' },
     { word: 0xe800, spec: 'thumb.undefined', raw: 'undefined' },
   ]);

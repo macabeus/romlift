@@ -6,7 +6,6 @@ import assert from 'node:assert/strict';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-
 import { checkRom, compareCodeUnits, headerComplement } from 'romlift';
 import { sha1Of } from 'romlift/node';
 
@@ -67,7 +66,9 @@ test('layout: startup of the first fixture, then each tile with its pointers mov
   const image = largeRomImage([a, b], { bytes, seed: 7 });
   const view = new DataView(image.buffer);
   assert.equal(image.length, bytes);
-  assert.ok(Buffer.from(image.subarray(0, FIXTURE_STARTUP_END)).equals(Buffer.from(a.subarray(0, FIXTURE_STARTUP_END))));
+  assert.ok(
+    Buffer.from(image.subarray(0, FIXTURE_STARTUP_END)).equals(Buffer.from(a.subarray(0, FIXTURE_STARTUP_END))),
+  );
   let at = FIXTURE_STARTUP_END;
   assert.equal(view.getUint32(at, true), 0x4770_b500);
   assert.equal(view.getUint32(at + 4, true), 0x0800_00f9, 'the first tile sits where it was linked');
@@ -82,7 +83,11 @@ test('layout: startup of the first fixture, then each tile with its pointers mov
   }
   at += 4 + words * 4;
   assert.equal(view.getUint32(at, true), 0x4770_4770, 'the second fixture is the next tile');
-  assert.equal(view.getUint32(at + 4, true), (0x0800_00f5 + at - FIXTURE_STARTUP_END) >>> 0, 'its main pointer moved with it');
+  assert.equal(
+    view.getUint32(at + 4, true),
+    (0x0800_00f5 + at - FIXTURE_STARTUP_END) >>> 0,
+    'its main pointer moved with it',
+  );
   const last = largeRomImage([a, b], { bytes, seed: 7 });
   assert.ok(Buffer.from(image).equals(Buffer.from(last)));
   assert.notEqual(sha1Of(largeRomImage([a, b], { bytes, seed: 8 })), sha1Of(image));

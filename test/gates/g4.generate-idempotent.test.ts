@@ -9,9 +9,19 @@
 //   romlift generate --dry-run --json                     exit 0; one line per write-plan op,
 //     {"type":"op","op":"write"|"edit"|"delete"|"keep","path":string}, then the summary
 import { createHash } from 'node:crypto';
-import { copyFile, mkdir, readdir, readFile, stat } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { byCodeUnit, CHECKOUT_CLI_ENV, gate, onTargets, reportTargets, type ExecResult, type GateContext, type TargetReport } from './gate.ts';
+
+import {
+  CHECKOUT_CLI_ENV,
+  type ExecResult,
+  type GateContext,
+  type TargetReport,
+  byCodeUnit,
+  gate,
+  onTargets,
+  reportTargets,
+} from './gate.ts';
 
 interface CliLine {
   readonly type: string;
@@ -34,7 +44,6 @@ function tail(run: ExecResult, lines = 30): string {
   return `${run.stdout}${run.stderr}`.trimEnd().split('\n').slice(-lines).join('\n');
 }
 
-
 async function snapshot(dir: string, prefix = ''): Promise<Map<string, FileState>> {
   const out = new Map<string, FileState>();
   for (const entry of await readdir(path.join(dir, prefix), { withFileTypes: true })) {
@@ -42,7 +51,13 @@ async function snapshot(dir: string, prefix = ''): Promise<Map<string, FileState
     if (relative === '.git') continue;
     const file = path.join(dir, relative);
     if (entry.isDirectory()) for (const [key, value] of await snapshot(dir, relative)) out.set(key, value);
-    else if (entry.isFile()) out.set(relative, { sha1: createHash('sha1').update(await readFile(file)).digest('hex'), mtimeMs: (await stat(file)).mtimeMs });
+    else if (entry.isFile())
+      out.set(relative, {
+        sha1: createHash('sha1')
+          .update(await readFile(file))
+          .digest('hex'),
+        mtimeMs: (await stat(file)).mtimeMs,
+      });
   }
   return out;
 }
@@ -62,10 +77,14 @@ function differences(before: ReadonlyMap<string, FileState>, after: ReadonlyMap<
 
 async function romlift(cx: GateContext, cwd: string, args: readonly string[]): Promise<readonly CliLine[]> {
   const cli = path.join(cx.repoRoot, 'src', 'cli', 'main.ts');
-  const run = await cx.exec(process.execPath, ['--conditions=source', cli, ...args, '--json'], { cwd, env: CHECKOUT_CLI_ENV });
+  const run = await cx.exec(process.execPath, ['--conditions=source', cli, ...args, '--json'], {
+    cwd,
+    env: CHECKOUT_CLI_ENV,
+  });
   const lines = cx.jsonLines<CliLine>(run.stdout);
   const last = lines[lines.length - 1];
-  if (run.code !== 0 || last?.type !== 'summary' || last.exitCode !== 0) throw new Error(`romlift ${args.join(' ')} --json exited ${run.code}:\n${tail(run)}`);
+  if (run.code !== 0 || last?.type !== 'summary' || last.exitCode !== 0)
+    throw new Error(`romlift ${args.join(' ')} --json exited ${run.code}:\n${tail(run)}`);
   return lines;
 }
 
@@ -78,7 +97,8 @@ gate({
   async run(cx) {
     const fixtures: Target[] = cx.fixtures.map((f) => ({ name: f.name, rom: f.rom }));
     if (fixtures.length === 0) throw new Error('no committed fixture under bench/dataset/synthetic');
-    const datasets: Target[] = cx.tier === 'real' ? cx.datasets.map((d) => ({ name: d.name, rom: path.resolve(cx.benchRoot, d.rom) })) : [];
+    const datasets: Target[] =
+      cx.tier === 'real' ? cx.datasets.map((d) => ({ name: d.name, rom: path.resolve(cx.benchRoot, d.rom) })) : [];
     const targets = [...fixtures, ...datasets];
     const base = await cx.tmpDir('romlift-idempotent-');
     const reports = await onTargets(fixtures, datasets, async (target): Promise<TargetReport> => {
@@ -92,10 +112,16 @@ gate({
       const ops = plan.filter((l) => l.type === 'op');
       const active = ops.filter((l) => l.op !== 'keep').map((l) => `${l.op ?? '?'} ${l.path ?? '?'}`);
       if (ops.length === 0) problems.push(`${target.name}: generate --dry-run printed no op`);
-      if (active.length > 0) problems.push(`${target.name}: generate after init plans ${active.length} changes: ${active.slice(0, 8).join(', ')}`);
+      if (active.length > 0)
+        problems.push(
+          `${target.name}: generate after init plans ${active.length} changes: ${active.slice(0, 8).join(', ')}`,
+        );
       await romlift(cx, dir, ['generate']);
       const changed = differences(before, await snapshot(dir));
-      if (changed.length > 0) problems.push(`${target.name}: generate after init changed ${changed.length} files: ${changed.slice(0, 8).join(', ')}`);
+      if (changed.length > 0)
+        problems.push(
+          `${target.name}: generate after init changed ${changed.length} files: ${changed.slice(0, 8).join(', ')}`,
+        );
       return { problems, notes: [`${target.name}: ${before.size} files, ${ops.length} ops all keep`] };
     });
     const problems = reportTargets(cx, reports);

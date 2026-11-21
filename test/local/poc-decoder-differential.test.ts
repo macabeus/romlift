@@ -12,7 +12,6 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-
 import { decode, specOf } from 'romlift/isa';
 import type { Flow, FlowKind, Insn } from 'romlift/isa';
 
@@ -111,13 +110,15 @@ const V4T_UNDEFINED_ROWS: ReadonlySet<string> = new Set([
 const INTENDED: readonly IntendedDifference[] = [
   {
     name: 'thumb-mov-pc-lr',
-    reason: 'the PoC files `mov pc, lr` under bx; the table classes it as a hi-register write to pc (mov-pc), and its Flow is still a return (mov-pc-lr); once per alignment',
+    reason:
+      'the PoC files `mov pc, lr` under bx; the table classes it as a hi-register write to pc (mov-pc), and its Flow is still a return (mov-pc-lr); once per alignment',
     applies: (insn, poc) => insn.mode === 'thumb' && poc === 'bx' && insn.specId === 'thumb.mov_pc',
     rows: { 'thumb.mov_pc': 2 },
   },
   {
     name: 'arm-adr-to-pc',
-    reason: 'the PoC files `add pc, pc, #imm` and `sub pc, pc, #imm` under adr; they write pc, so the table classes them by opcode (add-pc, mov-pc)',
+    reason:
+      'the PoC files `add pc, pc, #imm` and `sub pc, pc, #imm` under adr; they write pc, so the table classes them by opcode (add-pc, mov-pc)',
     applies: (insn, poc) => insn.mode === 'arm' && poc === 'adr' && pcDest(insn),
     rows: { 'arm.add_imm_pc': 2 },
   },
@@ -125,7 +126,8 @@ const INTENDED: readonly IntendedDifference[] = [
     name: 'arm-v4t-undefined',
     reason:
       'encodings the ARMv4T leaves undefined (the miscellaneous, multiply and swap spaces, ldrd/strd, the media space, bx with its should-be-one bits clear) are invalid here; the PoC files them as other or pc_write',
-    applies: (insn, poc) => insn.mode === 'arm' && V4T_UNDEFINED_ROWS.has(insn.specId) && (poc === 'other' || poc === 'pc_write'),
+    applies: (insn, poc) =>
+      insn.mode === 'arm' && V4T_UNDEFINED_ROWS.has(insn.specId) && (poc === 'other' || poc === 'pc_write'),
     // 2,526 of the 65,536 sampled words.
     rows: {
       'arm.bx_sbo': 17,
@@ -165,68 +167,102 @@ function xorshift32(state: number): number {
   return x >>> 0;
 }
 
-function runDriver(request: unknown): Promise<{ thumb: [string, number][]; thumbOdd: [string, number][]; bl: [string, number][]; arm: [string, number][] }> {
+function runDriver(request: unknown): Promise<{
+  thumb: [string, number][];
+  thumbOdd: [string, number][];
+  bl: [string, number][];
+  arm: [string, number][];
+}> {
   return new Promise((resolve, reject) => {
-    const child = spawn(TSX, [path.join(REPO, 'test/local/poc/decoder-driver.ts'), POC], { cwd: POC, stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(TSX, [path.join(REPO, 'test/local/poc/decoder-driver.ts'), POC], {
+      cwd: POC,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
     let out = '';
     let err = '';
     child.stdout.on('data', (d: Buffer) => (out += d.toString('utf8')));
     child.stderr.on('data', (d: Buffer) => (err += d.toString('utf8')));
     child.on('error', reject);
-    child.on('close', (code) => (code === 0 ? resolve(JSON.parse(out) as Awaited<ReturnType<typeof runDriver>>) : reject(new Error(`driver exited ${code}: ${err}`))));
+    child.on('close', (code) =>
+      code === 0
+        ? resolve(JSON.parse(out) as Awaited<ReturnType<typeof runDriver>>)
+        : reject(new Error(`driver exited ${code}: ${err}`)),
+    );
     child.stdin.end(JSON.stringify(request));
   });
 }
 
 const unavailable = !existsSync(TSX) || !existsSync(path.join(POC, 'src', 'thumb.ts'));
 
-test('decoder flow classes equal the PoC classification', { skip: unavailable && !REQUIRE ? 'unavailable: poc' : false }, async (t) => {
-  assert.ok(!unavailable, `unavailable: poc (no ${TSX})`);
-  const thumb = Array.from({ length: 0x10000 }, (_, hw) => hw);
-  const bl: [number, number][] = [];
-  for (let hi = 0; hi < 0x800; hi++) for (const lo of [0, 1, 0x3ff, 0x400, 0x7fe, 0x7ff]) bl.push([0xf000 | hi, 0xf800 | lo]);
-  const arm: number[] = [];
-  let state = 0x2026_1017;
-  for (let i = 0; i < ARM_SAMPLE; i++) arm.push((state = xorshift32(state)));
-  const reply = await runDriver({ thumb, bl, arm });
+test(
+  'decoder flow classes equal the PoC classification',
+  { skip: unavailable && !REQUIRE ? 'unavailable: poc' : false },
+  async (t) => {
+    assert.ok(!unavailable, `unavailable: poc (no ${TSX})`);
+    const thumb = Array.from({ length: 0x10000 }, (_, hw) => hw);
+    const bl: [number, number][] = [];
+    for (let hi = 0; hi < 0x800; hi++)
+      for (const lo of [0, 1, 0x3ff, 0x400, 0x7fe, 0x7ff]) bl.push([0xf000 | hi, 0xf800 | lo]);
+    const arm: number[] = [];
+    let state = 0x2026_1017;
+    for (let i = 0; i < ARM_SAMPLE; i++) arm.push((state = xorshift32(state)));
+    const reply = await runDriver({ thumb, bl, arm });
 
-  const counts = new Map<string, Map<string, number>>();
-  const unexplained: string[] = [];
-  let compared = 0;
-  const check = (
-    insn: Insn,
-    poc: readonly [string, number] | undefined,
-    map: Readonly<Record<string, readonly FlowKind[]>>,
-    flowMap: Readonly<Record<string, readonly Flow['kind'][]>>,
-  ): void => {
-    const [kind, arg] = poc ?? ['missing', 0];
-    const ours = specOf(insn.specId).flow;
-    compared++;
-    const allowed = map[kind];
-    const flowAllowed = flowMap[kind];
-    if (allowed !== undefined && allowed.includes(ours) && flowAllowed !== undefined && flowAllowed.includes(insn.flow.kind)) {
-      const target = targetOf(insn.flow);
-      if (TARGET_KINDS.has(kind) && target !== undefined && target !== arg >>> 0) {
-        unexplained.push(`${insn.specId} 0x${insn.word.toString(16)}: target 0x${target.toString(16)}, PoC 0x${(arg >>> 0).toString(16)}`);
+    const counts = new Map<string, Map<string, number>>();
+    const unexplained: string[] = [];
+    let compared = 0;
+    const check = (
+      insn: Insn,
+      poc: readonly [string, number] | undefined,
+      map: Readonly<Record<string, readonly FlowKind[]>>,
+      flowMap: Readonly<Record<string, readonly Flow['kind'][]>>,
+    ): void => {
+      const [kind, arg] = poc ?? ['missing', 0];
+      const ours = specOf(insn.specId).flow;
+      compared++;
+      const allowed = map[kind];
+      const flowAllowed = flowMap[kind];
+      if (
+        allowed !== undefined &&
+        allowed.includes(ours) &&
+        flowAllowed !== undefined &&
+        flowAllowed.includes(insn.flow.kind)
+      ) {
+        const target = targetOf(insn.flow);
+        if (TARGET_KINDS.has(kind) && target !== undefined && target !== arg >>> 0) {
+          unexplained.push(
+            `${insn.specId} 0x${insn.word.toString(16)}: target 0x${target.toString(16)}, PoC 0x${(arg >>> 0).toString(16)}`,
+          );
+        }
+        return;
       }
-      return;
-    }
-    const intended = INTENDED.find((d) => d.applies(insn, kind));
-    if (intended !== undefined) {
-      const rows = counts.get(intended.name) ?? new Map<string, number>();
-      rows.set(insn.specId, (rows.get(insn.specId) ?? 0) + 1);
-      counts.set(intended.name, rows);
-    } else unexplained.push(`${insn.mode} ${insn.specId} 0x${insn.word.toString(16)}: ${ours} / ${insn.flow.kind}, PoC ${kind}`);
-  };
+      const intended = INTENDED.find((d) => d.applies(insn, kind));
+      if (intended !== undefined) {
+        const rows = counts.get(intended.name) ?? new Map<string, number>();
+        rows.set(insn.specId, (rows.get(insn.specId) ?? 0) + 1);
+        counts.set(intended.name, rows);
+      } else
+        unexplained.push(
+          `${insn.mode} ${insn.specId} 0x${insn.word.toString(16)}: ${ours} / ${insn.flow.kind}, PoC ${kind}`,
+        );
+    };
 
-  thumb.forEach((hw, i) => check(decode('thumb', hw, BASE + 4 * i), reply.thumb[i], THUMB_MAP, THUMB_FLOW_MAP));
-  thumb.forEach((hw, i) => check(decode('thumb', hw, BASE + 4 * i + 2), reply.thumbOdd[i], THUMB_MAP, THUMB_FLOW_MAP));
-  bl.forEach(([p, s], i) => check(decode('thumb', (p | (s << 16)) >>> 0, BASE + 4 * i), reply.bl[i], THUMB_MAP, THUMB_FLOW_MAP));
-  arm.forEach((w, i) => check(decode('arm', w, BASE + 4 * i), reply.arm[i], ARM_MAP, ARM_FLOW_MAP));
+    thumb.forEach((hw, i) => check(decode('thumb', hw, BASE + 4 * i), reply.thumb[i], THUMB_MAP, THUMB_FLOW_MAP));
+    thumb.forEach((hw, i) =>
+      check(decode('thumb', hw, BASE + 4 * i + 2), reply.thumbOdd[i], THUMB_MAP, THUMB_FLOW_MAP),
+    );
+    bl.forEach(([p, s], i) =>
+      check(decode('thumb', (p | (s << 16)) >>> 0, BASE + 4 * i), reply.bl[i], THUMB_MAP, THUMB_FLOW_MAP),
+    );
+    arm.forEach((w, i) => check(decode('arm', w, BASE + 4 * i), reply.arm[i], ARM_MAP, ARM_FLOW_MAP));
 
-  const measured = (name: string): Record<string, number> => Object.fromEntries([...(counts.get(name) ?? new Map<string, number>())].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
-  for (const d of INTENDED) t.diagnostic(`${d.name}: ${JSON.stringify(measured(d.name))} (${d.reason})`);
-  t.diagnostic(`compared ${compared} encodings`);
-  assert.deepEqual(unexplained.slice(0, 20), []);
-  for (const d of INTENDED) assert.deepEqual(measured(d.name), d.rows, `${d.name}: the rows and counts it covers`);
-});
+    const measured = (name: string): Record<string, number> =>
+      Object.fromEntries(
+        [...(counts.get(name) ?? new Map<string, number>())].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+      );
+    for (const d of INTENDED) t.diagnostic(`${d.name}: ${JSON.stringify(measured(d.name))} (${d.reason})`);
+    t.diagnostic(`compared ${compared} encodings`);
+    assert.deepEqual(unexplained.slice(0, 20), []);
+    for (const d of INTENDED) assert.deepEqual(measured(d.name), d.rows, `${d.name}: the rows and counts it covers`);
+  },
+);

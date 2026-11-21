@@ -18,7 +18,7 @@
 // UPDATE_GOLDEN=1 rewrites them and removes the files no case produces; the diff is the review. A rule change moves
 // them, and the integrator regenerates them with UPDATE_GOLDEN=1.
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
@@ -26,9 +26,9 @@ import { fileURLToPath } from 'node:url';
 
 import { main } from '../../../src/cli/main.ts';
 import type { CliIo } from '../../../src/cli/registry.ts';
-import { parseConfig } from '../../../src/core/config/parse.ts';
 import { Claim } from '../../../src/core/analysis/types.ts';
 import type { AnalysisResult } from '../../../src/core/analysis/types.ts';
+import { parseConfig } from '../../../src/core/config/parse.ts';
 import { SIGNATURE_RULE_IDS } from '../../../src/core/signatures/schema.ts';
 import type { SignatureFile, SignatureRuleId } from '../../../src/core/signatures/schema.ts';
 import { discover } from '../../../src/core/workflow/discover.ts';
@@ -45,7 +45,7 @@ import { sha1Of } from '../../../src/shell/hash.ts';
 import { readScaffoldInputs } from '../../../src/shell/project/read-inputs.ts';
 import { buildSignatures, writeSignatureFile } from '../../../src/shell/signatures/build-from-references.ts';
 import { SIGNATURES_ENV } from '../../../src/shell/signatures/locate.ts';
-import { listSyntheticFixtures, readExpect, SYNTHETIC_ROOT } from '../../helpers/fixtures.ts';
+import { SYNTHETIC_ROOT, listSyntheticFixtures, readExpect } from '../../helpers/fixtures.ts';
 import type { SyntheticFixture } from '../../helpers/fixtures.ts';
 
 const DIR = fileURLToPath(new URL('./', import.meta.url));
@@ -62,7 +62,8 @@ mkdirSync(NO_SIGNATURES);
 /** Picks the address of a case from the fixture's discover result; undefined when the fixture has none. */
 type Pick = (result: AnalysisResult, fixture: SyntheticFixture) => number | undefined;
 
-const notRomEntry = (result: AnalysisResult): AnalysisResult['functions'] => result.functions.filter((f) => f.origin !== 'rom-entry' && f.origin !== 'startup-pointer');
+const notRomEntry = (result: AnalysisResult): AnalysisResult['functions'] =>
+  result.functions.filter((f) => f.origin !== 'rom-entry' && f.origin !== 'startup-pointer');
 
 const PICKS: Readonly<Record<string, Pick>> = {
   entry: (r) => notRomEntry(r)[0]?.entry,
@@ -102,10 +103,19 @@ function romOf(fixture: SyntheticFixture): Rom {
 
 async function cli(argv: readonly string[], cwd: string = DIR): Promise<string> {
   const out: string[] = [];
-  const io: CliIo = { stdout: (t) => out.push(t), stderr: () => undefined, cwd, env: { [SIGNATURES_ENV]: NO_SIGNATURES } };
+  const io: CliIo = {
+    stdout: (t) => out.push(t),
+    stderr: () => undefined,
+    cwd,
+    env: { [SIGNATURES_ENV]: NO_SIGNATURES },
+  };
   const code = await main(argv, io);
   assert.equal(code, 0, `romlift ${argv.join(' ')} exited ${code}`);
-  return out.join('').split('\n').filter((line) => !line.includes('"code":"W_SIGNATURES_ABSENT"')).join('\n');
+  return out
+    .join('')
+    .split('\n')
+    .filter((line) => !line.includes('"code":"W_SIGNATURES_ABSENT"'))
+    .join('\n');
 }
 
 function canonical(report: ExplainReport): string {
@@ -138,9 +148,21 @@ const S = scaffold.value;
 let projects = 0;
 
 /** A project directory from init's plan for `fixture`, with `overrides` appended to its romlift.toml. */
-function projectOf(fixture: SyntheticFixture, overrides: string, files?: readonly SignatureFile[]): { readonly dir: string; readonly text: string; readonly rom: Rom } {
+function projectOf(
+  fixture: SyntheticFixture,
+  overrides: string,
+  files?: readonly SignatureFile[],
+): { readonly dir: string; readonly text: string; readonly rom: Rom } {
   const rom = romOf(fixture);
-  const plan = init({ rom, romFile: 'baserom.gba', options: {}, templates: S.templates, romliftVersion: S.romliftVersion, agbcc: S.agbcc, ...(files === undefined ? {} : { signatureFiles: files }) });
+  const plan = init({
+    rom,
+    romFile: 'baserom.gba',
+    options: {},
+    templates: S.templates,
+    romliftVersion: S.romliftVersion,
+    agbcc: S.agbcc,
+    ...(files === undefined ? {} : { signatureFiles: files }),
+  });
   if (!plan.ok) throw new Error(`init refused ${fixture.name}: ${plan.diagnostics.map((d) => d.code).join(', ')}`);
   const dir = join(TMP, `project-${projects++}`);
   mkdirSync(dir);
@@ -194,7 +216,11 @@ function project(fixtureName: string, name: string, at: string, overrides: (r: A
       if (!parsed.ok) throw new Error(`${fixtureName}: the project's romlift.toml does not parse`);
       const explained = explainProject({ rom: p.rom, config: parsed.value }, addr);
       if (!explained.ok) throw new Error(`${fixtureName}: explainProject refused`);
-      return { json: canonical(explained.report), ndjson: await cli(['explain', hexAddr(addr), '--json'], p.dir), txt: await cli(['explain', hexAddr(addr)], p.dir) };
+      return {
+        json: canonical(explained.report),
+        ndjson: await cli(['explain', hexAddr(addr), '--json'], p.dir),
+        txt: await cli(['explain', hexAddr(addr)], p.dir),
+      };
     },
   };
 }
@@ -230,8 +256,15 @@ const sigProject: Case = {
     if (!parsed.ok) throw new Error('the library-game project does not parse');
     const explained = explainProject({ rom: p.rom, config: parsed.value }, addr);
     if (!explained.ok) throw new Error('explainProject refused library-game');
-    assert.ok(explained.report.signature !== undefined && explained.report.signature.rule === undefined, 'read from `from`, without a rule');
-    return { json: canonical(explained.report), ndjson: await cli(['explain', hexAddr(addr), '--json'], p.dir), txt: await cli(['explain', hexAddr(addr)], p.dir) };
+    assert.ok(
+      explained.report.signature !== undefined && explained.report.signature.rule === undefined,
+      'read from `from`, without a rule',
+    );
+    return {
+      json: canonical(explained.report),
+      ndjson: await cli(['explain', hexAddr(addr), '--json'], p.dir),
+      txt: await cli(['explain', hexAddr(addr)], p.dir),
+    };
   },
 };
 
@@ -298,7 +331,8 @@ test('every explain golden file belongs to a case, every golden directory to a f
   const names = new Set(FIXTURES.map((f) => f.name));
   for (const entry of readdirSync(DIR, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
-    if (entry.name === 'sig') assert.deepEqual(readdirSync(join(DIR, 'sig')), ['library'], 'sig/ holds the library fixture only');
+    if (entry.name === 'sig')
+      assert.deepEqual(readdirSync(join(DIR, 'sig')), ['library'], 'sig/ holds the library fixture only');
     else assert.ok(names.has(entry.name), `${entry.name} is no committed fixture`);
   }
 });

@@ -3,7 +3,6 @@
 // they name.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-
 import { EXPLAIN_BUCKET, explainAnalysis, explainBucket, explainFilter } from 'romlift/internal';
 
 import type { AnalysisResult, FunctionFact } from '../../../src/core/analysis/types.ts';
@@ -36,8 +35,15 @@ function fact(entry: number, end: number, overrides: Partial<FunctionFact> = {})
   };
 }
 
-const OUTER = fact(0x0800_0200, 0x0800_0400, { origin: 'pool-pointer', accepted: { rule: 'seed.pool-pointer', round: 2, cites: [] }, also: [{ rule: 'seed.call', round: 3, cites: [0x0800_0500] }] });
-const INNER = fact(0x0800_0300, 0x0800_0320, { origin: 'gap-scan', accepted: { rule: 'gap.forward-chain', round: 4, cites: [0x0800_0300] } });
+const OUTER = fact(0x0800_0200, 0x0800_0400, {
+  origin: 'pool-pointer',
+  accepted: { rule: 'seed.pool-pointer', round: 2, cites: [] },
+  also: [{ rule: 'seed.call', round: 3, cites: [0x0800_0500] }],
+});
+const INNER = fact(0x0800_0300, 0x0800_0320, {
+  origin: 'gap-scan',
+  accepted: { rule: 'gap.forward-chain', round: 4, cites: [0x0800_0300] },
+});
 
 const RESULT: AnalysisResult = {
   schema: 'romlift/analysis@1',
@@ -58,12 +64,32 @@ const RESULT: AnalysisResult = {
   diagnostics: [],
 };
 
-const meta = (id: RuleId): RuleMeta => ({ id, summary: `summary of ${id}`, restsOn: 'r', recovers: 'c', reads: [], adds: [] });
-const RULES: readonly RuleMeta[] = ['valid.dense', 'gap.forward-chain', 'seed.call', 'seed.pool-pointer', 'bl.near-is-call'].map((id) => meta(id as RuleId));
+const meta = (id: RuleId): RuleMeta => ({
+  id,
+  summary: `summary of ${id}`,
+  restsOn: 'r',
+  recovers: 'c',
+  reads: [],
+  adds: [],
+});
+const RULES: readonly RuleMeta[] = [
+  'valid.dense',
+  'gap.forward-chain',
+  'seed.call',
+  'seed.pool-pointer',
+  'bl.near-is-call',
+].map((id) => meta(id as RuleId));
 
 const EVENTS: readonly TrailEvent[] = [
   { kind: 'propose', at: 0x0800_0300, rule: 'gap.forward-chain', round: 4, cites: [] },
-  { kind: 'reject', at: 0x0800_0300, rule: 'valid.dense', round: 3, cites: [0x0800_0300], detail: 'not-dense: 9 holes' },
+  {
+    kind: 'reject',
+    at: 0x0800_0300,
+    rule: 'valid.dense',
+    round: 3,
+    cites: [0x0800_0300],
+    detail: 'not-dense: 9 holes',
+  },
   { kind: 'verdict', at: 0x0800_0308, rule: 'walk.decoder-flow', round: 4, cites: [0x0800_0600] },
 ];
 
@@ -76,7 +102,7 @@ test('the bucket is the 256-byte aligned block that holds the address', () => {
 test('the filter widens the bucket to every extent that covers the address', () => {
   assert.deepEqual(explainFilter(0x0800_0314), { start: 0x0800_0300, end: 0x0800_0400 });
   assert.deepEqual(explainFilter(0x0800_0314, RESULT), { start: 0x0800_0200, end: 0x0800_0400 });
-  assert.deepEqual(explainFilter(0x0800_0900, RESULT), { start: 0x0800_0900, end: 0x0800_0A00 });
+  assert.deepEqual(explainFilter(0x0800_0900, RESULT), { start: 0x0800_0900, end: 0x0800_0a00 });
 });
 
 test('an address inside a nested function is owned by the innermost extent', () => {
@@ -86,14 +112,20 @@ test('an address inside a nested function is owned by the innermost extent', () 
   assert.deepEqual(x.owner, { entry: 0x0800_0300, origin: 'gap-scan', provenance: [INNER.accepted] });
   assert.deepEqual(x.events, EVENTS);
   // walk.decoder-flow has no metadata and is left out; the rest are sorted by id, each once.
-  assert.deepEqual(x.rules.map((r) => r.id), ['gap.forward-chain', 'valid.dense']);
+  assert.deepEqual(
+    x.rules.map((r) => r.id),
+    ['gap.forward-chain', 'valid.dense'],
+  );
 });
 
 test('the owner carries every provenance record; an unclaimed address has no owner', () => {
   const x = explainAnalysis(RESULT, [], 0x0800_0330, RULES);
   assert.equal(x.claim, 1);
   assert.deepEqual(x.owner?.provenance, [OUTER.accepted, ...OUTER.also]);
-  assert.deepEqual(x.rules.map((r) => r.id), ['seed.call', 'seed.pool-pointer']);
+  assert.deepEqual(
+    x.rules.map((r) => r.id),
+    ['seed.call', 'seed.pool-pointer'],
+  );
   const free = explainAnalysis(RESULT, [], 0x0800_0900, RULES);
   assert.equal(free.claim, 0);
   assert.equal(free.owner, undefined);

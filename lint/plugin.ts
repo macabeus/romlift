@@ -11,12 +11,14 @@
 //   edge; only the files that load the read-only PoC (DYNAMIC_IMPORT_ALLOWLIST) may compute one.
 //
 // The type-aware rules read the TypeScript program typescript-eslint builds (parserServices).
+import { ESLintUtils, type TSESTree } from '@typescript-eslint/utils';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { ESLintUtils, type TSESTree } from '@typescript-eslint/utils';
 import ts from 'typescript';
 
-const createRule = ESLintUtils.RuleCreator((name) => `https://github.com/macabeus/romlift/blob/main/lint/plugin.ts#${name}`);
+const createRule = ESLintUtils.RuleCreator(
+  (name) => `https://github.com/macabeus/romlift/blob/main/lint/plugin.ts#${name}`,
+);
 
 /** The globals foundation and core may reference (architecture §2). */
 export const GLOBALS_ALLOWLIST: ReadonlySet<string> = new Set([
@@ -78,7 +80,9 @@ function relative(cwd: string, file: string): string {
 }
 
 function isAmbientLibraryFile(program: ts.Program, file: ts.SourceFile): boolean {
-  return file.isDeclarationFile && (program.isSourceFileDefaultLibrary(file) || file.fileName.includes('/node_modules/'));
+  return (
+    file.isDeclarationFile && (program.isSourceFileDefaultLibrary(file) || file.fileName.includes('/node_modules/'))
+  );
 }
 
 function isGlobalSymbol(program: ts.Program, symbol: ts.Symbol): boolean {
@@ -113,7 +117,10 @@ function isInTypeQuery(node: ts.Node): boolean {
 function locOf(source: ts.SourceFile, node: ts.Node): TSESTree.SourceLocation {
   const start = source.getLineAndCharacterOfPosition(node.getStart(source));
   const end = source.getLineAndCharacterOfPosition(node.getEnd());
-  return { start: { line: start.line + 1, column: start.character }, end: { line: end.line + 1, column: end.character } };
+  return {
+    start: { line: start.line + 1, column: start.character },
+    end: { line: end.line + 1, column: end.character },
+  };
 }
 
 export const globals = createRule({
@@ -121,7 +128,9 @@ export const globals = createRule({
   meta: {
     type: 'problem',
     docs: { description: 'foundation and core reference only the globals of the allowlist (architecture §2)' },
-    messages: { global: "global '{{name}}' is not on the foundation/core allowlist (lint/plugin.ts GLOBALS_ALLOWLIST)" },
+    messages: {
+      global: "global '{{name}}' is not on the foundation/core allowlist (lint/plugin.ts GLOBALS_ALLOWLIST)",
+    },
     schema: [],
   },
   defaultOptions: [],
@@ -190,7 +199,9 @@ export const mapIteration = createRule({
       let symbol = checker.getSymbolAtLocation(callee);
       if (symbol && symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
       if (!symbol || !SORTED_HELPERS.has(symbol.name)) return false;
-      return (symbol.declarations ?? []).some((declaration) => relative(cwd, declaration.getSourceFile().fileName) === SORTED_MODULE);
+      return (symbol.declarations ?? []).some(
+        (declaration) => relative(cwd, declaration.getSourceFile().fileName) === SORTED_MODULE,
+      );
     };
     const isGlobal = (expression: ts.Expression, name: string): boolean => {
       if (!ts.isIdentifier(expression) || expression.text !== name) return false;
@@ -199,7 +210,8 @@ export const mapIteration = createRule({
     };
     const memberName = (node: ts.Node): string | undefined => {
       if (ts.isPropertyAccessExpression(node)) return node.name.text;
-      if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression)) return node.argumentExpression.text;
+      if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression))
+        return node.argumentExpression.text;
       return undefined;
     };
 
@@ -217,15 +229,33 @@ export const mapIteration = createRule({
           if (ts.isCallExpression(node) && memberName(node.expression) === 'from') {
             const access = node.expression;
             const first = node.arguments[0];
-            if ((ts.isPropertyAccessExpression(access) || ts.isElementAccessExpression(access)) && first && isGlobal(access.expression, 'Array') && iterates(first)) {
+            if (
+              (ts.isPropertyAccessExpression(access) || ts.isElementAccessExpression(access)) &&
+              first &&
+              isGlobal(access.expression, 'Array') &&
+              iterates(first)
+            ) {
               report(node, 'Array.from');
             }
           }
           const member = memberName(node);
-          if (member !== undefined && ITERATING_MEMBERS.has(member) && (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node))) {
-            if (iterates(node.expression)) report(ts.isCallExpression(node.parent) && node.parent.expression === node ? node.parent : node, `.${member}`);
+          if (
+            member !== undefined &&
+            ITERATING_MEMBERS.has(member) &&
+            (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node))
+          ) {
+            if (iterates(node.expression))
+              report(
+                ts.isCallExpression(node.parent) && node.parent.expression === node ? node.parent : node,
+                `.${member}`,
+              );
           }
-          if (ts.isVariableDeclaration(node) && ts.isArrayBindingPattern(node.name) && node.initializer && iterates(node.initializer)) {
+          if (
+            ts.isVariableDeclaration(node) &&
+            ts.isArrayBindingPattern(node.name) &&
+            node.initializer &&
+            iterates(node.initializer)
+          ) {
             report(node, 'array destructuring');
           }
           ts.forEachChild(node, visit);
@@ -251,7 +281,11 @@ function isEmptyExport(statement: ts.Statement | undefined): boolean {
 function barrelTargets(source: ts.SourceFile): string[] {
   const out: string[] = [];
   for (const statement of source.statements) {
-    if (ts.isExportDeclaration(statement) && statement.moduleSpecifier !== undefined && ts.isStringLiteral(statement.moduleSpecifier)) {
+    if (
+      ts.isExportDeclaration(statement) &&
+      statement.moduleSpecifier !== undefined &&
+      ts.isStringLiteral(statement.moduleSpecifier)
+    ) {
       const text = statement.moduleSpecifier.text;
       if (/^\.\/api\/[a-z0-9-]+\.ts$/.test(text)) out.push(`src/api/${text.slice('./api/'.length)}`);
     }
@@ -303,7 +337,8 @@ export const barrel = createRule({
           for (const name of ENTRY_BARRELS) {
             if (name === file) break;
             const other = sourceOf(name);
-            if (other !== undefined) for (const target of barrelTargets(other)) if (!earlier.has(target)) earlier.set(target, name);
+            if (other !== undefined)
+              for (const target of barrelTargets(other)) if (!earlier.has(target)) earlier.set(target, name);
           }
           for (const statement of source.statements) {
             const ok =
@@ -319,9 +354,11 @@ export const barrel = createRule({
             }
             const target = `src/api/${(statement.moduleSpecifier as ts.StringLiteral).text.slice('./api/'.length)}`;
             const first = earlier.get(target);
-            if (first !== undefined) context.report({ loc: locOf(source, statement), messageId: 'twice', data: { target, barrel: first } });
+            if (first !== undefined)
+              context.report({ loc: locOf(source, statement), messageId: 'twice', data: { target, barrel: first } });
             else earlier.set(target, file);
-            if (!existsSync(path.join(cwd, target))) context.report({ loc: locOf(source, statement), messageId: 'missing', data: { target } });
+            if (!existsSync(path.join(cwd, target)))
+              context.report({ loc: locOf(source, statement), messageId: 'missing', data: { target } });
           }
           return;
         }
@@ -329,7 +366,8 @@ export const barrel = createRule({
         for (const statement of source.statements) {
           const ok =
             ts.isExportDeclaration(statement) &&
-            ((statement.moduleSpecifier !== undefined && ts.isStringLiteral(statement.moduleSpecifier)) || isEmptyExport(statement));
+            ((statement.moduleSpecifier !== undefined && ts.isStringLiteral(statement.moduleSpecifier)) ||
+              isEmptyExport(statement));
           if (!ok) context.report({ loc: locOf(source, statement), messageId: 'apiLine' });
         }
         const barrels = reexporters().get(file) ?? [];
@@ -339,9 +377,16 @@ export const barrel = createRule({
         }
         if (!barrels.some((name) => PURE_BARRELS.has(name))) return;
         for (const statement of source.statements) {
-          if (!ts.isExportDeclaration(statement) || !statement.moduleSpecifier || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
+          if (
+            !ts.isExportDeclaration(statement) ||
+            !statement.moduleSpecifier ||
+            !ts.isStringLiteral(statement.moduleSpecifier)
+          )
+            continue;
           const specifier = statement.moduleSpecifier.text;
-          const target = specifier.startsWith('.') ? path.posix.normalize(path.posix.join(path.posix.dirname(file), specifier)) : specifier;
+          const target = specifier.startsWith('.')
+            ? path.posix.normalize(path.posix.join(path.posix.dirname(file), specifier))
+            : specifier;
           if (target.startsWith('src/shell/') || target.startsWith('node:')) {
             context.report({ loc: locOf(source, statement), messageId: 'impure', data: { file, specifier } });
           }
@@ -356,13 +401,16 @@ export const dynamicImport = createRule({
   meta: {
     type: 'problem',
     docs: { description: 'a dynamic import names its module with a string literal, which the edge rules check' },
-    messages: { computed: 'dynamic import with a specifier that is not a string literal, which no edge rule can check' },
+    messages: {
+      computed: 'dynamic import with a specifier that is not a string literal, which no edge rule can check',
+    },
     schema: [],
   },
   defaultOptions: [],
   create(context) {
     const file = relative(context.cwd, context.filename);
-    if (DYNAMIC_IMPORT_ALLOWLIST.some((prefix) => (prefix.endsWith('/') ? file.startsWith(prefix) : file === prefix))) return {};
+    if (DYNAMIC_IMPORT_ALLOWLIST.some((prefix) => (prefix.endsWith('/') ? file.startsWith(prefix) : file === prefix)))
+      return {};
     return {
       ImportExpression(node) {
         if (node.source.type === 'Literal' && typeof node.source.value === 'string') return;

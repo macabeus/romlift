@@ -15,7 +15,11 @@ export interface ProcessOptions {
   readonly echoStderr?: boolean;
 }
 
-export function runProcess(command: string, args: readonly string[], options: ProcessOptions = {}): Promise<ProcessResult> {
+export function runProcess(
+  command: string,
+  args: readonly string[],
+  options: ProcessOptions = {},
+): Promise<ProcessResult> {
   return new Promise((resolve) => {
     const env: Record<string, string | undefined> = { ...process.env, ...options.env };
     // An undefined value removes the variable from the child's environment.
@@ -27,7 +31,11 @@ export function runProcess(command: string, args: readonly string[], options: Pr
     const finish = (code: number, extra: string): void => {
       if (settled) return;
       settled = true;
-      resolve({ code, stdout: Buffer.concat(stdout).toString('utf8'), stderr: Buffer.concat(stderr).toString('utf8') + extra });
+      resolve({
+        code,
+        stdout: Buffer.concat(stdout).toString('utf8'),
+        stderr: Buffer.concat(stderr).toString('utf8') + extra,
+      });
     };
     child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk));
     child.stderr.on('data', (chunk: Buffer) => {

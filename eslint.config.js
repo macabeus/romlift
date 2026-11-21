@@ -8,11 +8,14 @@
 import boundaries from 'eslint-plugin-boundaries';
 import { defineConfig } from 'eslint/config';
 import tseslint from 'typescript-eslint';
+
 import { ELEMENTS, MESSAGE, POLICIES } from './lint/edges.ts';
 import romlift from './lint/plugin.ts';
 
 /** The directories whose import edges are checked (architecture §2). */
-const SCANNED = ['src', 'bench/src', 'bench/tools', 'test/gates', 'test/local', 'test/corpus'].map((dir) => `${dir}/**/*.ts`);
+const SCANNED = ['src', 'bench/src', 'bench/tools', 'test/gates', 'test/local', 'test/corpus'].map(
+  (dir) => `${dir}/**/*.ts`,
+);
 const PURE = ['src/foundation/**/*.ts', 'src/core/**/*.ts'];
 /** Where Map and Set iteration must be sorted (architecture §2). */
 const MAP_ITERATION = ['analysis', 'model', 'emit', 'layout', 'signatures'].map((dir) => `src/core/${dir}/**/*.ts`);
@@ -20,16 +23,24 @@ const MAP_ITERATION = ['analysis', 'model', 'emit', 'layout', 'signatures'].map(
  * Where `.toString(16)` may format a number (architecture §4.4, final-review architecture-4): the hex helpers, and the
  * instruction formatter and corpus, whose operand spelling (lower case, `#0x12`) is the printer's own.
  */
-const HEX_FORMATTERS = ['src/foundation/util/hex.ts', 'src/foundation/isa/operand-text.ts', 'src/foundation/corpus/layout.ts'];
+const HEX_FORMATTERS = [
+  'src/foundation/util/hex.ts',
+  'src/foundation/isa/operand-text.ts',
+  'src/foundation/corpus/layout.ts',
+];
 
 // no-restricted-syntax takes one list per file, so each block below repeats the selectors of the blocks before it.
 const HEX = {
   selector: "CallExpression[arguments.length=1][arguments.0.raw='16'][callee.property.name='toString']",
   message: '.toString(16) formats hex outside foundation/util/hex.ts; use hex, hexAddr or hexSize',
 };
-const IMPORT_META = { selector: "MetaProperty[meta.name='import']", message: 'import.meta is not available to foundation or core' };
+const IMPORT_META = {
+  selector: "MetaProperty[meta.name='import']",
+  message: 'import.meta is not available to foundation or core',
+};
 const READDIR = {
-  selector: "Identifier[name=/^(readdir|readdirSync|opendir|opendirSync)$/], MemberExpression[computed=true] > Literal[value=/^(readdir|readdirSync|opendir|opendirSync)$/]",
+  selector:
+    'Identifier[name=/^(readdir|readdirSync|opendir|opendirSync)$/], MemberExpression[computed=true] > Literal[value=/^(readdir|readdirSync|opendir|opendirSync)$/]',
   message: 'a directory listing outside shell/fs.ts; use listDir, which sorts',
 };
 
@@ -50,11 +61,16 @@ export default defineConfig(
       'boundaries/elements-single-match': true,
       'boundaries/elements': ELEMENTS,
       // `import('./x.ts').T` in a type is a type-only edge too.
-      'boundaries/additional-dependency-nodes': [{ selector: 'TSImportType > Literal.source', kind: 'type', name: 'import-type' }],
+      'boundaries/additional-dependency-nodes': [
+        { selector: 'TSImportType > Literal.source', kind: 'type', name: 'import-type' },
+      ],
     },
     rules: {
       // The import edges (lint/edges.ts).
-      'boundaries/dependencies': ['error', { default: 'disallow', checkAllOrigins: true, checkInternals: true, message: MESSAGE, policies: POLICIES }],
+      'boundaries/dependencies': [
+        'error',
+        { default: 'disallow', checkAllOrigins: true, checkInternals: true, message: MESSAGE, policies: POLICIES },
+      ],
       // Type-only imports and exports say so at the top, where the edge rule reads the kind.
       '@typescript-eslint/no-import-type-side-effects': 'error',
       '@typescript-eslint/consistent-type-exports': 'error',

@@ -18,7 +18,8 @@ export default defineRule({
   reason: 'pool-claimed',
   intrinsic: true,
   check(r, v) {
-    for (const p of r.pools) if (v.claimAt(p.addr) === Claim.code) return `its pool at ${hexAddr(p.addr)} is claimed code`;
+    for (const p of r.pools)
+      if (v.claimAt(p.addr) === Claim.code) return `its pool at ${hexAddr(p.addr)} is claimed code`;
     return undefined;
   },
 });

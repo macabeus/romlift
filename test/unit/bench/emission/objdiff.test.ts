@@ -8,26 +8,25 @@ import { copyFile, mkdir, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { type ElfSymbol, type FunctionConfig, type RomliftConfig, parseElf, romFromBytes } from 'romlift';
 
-import { parseElf, romFromBytes, type ElfSymbol, type FunctionConfig, type RomliftConfig } from 'romlift';
-
+import { nameAddresses } from '../../../../bench/src/objdiff-classes.ts';
+import { type FunctionDiff, parseObjdiffDiff } from '../../../../bench/src/objdiff-cli.ts';
 import {
-  assemblerError,
+  type ComparedFunction,
   EXAMPLES_PER_KIND,
+  REPORTED_ONLY,
+  assemblerError,
   functionDifferences,
   linkedSummary,
   namedConfig,
   objdiffVerdict,
   pooled,
-  REPORTED_ONLY,
   resolvedCall,
   symbolIndex,
   toolError,
   unlinkedSummary,
-  type ComparedFunction,
 } from '../../../../bench/src/objdiff.ts';
-import { parseObjdiffDiff, type FunctionDiff } from '../../../../bench/src/objdiff-cli.ts';
-import { nameAddresses } from '../../../../bench/src/objdiff-classes.ts';
 import { objectFor, objectRelocations } from '../../../../bench/src/objects.ts';
 import { withTempDir } from '../fixtures.ts';
 
@@ -41,7 +40,10 @@ async function recorded(): Promise<readonly FunctionDiff[]> {
   const elf = parseElf(bytes);
   const relocations = objectRelocations(bytes);
   assert.ok(elf.ok && relocations.ok);
-  const parsed = parseObjdiffDiff(JSON.parse(await readFile(join(FIXTURES, 'diff.json'), 'utf8')) as unknown, { symbols: elf.value.symbols, relocations: relocations.value });
+  const parsed = parseObjdiffDiff(JSON.parse(await readFile(join(FIXTURES, 'diff.json'), 'utf8')) as unknown, {
+    symbols: elf.value.symbols,
+    relocations: relocations.value,
+  });
   assert.ok(parsed.ok);
   return parsed.value.functions;
 }
@@ -52,11 +54,24 @@ async function comparedNamed(name: string): Promise<ComparedFunction> {
 
 test('the misnamed pool word is a gated relocation difference', async () => {
   const pool = await comparedNamed('PoolFunc');
-  assert.deepEqual(functionDifferences(pool), [{ function: 'PoolFunc', kind: 'relocation', detail: '+0x1c R_ARM_ABS32: gTarget | gOther' }]);
+  assert.deepEqual(functionDifferences(pool), [
+    { function: 'PoolFunc', kind: 'relocation', detail: '+0x1c R_ARM_ABS32: gTarget | gOther' },
+  ]);
   const verdict = objdiffVerdict([pool], NO_NAMES);
   assert.deepEqual(verdict.differences, { relocation: 1 });
-  assert.deepEqual(verdict.classes, { counts: { unverified: 1 }, gated: 1, uncompared: 0, gatedExamples: [{ function: 'PoolFunc', kind: 'unverified', detail: '+0x1c R_ARM_ABS32: gTarget | gOther' }] });
-  const placed = objdiffVerdict([pool], nameAddresses([{ name: 'gTarget', addr: 0x0300_0000 }, { name: 'gOther', addr: 0x0300_0010 }]));
+  assert.deepEqual(verdict.classes, {
+    counts: { unverified: 1 },
+    gated: 1,
+    uncompared: 0,
+    gatedExamples: [{ function: 'PoolFunc', kind: 'unverified', detail: '+0x1c R_ARM_ABS32: gTarget | gOther' }],
+  });
+  const placed = objdiffVerdict(
+    [pool],
+    nameAddresses([
+      { name: 'gTarget', addr: 0x0300_0000 },
+      { name: 'gOther', addr: 0x0300_0010 },
+    ]),
+  );
   assert.equal(placed.classes.gated, 1, 'with the names placed, still gated: nothing shows the two words are one');
 });
 
@@ -64,51 +79,124 @@ test('the recording: an identical function passes, an instruction differs, a sec
   const [same, insn, sect] = await Promise.all(['SameFunc', 'InsnFunc', 'SectFunc'].map(comparedNamed));
   assert.ok(same !== undefined && insn !== undefined && sect !== undefined);
   assert.deepEqual(functionDifferences(same), []);
-  assert.deepEqual(functionDifferences(insn).map((d) => d.kind), ['instruction']);
+  assert.deepEqual(
+    functionDifferences(insn).map((d) => d.kind),
+    ['instruction'],
+  );
   assert.match(functionDifferences(insn)[0]?.detail ?? '', /^\+0xe replace: add r0, r1 \| /);
-  assert.deepEqual(functionDifferences(sect), [{ function: 'SectFunc', kind: REPORTED_ONLY, detail: '+0x28 R_ARM_ABS32: section .rodata | sectData' }]);
-  assert.deepEqual(objdiffVerdict([same], NO_NAMES), { scored: 1, differences: {}, examples: [], classes: { counts: {}, gated: 0, uncompared: 0, gatedExamples: [] } });
+  assert.deepEqual(functionDifferences(sect), [
+    { function: 'SectFunc', kind: REPORTED_ONLY, detail: '+0x28 R_ARM_ABS32: section .rodata | sectData' },
+  ]);
+  assert.deepEqual(objdiffVerdict([same], NO_NAMES), {
+    scored: 1,
+    differences: {},
+    examples: [],
+    classes: { counts: {}, gated: 0, uncompared: 0, gatedExamples: [] },
+  });
   const reported = objdiffVerdict([same, sect], NO_NAMES);
   assert.equal(reported.classes.gated, 0, 'unnamed-target is reported, not gated');
   assert.deepEqual(reported.differences, { 'unnamed-target': 1 });
-  const all = objdiffVerdict(await Promise.all(['InsnFunc', 'PoolFunc', 'SameFunc', 'SectFunc'].map(comparedNamed)), NO_NAMES);
+  const all = objdiffVerdict(
+    await Promise.all(['InsnFunc', 'PoolFunc', 'SameFunc', 'SectFunc'].map(comparedNamed)),
+    NO_NAMES,
+  );
   assert.equal(all.classes.gated, 2);
   assert.deepEqual(all.differences, { instruction: 1, relocation: 1, 'unnamed-target': 1 });
-  assert.deepEqual(all.examples.map((e) => [e.kind, e.function]), [['instruction', 'InsnFunc'], ['relocation', 'PoolFunc'], ['unnamed-target', 'SectFunc']]);
+  assert.deepEqual(
+    all.examples.map((e) => [e.kind, e.function]),
+    [
+      ['instruction', 'InsnFunc'],
+      ['relocation', 'PoolFunc'],
+      ['unnamed-target', 'SectFunc'],
+    ],
+  );
 });
 
-const PAIRED: FunctionDiff = { name: 'f', offset: 0, size: 8, paired: true, matchPercent: 100, instructionDifferences: [], relocationDifferences: [] };
+const PAIRED: FunctionDiff = {
+  name: 'f',
+  offset: 0,
+  size: 8,
+  paired: true,
+  matchPercent: 100,
+  instructionDifferences: [],
+  relocationDifferences: [],
+};
 
 test('every other kind: unpaired, unlisted, missing relocation, base-only relocation, score, and the failures', () => {
   const kinds = (c: ComparedFunction): string[] => functionDifferences(c).map((d) => d.kind);
   assert.deepEqual(kinds({ name: 'f', diff: undefined }), ['missing-symbol']);
   assert.deepEqual(kinds({ name: 'f', diff: { ...PAIRED, paired: false, matchPercent: null } }), ['missing-symbol']);
-  const plain = { offset: 4, kind: 'arg-mismatch' as const, type: 'R_ARM_ABS32', reference: { name: 'gRam', symbol: 'named' as const }, base: null };
-  assert.deepEqual(functionDifferences({ name: 'f', diff: { ...PAIRED, matchPercent: 99, relocationDifferences: [plain] } }), [
-    { function: 'f', kind: 'missing-relocation', detail: '+0x4 R_ARM_ABS32: gRam | a plain value' },
-  ]);
-  assert.deepEqual(kinds({ name: 'f', diff: { ...PAIRED, matchPercent: 99, relocationDifferences: [{ ...plain, reference: null, base: 'gX' }] } }), ['relocation']);
+  const plain = {
+    offset: 4,
+    kind: 'arg-mismatch' as const,
+    type: 'R_ARM_ABS32',
+    reference: { name: 'gRam', symbol: 'named' as const },
+    base: null,
+  };
+  assert.deepEqual(
+    functionDifferences({ name: 'f', diff: { ...PAIRED, matchPercent: 99, relocationDifferences: [plain] } }),
+    [{ function: 'f', kind: 'missing-relocation', detail: '+0x4 R_ARM_ABS32: gRam | a plain value' }],
+  );
+  assert.deepEqual(
+    kinds({
+      name: 'f',
+      diff: { ...PAIRED, matchPercent: 99, relocationDifferences: [{ ...plain, reference: null, base: 'gX' }] },
+    }),
+    ['relocation'],
+  );
   assert.deepEqual(kinds({ name: 'f', diff: { ...PAIRED, matchPercent: 99.5 } }), ['score']);
-  for (const kind of ['missing-symbol', 'assemble', 'tool'] as const) assert.deepEqual(functionDifferences({ name: 'f', failure: { kind, detail: 'why' } }), [{ function: 'f', kind, detail: 'why' }]);
+  for (const kind of ['missing-symbol', 'assemble', 'tool'] as const)
+    assert.deepEqual(functionDifferences({ name: 'f', failure: { kind, detail: 'why' } }), [
+      { function: 'f', kind, detail: 'why' },
+    ]);
 });
 
 test('the verdict: counts per kind in code-unit order, at most EXAMPLES_PER_KIND examples of each, nothing scored scores 0', () => {
-  const compared: ComparedFunction[] = Array.from({ length: 7 }, (_, i) => ({ name: `f${i}`, failure: { kind: 'tool' as const, detail: 'x' } }));
+  const compared: ComparedFunction[] = Array.from({ length: 7 }, (_, i) => ({
+    name: `f${i}`,
+    failure: { kind: 'tool' as const, detail: 'x' },
+  }));
   compared.push({ name: 'g', failure: { kind: 'assemble', detail: 'y' } });
   const verdict = objdiffVerdict(compared, NO_NAMES);
   assert.deepEqual(verdict.differences, { assemble: 1, tool: 7 });
-  assert.deepEqual([verdict.classes.counts, verdict.classes.gated, verdict.classes.uncompared], [{ assemble: 1, tool: 7 }, 1, 7], 'tool is uncompared, reported (D102); assemble is gated');
+  assert.deepEqual(
+    [verdict.classes.counts, verdict.classes.gated, verdict.classes.uncompared],
+    [{ assemble: 1, tool: 7 }, 1, 7],
+    'tool is uncompared, reported (D102); assemble is gated',
+  );
   assert.deepEqual(Object.keys(verdict.differences), ['assemble', 'tool']);
   assert.equal(verdict.examples.filter((e) => e.kind === 'tool').length, EXAMPLES_PER_KIND);
   assert.deepEqual(verdict.examples[0], { function: 'g', kind: 'assemble', detail: 'y' });
   assert.equal(verdict.scored, 8);
   assert.equal(objdiffVerdict([], NO_NAMES).scored, 0);
-  assert.deepEqual(linkedSummary(objdiffVerdict([], NO_NAMES)), { linked: true, scored: 0, differences: {}, examples: [], classes: { counts: {}, gated: 0, uncompared: 0, gatedExamples: [] } });
+  assert.deepEqual(linkedSummary(objdiffVerdict([], NO_NAMES)), {
+    linked: true,
+    scored: 0,
+    differences: {},
+    examples: [],
+    classes: { counts: {}, gated: 0, uncompared: 0, gatedExamples: [] },
+  });
   assert.deepEqual(unlinkedSummary(), { linked: false, scored: 0, differences: {}, examples: [] });
 });
 
-function symbol(name: string, addr: number, type: ElfSymbol['type'], bind: ElfSymbol['bind'] = 'global', sectionName: string | null = '.text'): ElfSymbol {
-  return { name, value: addr, addr, size: 4, type, bind, thumb: false, sectionIndex: sectionName === null ? 0xfff1 : 1, ...(sectionName === null ? {} : { sectionName }) };
+function symbol(
+  name: string,
+  addr: number,
+  type: ElfSymbol['type'],
+  bind: ElfSymbol['bind'] = 'global',
+  sectionName: string | null = '.text',
+): ElfSymbol {
+  return {
+    name,
+    value: addr,
+    addr,
+    size: 4,
+    type,
+    bind,
+    thumb: false,
+    sectionIndex: sectionName === null ? 0xfff1 : 1,
+    ...(sectionName === null ? {} : { sectionName }),
+  };
 }
 
 test('namedConfig: functions take the ELF FUNC name, data outside every extent and RAM a section defines become symbols, an absolute one does not, a shared name is given to neither', () => {
@@ -144,18 +232,32 @@ test('namedConfig: functions take the ELF FUNC name, data outside every extent a
     symbol('sNoType', 0x0800_01d0, 'notype'),
   ];
   const named = namedConfig(config, rom, symbols, [{ entry: 0x0800_0100, end: 0x0800_0110 }]);
-  assert.deepEqual([...named.functions].map(([a, c]) => [a, c.name, c.aliases]), [
-    [0x0800_0100, 'AgbMain', []],
-    [0x0800_0120, 'sub_08000120', ['old']],
-    [0x0800_0140, 'sub_08000140', ['old']],
-  ]);
-  assert.deepEqual([...named.symbols].map(([a, s]) => [a, s.name]), [
-    [0x0800_01a0, 'gTable'],
-    [0x0300_0000, 'gRam'],
-    [0x0800_01d0, 'sNoType'],
-  ]);
-  assert.deepEqual([...named.symbols].map(([, s]) => s.size), [4, 4, 4], 'each symbol takes the ELF size');
-  assert.deepEqual([...named.functions].map(([, f]) => f.size), [4, 4, undefined], 'each function the ELF size of its FUNC symbol');
+  assert.deepEqual(
+    [...named.functions].map(([a, c]) => [a, c.name, c.aliases]),
+    [
+      [0x0800_0100, 'AgbMain', []],
+      [0x0800_0120, 'sub_08000120', ['old']],
+      [0x0800_0140, 'sub_08000140', ['old']],
+    ],
+  );
+  assert.deepEqual(
+    [...named.symbols].map(([a, s]) => [a, s.name]),
+    [
+      [0x0800_01a0, 'gTable'],
+      [0x0300_0000, 'gRam'],
+      [0x0800_01d0, 'sNoType'],
+    ],
+  );
+  assert.deepEqual(
+    [...named.symbols].map(([, s]) => s.size),
+    [4, 4, 4],
+    'each symbol takes the ELF size',
+  );
+  assert.deepEqual(
+    [...named.functions].map(([, f]) => f.size),
+    [4, 4, undefined],
+    'each function the ELF size of its FUNC symbol',
+  );
 });
 
 test('namedConfig: an unsized symbol is sized up to the next of its section; a symbol at the BIOS addresses is left out', () => {
@@ -171,12 +273,24 @@ test('namedConfig: an unsized symbol is sized up to the next of its section; a s
     symbols: new Map(),
     overrides: [],
   };
-  const ram = (name: string, addr: number, size: number, sectionIndex = 2): ElfSymbol => ({ ...symbol(name, addr, 'notype', 'global', '.bss'), size, sectionIndex });
-  const named = namedConfig(config, rom, [ram('gHUD', 0x0200_af00, 0), ram('gNext', 0x0200_af34, 0), ram('_pseudo', 0, 0x100, 3)], []);
-  assert.deepEqual([...named.symbols].map(([a, s]) => [a, s.name, s.size]), [
-    [0x0200_af00, 'gHUD', 0x34],
-    [0x0200_af34, 'gNext', undefined],
-  ]);
+  const ram = (name: string, addr: number, size: number, sectionIndex = 2): ElfSymbol => ({
+    ...symbol(name, addr, 'notype', 'global', '.bss'),
+    size,
+    sectionIndex,
+  });
+  const named = namedConfig(
+    config,
+    rom,
+    [ram('gHUD', 0x0200_af00, 0), ram('gNext', 0x0200_af34, 0), ram('_pseudo', 0, 0x100, 3)],
+    [],
+  );
+  assert.deepEqual(
+    [...named.symbols].map(([a, s]) => [a, s.name, s.size]),
+    [
+      [0x0200_af00, 'gHUD', 0x34],
+      [0x0200_af34, 'gNext', undefined],
+    ],
+  );
 });
 
 test('symbolIndex: a stale copy makes every name ambiguous; only the linked objects define names when the map is given', async () => {
@@ -193,7 +307,11 @@ test('symbolIndex: a stale copy makes every name ambiguous; only the linked obje
 test('resolvedCall: the reference resolved a bl to a function of its own object at the offset the base relocates against', () => {
   const functions = new Map([['PutAnim', 0x7c]]);
   assert.equal(resolvedCall('arg-mismatch', 'bl 0x7c', 'bl PutAnim-0x4', functions), 'PutAnim');
-  assert.equal(resolvedCall('arg-mismatch', 'bl 0x80', 'bl PutAnim-0x4', functions), undefined, 'another offset is another callee');
+  assert.equal(
+    resolvedCall('arg-mismatch', 'bl 0x80', 'bl PutAnim-0x4', functions),
+    undefined,
+    'another offset is another callee',
+  );
   assert.equal(resolvedCall('arg-mismatch', 'bl 0x7c', 'bl Other-0x4', functions), undefined);
   assert.equal(resolvedCall('replace', 'bl 0x7c', 'bl PutAnim-0x4', functions), undefined);
   assert.equal(resolvedCall('arg-mismatch', 'bl 0x7c', 'bl PutAnim-0x4', undefined), undefined);
@@ -201,22 +319,45 @@ test('resolvedCall: the reference resolved a bl to a function of its own object 
   assert.equal(resolvedCall('arg-mismatch', 'b 0x7c', 'b PutAnim-0x4', functions), 'PutAnim');
   assert.equal(resolvedCall('arg-mismatch', 'bl 0x7c', 'bl PutAnim-0x8', functions), 'PutAnim');
   assert.equal(resolvedCall('arg-mismatch', 'b 0x7c', 'bl PutAnim-0x4', functions), undefined);
-  assert.equal(resolvedCall('arg-mismatch', 'b 0x7c', 'b _0800007C-0x4', functions), undefined, 'a local label is no function of the object');
-  const diff: FunctionDiff = { ...PAIRED, matchPercent: 99, instructionDifferences: [{ offset: 0x68, kind: 'arg-mismatch', reference: 'bl 0x7c', base: 'bl PutAnim-0x4' }] };
+  assert.equal(
+    resolvedCall('arg-mismatch', 'b 0x7c', 'b _0800007C-0x4', functions),
+    undefined,
+    'a local label is no function of the object',
+  );
+  const diff: FunctionDiff = {
+    ...PAIRED,
+    matchPercent: 99,
+    instructionDifferences: [{ offset: 0x68, kind: 'arg-mismatch', reference: 'bl 0x7c', base: 'bl PutAnim-0x4' }],
+  };
   assert.deepEqual(functionDifferences({ name: 'f', diff, referenceFunctions: functions }), [
-    { function: 'f', kind: 'resolved-call', detail: '+0x68 arg-mismatch: bl 0x7c | bl PutAnim-0x4 (PutAnim is at that offset of the reference object)' },
+    {
+      function: 'f',
+      kind: 'resolved-call',
+      detail: '+0x68 arg-mismatch: bl 0x7c | bl PutAnim-0x4 (PutAnim is at that offset of the reference object)',
+    },
   ]);
-  assert.deepEqual(functionDifferences({ name: 'f', diff }).map((d) => d.kind), ['instruction']);
+  assert.deepEqual(
+    functionDifferences({ name: 'f', diff }).map((d) => d.kind),
+    ['instruction'],
+  );
 });
 
 test("assemblerError keeps the assembler's first error line", () => {
-  assert.equal(assemblerError('source.s: Assembler messages:\nsource.s:3: Error: bad instruction `frob\'\nsource.s:4: Error: other\n'), "source.s:3: Error: bad instruction `frob'");
+  assert.equal(
+    assemblerError(
+      "source.s: Assembler messages:\nsource.s:3: Error: bad instruction `frob'\nsource.s:4: Error: other\n",
+    ),
+    "source.s:3: Error: bad instruction `frob'",
+  );
   assert.equal(assemblerError('source.s: Assembler messages:\n'), 'source.s: Assembler messages:');
   assert.equal(assemblerError(''), undefined);
 });
 
 test("toolError keeps objdiff-cli's complaint without the paths of the pair", () => {
-  assert.equal(toolError('objdiff-cli exited 1 on /a/ref.o and /tmp/x/3.o: Failed: Invalid instruction size 1'), 'Invalid instruction size 1');
+  assert.equal(
+    toolError('objdiff-cli exited 1 on /a/ref.o and /tmp/x/3.o: Failed: Invalid instruction size 1'),
+    'Invalid instruction size 1',
+  );
   assert.equal(toolError('objdiff-cli printed no JSON: bad\nmore'), 'objdiff-cli printed no JSON: bad');
 });
 

@@ -18,9 +18,25 @@ const H = 0x0800_0208; // the handler block
 const END = 0x0800_0240;
 
 /** A view in which G is accepted, its code claimed, and H named by G's adr. */
-function setup(block: Uint8Array, opts: { readonly profile?: CompilerProfile; readonly owner?: boolean; readonly extra?: { at: number; bytes: Uint8Array }[] } = {}): { rom: Rom; v: AnalysisView } {
-  const rom = romWith([{ at: G, bytes: thumbAt(G)`adr r0, _08000208; back: movs r1, #0; bx lr` }, { at: H, bytes: block }, ...(opts.extra ?? [])]);
-  const base = { rom, claims: [{ span: { start: G, end: G + 6 }, kind: Claim.code }], functions: [G], ...(opts.profile === undefined ? {} : { profile: opts.profile }) };
+function setup(
+  block: Uint8Array,
+  opts: {
+    readonly profile?: CompilerProfile;
+    readonly owner?: boolean;
+    readonly extra?: { at: number; bytes: Uint8Array }[];
+  } = {},
+): { rom: Rom; v: AnalysisView } {
+  const rom = romWith([
+    { at: G, bytes: thumbAt(G)`adr r0, _08000208; back: movs r1, #0; bx lr` },
+    { at: H, bytes: block },
+    ...(opts.extra ?? []),
+  ]);
+  const base = {
+    rom,
+    claims: [{ span: { start: G, end: G + 6 }, kind: Claim.code }],
+    functions: [G],
+    ...(opts.profile === undefined ? {} : { profile: opts.profile }),
+  };
   const g = walkReading(viewWith(base), G, 'thumb');
   const v = viewWith({ ...base, readings: [g] });
   return { rom, v: { ...v, adrOwner: (a) => (opts.owner !== false && g.adrs.includes(a) ? G : undefined) } };
@@ -37,7 +53,11 @@ test('declined: no adr names the block', () => {
 });
 
 test('declined: the block returns by itself, or branches into another function', () => {
-  assert.equal(rule.absorb(gapCursor(G + 6, END, H), setup(thumbAt(H)`movs r2, #1; bx lr`).v), undefined, 'a return of its own');
+  assert.equal(
+    rule.absorb(gapCursor(G + 6, END, H), setup(thumbAt(H)`movs r2, #1; bx lr`).v),
+    undefined,
+    'a return of its own',
+  );
   const other = 0x0800_0230;
   const { v } = setup(thumbAt(H)`movs r2, #1; b _08000230`, { extra: [{ at: other, bytes: thumbAt(other)`bx lr` }] });
   const claimed: AnalysisView = { ...v, claimAt: (a) => (a >= other && a < other + 2 ? Claim.code : v.claimAt(a)) };
@@ -45,10 +65,18 @@ test('declined: the block returns by itself, or branches into another function',
 });
 
 test('declined: the block opens with a prologue, decodes past the end, or the cursor is zero or claimed', () => {
-  assert.equal(rule.absorb(gapCursor(G + 6, END, H), setup(thumbAt(H)`push {lr}; b _08000202`).v), undefined, 'a prologue');
+  assert.equal(
+    rule.absorb(gapCursor(G + 6, END, H), setup(thumbAt(H)`push {lr}; b _08000202`).v),
+    undefined,
+    'a prologue',
+  );
   const { v } = setup(thumbAt(H)`movs r2, #1; b _08000202`);
   assert.equal(rule.absorb(gapCursor(G + 6, H + 2, H, { end: H + 2 }), v), undefined, 'its code ends past the gap end');
-  assert.equal(rule.absorb(gapCursor(G + 6, END, H), { ...v, claimAt: (a) => (a === H ? Claim.pool : v.claimAt(a)) }), undefined, 'claimed');
+  assert.equal(
+    rule.absorb(gapCursor(G + 6, END, H), { ...v, claimAt: (a) => (a === H ? Claim.pool : v.claimAt(a)) }),
+    undefined,
+    'claimed',
+  );
 });
 
 test('the owner must end within anchorSlack of the gap start and start before it (profile boundary)', () => {
@@ -65,9 +93,21 @@ test('the owner must end within anchorSlack of the gap start and start before it
 test('the block may start a halfword on: past one zero halfword, or past a claimed halfword', () => {
   const { v } = setup(thumbAt(H)`movs r2, #1; b _08000202`);
   const merged = { into: G, span: { start: H, end: H + 4 } };
-  assert.deepEqual(rule.absorb(gapCursor(G + 6, END, G + 6), v), merged, 'a zero halfword of alignment before the block');
+  assert.deepEqual(
+    rule.absorb(gapCursor(G + 6, END, G + 6), v),
+    merged,
+    'a zero halfword of alignment before the block',
+  );
   const claimedHalf: AnalysisView = { ...v, claimAt: (a) => (a === G + 6 || a === G + 7 ? Claim.pool : v.claimAt(a)) };
-  assert.deepEqual(rule.absorb(gapCursor(G + 6, END, G + 6), claimedHalf), merged, 'a claimed halfword before the block');
+  assert.deepEqual(
+    rule.absorb(gapCursor(G + 6, END, G + 6), claimedHalf),
+    merged,
+    'a claimed halfword before the block',
+  );
   const twoZeros = setup(new Uint8Array([0, 0, ...thumbAt(H + 2)`movs r2, #1; b _08000202`])).v;
-  assert.equal(rule.absorb(gapCursor(G + 6, END, G + 6), twoZeros), undefined, 'one zero halfword only: the block two halfwords on is not named');
+  assert.equal(
+    rule.absorb(gapCursor(G + 6, END, G + 6), twoZeros),
+    undefined,
+    'one zero halfword only: the block two halfwords on is not named',
+  );
 });

@@ -16,12 +16,20 @@ function gateFile(spec: string): string {
 }
 
 const FAKES: Readonly<Record<string, string>> = {
-  'g1.fake-pass.test.ts': gateFile("{ id: 'g1.fake-pass', phase: 1, tier: 'ci', needs: [], async run(cx) { cx.digest('roms', 'abc'); cx.note('fine'); } }"),
-  'g1.fake-fail.test.ts': gateFile("{ id: 'g1.fake-fail', phase: 1, tier: 'ci', needs: [], async run() { throw new Error('broken on purpose'); } }"),
-  'g1.fake-pending.test.ts': gateFile("{ id: 'g1.fake-pending', phase: 1, tier: 'ci', needs: ['noSuchExport'], async run() {} }"),
+  'g1.fake-pass.test.ts': gateFile(
+    "{ id: 'g1.fake-pass', phase: 1, tier: 'ci', needs: [], async run(cx) { cx.digest('roms', 'abc'); cx.note('fine'); } }",
+  ),
+  'g1.fake-fail.test.ts': gateFile(
+    "{ id: 'g1.fake-fail', phase: 1, tier: 'ci', needs: [], async run() { throw new Error('broken on purpose'); } }",
+  ),
+  'g1.fake-pending.test.ts': gateFile(
+    "{ id: 'g1.fake-pending', phase: 1, tier: 'ci', needs: ['noSuchExport'], async run() {} }",
+  ),
   'g1.fake-real.test.ts': gateFile("{ id: 'g1.fake-real', phase: 1, tier: 'real', needs: [], async run() {} }"),
   'g1.fake-broken.test.ts': "// tier: 'both'\nthrow new Error('cannot load');\n",
-  'g2.fake-later.test.ts': gateFile("{ id: 'g2.fake-later', phase: 2, tier: 'both', needs: [], async run() { throw new Error('later'); } }"),
+  'g2.fake-later.test.ts': gateFile(
+    "{ id: 'g2.fake-later', phase: 2, tier: 'both', needs: [], async run() { throw new Error('later'); } }",
+  ),
 };
 
 test('bench gates runs fake gate files, reads their records and applies --require', async () => {
@@ -30,7 +38,13 @@ test('bench gates runs fake gate files, reads their records and applies --requir
     await writeFile(join(dir, 'gate.ts'), '// not a gate file\n');
     const cx = { repoRoot: REPO_ROOT, benchRoot: dir, pocRoot: dir };
     const lines: string[] = [];
-    const ci = await runGates(cx, { tier: 'ci', require: 1, dir, resultsPath: join(dir, 'results.json'), log: (l) => lines.push(l) });
+    const ci = await runGates(cx, {
+      tier: 'ci',
+      require: 1,
+      dir,
+      resultsPath: join(dir, 'results.json'),
+      log: (l) => lines.push(l),
+    });
     assert.deepEqual(
       ci.records.map((r) => [r.id, r.verdict]),
       [
@@ -50,27 +64,65 @@ test('bench gates runs fake gate files, reads their records and applies --requir
 
     // The real tier writes its records into results.json, replacing the previous record.
     const artifact = join(dir, 'results.json');
-    await writeFile(artifact, resultsText(results([], { gates: { real: [{ id: 'g9.old', verdict: 'pass', inputs: {}, detail: '' }] } })));
+    await writeFile(
+      artifact,
+      resultsText(results([], { gates: { real: [{ id: 'g9.old', verdict: 'pass', inputs: {}, detail: '' }] } })),
+    );
     const real = await runGates(cx, { tier: 'real', require: 1, dir, resultsPath: artifact, log: () => {} });
-    assert.deepEqual(real.records.map((r) => [r.id, r.verdict]), [['g1.fake-real', 'pass'], ['g2.fake-later', 'fail']]);
+    assert.deepEqual(
+      real.records.map((r) => [r.id, r.verdict]),
+      [
+        ['g1.fake-real', 'pass'],
+        ['g2.fake-later', 'fail'],
+      ],
+    );
     assert.deepEqual(real.failures, ['g1.fake-broken.test.ts left no record in tier real']);
-    const written = JSON.parse(await readFile(artifact, 'utf8')) as { gates: { real: { id: string; verdict: string }[] } };
-    assert.deepEqual(written.gates.real.map((g) => [g.id, g.verdict]), [['g1.fake-real', 'pass'], ['g2.fake-later', 'fail']]);
-    await assert.rejects(runGates(cx, { tier: 'real', dir, resultsPath: join(dir, 'none.json'), log: () => {} }), /run npm run bench -- run first/);
+    const written = JSON.parse(await readFile(artifact, 'utf8')) as {
+      gates: { real: { id: string; verdict: string }[] };
+    };
+    assert.deepEqual(
+      written.gates.real.map((g) => [g.id, g.verdict]),
+      [
+        ['g1.fake-real', 'pass'],
+        ['g2.fake-later', 'fail'],
+      ],
+    );
+    await assert.rejects(
+      runGates(cx, { tier: 'real', dir, resultsPath: join(dir, 'none.json'), log: () => {} }),
+      /run npm run bench -- run first/,
+    );
   });
 });
 
 test('the report parser keeps the last record of an id and rejects malformed lines', () => {
-  const line = (id: string, verdict: string): string => JSON.stringify({ id, phase: 1, tier: 'ci', verdict, detail: '', inputs: {}, missing: [], ms: 1 });
+  const line = (id: string, verdict: string): string =>
+    JSON.stringify({ id, phase: 1, tier: 'ci', verdict, detail: '', inputs: {}, missing: [], ms: 1 });
   const parsed = parseGateReport(`${line('g1.b', 'fail')}\n\n${line('g1.a', 'pass')}\n${line('g1.b', 'pass')}\n`);
-  assert.deepEqual(parsed.map((r) => [r.id, r.verdict]), [['g1.a', 'pass'], ['g1.b', 'pass']]);
+  assert.deepEqual(
+    parsed.map((r) => [r.id, r.verdict]),
+    [
+      ['g1.a', 'pass'],
+      ['g1.b', 'pass'],
+    ],
+  );
   assert.throws(() => parseGateReport('{'), /line 1 is not JSON/);
-  assert.throws(() => parseGateReport(JSON.stringify({ id: 'g1.a', phase: 1, tier: 'ci', verdict: 'maybe' })), /not a gate record/);
+  assert.throws(
+    () => parseGateReport(JSON.stringify({ id: 'g1.a', phase: 1, tier: 'ci', verdict: 'maybe' })),
+    /not a gate record/,
+  );
   assert.equal(formatGateLine(parsed[0] ?? parsed[1]!), `${'g1.a'.padEnd(32)} ${'pass'.padEnd(11)} `);
 });
 
 test('--require ignores later phases, other tiers and historical verdicts', () => {
-  const rec = (id: string, phase: number, verdict: string) => ({ id, phase, tier: 'ci' as const, verdict, detail: '', inputs: {}, missing: [] });
+  const rec = (id: string, phase: number, verdict: string) => ({
+    id,
+    phase,
+    tier: 'ci' as const,
+    verdict,
+    detail: '',
+    inputs: {},
+    missing: [],
+  });
   const failures = requireFailures(
     [rec('g1.a', 1, 'historical'), rec('g2.b', 2, 'fail')],
     [
@@ -91,13 +143,26 @@ test('a real-tier run that cannot see its inputs keeps the committed gate record
     await mkdir(gates);
     await mkdir(empty);
     await writeFile(join(gates, 'phase.json'), '{ "landed": 1 }\n');
-    await writeFile(join(gates, 'g1.fake-blind.test.ts'), gateFile("{ id: 'g1.fake-blind', phase: 1, tier: 'real', needs: [], inputs: ['poc'], async run() {} }"));
+    await writeFile(
+      join(gates, 'g1.fake-blind.test.ts'),
+      gateFile("{ id: 'g1.fake-blind', phase: 1, tier: 'real', needs: [], inputs: ['poc'], async run() {} }"),
+    );
     const artifact = join(dir, 'results.json');
-    const committed = resultsText(results([], { gates: { real: [{ id: 'g1.fake-blind', verdict: 'pass', inputs: { poc: 'abc' }, detail: 'measured' }] } }));
+    const committed = resultsText(
+      results([], {
+        gates: { real: [{ id: 'g1.fake-blind', verdict: 'pass', inputs: { poc: 'abc' }, detail: 'measured' }] },
+      }),
+    );
     await writeFile(artifact, committed);
     const lines: string[] = [];
-    const run = await runGates({ repoRoot: REPO_ROOT, benchRoot: empty, pocRoot: empty }, { tier: 'real', require: 1, dir: gates, resultsPath: artifact, log: (l) => lines.push(l) });
-    assert.deepEqual(run.records.map((r) => [r.id, r.verdict]), [['g1.fake-blind', 'unavailable']]);
+    const run = await runGates(
+      { repoRoot: REPO_ROOT, benchRoot: empty, pocRoot: empty },
+      { tier: 'real', require: 1, dir: gates, resultsPath: artifact, log: (l) => lines.push(l) },
+    );
+    assert.deepEqual(
+      run.records.map((r) => [r.id, r.verdict]),
+      [['g1.fake-blind', 'unavailable']],
+    );
     assert.equal(await readFile(artifact, 'utf8'), committed);
     assert.match(lines.at(-1) ?? '', /^kept the gate record of .*results\.json: g1\.fake-blind unavailable/);
     assert.deepEqual(blindRecords(run.records, 0), []);

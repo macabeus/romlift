@@ -12,7 +12,7 @@
 //   median of nine runs, g2.speed's; this gate reads budgetAnalysisCpuMs, the median of the first five of them, which
 //   is the warm-up and five serial runs it read before D76 b (D77 f), and generateCpuMs and initCpuMs stay the
 //   median of five, so what this gate measures is unchanged.
-import { gate, type ExecResult } from './gate.ts';
+import { type ExecResult, gate } from './gate.ts';
 
 interface SpeedRom {
   readonly name: string;
@@ -46,7 +46,8 @@ gate({
     const run = await cx.npm('bench', ['speed', '--json']);
     if (run.code !== 0) throw new Error(`bench speed --json exited ${run.code}:\n${tail(run)}`);
     const speed = cx.lastJson<Speed>(run.stdout);
-    if (speed.schema !== 'romlift/bench-speed@1') throw new Error(`bench speed printed schema '${String(speed.schema)}'`);
+    if (speed.schema !== 'romlift/bench-speed@1')
+      throw new Error(`bench speed printed schema '${String(speed.schema)}'`);
     const ratio = speed.calibration.ratio;
     if (!(ratio > 0)) throw new Error(`the calibration ratio is ${ratio}`);
     const problems: string[] = [];

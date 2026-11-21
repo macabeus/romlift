@@ -24,17 +24,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { GCProfiler } from 'node:v8';
-
-import { validateConfig, type FunctionConfig, type RomliftConfig, type SymbolConfig } from 'romlift';
+import { type FunctionConfig, type RomliftConfig, type SymbolConfig, validateConfig } from 'romlift';
 import { readRom, sha1Of } from 'romlift/node';
 
-import { parseArgs, UsageError } from './args.ts';
+import { UsageError, parseArgs } from './args.ts';
 import { REPO_ROOT } from './context.ts';
-import { ROMLIFT_EMISSION, type EmissionOutcome, type EmissionRunner } from './emission-run.ts';
+import { type EmissionOutcome, type EmissionRunner, ROMLIFT_EMISSION } from './emission-run.ts';
 import { allCompleted, largeRomBin, spawnNode } from './large-rom-bin.ts';
 import { largeRomImage, readFixtureRoms } from './large-rom-image.ts';
 import { peakLiveHeapOf } from './live-heap.ts';
-import { runProcess, type ProcessResult } from './process.ts';
+import { type ProcessResult, runProcess } from './process.ts';
 
 export const LARGE_ROM_SCHEMA = 'romlift/bench-large-rom@1';
 /**
@@ -97,14 +96,25 @@ export interface LargeRomReport {
 // The config the init child hands the generate child: RomliftConfig as JSON, its maps as [address, entry] pairs.
 
 export function encodeConfig(config: RomliftConfig): string {
-  return JSON.stringify({ ...config, functions: [...config.functions], entryPoints: [...config.entryPoints], symbols: [...config.symbols] });
+  return JSON.stringify({
+    ...config,
+    functions: [...config.functions],
+    entryPoints: [...config.entryPoints],
+    symbols: [...config.symbols],
+  });
 }
 
 export function decodeConfig(text: string): RomliftConfig {
   const raw = JSON.parse(text) as Record<string, unknown>;
   const pairs = <T>(value: unknown): Map<number, T> => new Map(Array.isArray(value) ? (value as [number, T][]) : []);
-  const checked = validateConfig({ ...raw, functions: pairs<FunctionConfig>(raw['functions']), entryPoints: pairs<FunctionConfig>(raw['entryPoints']), symbols: pairs<SymbolConfig>(raw['symbols']) });
-  if (!checked.ok) throw new Error(`the config is not schema 1: ${checked.issues.map((i) => `${i.path}: ${i.message}`).join('; ')}`);
+  const checked = validateConfig({
+    ...raw,
+    functions: pairs<FunctionConfig>(raw['functions']),
+    entryPoints: pairs<FunctionConfig>(raw['entryPoints']),
+    symbols: pairs<SymbolConfig>(raw['symbols']),
+  });
+  if (!checked.ok)
+    throw new Error(`the config is not schema 1: ${checked.issues.map((i) => `${i.path}: ${i.message}`).join('; ')}`);
   return checked.config;
 }
 
@@ -128,7 +138,10 @@ export function maxOldSpaceOf(execArgv: readonly string[]): number | null {
 }
 
 /** One workflow in this process, as the child runs it; its report carries this process's peak resident set. */
-export async function runChild(argv: readonly string[], runner: EmissionRunner = ROMLIFT_EMISSION): Promise<ChildReport> {
+export async function runChild(
+  argv: readonly string[],
+  runner: EmissionRunner = ROMLIFT_EMISSION,
+): Promise<ChildReport> {
   const args = parseArgs(argv, { options: ['child', 'rom', 'out', 'config', 'config-out'] });
   const command = args.options['child'];
   const romPath = args.options['rom'];
@@ -173,7 +186,12 @@ export function parseChildReport(stdout: string): ChildReport | undefined {
   if (last === undefined || last === '') return undefined;
   try {
     const value = JSON.parse(last) as Partial<ChildReport>;
-    if ((value.command !== 'init' && value.command !== 'generate') || typeof value.exitCode !== 'number' || typeof value.maxRssKiB !== 'number') return undefined;
+    if (
+      (value.command !== 'init' && value.command !== 'generate') ||
+      typeof value.exitCode !== 'number' ||
+      typeof value.maxRssKiB !== 'number'
+    )
+      return undefined;
     return value as ChildReport;
   } catch {
     return undefined;
@@ -193,7 +211,13 @@ export function runOf(command: LargeRomCommand, result: ProcessResult): LargeRom
     // V8's out-of-memory report ends in a native stack; its FATAL ERROR line says why.
     const fatal = output.find((line) => line.startsWith('FATAL ERROR:'));
     const tail = fatal ?? output.slice(-5).join(' | ');
-    return { command, exitCode: result.code === 0 ? 1 : result.code, maxRssMiB: 0, maxOldSpaceSizeMiB: null, detail: `no report: ${tail}` };
+    return {
+      command,
+      exitCode: result.code === 0 ? 1 : result.code,
+      maxRssMiB: 0,
+      maxOldSpaceSizeMiB: null,
+      detail: `no report: ${tail}`,
+    };
   }
   return {
     command,
@@ -207,7 +231,10 @@ export function runOf(command: LargeRomCommand, result: ProcessResult): LargeRom
 }
 
 /** Node's options for each child: the sources, and the heap cap of the `romlift` bin. */
-export const CHILD_NODE_ARGS: readonly string[] = ['--conditions=source', `--max-old-space-size=${LARGE_ROM_MAX_OLD_SPACE_MIB}`];
+export const CHILD_NODE_ARGS: readonly string[] = [
+  '--conditions=source',
+  `--max-old-space-size=${LARGE_ROM_MAX_OLD_SPACE_MIB}`,
+];
 
 export interface LargeRomDeps {
   /** The image; default the 32 MiB synthetic ROM over the committed fixtures. */
@@ -244,7 +271,9 @@ export async function largeRom(deps: LargeRomDeps = DEFAULT_LARGE_ROM_DEPS): Pro
       const configArgs = command === 'init' ? ['--config-out', config] : ['--config', config];
       await mkdir(out, { recursive: true });
       const run = runOf(command, await deps.spawn(['--child', command, '--rom', rom, '--out', out, ...configArgs]));
-      deps.log(`${command.padEnd(8)} exit ${run.exitCode}, peak RSS ${run.maxRssMiB.toFixed(1)} MiB, peak live heap ${run.peakLiveHeapMiB?.toFixed(1) ?? '-'} MiB, heap cap ${run.maxOldSpaceSizeMiB ?? 'none'}${run.treeDigest === undefined ? '' : `, tree ${run.treeDigest}`}: ${run.detail}`);
+      deps.log(
+        `${command.padEnd(8)} exit ${run.exitCode}, peak RSS ${run.maxRssMiB.toFixed(1)} MiB, peak live heap ${run.peakLiveHeapMiB?.toFixed(1) ?? '-'} MiB, heap cap ${run.maxOldSpaceSizeMiB ?? 'none'}${run.treeDigest === undefined ? '' : `, tree ${run.treeDigest}`}: ${run.detail}`,
+      );
       runs.push(run);
       await rm(out, { recursive: true, force: true });
     }
@@ -284,8 +313,13 @@ export async function main(argv: readonly string[]): Promise<number> {
     if (args.flags.has('bin')) {
       const deps = rom === undefined ? DEFAULT_LARGE_ROM_DEPS : romFileDeps(rom);
       const report = await largeRomBin({ image: deps.image, spawn: spawnNode, log: deps.log });
-      const text = report.runs.map((r) => `${r.command.padEnd(36)} exit ${r.exitCode}  peak RSS ${r.maxRssMiB === null ? '-' : `${r.maxRssMiB.toFixed(1)} MiB`}  ${r.detail}`);
-      process.stdout.write(`${args.flags.has('json') ? JSON.stringify(report) : [`ROM ${report.sha1} (${report.romBytes} bytes), node ${report.nodeOptions.join(' ')}`, ...text].join('\n')}\n`);
+      const text = report.runs.map(
+        (r) =>
+          `${r.command.padEnd(36)} exit ${r.exitCode}  peak RSS ${r.maxRssMiB === null ? '-' : `${r.maxRssMiB.toFixed(1)} MiB`}  ${r.detail}`,
+      );
+      process.stdout.write(
+        `${args.flags.has('json') ? JSON.stringify(report) : [`ROM ${report.sha1} (${report.romBytes} bytes), node ${report.nodeOptions.join(' ')}`, ...text].join('\n')}\n`,
+      );
       return allCompleted(report) ? 0 : 1;
     }
     const report = await largeRom(rom === undefined ? DEFAULT_LARGE_ROM_DEPS : romFileDeps(rom));

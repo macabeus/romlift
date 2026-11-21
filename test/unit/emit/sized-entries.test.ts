@@ -50,7 +50,9 @@ function sized(fixture: string, edit: (config: RomliftConfig) => RomliftConfig):
   if (found === undefined) throw new Error(`the ${fixture} fixture is not committed`);
   const rom = readFixtureRom(found);
   const { model } = confirmModel({ rom, config: edit(configFromDiscover(rom, discover(rom))) });
-  const words = [...emitTree(rom, model, { decomp: { defined: [] } })].flatMap((e) => ('text' in e ? e.text.split('\n').filter((l) => l.includes('.4byte ')) : []));
+  const words = [...emitTree(rom, model, { decomp: { defined: [] } })].flatMap((e) =>
+    'text' in e ? e.text.split('\n').filter((l) => l.includes('.4byte ')) : [],
+  );
   return { rom, model, words };
 }
 
@@ -63,28 +65,51 @@ function withSize(entry: number, size: number): (config: RomliftConfig) => Romli
 }
 
 const CASES = {
-  symbol: sized('code-end-unsized-last', (config) => ({ ...config, symbols: new Map([...config.symbols, [0x0800_0108, { name: 'gTable', size: 0x10, aliases: [] }]]) })),
+  symbol: sized('code-end-unsized-last', (config) => ({
+    ...config,
+    symbols: new Map([...config.symbols, [0x0800_0108, { name: 'gTable', size: 0x10, aliases: [] }]]),
+  })),
   odd: sized('library-game', withSize(0x0800_0264, 0x10)),
   even: sized('composite', withSize(0x0800_03d4, 0x5a)),
 } as const;
 
 test('the spellings: name + offset from another module, an odd word inside a Thumb function, never an even one', () => {
   for (const c of Object.values(CASES)) assert.deepEqual(c.model.diagnostics, []);
-  assert.ok(CASES.symbol.words.some((l) => l.endsWith('.4byte gTable + 8')), CASES.symbol.words.join('\n'));
+  assert.ok(
+    CASES.symbol.words.some((l) => l.endsWith('.4byte gTable + 8')),
+    CASES.symbol.words.join('\n'),
+  );
   assert.equal(CASES.symbol.model.labels.find((l) => l.name === 'gTable')?.scope, 'global');
-  assert.equal(CASES.symbol.model.labels.some((l) => l.name === 'gUnk_08000110'), false, 'no gUnk_ label at a word the entry holds');
+  assert.equal(
+    CASES.symbol.model.labels.some((l) => l.name === 'gUnk_08000110'),
+    false,
+    'no gUnk_ label at a word the entry holds',
+  );
   const odd = CASES.odd.model.functions.find((f) => f.entry === 0x0800_0264);
   assert.equal(odd?.source.extent, 'toml-size');
-  assert.ok(CASES.odd.words.some((l) => l.endsWith(`.4byte ${odd?.name ?? '?'} + 4`)), CASES.odd.words.join('\n'));
+  assert.ok(
+    CASES.odd.words.some((l) => l.endsWith(`.4byte ${odd?.name ?? '?'} + 4`)),
+    CASES.odd.words.join('\n'),
+  );
   const even = CASES.even.model.functions.find((f) => f.entry === 0x0800_03d4);
   assert.equal(even?.source.extent, 'toml-size');
-  assert.equal(CASES.even.words.some((l) => l.includes(`${even?.name ?? '?'} + `)), false, CASES.even.words.join('\n'));
+  assert.equal(
+    CASES.even.words.some((l) => l.includes(`${even?.name ?? '?'} + `)),
+    false,
+    CASES.even.words.join('\n'),
+  );
 });
 
 for (const [name, c] of Object.entries(CASES)) {
   test(`${name}: the tree passes the text-layout check`, () => {
     const layout = checkEntries(c.rom, c.model, emitTree(c.rom, c.model, { decomp: { defined: [] } }));
-    assert.ok(layout.ok, layout.checks.filter((k) => !k.ok).map((k) => k.detail).join('; '));
+    assert.ok(
+      layout.ok,
+      layout.checks
+        .filter((k) => !k.ok)
+        .map((k) => k.detail)
+        .join('; '),
+    );
   });
 
   test(`${name}: the tree links to the fixture's SHA-1`, { skip }, async () => {

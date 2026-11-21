@@ -128,7 +128,8 @@ export type GluedWhere = 'inside-extent' | 'outside-extents' | 'past-code-end';
  * extent below it (in a gap, or inside a false entry's extent).
  */
 export function gluedWhere(cx: Classifier, m: number, codeEnd: number): GluedWhere {
-  if (cx.input.found.some((f) => f.entry !== m && cx.elfEntries.has(f.entry) && strictlyInside(m, f.extent))) return 'inside-extent';
+  if (cx.input.found.some((f) => f.entry !== m && cx.elfEntries.has(f.entry) && strictlyInside(m, f.extent)))
+    return 'inside-extent';
   return m >= codeEnd ? 'past-code-end' : 'outside-extents';
 }
 
@@ -146,6 +147,7 @@ export function classifyFalseEntry(cx: Classifier, f: Pick<FoundFunction, 'entry
   if (f.entry < cx.input.startupEnd) return 'startup';
   if (f.origin === 'veneer') return 'veneer';
   if (f.origin === 'adr') return 'adr-callback';
-  if (cx.input.truth.some((t) => t.addr !== f.entry && within(f.entry, { start: t.addr, end: t.addr + t.size }))) return 'inside-elf-function';
+  if (cx.input.truth.some((t) => t.addr !== f.entry && within(f.entry, { start: t.addr, end: t.addr + t.size })))
+    return 'inside-elf-function';
   return 'other';
 }

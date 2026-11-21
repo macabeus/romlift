@@ -33,7 +33,8 @@ export default defineRule({
   intrinsic: false,
   check(r, v) {
     for (const c of r.calls) {
-      if (c.mode === 'thumb' && !v.isFunction(c.target) && !couldBeCode(c.target, v)) return `calls ${hexAddr(c.target)}, which is not code`;
+      if (c.mode === 'thumb' && !v.isFunction(c.target) && !couldBeCode(c.target, v))
+        return `calls ${hexAddr(c.target)}, which is not code`;
     }
     return undefined;
   },

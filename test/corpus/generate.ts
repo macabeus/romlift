@@ -12,13 +12,18 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-import { binutilsVersions, findBinutils, listDir } from 'romlift/node';
-import { corpusInputsDigest, corpusSummary, DEFAULT_CORPUS_OPTIONS, parseCorpusSummary, runCorpus } from 'romlift/internal';
+import {
+  DEFAULT_CORPUS_OPTIONS,
+  corpusInputsDigest,
+  corpusSummary,
+  parseCorpusSummary,
+  runCorpus,
+} from 'romlift/internal';
 import type { CorpusOptions, CorpusSectionSummary, CorpusSummary } from 'romlift/internal';
 import { RAW_REASONS } from 'romlift/isa';
+import { binutilsVersions, findBinutils, listDir } from 'romlift/node';
 
-import { parseArgs, UsageError } from '../../bench/src/args.ts';
+import { UsageError, parseArgs } from '../../bench/src/args.ts';
 import type { BenchArgs } from '../../bench/src/args.ts';
 
 const REPO = fileURLToPath(new URL('../../', import.meta.url));
@@ -37,7 +42,12 @@ function sectionLine(name: string, s: CorpusSectionSummary): string {
   return [
     `${name.padEnd(6)}${count(s.cases).padStart(10)} cases: ${count(s.mnemonic)} mnemonic, ${count(s.raw)} raw; ${count(s.agree)} agree (${percent(s.agree, s.cases)}), ${count(s.disagree)} disagree`,
     `      raw by reason: ${reasons}`,
-    ...s.examples.slice(0, 5).map((e) => `      disagrees at +0x${e.offset.toString(16)}: ${e.text} (${e.word}): expected ${e.expected}, got ${e.got}`),
+    ...s.examples
+      .slice(0, 5)
+      .map(
+        (e) =>
+          `      disagrees at +0x${e.offset.toString(16)}: ${e.text} (${e.word}): expected ${e.expected}, got ${e.got}`,
+      ),
   ].join('\n');
 }
 
@@ -54,8 +64,12 @@ function human(summary: CorpusSummary, seconds: number | undefined): string {
     `printed mnemonics round-tripping through as: thumb ${printed(thumb)}, bl ${printed(bl)}, arm ${printed(arm)}`,
     `encoder agrees with as: ${count(summary.encoderAgrees.checked)} checked, ${count(summary.encoderAgrees.disagree)} disagree`,
     `context: ${count(summary.context.checked)} address-dependent cases at ${summary.context.alignments.join(' and ')}, ${count(summary.context.extremes)} at offset extremes, ${count(summary.context.disagree)} disagree`,
-    ...summary.encoderAgrees.examples.slice(0, 5).map((e) => `      encoder: ${e.text}: expected ${e.expected}, got ${e.got}`),
-    ...summary.context.examples.slice(0, 5).map((e) => `      context: ${e.text}: expected ${e.expected}, got ${e.got}`),
+    ...summary.encoderAgrees.examples
+      .slice(0, 5)
+      .map((e) => `      encoder: ${e.text}: expected ${e.expected}, got ${e.got}`),
+    ...summary.context.examples
+      .slice(0, 5)
+      .map((e) => `      context: ${e.text}: expected ${e.expected}, got ${e.got}`),
     `ARM rows with coverage: ${Object.keys(arm.coverage).length}`,
     `inputs digest ${summary.inputsDigest}`,
     `${summary.ok ? 'ok' : 'FAILED'}${seconds === undefined ? ' (cached)' : ` in ${seconds.toFixed(1)} s`}`,

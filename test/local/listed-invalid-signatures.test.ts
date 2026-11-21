@@ -17,7 +17,6 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-
 import { confirmModel, initConfigOf, romFromBytes } from 'romlift';
 import { locateSignatures, sha1Of } from 'romlift/node';
 
@@ -36,28 +35,41 @@ const PINNED: Readonly<Record<string, readonly string[]>> = {
   tmc: [],
 };
 
-const hex = (a: number | undefined): string => (a === undefined ? '-' : `0x${a.toString(16).toUpperCase().padStart(8, '0')}`);
+const hex = (a: number | undefined): string =>
+  a === undefined ? '-' : `0x${a.toString(16).toUpperCase().padStart(8, '0')}`;
 
 const located = await locateSignatures({ packageRoot: REPO, env: process.env, cwd: REPO });
-const noFiles = located.files.length === 0 ? `unavailable: no built signature file in ${located.dir} (run the build loop of the closing list)` : undefined;
+const noFiles =
+  located.files.length === 0
+    ? `unavailable: no built signature file in ${located.dir} (run the build loop of the closing list)`
+    : undefined;
 
 for (const rom of Object.keys(PINNED)) {
-  const dataset = JSON.parse(readFileSync(path.join(REPO, 'bench', 'dataset', 'real', `${rom}.json`), 'utf8')) as { readonly rom: string; readonly sha1: string };
+  const dataset = JSON.parse(readFileSync(path.join(REPO, 'bench', 'dataset', 'real', `${rom}.json`), 'utf8')) as {
+    readonly rom: string;
+    readonly sha1: string;
+  };
   const romPath = path.join(BENCH_ROOT, dataset.rom);
   const unavailable = noFiles ?? (existsSync(romPath) ? undefined : `unavailable: rom ${romPath}`);
-  test(`init with signatures, then confirm: no W_LISTED_INVALID: ${rom}`, { skip: REQUIRE ? false : (unavailable ?? false) }, (t) => {
-    assert.equal(unavailable, undefined, unavailable);
-    const bytes = new Uint8Array(readFileSync(romPath));
-    const sha1 = sha1Of(bytes);
-    assert.equal(sha1, dataset.sha1, `${romPath} is not the dataset's ROM`);
-    const r = romFromBytes(bytes, sha1);
-    const init = initConfigOf(r, { signatureFiles: located.files });
-    assert.ok(init.ok, `${rom}: init refused`);
-    const signed = [...init.config.functions.values()].filter((f) => f.from?.startsWith('sig:') === true).length;
-    const { analysis } = confirmModel({ rom: r, config: init.config });
-    const listedInvalid = analysis.diagnostics.filter((d) => d.code === 'W_LISTED_INVALID').map((d) => hex(d.addr));
-    t.diagnostic(`${rom}: ${signed} signature-named functions; W_LISTED_INVALID ${listedInvalid.length === 0 ? 'none' : listedInvalid.join(', ')}`);
-    assert.ok(signed > 0, `${rom}: the signature layer named no function`);
-    assert.deepEqual(listedInvalid, PINNED[rom], `${rom}: the W_LISTED_INVALID set of init with signatures`);
-  });
+  test(
+    `init with signatures, then confirm: no W_LISTED_INVALID: ${rom}`,
+    { skip: REQUIRE ? false : (unavailable ?? false) },
+    (t) => {
+      assert.equal(unavailable, undefined, unavailable);
+      const bytes = new Uint8Array(readFileSync(romPath));
+      const sha1 = sha1Of(bytes);
+      assert.equal(sha1, dataset.sha1, `${romPath} is not the dataset's ROM`);
+      const r = romFromBytes(bytes, sha1);
+      const init = initConfigOf(r, { signatureFiles: located.files });
+      assert.ok(init.ok, `${rom}: init refused`);
+      const signed = [...init.config.functions.values()].filter((f) => f.from?.startsWith('sig:') === true).length;
+      const { analysis } = confirmModel({ rom: r, config: init.config });
+      const listedInvalid = analysis.diagnostics.filter((d) => d.code === 'W_LISTED_INVALID').map((d) => hex(d.addr));
+      t.diagnostic(
+        `${rom}: ${signed} signature-named functions; W_LISTED_INVALID ${listedInvalid.length === 0 ? 'none' : listedInvalid.join(', ')}`,
+      );
+      assert.ok(signed > 0, `${rom}: the signature layer named no function`);
+      assert.deepEqual(listedInvalid, PINNED[rom], `${rom}: the W_LISTED_INVALID set of init with signatures`);
+    },
+  );
 }

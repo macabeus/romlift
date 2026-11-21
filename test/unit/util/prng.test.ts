@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+
 import { prngSequence, xorshift32 } from '../../helpers/prng.ts';
 
 test('xorshift32 from seed 1 yields the reference values', () => {

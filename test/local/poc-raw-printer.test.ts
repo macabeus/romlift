@@ -8,11 +8,10 @@
 //
 // test/local imports romlift only through its entry points (architecture §2).
 import assert from 'node:assert/strict';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-
 import { romFromBytes } from 'romlift';
 import { printRawRange } from 'romlift/internal';
 import { sha1Of } from 'romlift/node';
@@ -54,7 +53,11 @@ const fixtures = readdirSync(SYNTHETIC, { withFileTypes: true })
   .filter((e) => e.isDirectory() && existsSync(path.join(SYNTHETIC, e.name, 'build', `${e.name}.gba`)))
   .map((e) => e.name)
   .sort(byCodeUnit);
-const pocSourceDigest = (JSON.parse(readFileSync(path.join(REPO, 'bench', 'baseline', 'poc-source.json'), 'utf8')) as { readonly digest: string }).digest;
+const pocSourceDigest = (
+  JSON.parse(readFileSync(path.join(REPO, 'bench', 'baseline', 'poc-source.json'), 'utf8')) as {
+    readonly digest: string;
+  }
+).digest;
 
 test('the committed fixtures are found', () => {
   assert.ok(fixtures.length >= 47, `${fixtures.length} fixtures`);
@@ -72,22 +75,30 @@ for (const fixture of fixtures) {
         ? `unavailable: ${dumpPath} is of another fixture build or PoC checkout; re-run npm run export-poc -- --mode raw`
         : undefined;
 
-  test(`the raw printer prints the PoC's rawLines: ${fixture}`, { skip: REQUIRE ? false : (unavailable ?? false) }, (t) => {
-    assert.equal(unavailable, undefined, unavailable);
-    assert.ok(dump !== undefined);
-    assert.equal(dump.schema, SCHEMA);
-    assert.equal(dump.fixture, fixture);
-    assert.equal(dump.claims.length, bytes.length, 'one PoC claim kind per ROM byte');
-    const rom = romFromBytes(bytes, sha1);
-    const isWord = (addr: number): boolean => {
-      const kind = dump.claims[addr - rom.base];
-      return kind === POC_POOL || kind === POC_TABLE;
-    };
-    let lines = 0;
-    for (const c of dump.chunks) {
-      assert.deepEqual(printRawRange(rom, isWord, c.start, c.end, c.labels), c.lines, `${fixture}: chunk ${c.name} [${c.start.toString(16)}, ${c.end.toString(16)})`);
-      lines += c.lines.length;
-    }
-    t.diagnostic(`${fixture}: ${dump.chunks.length} chunks, ${lines} body lines equal`);
-  });
+  test(
+    `the raw printer prints the PoC's rawLines: ${fixture}`,
+    { skip: REQUIRE ? false : (unavailable ?? false) },
+    (t) => {
+      assert.equal(unavailable, undefined, unavailable);
+      assert.ok(dump !== undefined);
+      assert.equal(dump.schema, SCHEMA);
+      assert.equal(dump.fixture, fixture);
+      assert.equal(dump.claims.length, bytes.length, 'one PoC claim kind per ROM byte');
+      const rom = romFromBytes(bytes, sha1);
+      const isWord = (addr: number): boolean => {
+        const kind = dump.claims[addr - rom.base];
+        return kind === POC_POOL || kind === POC_TABLE;
+      };
+      let lines = 0;
+      for (const c of dump.chunks) {
+        assert.deepEqual(
+          printRawRange(rom, isWord, c.start, c.end, c.labels),
+          c.lines,
+          `${fixture}: chunk ${c.name} [${c.start.toString(16)}, ${c.end.toString(16)})`,
+        );
+        lines += c.lines.length;
+      }
+      t.diagnostic(`${fixture}: ${dump.chunks.length} chunks, ${lines} body lines equal`);
+    },
+  );
 }

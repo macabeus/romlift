@@ -99,10 +99,13 @@ _08000008: .4byte gFoo
     { line: 4, at: BASE, length: 0 },
     { line: 9, at: BASE + 6, length: 2 },
   ]);
-  assert.deepEqual([...out.labels], [
-    ['Foo', BASE],
-    ['_08000008', BASE + 8],
-  ]);
+  assert.deepEqual(
+    [...out.labels],
+    [
+      ['Foo', BASE],
+      ['_08000008', BASE + 8],
+    ],
+  );
 });
 
 test('a non-word-aligned Thumb start (2 mod 4) keeps its address; the aligned macro pads instead', () => {
@@ -179,7 +182,10 @@ Typed:
 `;
   const out = clean(text, { symbols: { Func: 0x0800_1235 } });
   // Func - 1 is R_ARM_ABS32's (S + A) | T: (0x08001234 - 1) | 1, as ld writes it (architecture-o0-1).
-  assert.deepEqual(out.bytes.slice(8), le(w(0x0800_1235), w(BASE + 1), w(BASE + 2), w(BASE + 3), w(BASE + 5), w(0x0800_1233)));
+  assert.deepEqual(
+    out.bytes.slice(8),
+    le(w(0x0800_1235), w(BASE + 1), w(BASE + 2), w(BASE + 3), w(BASE + 5), w(0x0800_1233)),
+  );
 });
 
 test('a data value naming a Thumb function adds the addend before the Thumb bit, as ld does: (S + A) | T (architecture-o0-1)', () => {
@@ -187,7 +193,10 @@ test('a data value naming a Thumb function adds the addend before the Thumb bit,
   // 0x0800001C give F + 3 0x08000003, F + 4 0x08000005, F - 1 0x07FFFFFF, F 0x08000001, G - 1 0x0800001B, G + 3 0x0800001F.
   const text = '.thumb\n.thumb_func\nF:\n\tbx lr\n\tbx lr\n\t.4byte F + 3, F + 4, F - 1, F, G - 1, G + 3\n';
   const out = clean(text, { symbols: { G: BASE + 0x1d } });
-  assert.deepEqual(out.bytes.slice(4), le(w(BASE + 3), w(BASE + 5), w(0x07ff_ffff), w(BASE + 1), w(BASE + 0x1b), w(BASE + 0x1f)));
+  assert.deepEqual(
+    out.bytes.slice(4),
+    le(w(BASE + 3), w(BASE + 5), w(0x07ff_ffff), w(BASE + 1), w(BASE + 0x1b), w(BASE + 0x1f)),
+  );
 });
 
 test('.inst.n, .inst.w and .inst lay out their raw words; a width suffix in the wrong state is refused', () => {
@@ -272,10 +281,15 @@ test('includes are laid out in place and share the labels', () => {
     'asm/nonmatchings/main/Bar.s': `\tthumb_func_start Bar\nBar:\n\tbx lr\n\tthumb_func_end Bar\n`,
   };
   // The included files use macros the module text includes, as GNU as reads .include textually.
-  const parsedIncludes = Object.fromEntries(Object.entries(includes).map(([k, v]) => [k, `.include "include/macros.inc"\n${v}`]));
-  const out = clean(`${PREAMBLE}.include "asm/nonmatchings/main/Foo.s"\n.include "asm/nonmatchings/main/Bar.s"\n\t.4byte Bar`, {
-    includes: parsedIncludes,
-  });
+  const parsedIncludes = Object.fromEntries(
+    Object.entries(includes).map(([k, v]) => [k, `.include "include/macros.inc"\n${v}`]),
+  );
+  const out = clean(
+    `${PREAMBLE}.include "asm/nonmatchings/main/Foo.s"\n.include "asm/nonmatchings/main/Bar.s"\n\t.4byte Bar`,
+    {
+      includes: parsedIncludes,
+    },
+  );
   // Foo at 0x08000000 (b to 0x08000004: offset 0), Bar at 0x08000004 after `.align 2, 0` pads 2.
   assert.deepEqual(out.bytes, le(h(0xe000), h(0), h(0x4770), w(BASE + 5)));
   assert.deepEqual([...out.labels.keys()], ['Foo', 'Bar']);
@@ -287,7 +301,13 @@ test('include errors: unknown, a cycle, and an error inside an include names the
   assert.deepEqual(cyclic.errors, [{ line: 1, at: BASE, message: 'in "a.s": include cycle through "a.s"' }]);
   const inner = lay('.include "a.s"', { includes: { 'a.s': '\n\t.4byte nowhere' } });
   assert.deepEqual(inner.errors, [{ line: 2, at: BASE, message: 'in "a.s": undefined symbol `nowhere`' }]);
-  const noCallback = layoutStatements({ statements: statementsOf('.include "a.s"'), start: BASE, mode: 'thumb', resolve: () => undefined, incbin: () => undefined });
+  const noCallback = layoutStatements({
+    statements: statementsOf('.include "a.s"'),
+    start: BASE,
+    mode: 'thumb',
+    resolve: () => undefined,
+    incbin: () => undefined,
+  });
   assert.match(noCallback.errors[0]?.message ?? '', /unknown include/);
 });
 
@@ -320,9 +340,10 @@ dup: dup: bx lr
 });
 
 test('negative data values wrap to their width', () => {
-  assert.deepEqual(clean('.byte -1, -128\n.2byte -2\n.4byte -1, gNeg - 0x10', { symbols: { gNeg: 0x10 } }).bytes, Uint8Array.from([
-    0xff, 0x80, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0, 0, 0, 0,
-  ]));
+  assert.deepEqual(
+    clean('.byte -1, -128\n.2byte -2\n.4byte -1, gNeg - 0x10', { symbols: { gNeg: 0x10 } }).bytes,
+    Uint8Array.from([0xff, 0x80, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0, 0, 0, 0]),
+  );
 });
 
 test('interworking: a branch across states to a function needs a veneer and is refused', () => {
@@ -366,7 +387,9 @@ bx r0
     assert.deepEqual(shared.bytes, alone.bytes, `start 0x${(options.start ?? BASE).toString(16)}`);
   }
   // The named texts (`ldr r0, Far`, `bl Callee`) stay out of the word memo; the others are in it once per word alignment.
-  assert.ok(memo.words.every((slot) => [...slot.keys()].every((text) => !text.includes('Far') && !text.includes('Callee'))));
+  assert.ok(
+    memo.words.every((slot) => [...slot.keys()].every((text) => !text.includes('Far') && !text.includes('Callee'))),
+  );
   assert.ok(memo.words[memoSlot('thumb', 0)]?.has('push {lr}') && memo.words[memoSlot('thumb', 2)]?.has('push {lr}'));
   // An unparsable or unencodable text is refused with or without the memo.
   const bad = lay('.thumb\nadds r0, #999\n', { memo });
@@ -408,7 +431,11 @@ test('sectionAlign: the alignment GNU as records for the section (binutils 2.45.
     ['.align 2, 0\n.byte 1, 2, 3\n', 'arm', 2],
     ['movs r0, #0\n.byte 1\n', 'thumb', 1],
   ];
-  for (const [text, mode, power] of rows) assert.equal(clean(`.syntax unified\n${text}`, { mode }).sectionAlign, power, text);
+  for (const [text, mode, power] of rows)
+    assert.equal(clean(`.syntax unified\n${text}`, { mode }).sectionAlign, power, text);
   // `.align 0` pads to a word, as GNU as on ARM reads it.
-  assert.deepEqual(clean('.syntax unified\n.byte 1\n.align 0, 0\n.byte 2\n', { mode: 'arm' }).bytes, Uint8Array.from([1, 0, 0, 0, 2]));
+  assert.deepEqual(
+    clean('.syntax unified\n.byte 1\n.align 0, 0\n.byte 2\n', { mode: 'arm' }).bytes,
+    Uint8Array.from([1, 0, 0, 0, 2]),
+  );
 });

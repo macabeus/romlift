@@ -18,7 +18,15 @@ export function ascending(rank: ReadonlyMap<RuleId, number>, nextSeq: () => numb
   const heap = minHeap<{ readonly key: WorkKey; readonly c: Candidate }>((a, b) => compareWorkKeys(a.key, b.key));
   return {
     push(c) {
-      heap.push({ key: { addr: c.entry, modeRank: c.mode === 'thumb' ? 0 : 1, ruleRank: rank.get(c.proposedBy) ?? 0, seq: nextSeq() }, c });
+      heap.push({
+        key: {
+          addr: c.entry,
+          modeRank: c.mode === 'thumb' ? 0 : 1,
+          ruleRank: rank.get(c.proposedBy) ?? 0,
+          seq: nextSeq(),
+        },
+        c,
+      });
     },
     pop: () => heap.pop()?.c,
   };

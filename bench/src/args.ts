@@ -41,6 +41,7 @@ export function parseArgs(argv: readonly string[], spec: ArgSpec): BenchArgs {
       positionals.push(arg);
     }
   }
-  if (positionals.length > (spec.maxPositionals ?? 0)) throw new UsageError(`unexpected argument ${positionals[spec.maxPositionals ?? 0] ?? ''}`);
+  if (positionals.length > (spec.maxPositionals ?? 0))
+    throw new UsageError(`unexpected argument ${positionals[spec.maxPositionals ?? 0] ?? ''}`);
   return { positionals, options, flags };
 }

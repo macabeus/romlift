@@ -99,7 +99,10 @@ interface TruthModule {
   readElfFunctions(path: string, rom: unknown): unknown;
 }
 interface ScoreModule {
-  score(an: PocAnalyzer, truth: unknown): { readonly fn: ReadonlyArray<{ readonly addr: number; readonly reason: string }> };
+  score(
+    an: PocAnalyzer,
+    truth: unknown,
+  ): { readonly fn: ReadonlyArray<{ readonly addr: number; readonly reason: string }> };
 }
 interface DatasetModule {
   readonly BENCH_ROOT: string;
@@ -147,13 +150,23 @@ function datasetNamed(all: readonly PocDataset[], name: string): PocDataset {
 }
 
 /** datasetNamed, and whether the dataset is the PoC's own file ('poc') or the one romlift handed over ('given'). */
-function datasetUsed(all: readonly PocDataset[], name: string): { readonly dataset: PocDataset; readonly source: 'poc' | 'given' } {
+function datasetUsed(
+  all: readonly PocDataset[],
+  name: string,
+): { readonly dataset: PocDataset; readonly source: 'poc' | 'given' } {
   const dataset = all.find((d) => d.name === name);
   if (dataset !== undefined) return { dataset, source: 'poc' };
   const given = process.env['ROMLIFT_POC_DATASET'];
   const parsed: unknown = given === undefined ? undefined : JSON.parse(given);
   const ok = (v: unknown): v is PocDataset =>
-    typeof v === 'object' && v !== null && (v as PocDataset).name === name && typeof (v as PocDataset).rom === 'string' && typeof (v as PocDataset).elf === 'string' && typeof (v as PocDataset).sha1 === 'string' && Array.isArray((v as PocDataset).labels) && Array.isArray((v as PocDataset).untyped);
+    typeof v === 'object' &&
+    v !== null &&
+    (v as PocDataset).name === name &&
+    typeof (v as PocDataset).rom === 'string' &&
+    typeof (v as PocDataset).elf === 'string' &&
+    typeof (v as PocDataset).sha1 === 'string' &&
+    Array.isArray((v as PocDataset).labels) &&
+    Array.isArray((v as PocDataset).untyped);
   if (!ok(parsed)) throw new Error(`the PoC has no dataset named ${name}, and ROMLIFT_POC_DATASET gives none`);
   return { dataset: parsed, source: 'given' };
 }
@@ -169,7 +182,11 @@ function analysisOf(an: PocAnalyzer): unknown {
   });
   const startup = an.startup;
   const [lo, hi] = an.codeRange;
-  return { functions, startup: { end: hexAddr(startup.end), entries: startup.entries.map(hexAddr) }, codeRange: [hexAddr(lo), hexAddr(hi)] };
+  return {
+    functions,
+    startup: { end: hexAddr(startup.end), entries: startup.entries.map(hexAddr) },
+    codeRange: [hexAddr(lo), hexAddr(hi)],
+  };
 }
 
 async function scored(pocRoot: string, name: string): Promise<void> {
@@ -208,7 +225,9 @@ function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
   if (typeof value === 'object' && value !== null) {
     const record = value as Record<string, unknown>;
-    const keys = Object.keys(record).filter((k) => record[k] !== undefined).sort(byCodeUnit);
+    const keys = Object.keys(record)
+      .filter((k) => record[k] !== undefined)
+      .sort(byCodeUnit);
     return `{${keys.map((k) => `${JSON.stringify(k)}:${canonical(record[k])}`).join(',')}}`;
   }
   return JSON.stringify(value);
@@ -385,7 +404,11 @@ interface QueryRecord {
 }
 
 /** How one method's arguments and result are written, at the call's return (units in poc-log.ts). */
-type Encode = (an: PocAnalyzer, args: readonly unknown[], result: unknown) => { readonly args: readonly unknown[]; readonly result: unknown };
+type Encode = (
+  an: PocAnalyzer,
+  args: readonly unknown[],
+  result: unknown,
+) => { readonly args: readonly unknown[]; readonly result: unknown };
 
 interface LogStats {
   readonly queries: number;
@@ -439,7 +462,8 @@ function recordQueries(proto: Prototype, sets: SettleSets, base: number, out: st
     settle: (_an, args, result) => {
       const s = result as PocSettled;
       const noret = sets.get(s.f)?.noret;
-      if (noret === undefined) throw new Error(`settle(${hexAddr(Number(args[0]))}) returned a Func analyzeThumb did not build`);
+      if (noret === undefined)
+        throw new Error(`settle(${hexAddr(Number(args[0]))}) returned a Func analyzeThumb did not build`);
       return { args, result: { ...reading(s.f), far: [...s.far].sort(byNumber), noret: [...noret].sort(byNumber) } };
     },
     acceptable: (_an, args, result) => ({ args: [(args[0] as PocFunc).entry, args[1]], result }),
@@ -459,7 +483,15 @@ function recordQueries(proto: Prototype, sets: SettleSets, base: number, out: st
     forgetCandidates: (_an, args) => ({ args, result: null }),
     claim: (an, args) => {
       const f = args[0] as PocFunc;
-      return { args: [f.entry], result: { entry: f.entry, mode: f.mode, origin: an.origin.get(f.entry) ?? null, absorbed: !an.funcs.has(f.entry) } };
+      return {
+        args: [f.entry],
+        result: {
+          entry: f.entry,
+          mode: f.mode,
+          origin: an.origin.get(f.entry) ?? null,
+          absorbed: !an.funcs.has(f.entry),
+        },
+      };
     },
   };
 
@@ -471,7 +503,16 @@ function recordQueries(proto: Prototype, sets: SettleSets, base: number, out: st
   let epoch = 0;
   const flush = (): void => {
     for (let r = pending[head]; r !== undefined && r.done; r = pending[++head]) {
-      queries.line(JSON.stringify({ seq: r.seq, parent: r.parent, epoch: r.epoch, method: r.method, args: r.args, result: r.result }));
+      queries.line(
+        JSON.stringify({
+          seq: r.seq,
+          parent: r.parent,
+          epoch: r.epoch,
+          method: r.method,
+          args: r.args,
+          result: r.result,
+        }),
+      );
     }
     if (head === pending.length) {
       pending.length = 0;
@@ -482,13 +523,22 @@ function recordQueries(proto: Prototype, sets: SettleSets, base: number, out: st
   for (const name of Object.keys(methods).sort(byCodeUnit)) {
     const encode = methods[name];
     const original = proto[name];
-    if (encode === undefined || typeof original !== 'function') throw new Error(`the PoC's Analyzer has no method ${name}`);
+    if (encode === undefined || typeof original !== 'function')
+      throw new Error(`the PoC's Analyzer has no method ${name}`);
     const call = original as Method;
     proto[name] = function (this: PocAnalyzer, ...args: unknown[]): unknown {
       if (name === 'forgetCandidates') epoch++;
       // absorbBlock(p, …) merges the block at p into the function that computes it with adr.
       const owner = name === 'absorbBlock' ? adrOwner(this, base + Number(args[0])) : undefined;
-      const record: QueryRecord = { seq: seq++, parent: stack[stack.length - 1] ?? null, epoch, method: name, args: [], result: null, done: false };
+      const record: QueryRecord = {
+        seq: seq++,
+        parent: stack[stack.length - 1] ?? null,
+        epoch,
+        method: name,
+        args: [],
+        result: null,
+        done: false,
+      };
       pending.push(record);
       stack.push(record.seq);
       let result: unknown;
@@ -509,7 +559,8 @@ function recordQueries(proto: Prototype, sets: SettleSets, base: number, out: st
   }
   return {
     commit(): LogStats {
-      if (stack.length !== 0 || pending.length !== 0) throw new Error('the queries log holds calls that never returned');
+      if (stack.length !== 0 || pending.length !== 0)
+        throw new Error('the queries log holds calls that never returned');
       const queryBytes = queries.commit();
       const readingBytes = readings.commit();
       return { queries: seq, readings: written.size, queryBytes, readingBytes };
@@ -546,12 +597,24 @@ async function parity(pocRoot: string, name: string): Promise<void> {
   process.stdout.write(`${JSON.stringify({ parity: parityOf(an, sets, base), seconds })}\n`);
 }
 
-async function queries(pocRoot: string, name: string, out: string, sha1: string, pocSourceDigest: string): Promise<void> {
+async function queries(
+  pocRoot: string,
+  name: string,
+  out: string,
+  sha1: string,
+  pocSourceDigest: string,
+): Promise<void> {
   outsidePoc(pocRoot, out);
   const { Analyzer, rom, base } = await loadAnalyzer(pocRoot, name);
   mkdirSync(out, { recursive: true });
   const sets = captureSettleSets(Analyzer.prototype);
-  const header = { schema: 'romlift-bench/poc-queries@1', rom: name, sha1, pocSourceDigest, readings: 'readings.ndjson' };
+  const header = {
+    schema: 'romlift-bench/poc-queries@1',
+    rom: name,
+    sha1,
+    pocSourceDigest,
+    readings: 'readings.ndjson',
+  };
   const recorder = recordQueries(Analyzer.prototype, sets, base, out, header);
   const started = process.hrtime.bigint();
   const an = new Analyzer(rom);
@@ -567,7 +630,8 @@ async function queries(pocRoot: string, name: string, out: string, sha1: string,
 /** Refuses an output directory inside the PoC checkout: the PoC is read-only. */
 function outsidePoc(pocRoot: string, out: string): void {
   const inside = relative(resolve(pocRoot), resolve(out));
-  if (inside === '' || (!inside.startsWith('..') && !isAbsolute(inside))) throw new Error(`refusing to write inside the PoC checkout: ${out}`);
+  if (inside === '' || (!inside.startsWith('..') && !isAbsolute(inside)))
+    throw new Error(`refusing to write inside the PoC checkout: ${out}`);
 }
 
 async function raw(pocRoot: string, name: string, romPath: string, out: string): Promise<void> {
@@ -587,7 +651,9 @@ async function raw(pocRoot: string, name: string, romPath: string, out: string):
     kind: c.kind,
     mode: c.mode,
     module: c.module,
-    labels: c.labels.map((l) => (l.note === undefined ? { addr: l.addr, name: l.name } : { addr: l.addr, name: l.name, note: l.note })),
+    labels: c.labels.map((l) =>
+      l.note === undefined ? { addr: l.addr, name: l.name } : { addr: l.addr, name: l.name, note: l.note },
+    ),
   }));
   console.error(`${name}: ${summary}`);
   process.stdout.write(`${JSON.stringify({ summary, chunks, claims: [...an.claimed] })}\n`);

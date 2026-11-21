@@ -112,7 +112,14 @@ export function fileBuilder(mode: Mode, section: CorpusSection, name: string): F
       offset += bytes;
     },
     count: () => cases.length,
-    build: () => ({ name, mode, text: `${[...lines, ...labelLines(labels)].join('\n')}\n`, size: offset, expect: 'bytes', cases }),
+    build: () => ({
+      name,
+      mode,
+      text: `${[...lines, ...labelLines(labels)].join('\n')}\n`,
+      size: offset,
+      expect: 'bytes',
+      cases,
+    }),
   };
 }
 

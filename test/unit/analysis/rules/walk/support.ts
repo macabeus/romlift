@@ -1,15 +1,15 @@
 // Shared builders for the walk rule tests (not a test file): the registered walk slot of agbcc, the slot
 // without one rule (to show what the rule decides), decoded instructions at an address, and a cursor
 // for asking one rule directly.
+import { WALK_RULES } from '../../../../../src/core/analysis/rules/walk/index.ts';
+import type { AnalysisView, WalkPolicy } from '../../../../../src/core/analysis/types.ts';
+import type { ResolvedPolicy, WalkCursor } from '../../../../../src/core/analysis/walk/cursor.ts';
+import type { RuleId } from '../../../../../src/core/provenance/rule-id.ts';
 import { decode } from '../../../../../src/foundation/isa/decode.ts';
 import type { Insn } from '../../../../../src/foundation/isa/types.ts';
 import { contains, u16, u32 } from '../../../../../src/foundation/rom/rom.ts';
 import type { Rom } from '../../../../../src/foundation/rom/rom.ts';
 import type { Addr, Mode } from '../../../../../src/foundation/rom/span.ts';
-import type { RuleId } from '../../../../../src/core/provenance/rule-id.ts';
-import { WALK_RULES } from '../../../../../src/core/analysis/rules/walk/index.ts';
-import type { AnalysisView, WalkPolicy } from '../../../../../src/core/analysis/types.ts';
-import type { ResolvedPolicy, WalkCursor } from '../../../../../src/core/analysis/walk/cursor.ts';
 import { registeredWalk } from '../../../../helpers/analysis.ts';
 
 /** agbcc's walk slot, resolved from RULES. */
@@ -33,7 +33,21 @@ export function insnAt(rom: Rom, a: Addr, mode: Mode): Insn {
 }
 
 /** A cursor for asking a rule directly; phase 'insn' at the entry unless `over` says otherwise. */
-export function cursorOf(view: AnalysisView, over: Partial<WalkCursor> & { readonly entry: Addr; readonly mode: Mode }): WalkCursor {
+export function cursorOf(
+  view: AnalysisView,
+  over: Partial<WalkCursor> & { readonly entry: Addr; readonly mode: Mode },
+): WalkCursor {
   const run = over.run ?? [];
-  return { view, phase: 'insn', stop: undefined, at: over.entry, sp: 0, run, back: (k) => run[run.length - 1 - k], conditional: false, walked: () => false, ...over };
+  return {
+    view,
+    phase: 'insn',
+    stop: undefined,
+    at: over.entry,
+    sp: 0,
+    run,
+    back: (k) => run[run.length - 1 - k],
+    conditional: false,
+    walked: () => false,
+    ...over,
+  };
 }

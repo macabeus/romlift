@@ -18,11 +18,10 @@
 //   startup    the startup region: its end and the entries inside it;
 //   codeEnd    the end of the highest function extent (the PoC's codeRange[1]).
 import { join } from 'node:path';
-
-import { canonicalJson, compareCodeUnits, type JsonValue, type Mode } from 'romlift';
+import { type JsonValue, type Mode, canonicalJson, compareCodeUnits } from 'romlift';
 import { sha256Stream } from 'romlift/node';
 
-import { baselineDir, type BenchContext } from './context.ts';
+import { type BenchContext, baselineDir } from './context.ts';
 import { BenchError, isRecord } from './files.ts';
 
 export const PARITY_SCHEMA = 'romlift-bench/parity@1';
@@ -72,7 +71,8 @@ export function parityText(view: ParityView): string {
   return `${Array.from(canonicalJson(view as unknown as JsonValue)).join('')}\n`;
 }
 
-export const parityPath = (cx: BenchContext, rom: string): string => join(cx.repoRoot, 'bench', '.local', 'poc', rom, 'parity.json');
+export const parityPath = (cx: BenchContext, rom: string): string =>
+  join(cx.repoRoot, 'bench', '.local', 'poc', rom, 'parity.json');
 export const pocDigestsPath = (cx: BenchContext): string => join(baselineDir(cx), 'poc-digests.json');
 
 // ---------------------------------------------------------------- reading
@@ -85,7 +85,8 @@ function addr(value: unknown, where: string): number {
 }
 
 function count(value: unknown, where: string): number {
-  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) throw new BenchError(`${where}: expected a positive integer, got ${JSON.stringify(value)}`);
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1)
+    throw new BenchError(`${where}: expected a positive integer, got ${JSON.stringify(value)}`);
   return value;
 }
 
@@ -104,7 +105,8 @@ function tuple(value: unknown, length: number, where: string): readonly unknown[
 function addresses(value: unknown, where: string): number[] {
   const out = array(value, where).map((a, i) => addr(a, `${where}[${i}]`));
   for (let i = 1; i < out.length; i++) {
-    if ((out[i] ?? 0) <= (out[i - 1] ?? 0)) throw new BenchError(`${where}[${i}]: not above the address before it (sorted, no duplicates)`);
+    if ((out[i] ?? 0) <= (out[i - 1] ?? 0))
+      throw new BenchError(`${where}[${i}]: not above the address before it (sorted, no duplicates)`);
   }
   return out;
 }
@@ -119,7 +121,8 @@ function spans(value: unknown, where: string): AddrSpan[] {
     return span;
   });
   for (let i = 1; i < out.length; i++) {
-    if ((out[i]?.[0] ?? 0) <= (out[i - 1]?.[1] ?? 0)) throw new BenchError(`${where}[${i}]: overlaps or touches the run before it (runs are maximal)`);
+    if ((out[i]?.[0] ?? 0) <= (out[i - 1]?.[1] ?? 0))
+      throw new BenchError(`${where}[${i}]: overlaps or touches the run before it (runs are maximal)`);
   }
   return out;
 }
@@ -135,23 +138,42 @@ function record(value: unknown, where: string): Record<string, unknown> {
 }
 
 function onlyKeys(value: Record<string, unknown>, keys: readonly string[], where: string): void {
-  for (const key of Object.keys(value)) if (!keys.includes(key)) throw new BenchError(`${where}.${key}: not a field of the parity view`);
+  for (const key of Object.keys(value))
+    if (!keys.includes(key)) throw new BenchError(`${where}.${key}: not a field of the parity view`);
 }
 
-const FUNCTION_KEYS = ['entry', 'mode', 'end', 'codeEnd', 'code', 'pools', 'tables', 'far', 'noreturn', 'origin'] as const;
+const FUNCTION_KEYS = [
+  'entry',
+  'mode',
+  'end',
+  'codeEnd',
+  'code',
+  'pools',
+  'tables',
+  'far',
+  'noreturn',
+  'origin',
+] as const;
 
 function parityFunction(value: unknown, where: string): ParityFunction {
   const f = record(value, where);
   onlyKeys(f, FUNCTION_KEYS, where);
   const mode = f['mode'];
-  if (mode !== 'thumb' && mode !== 'arm') throw new BenchError(`${where}.mode: expected thumb or arm, got ${JSON.stringify(mode)}`);
+  if (mode !== 'thumb' && mode !== 'arm')
+    throw new BenchError(`${where}.mode: expected thumb or arm, got ${JSON.stringify(mode)}`);
   const tables = array(f['tables'], `${where}.tables`).map((t, i): readonly [number, number] => {
     const [base, n] = tuple(t, 2, `${where}.tables[${i}]`);
     return [addr(base, `${where}.tables[${i}][0]`), count(n, `${where}.tables[${i}][1]`)];
   });
-  addresses(tables.map(([base]) => base), `${where}.tables (bases)`);
+  addresses(
+    tables.map(([base]) => base),
+    `${where}.tables (bases)`,
+  );
   const origin = text(f['origin'], `${where}.origin`);
-  if (origin === '' || origin.includes(' ')) throw new BenchError(`${where}.origin: expected a nonempty text with '-' for spaces, got ${JSON.stringify(origin)}`);
+  if (origin === '' || origin.includes(' '))
+    throw new BenchError(
+      `${where}.origin: expected a nonempty text with '-' for spaces, got ${JSON.stringify(origin)}`,
+    );
   const out: ParityFunction = {
     entry: addr(f['entry'], `${where}.entry`),
     mode,
@@ -164,7 +186,8 @@ function parityFunction(value: unknown, where: string): ParityFunction {
     noreturn: addresses(f['noreturn'], `${where}.noreturn`),
     origin,
   };
-  if (out.mode === 'arm' && (out.far.length > 0 || out.noreturn.length > 0)) throw new BenchError(`${where}: an ARM function has no far or noreturn sites`);
+  if (out.mode === 'arm' && (out.far.length > 0 || out.noreturn.length > 0))
+    throw new BenchError(`${where}: an ARM function has no far or noreturn sites`);
   return out;
 }
 
@@ -172,13 +195,20 @@ function parityFunction(value: unknown, where: string): ParityFunction {
 export function parseParityView(value: unknown, where: string): ParityView {
   const v = record(value, where);
   onlyKeys(v, ['schema', 'functions', 'claims', 'startup', 'codeEnd'], where);
-  if (v['schema'] !== PARITY_SCHEMA) throw new BenchError(`${where}.schema: is ${JSON.stringify(v['schema'])}, expected ${PARITY_SCHEMA}`);
-  const functions = array(v['functions'], `${where}.functions`).map((f, i) => parityFunction(f, `${where}.functions[${i}]`));
-  addresses(functions.map((f) => f.entry), `${where}.functions (entries)`);
+  if (v['schema'] !== PARITY_SCHEMA)
+    throw new BenchError(`${where}.schema: is ${JSON.stringify(v['schema'])}, expected ${PARITY_SCHEMA}`);
+  const functions = array(v['functions'], `${where}.functions`).map((f, i) =>
+    parityFunction(f, `${where}.functions[${i}]`),
+  );
+  addresses(
+    functions.map((f) => f.entry),
+    `${where}.functions (entries)`,
+  );
   const claims = array(v['claims'], `${where}.claims`).map((c, i): readonly [number, number, ClaimKindCode] => {
     const at = `${where}.claims[${i}]`;
     const [start, end, kind] = tuple(c, 3, at);
-    if (kind !== 1 && kind !== 2 && kind !== 3 && kind !== 4) throw new BenchError(`${at}[2]: expected a claim kind 1 to 4, got ${JSON.stringify(kind)}`);
+    if (kind !== 1 && kind !== 2 && kind !== 3 && kind !== 4)
+      throw new BenchError(`${at}[2]: expected a claim kind 1 to 4, got ${JSON.stringify(kind)}`);
     const run: readonly [number, number, ClaimKindCode] = [addr(start, `${at}[0]`), addr(end, `${at}[1]`), kind];
     if (run[1] <= run[0]) throw new BenchError(`${at}: empty or reversed run`);
     return run;
@@ -187,7 +217,8 @@ export function parseParityView(value: unknown, where: string): ParityView {
     const [prev, run] = [claims[i - 1], claims[i]];
     if (prev === undefined || run === undefined) continue;
     if (run[0] < prev[1]) throw new BenchError(`${where}.claims[${i}]: overlaps or precedes the run before it`);
-    if (run[0] === prev[1] && run[2] === prev[2]) throw new BenchError(`${where}.claims[${i}]: continues the run before it with the same kind (runs are maximal)`);
+    if (run[0] === prev[1] && run[2] === prev[2])
+      throw new BenchError(`${where}.claims[${i}]: continues the run before it with the same kind (runs are maximal)`);
   }
   const startup = record(v['startup'], `${where}.startup`);
   onlyKeys(startup, ['end', 'entries'], `${where}.startup`);
@@ -195,7 +226,10 @@ export function parseParityView(value: unknown, where: string): ParityView {
     schema: PARITY_SCHEMA,
     functions,
     claims,
-    startup: { end: addr(startup['end'], `${where}.startup.end`), entries: addresses(startup['entries'], `${where}.startup.entries`) },
+    startup: {
+      end: addr(startup['end'], `${where}.startup.end`),
+      entries: addresses(startup['entries'], `${where}.startup.entries`),
+    },
     codeEnd: addr(v['codeEnd'], `${where}.codeEnd`),
   };
 }
@@ -206,7 +240,8 @@ const SHA256 = /^[0-9a-f]{64}$/;
 export function parsePocDigests(value: unknown, where: string): PocDigests {
   const v = record(value, where);
   onlyKeys(v, ['schema', 'pocSourceDigest', 'roms'], where);
-  if (v['schema'] !== POC_DIGESTS_SCHEMA) throw new BenchError(`${where}.schema: is ${JSON.stringify(v['schema'])}, expected ${POC_DIGESTS_SCHEMA}`);
+  if (v['schema'] !== POC_DIGESTS_SCHEMA)
+    throw new BenchError(`${where}.schema: is ${JSON.stringify(v['schema'])}, expected ${POC_DIGESTS_SCHEMA}`);
   const source = text(v['pocSourceDigest'], `${where}.pocSourceDigest`);
   if (!SHA256.test(source)) throw new BenchError(`${where}.pocSourceDigest: expected a sha256 in lower-case hex`);
   const roms = record(v['roms'], `${where}.roms`);

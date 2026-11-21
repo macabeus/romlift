@@ -24,9 +24,15 @@ test('one byte below the entry is a call; the entry and above are left to the la
 });
 
 test('a far backward bl to code that pops an unpushed frame is a call; without the rule it reads as a far jump', () => {
-  const rom = romWith([{ at: E, bytes: thumbAt(E)`pop {pc}` }, { at: F, bytes: thumbAt(F)`push {lr}; bl _08000200; pop {pc}` }]);
+  const rom = romWith([
+    { at: E, bytes: thumbAt(E)`pop {pc}` },
+    { at: F, bytes: thumbAt(F)`push {lr}; bl _08000200; pop {pc}` },
+  ]);
   assert.deepEqual(settle(driverOver(rom), F).blVerdicts, [{ site: F + 2, target: E, verdict: 'call', rule: ID }]);
   const bare = settle(driverOver(rom, ID), F);
-  assert.deepEqual(bare.blVerdicts.map((v) => [v.verdict, v.rule]), [['far', 'bl.target-inside-caller']]);
+  assert.deepEqual(
+    bare.blVerdicts.map((v) => [v.verdict, v.rule]),
+    [['far', 'bl.target-inside-caller']],
+  );
   assert.equal(bare.insnAt.has(E), true);
 });

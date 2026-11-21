@@ -3,8 +3,8 @@
 // acceptance order, each pool value of its reading, in walk order, that is a Thumb pointer to a
 // word-aligned ROM address is proposed as Thumb (inside a runs_at range by its run address, at the load address it
 // maps to: pointers.ts thumbPointerTarget, §6.7).
-import type { Proposal } from '../../types.ts';
 import { thumbPointerTarget } from '../../pointers.ts';
+import type { Proposal } from '../../types.ts';
 import { defineRule } from '../define-rule.ts';
 
 export default defineRule({

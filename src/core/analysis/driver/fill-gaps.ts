@@ -11,8 +11,8 @@
 // start (`resume`, D60 a): on the halfword right after it when Thumb functions may sit at 2 mod 4 and that
 // halfword is not padding, else on the next compiled-function boundary.
 import { HEADER_END, contains } from '../../../foundation/rom/rom.ts';
-import { alignUp } from '../../../foundation/util/align.ts';
 import type { Addr } from '../../../foundation/rom/span.ts';
+import { alignUp } from '../../../foundation/util/align.ts';
 import { hexAddr } from '../../../foundation/util/hex.ts';
 import { sortedKeys } from '../../../foundation/util/sorted.ts';
 import type { Candidate, GapCursor, GapProposer, Reading } from '../types.ts';
@@ -97,7 +97,16 @@ function proposal(s: DriverState, slot: Resolved<GapProposer> | undefined, c: Ga
   for (const { id, rule: veto } of s.rules.veto) {
     const why = veto.vetoes(found, r, s.view);
     if (why !== undefined) {
-      reject(s, found.entry, found.mode, id, veto.reason, false, `proposed by ${found.proposedBy}: ${why}`, found.cites);
+      reject(
+        s,
+        found.entry,
+        found.mode,
+        id,
+        veto.reason,
+        false,
+        `proposed by ${found.proposedBy}: ${why}`,
+        found.cites,
+      );
       return null;
     }
   }
@@ -105,7 +114,12 @@ function proposal(s: DriverState, slot: Resolved<GapProposer> | undefined, c: Ga
 }
 
 /** The forward pair at one cursor: the Thumb proposer (thumbCandidate) and the ARM one (armAhead). */
-function pair(s: DriverState, g: Gap, at: Addr, end: Addr): { readonly thumb: Found | null; readonly arm: Found | null } {
+function pair(
+  s: DriverState,
+  g: Gap,
+  at: Addr,
+  end: Addr,
+): { readonly thumb: Found | null; readonly arm: Found | null } {
   const c = cursor(g, at, end);
   return { thumb: proposal(s, s.rules.gap.forward.thumb, c), arm: proposal(s, s.rules.gap.forward.arm, c) };
 }
@@ -127,7 +141,8 @@ function tiledAt(s: DriverState, g: Gap, at: Addr, end: Addr, head: Reading): Ca
 function acceptHead(s: DriverState, head: Reading, taken: Candidate): number {
   const id = s.rules.gap.head?.id ?? taken.proposedBy;
   const n = accept(s, { entry: head.entry, mode: head.mode, proposedBy: id, cites: [head.entry] });
-  if (n > 0 && taken.proposedBy !== id) emit(s, 'accept', head.entry, taken.proposedBy, taken.cites, `takes the ${id} head`);
+  if (n > 0 && taken.proposedBy !== id)
+    emit(s, 'accept', head.entry, taken.proposedBy, taken.cites, `takes the ${id} head`);
   return n;
 }
 
@@ -136,7 +151,14 @@ function preferred(s: DriverState, thumb: Reading, arm: Reading): 'thumb' | 'arm
   const slot = s.rules.gap.prefer;
   if (slot === undefined) return 'thumb';
   const choice = slot.rule.prefer(thumb, arm, s.view);
-  emit(s, 'verdict', choice === 'thumb' ? thumb.entry : arm.entry, slot.id, [thumb.entry, arm.entry], `${choice} over ${choice === 'thumb' ? 'arm' : 'thumb'}`);
+  emit(
+    s,
+    'verdict',
+    choice === 'thumb' ? thumb.entry : arm.entry,
+    slot.id,
+    [thumb.entry, arm.entry],
+    `${choice} over ${choice === 'thumb' ? 'arm' : 'thumb'}`,
+  );
   return choice;
 }
 
@@ -144,12 +166,20 @@ function preferred(s: DriverState, thumb: Reading, arm: Reading): 'thumb' | 'arm
 function skip(s: DriverState, g: Gap, at: Addr, end: Addr): Addr | undefined {
   const slot = s.rules.gap.skip;
   const next = slot?.rule.skip(cursor(g, at, end), s.view);
-  if (slot !== undefined && next !== undefined) emit(s, 'verdict', at, slot.id, [at, next], `skips to ${hexAddr(next)}`);
+  if (slot !== undefined && next !== undefined)
+    emit(s, 'verdict', at, slot.id, [at, next], `skips to ${hexAddr(next)}`);
   return next;
 }
 
 /** One proposal of the end-anchor or backward loop; only a candidate below the current end shrinks it. */
-function shrink(s: DriverState, slot: 'endAnchor' | 'backward', g: Gap, at: Addr, end: Addr, head: Reading | null): Candidate | undefined {
+function shrink(
+  s: DriverState,
+  slot: 'endAnchor' | 'backward',
+  g: Gap,
+  at: Addr,
+  end: Addr,
+  head: Reading | null,
+): Candidate | undefined {
   const rule = s.rules.gap[slot];
   const found = rule?.rule.propose(cursor(g, at, end, head ?? undefined), s.view);
   return rule !== undefined && found !== undefined && found.entry < end ? { ...found, proposedBy: rule.id } : undefined;
@@ -212,13 +242,25 @@ function fillGap(s: DriverState, g: Gap, added: Added): void {
       added.n += acceptHead(s, head, taken);
       p = resume(s, head.end);
     } else if (g.pass === 'patient') {
-      if (s.rules.gap.head !== undefined) emit(s, 'wait', head.entry, s.rules.gap.head.id, [head.entry, head.end], 'no proposer takes it yet: its end is not anchored');
+      if (s.rules.gap.head !== undefined)
+        emit(
+          s,
+          'wait',
+          head.entry,
+          s.rules.gap.head.id,
+          [head.entry, head.end],
+          'no proposer takes it yet: its end is not anchored',
+        );
       return;
     }
   }
   p = forwardChain(s, g, p, end, added);
   // A valid candidate that ends where the next function starts tiles the hole.
-  for (let found = shrink(s, 'endAnchor', g, p, end, head); found !== undefined; found = shrink(s, 'endAnchor', g, p, end, head)) {
+  for (
+    let found = shrink(s, 'endAnchor', g, p, end, head);
+    found !== undefined;
+    found = shrink(s, 'endAnchor', g, p, end, head)
+  ) {
     added.n += accept(s, found);
     end = found.entry;
   }
@@ -226,7 +268,11 @@ function fillGap(s: DriverState, g: Gap, added: Added): void {
     const late = tiledAt(s, g, head.entry, end, head);
     if (late !== undefined) added.n += acceptHead(s, head, late);
   }
-  for (let found = shrink(s, 'backward', g, p, end, null); found !== undefined; found = shrink(s, 'backward', g, p, end, null)) {
+  for (
+    let found = shrink(s, 'backward', g, p, end, null);
+    found !== undefined;
+    found = shrink(s, 'backward', g, p, end, null)
+  ) {
     added.n += accept(s, found);
     end = found.entry;
   }

@@ -1,6 +1,6 @@
 // A FunctionFact for the queue rules' tests: the reading's lists, with any field overridden.
-import { provenance } from '../../../../../src/core/provenance/provenance.ts';
 import type { FunctionFact, Reading } from '../../../../../src/core/analysis/types.ts';
+import { provenance } from '../../../../../src/core/provenance/provenance.ts';
 
 export function factOf(r: Reading, extra: Partial<FunctionFact> = {}): FunctionFact {
   return {

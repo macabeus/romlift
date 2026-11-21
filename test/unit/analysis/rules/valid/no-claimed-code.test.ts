@@ -29,7 +29,13 @@ test('only the first byte of an instruction is checked, as the PoC does', () => 
 });
 
 test('the lowest instruction starting on a claimed byte is reported, whatever the claim', () => {
-  assert.equal(check([{ start: E + 6, end: E + 8, kind: Claim.code }, { start: E + 2, end: E + 3, kind: Claim.dead }]), 'its code overlaps claimed bytes at 0x08000202');
+  assert.equal(
+    check([
+      { start: E + 6, end: E + 8, kind: Claim.code },
+      { start: E + 2, end: E + 3, kind: Claim.dead },
+    ]),
+    'its code overlaps claimed bytes at 0x08000202',
+  );
   assert.equal(noClaimedCode.reason, 'pool-claimed');
   assert.equal(noClaimedCode.intrinsic, true);
 });

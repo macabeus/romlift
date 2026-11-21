@@ -1,12 +1,12 @@
 // The cartridge image as a plain value mapped at 0x0800_0000, its little-endian readers, and the
 // check that an image is a GBA cartridge at all. Pure: the shell reads the file and hashes it.
-import { diagnostic, RomliftInvariantError } from '../diagnostics/diagnostic.ts';
+import { RomliftInvariantError, diagnostic } from '../diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../diagnostics/diagnostic.ts';
+import { le32 } from '../util/bytes.ts';
+import { hex, hexAddr } from '../util/hex.ts';
 import { RomCodes } from './codes.ts';
 import type { RomCode } from './codes.ts';
 import { parseHeader } from './header.ts';
-import { le32 } from '../util/bytes.ts';
-import { hex, hexAddr } from '../util/hex.ts';
 import type { Addr } from './span.ts';
 
 /** The bus address of the first cartridge byte. */

@@ -6,14 +6,14 @@ import type { Stats } from 'node:fs';
 import { lstat, readFile, realpath, stat } from 'node:fs/promises';
 import { isAbsolute, join, relative, sep } from 'node:path';
 
-import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
-import { foldPath } from '../../foundation/util/fold.ts';
-import { compareCodeUnits } from '../../foundation/util/sorted.ts';
 import { decodeJournal } from '../../core/write-plan/journal.ts';
 import type { Journal } from '../../core/write-plan/journal.ts';
 import { decodeManifest, isProjectPath } from '../../core/write-plan/manifest.ts';
 import { GENERATED_ROOTS, JOURNAL_PATH, MANIFEST_PATH } from '../../core/write-plan/types.ts';
 import type { DiskFileState, Manifest } from '../../core/write-plan/types.ts';
+import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
+import { foldPath } from '../../foundation/util/fold.ts';
+import { compareCodeUnits } from '../../foundation/util/sorted.ts';
 import { ShellCodes } from '../codes.ts';
 import { errorReason, isAbsentError, listDir } from '../fs.ts';
 import type { IoResult } from '../fs.ts';
@@ -78,7 +78,12 @@ export interface FilesUnderOptions {
  * directly or through a link; the snapshot keeps listing a dangling link and a link to a directory, which digestOf
  * reads as absent and refuses with E_IO_READ.
  */
-export async function filesUnder(dir: string, path: string, out: string[], options: FilesUnderOptions = {}): Promise<IoResult<void>> {
+export async function filesUnder(
+  dir: string,
+  path: string,
+  out: string[],
+  options: FilesUnderOptions = {},
+): Promise<IoResult<void>> {
   if (options.followLinks === true) {
     let root: string;
     try {
@@ -129,7 +134,12 @@ async function snapshotEntry(file: string, entry: Stats): Promise<boolean> {
  * walked into. After the stat that follows links, a directory is walked unless it is one of those or lies above the
  * project directory, a regular file listed and anything else (a FIFO, a socket, a device) left out (gate-honesty-e1-2).
  */
-async function filesFollowing(dir: string, path: string, out: string[], inside: readonly string[]): Promise<IoResult<void>> {
+async function filesFollowing(
+  dir: string,
+  path: string,
+  out: string[],
+  inside: readonly string[],
+): Promise<IoResult<void>> {
   const file = onDisk(dir, path);
   let found: Stats;
   try {
@@ -184,7 +194,10 @@ async function oneFile(dir: string, a: string, b: string): Promise<boolean> {
  * through to its target; a directory where a file is expected (a link to one included) is E_IO_READ. A FIFO, a socket
  * or a device the walk finds, or a link to one, is not listed (filesUnder).
  */
-export async function readDiskState(dir: string, paths: Iterable<string>): Promise<IoResult<ReadonlyMap<string, DiskFileState>>> {
+export async function readDiskState(
+  dir: string,
+  paths: Iterable<string>,
+): Promise<IoResult<ReadonlyMap<string, DiskFileState>>> {
   const wanted = new Set<string>();
   for (const path of paths) {
     if (!isProjectPath(path)) return ioError('E_IO_READ', path, `${JSON.stringify(path)} is not a project path`);
@@ -198,7 +211,8 @@ export async function readDiskState(dir: string, paths: Iterable<string>): Promi
     if (!listed.ok) return listed;
     for (const path of found) {
       const spelled = given.get(foldPath(path));
-      if (spelled !== undefined && spelled !== path && !wanted.has(path) && (await oneFile(dir, spelled, path))) continue;
+      if (spelled !== undefined && spelled !== path && !wanted.has(path) && (await oneFile(dir, spelled, path)))
+        continue;
       wanted.add(path);
     }
   }
@@ -218,7 +232,11 @@ export async function readManifest(dir: string): Promise<IoResult<Manifest | nul
   const decoded = decodeManifest(text.value);
   if (decoded.ok) return { ok: true, value: decoded.manifest };
   const file = onDisk(dir, MANIFEST_PATH);
-  return ioError('E_IO_READ', file, `${file} is not a romlift manifest (${decoded.error}); remove it to plan as if there were none`);
+  return ioError(
+    'E_IO_READ',
+    file,
+    `${file} is not a romlift manifest (${decoded.error}); remove it to plan as if there were none`,
+  );
 }
 
 /** `.romlift/journal.json`, the journal of an interrupted run, or null; a damaged one is E_IO_READ. */
@@ -245,7 +263,10 @@ export async function readExecutables(dir: string, paths: Iterable<string>): Pro
 }
 
 /** The current text of each reconciled path, for WritePlanInputs.reconciledTexts; an absent file has none. */
-export async function readReconciledTexts(dir: string, paths: Iterable<string>): Promise<IoResult<ReadonlyMap<string, string>>> {
+export async function readReconciledTexts(
+  dir: string,
+  paths: Iterable<string>,
+): Promise<IoResult<ReadonlyMap<string, string>>> {
   const out = new Map<string, string>();
   for (const path of [...paths].sort(compareCodeUnits)) {
     if (!isProjectPath(path)) return ioError('E_IO_READ', path, `${JSON.stringify(path)} is not a project path`);

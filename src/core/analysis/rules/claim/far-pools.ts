@@ -13,7 +13,8 @@ export default defineRule({
   meta: {
     id: 'claim.far-pools',
     summary: 'pool words loaded from outside the extent are claimed as pool unless already claimed',
-    restsOn: 'a word loaded with `ldr rd, [pc, #imm]` is data wherever it sits; hand-written code shares pools across functions',
+    restsOn:
+      'a word loaded with `ldr rd, [pc, #imm]` is data wherever it sits; hand-written code shares pools across functions',
     recovers: 'far pool words that the gap scan would misread as code or as the start of a function',
     reads: ['readings', 'claims'],
     adds: ['claims'],

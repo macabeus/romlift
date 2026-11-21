@@ -10,15 +10,13 @@
 // `git merge-base origin/main HEAD`, never HEAD; a base without an artifact passes with a note. Each
 // problem has a kind, so --json prints {schema: 'romlift/bench-regression@1', ok, base, problems}.
 import { isDeepStrictEqual } from 'node:util';
-
 import { compareCodeUnits } from 'romlift';
 
 import { isImprovement } from './accepted-diffs.ts';
-
-import { parseResultsText, readResultsFile, type Results } from './artifact.ts';
-import { resultsPath, type BenchContext } from './context.ts';
-import { loadDatasets, parseDataset, type Dataset } from './dataset.ts';
+import { type Results, parseResultsText, readResultsFile } from './artifact.ts';
 import { rowDiffs } from './baseline-rows.ts';
+import { type BenchContext, resultsPath } from './context.ts';
+import { type Dataset, loadDatasets, parseDataset } from './dataset.ts';
 import { BenchError, exists } from './files.ts';
 import { gitMergeBase, gitMessagesSince, gitShow } from './git.ts';
 import { SHARE_NAMES } from './readability.ts';
@@ -39,7 +37,8 @@ export function parseTrailers(messages: readonly string[]): ExceptionTrailer[] {
   const out: ExceptionTrailer[] = [];
   for (const message of messages) {
     for (const m of message.matchAll(TRAILER)) {
-      if (m[1] !== undefined && m[2] !== undefined && m[3] !== undefined) out.push({ rom: m[1], addr: m[2], reason: m[3].trim() });
+      if (m[1] !== undefined && m[2] !== undefined && m[3] !== undefined)
+        out.push({ rom: m[1], addr: m[2], reason: m[3].trim() });
     }
   }
   return out;
@@ -72,11 +71,23 @@ function pocRowProblems(fresh: BenchRow, base: BenchRow): RegressionProblem[] {
   const out: RegressionProblem[] = [];
   for (const field of FIXED_FIELDS) {
     if (!isDeepStrictEqual(fresh[field], base[field])) {
-      out.push({ kind: 'row-field', rom: fresh.name, detail: `${field} is ${JSON.stringify(fresh[field])}, the PoC row has ${JSON.stringify(base[field])}` });
+      out.push({
+        kind: 'row-field',
+        rom: fresh.name,
+        detail: `${field} is ${JSON.stringify(fresh[field])}, the PoC row has ${JSON.stringify(base[field])}`,
+      });
     }
   }
-  const found = new Set([...base.extents.mismatches.map((m) => m.addr)].filter((addr) => !fresh.misses.some((m) => m.addr === addr)));
-  const baseRow = { name: base.name, tp: base.tp, misses: base.misses, falseEntries: base.falseEntries, mismatches: base.extents.mismatches };
+  const found = new Set(
+    [...base.extents.mismatches.map((m) => m.addr)].filter((addr) => !fresh.misses.some((m) => m.addr === addr)),
+  );
+  const baseRow = {
+    name: base.name,
+    tp: base.tp,
+    misses: base.misses,
+    falseEntries: base.falseEntries,
+    mismatches: base.extents.mismatches,
+  };
   for (const d of rowDiffs(baseRow, fresh, found)) {
     if (isImprovement(d.kind)) continue;
     // New extent mismatches are reported once, by the check every base gets.
@@ -93,7 +104,14 @@ function pocRowProblems(fresh: BenchRow, base: BenchRow): RegressionProblem[] {
  */
 export function readabilityProblems(fresh: BenchRow, base: BenchRow): RegressionProblem[] {
   if (base.readability === undefined) return [];
-  if (fresh.readability === undefined) return [{ kind: 'readability', rom: fresh.name, detail: 'the base measured the readability shares, the fresh artifact does not' }];
+  if (fresh.readability === undefined)
+    return [
+      {
+        kind: 'readability',
+        rom: fresh.name,
+        detail: 'the base measured the readability shares, the fresh artifact does not',
+      },
+    ];
   const out: RegressionProblem[] = [];
   for (const name of SHARE_NAMES) {
     const was = base.readability[name];
@@ -111,21 +129,35 @@ export function regressionProblems(input: RegressionInput): RegressionProblem[] 
     const push = (kind: string, detail: string): void => {
       problems.push({ kind, rom: r.name, detail });
     };
-    for (const m of r.misses) if (!m.listed) push('unlisted-miss', `miss ${m.addr} ${m.name} (${m.reason}) is not in the labels list`);
+    for (const m of r.misses)
+      if (!m.listed) push('unlisted-miss', `miss ${m.addr} ${m.name} (${m.reason}) is not in the labels list`);
     for (const f of r.falseEntries) {
-      if (!f.listed) push('unlisted-false-entry', `false entry ${f.addr} via ${f.origin}, ${f.size} bytes${f.owner === undefined ? '' : ` inside ${f.owner}`} is not in the untyped list`);
+      if (!f.listed)
+        push(
+          'unlisted-false-entry',
+          `false entry ${f.addr} via ${f.origin}, ${f.size} bytes${f.owner === undefined ? '' : ` inside ${f.owner}`} is not in the untyped list`,
+        );
     }
-    if (Math.abs(r.codeEnd.delta) > CODE_END_TOLERANCE) push('code-end', `code end ${r.codeEnd.found} is ${r.codeEnd.delta} bytes from the ELF's ${r.codeEnd.elf}`);
+    if (Math.abs(r.codeEnd.delta) > CODE_END_TOLERANCE)
+      push('code-end', `code end ${r.codeEnd.found} is ${r.codeEnd.delta} bytes from the ELF's ${r.codeEnd.elf}`);
     if (!r.deterministic) push('nondeterministic', 'two runs disagree');
     const b = base.roms.find((x) => x.name === r.name);
     if (b === undefined) continue;
     if (r.tp < b.tp) push('true-positives', `true positives fell from ${b.tp} to ${r.tp}`);
     const had = new Set(b.extents.mismatches.map((m) => m.addr));
-    for (const m of r.extents.mismatches) if (!had.has(m.addr)) push('new-extent-mismatch', `new extent mismatch at ${m.addr} ${m.name}: found ${m.found}, ELF ${m.elf}`);
+    for (const m of r.extents.mismatches)
+      if (!had.has(m.addr))
+        push('new-extent-mismatch', `new extent mismatch at ${m.addr} ${m.name}: found ${m.found}, ELF ${m.elf}`);
     problems.push(...readabilityProblems(r, b));
     if (pocBase) problems.push(...pocRowProblems(r, b));
   }
-  for (const b of base.roms) if (!fresh.roms.some((r) => r.name === b.name)) problems.push({ kind: 'coverage', rom: b.name, detail: 'in the base artifact but not in the fresh one (coverage shrank)' });
+  for (const b of base.roms)
+    if (!fresh.roms.some((r) => r.name === b.name))
+      problems.push({
+        kind: 'coverage',
+        rom: b.name,
+        detail: 'in the base artifact but not in the fresh one (coverage shrank)',
+      });
   if (input.baseDatasets !== undefined) {
     const allowed = new Set(input.trailers.map((t) => `${t.rom} ${t.addr}`));
     for (const d of input.datasets) {
@@ -134,7 +166,11 @@ export function regressionProblems(input: RegressionInput): RegressionProblem[] 
         const before = new Set((was?.[list] ?? []).map((e) => e.addr));
         for (const e of d[list]) {
           if (!before.has(e.addr) && !allowed.has(`${d.name} ${e.addr}`)) {
-            problems.push({ kind: 'untrailered-row', rom: d.name, detail: `${list} row ${e.addr} was added without a 'Bench-Exception: ${d.name} ${e.addr} <reason>' trailer` });
+            problems.push({
+              kind: 'untrailered-row',
+              rom: d.name,
+              detail: `${list} row ${e.addr} was added without a 'Bench-Exception: ${d.name} ${e.addr} <reason>' trailer`,
+            });
           }
         }
       }
@@ -165,12 +201,25 @@ export interface RegressionOutcome {
 export const REGRESSION_SCHEMA = 'romlift/bench-regression@1';
 
 /** The --json line (frozen by test/gates/g2.regression.test.ts). */
-export function regressionReport(outcome: RegressionOutcome): { readonly schema: typeof REGRESSION_SCHEMA; readonly ok: boolean; readonly base: string; readonly problems: readonly RegressionProblem[] } {
-  return { schema: REGRESSION_SCHEMA, ok: outcome.problems.length === 0, base: outcome.baseLabel, problems: outcome.problems };
+export function regressionReport(outcome: RegressionOutcome): {
+  readonly schema: typeof REGRESSION_SCHEMA;
+  readonly ok: boolean;
+  readonly base: string;
+  readonly problems: readonly RegressionProblem[];
+} {
+  return {
+    schema: REGRESSION_SCHEMA,
+    ok: outcome.problems.length === 0,
+    base: outcome.baseLabel,
+    problems: outcome.problems,
+  };
 }
 
 /** The base artifact: a file when `ref` names one, else the artifact committed at the git ref. */
-export async function readBase(cx: BenchContext, ref: string): Promise<{ readonly artifact: Results | undefined; readonly isFile: boolean }> {
+export async function readBase(
+  cx: BenchContext,
+  ref: string,
+): Promise<{ readonly artifact: Results | undefined; readonly isFile: boolean }> {
   if (await exists(ref)) return { artifact: await readResultsFile(ref), isFile: true };
   const text = await gitShow(cx.repoRoot, ref, 'bench/results.json');
   return { artifact: text === null ? undefined : parseResultsText(text, `${ref}:bench/results.json`), isFile: false };
@@ -188,9 +237,16 @@ export async function regression(cx: BenchContext, options: RegressionOptions = 
   const fresh = await readResultsFile(freshPath);
   if (fresh === undefined) throw new BenchError(`${freshPath} does not exist: run npm run bench -- run`);
   const { artifact: base, isFile } = await readBase(cx, ref);
-  if (base === undefined) return { baseLabel: ref, notes: [`the base ${ref} has no bench/results.json: nothing to compare`], failures: [], problems: [] };
+  if (base === undefined)
+    return {
+      baseLabel: ref,
+      notes: [`the base ${ref} has no bench/results.json: nothing to compare`],
+      failures: [],
+      problems: [],
+    };
   const loaded = await loadDatasets(cx);
-  if (loaded.problems.length > 0) throw new BenchError(`malformed datasets: ${loaded.problems.map((p) => p.detail).join('; ')}`);
+  if (loaded.problems.length > 0)
+    throw new BenchError(`malformed datasets: ${loaded.problems.map((p) => p.detail).join('; ')}`);
   const { datasets } = loaded;
   const notes: string[] = [];
   let baseDatasets: Map<string, Dataset> | undefined;
@@ -202,12 +258,15 @@ export async function regression(cx: BenchContext, options: RegressionOptions = 
     for (const d of datasets) {
       const text = await gitShow(cx.repoRoot, ref, `bench/dataset/real/${d.name}.json`);
       if (text === null) continue;
-      const parsed = parseDataset(JSON.parse(text) as unknown, `${ref}:bench/dataset/real/${d.name}.json`, { retired: true });
+      const parsed = parseDataset(JSON.parse(text) as unknown, `${ref}:bench/dataset/real/${d.name}.json`, {
+        retired: true,
+      });
       if (parsed.dataset !== undefined) baseDatasets.set(d.name, parsed.dataset);
     }
     trailers = parseTrailers(await gitMessagesSince(cx.repoRoot, ref));
   }
-  if (base.meta.source === 'poc' && fresh.meta.source === 'romlift') notes.push('the base rows come from the PoC: the romlift rows are compared with them field by field');
+  if (base.meta.source === 'poc' && fresh.meta.source === 'romlift')
+    notes.push('the base rows come from the PoC: the romlift rows are compared with them field by field');
   const sorted = regressionProblems({ fresh, base, datasets, baseDatasets, trailers })
     .map((p) => ({ problem: p, line: `${p.rom}: ${p.detail}` }))
     .sort((a, b) => compareCodeUnits(a.line, b.line));
@@ -221,4 +280,3 @@ export async function readFresh(cx: BenchContext, path?: string): Promise<Result
   if (fresh === undefined) throw new BenchError(`${freshPath} does not exist: run npm run bench -- run`);
   return fresh;
 }
-

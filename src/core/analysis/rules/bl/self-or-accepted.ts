@@ -9,7 +9,8 @@ export default defineRule({
   meta: {
     id: 'bl.self-or-accepted',
     summary: 'a bl to the caller itself or to an accepted function is a call',
-    restsOn: 'a function entry is only ever called (recursion included); agbcc never uses bl to jump to a function start',
+    restsOn:
+      'a function entry is only ever called (recursion included); agbcc never uses bl to jump to a function start',
     recovers: 'calls to known functions misread as far jumps, which would glue the callee into the caller',
     reads: ['function-set'],
     adds: ['bl-verdicts'],

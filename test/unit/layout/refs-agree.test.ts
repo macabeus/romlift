@@ -14,18 +14,24 @@ import { borderRefs } from '../../../src/core/layout/refs.ts';
 import { codeRefs } from '../../../src/core/model/labels.ts';
 import { relocatedModules, runOffsetAt } from '../../../src/core/model/modules.ts';
 import { segmentsOf } from '../../../src/core/model/segments.ts';
-import { initModel } from '../../../src/core/workflow/init-config.ts';
-import { discover } from '../../../src/core/workflow/discover.ts';
-import type { Rom } from '../../../src/foundation/rom/rom.ts';
 import type { Module } from '../../../src/core/model/types.ts';
+import { discover } from '../../../src/core/workflow/discover.ts';
+import { initModel } from '../../../src/core/workflow/init-config.ts';
+import type { Rom } from '../../../src/foundation/rom/rom.ts';
 import { listSyntheticFixtures, readFixtureRom } from '../../helpers/fixtures.ts';
 
 const fixtures = listSyntheticFixtures();
 
 /** The PC-relative references of codeRefs inside a function span that borderRefs lacks, as `site -> target` texts. */
-function missing(rom: Rom, analysis: AnalysisResult, modules: readonly Module[]): { readonly missing: string[]; readonly checked: number } {
+function missing(
+  rom: Rom,
+  analysis: AnalysisResult,
+  modules: readonly Module[],
+): { readonly missing: string[]; readonly checked: number } {
   const relocated = relocatedModules(modules);
-  const border = new Set(borderRefs(rom, analysis).pcRelative.map((r) => `${r.site}:${r.target + runOffsetAt(relocated, r.site)}`));
+  const border = new Set(
+    borderRefs(rom, analysis).pcRelative.map((r) => `${r.site}:${r.target + runOffsetAt(relocated, r.site)}`),
+  );
   const spans = analysis.functions.flatMap((f) => f.code);
   const inFunction = (a: number): boolean => spans.some((s) => a >= s.start && a < s.end);
   const refs = codeRefs(rom, segmentsOf(rom, analysis, codeLayout(rom, analysis).headerEnd), relocated);
@@ -34,7 +40,8 @@ function missing(rom: Rom, analysis: AnalysisResult, modules: readonly Module[])
   for (const r of refs) {
     if ((r.kind !== 'pool-load' && r.kind !== 'adr') || !inFunction(r.site)) continue;
     checked++;
-    if (!border.has(`${r.site}:${r.target}`)) out.push(`0x${r.site.toString(16)} -> 0x${r.target.toString(16)} (${r.specId})`);
+    if (!border.has(`${r.site}:${r.target}`))
+      out.push(`0x${r.site.toString(16)} -> 0x${r.target.toString(16)} (${r.specId})`);
   }
   return { missing: out, checked };
 }

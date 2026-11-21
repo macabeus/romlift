@@ -22,17 +22,35 @@ const scaffold = await readScaffoldInputs();
 if (!scaffold.ok) throw new Error('the package templates do not read');
 const S = scaffold.value;
 const ROM = readFixtureRom(FIXTURE);
-const PLAN = init({ rom: ROM, romFile: 'far-jump.gba', options: {}, templates: S.templates, romliftVersion: S.romliftVersion, agbcc: S.agbcc });
+const PLAN = init({
+  rom: ROM,
+  romFile: 'far-jump.gba',
+  options: {},
+  templates: S.templates,
+  romliftVersion: S.romliftVersion,
+  agbcc: S.agbcc,
+});
 if (!PLAN.ok) throw new Error('init refused the fixture');
 const P = PLAN;
 
 test("init's write, then a tree write that changes nothing and applies nothing, and a dry run", async () => {
   const dir = path.join(TMP, 'a');
   const files = { romPath: FIXTURE.rom, romCopy: P.romCopy, files: P.files };
-  assert.deepEqual(P.files.map(([p]) => p), ['romlift.toml', 'decomp.yaml']);
+  assert.deepEqual(
+    P.files.map(([p]) => p),
+    ['romlift.toml', 'decomp.yaml'],
+  );
   assert.equal(P.romCopy, 'baserom.gba');
-  const written = await writeInitProject(dir, files, { rom: ROM, result: P.result, extra: P.scaffold }, S.romliftVersion);
-  assert.ok(written.ok && written.value.applied, written.ok ? '' : written.diagnostics.map((d) => d.message).join('; '));
+  const written = await writeInitProject(
+    dir,
+    files,
+    { rom: ROM, result: P.result, extra: P.scaffold },
+    S.romliftVersion,
+  );
+  assert.ok(
+    written.ok && written.value.applied,
+    written.ok ? '' : written.diagnostics.map((d) => d.message).join('; '),
+  );
   assert.deepEqual(await readFile(path.join(dir, 'baserom.gba')), await readFile(FIXTURE.rom));
   assert.equal(await readFile(path.join(dir, 'romlift.toml'), 'utf8'), P.tomlText);
   for (const [file, text] of P.files) assert.equal(await readFile(path.join(dir, file), 'utf8'), text);
@@ -45,22 +63,42 @@ test("init's write, then a tree write that changes nothing and applies nothing, 
   await rm(path.join(dir, 'symbols.ld'));
   const dry = await writeTree(dir, { rom: ROM, result: P.result }, S.romliftVersion, true);
   assert.ok(dry.ok && !dry.value.applied);
-  assert.deepEqual(dry.value.plan.ops.filter((op) => op.op !== 'keep').map((op) => `${op.op} ${op.path}`), ['write symbols.ld']);
+  assert.deepEqual(
+    dry.value.plan.ops.filter((op) => op.op !== 'keep').map((op) => `${op.op} ${op.path}`),
+    ['write symbols.ld'],
+  );
   await assert.rejects(stat(path.join(dir, 'symbols.ld')));
 });
 
 test("init's own files are the plan's: the shell writes and hashes the [path, text] pairs and the ROM copy it is given", async () => {
   const dir = path.join(TMP, 'b');
-  const files = { romPath: FIXTURE.rom, romCopy: 'rom-copy.gba', files: [...P.files, ['notes.txt', 'owned by the plan\n'] as const] };
-  const written = await writeInitProject(dir, files, { rom: ROM, result: P.result, extra: P.scaffold }, S.romliftVersion);
+  const files = {
+    romPath: FIXTURE.rom,
+    romCopy: 'rom-copy.gba',
+    files: [...P.files, ['notes.txt', 'owned by the plan\n'] as const],
+  };
+  const written = await writeInitProject(
+    dir,
+    files,
+    { rom: ROM, result: P.result, extra: P.scaffold },
+    S.romliftVersion,
+  );
   assert.ok(written.ok && written.value.applied);
   assert.deepEqual(await readFile(path.join(dir, 'rom-copy.gba')), await readFile(FIXTURE.rom));
   await assert.rejects(stat(path.join(dir, 'baserom.gba')), 'the shell knows no file name of its own');
   assert.equal(await readFile(path.join(dir, 'notes.txt'), 'utf8'), 'owned by the plan\n');
   await writeFile(path.join(dir, 'notes.txt'), 'changed\n');
-  const refused = await writeInitProject(dir, files, { rom: ROM, result: P.result, extra: P.scaffold }, S.romliftVersion);
+  const refused = await writeInitProject(
+    dir,
+    files,
+    { rom: ROM, result: P.result, extra: P.scaffold },
+    S.romliftVersion,
+  );
   assert.ok(!refused.ok && refused.refused);
-  assert.deepEqual(refused.diagnostics.map((d) => [d.code, d.path]), [['E_DIR_NOT_EMPTY', 'notes.txt']]);
+  assert.deepEqual(
+    refused.diagnostics.map((d) => [d.code, d.path]),
+    [['E_DIR_NOT_EMPTY', 'notes.txt']],
+  );
 });
 
 test("init's write checks its own files under the lock: a romlift.toml that differs from init's refuses the write (E_DIR_NOT_EMPTY)", async () => {
@@ -72,9 +110,21 @@ test("init's write checks its own files under the lock: a romlift.toml that diff
   assert.ok(again.ok, 'the files init wrote are what it would write: a repeated init is fine');
   await writeFile(path.join(dir, 'romlift.toml'), '# changed after the command looked\n');
   await rm(path.join(dir, 'symbols.ld'));
-  const refused = await writeInitProject(dir, files, { rom: ROM, result: P.result, extra: P.scaffold }, S.romliftVersion);
+  const refused = await writeInitProject(
+    dir,
+    files,
+    { rom: ROM, result: P.result, extra: P.scaffold },
+    S.romliftVersion,
+  );
   assert.ok(!refused.ok && refused.refused, 'a refusal of the directory check, which the command prints alone');
-  assert.deepEqual(refused.diagnostics.map((d) => [d.code, d.path]), [['E_DIR_NOT_EMPTY', 'romlift.toml']]);
-  assert.equal(await readFile(path.join(dir, 'romlift.toml'), 'utf8'), '# changed after the command looked\n', 'never replaced');
+  assert.deepEqual(
+    refused.diagnostics.map((d) => [d.code, d.path]),
+    [['E_DIR_NOT_EMPTY', 'romlift.toml']],
+  );
+  assert.equal(
+    await readFile(path.join(dir, 'romlift.toml'), 'utf8'),
+    '# changed after the command looked\n',
+    'never replaced',
+  );
   await assert.rejects(stat(path.join(dir, 'symbols.ld')), 'nothing was written');
 });

@@ -115,7 +115,16 @@ test('keys inside multi-line strings, comments and arrays are not keys', () => {
 });
 
 test('a misspelt address key is E_TOML_KEY_SPELLING at its line, with the right spelling', () => {
-  const text = ['[functions]', '0x8000470 = "A"', '0x0800047a = "B"', '[symbols]', '0X03000000 = "C"', 'gFoo = "D"', '[functions.0x8000480]', 'name = "E"'].join('\n');
+  const text = [
+    '[functions]',
+    '0x8000470 = "A"',
+    '0x0800047a = "B"',
+    '[symbols]',
+    '0X03000000 = "C"',
+    'gFoo = "D"',
+    '[functions.0x8000480]',
+    'name = "E"',
+  ].join('\n');
   assert.deepEqual(codes(text), [
     'E_TOML_KEY_SPELLING line 2: [functions] key 0x8000470 is not 0x followed by eight upper-case hex digits; write 0x08000470',
     'E_TOML_KEY_SPELLING line 3: [functions] key 0x0800047a is not 0x followed by eight upper-case hex digits; write 0x0800047A',
@@ -129,14 +138,22 @@ test('a misspelt address key is E_TOML_KEY_SPELLING at its line, with the right 
 });
 
 test('an address defined twice is E_DUPLICATE_ADDRESS, however the two definitions are written', () => {
-  assert.deepEqual(codes('[functions]\n0x08000470 = "A"\n0x08000470 = "A"\n'), ['E_DUPLICATE_ADDRESS line 3: [functions] lists 0x08000470 twice, at lines 2 and 3']);
-  assert.deepEqual(codes('[functions]\n0x08000470 = "A"\n\n[functions.0x08000470]\nname = "B"\n'), ['E_DUPLICATE_ADDRESS line 4: [functions] lists 0x08000470 twice, at lines 2 and 4']);
-  assert.deepEqual(codes('[functions]\n0x08000470 = "A"\n0x08000470.name = "B"\n'), ['E_DUPLICATE_ADDRESS line 3: [functions] lists 0x08000470 twice, at lines 2 and 3']);
+  assert.deepEqual(codes('[functions]\n0x08000470 = "A"\n0x08000470 = "A"\n'), [
+    'E_DUPLICATE_ADDRESS line 3: [functions] lists 0x08000470 twice, at lines 2 and 3',
+  ]);
+  assert.deepEqual(codes('[functions]\n0x08000470 = "A"\n\n[functions.0x08000470]\nname = "B"\n'), [
+    'E_DUPLICATE_ADDRESS line 4: [functions] lists 0x08000470 twice, at lines 2 and 4',
+  ]);
+  assert.deepEqual(codes('[functions]\n0x08000470 = "A"\n0x08000470.name = "B"\n'), [
+    'E_DUPLICATE_ADDRESS line 3: [functions] lists 0x08000470 twice, at lines 2 and 3',
+  ]);
   assert.deepEqual(codes('[functions]\n0x08000470 = "A"\n0x8000470 = "B"\n0x08000470 = "C"\n'), [
     'E_DUPLICATE_ADDRESS line 3: [functions] lists 0x08000470 3 times, at lines 2, 3 and 4',
     'E_TOML_KEY_SPELLING line 3: [functions] key 0x8000470 is not 0x followed by eight upper-case hex digits; write 0x08000470',
   ]);
-  assert.deepEqual(codes('functions.0x08000470 = "A"\n[functions]\n0x08000470 = "B"\n'), ['E_DUPLICATE_ADDRESS line 3: [functions] lists 0x08000470 twice, at lines 1 and 3']);
+  assert.deepEqual(codes('functions.0x08000470 = "A"\n[functions]\n0x08000470 = "B"\n'), [
+    'E_DUPLICATE_ADDRESS line 3: [functions] lists 0x08000470 twice, at lines 1 and 3',
+  ]);
   const found = checkAddressKeys(outlineToml('[symbols]\n0x03000000 = "A"\n0x03000000 = "A"\n'));
   assert.deepEqual(
     found.map((d) => [d.code, d.addr]),
@@ -152,7 +169,14 @@ test('one entry written as a table or as dotted keys is defined once; the same a
 });
 
 test('the outline never throws and stops at nothing: unclosed strings and brackets, stray text, CRLF', () => {
-  for (const text of ['[functions\n0x08000470 = "A"\n', 'a = "unclosed\n[functions]\n0x08000470 = "B"\n', 'a = [1, 2\n', 'x = """\nnever closed', '= 1\n[', '\r\n[functions]\r\n0x08000470 = "A"\r\n']) {
+  for (const text of [
+    '[functions\n0x08000470 = "A"\n',
+    'a = "unclosed\n[functions]\n0x08000470 = "B"\n',
+    'a = [1, 2\n',
+    'x = """\nnever closed',
+    '= 1\n[',
+    '\r\n[functions]\r\n0x08000470 = "A"\r\n',
+  ]) {
     assert.doesNotThrow(() => checkAddressKeys(outlineToml(text)), JSON.stringify(text));
   }
   const crlf = outlineToml('[functions]\r\n0x08000470 = "A" # c\r\n0x08000480 = "B"\r\n');

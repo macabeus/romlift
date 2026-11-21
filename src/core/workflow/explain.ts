@@ -22,27 +22,27 @@ import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Span } from '../../foundation/rom/span.ts';
 import { spanIndexAt } from '../../foundation/util/arrays.ts';
 import { sortedEntries } from '../../foundation/util/sorted.ts';
-import { explainAnalysis, explainBucket, explainFilter } from '../analysis/explain.ts';
-import type { AnalysisExplanation } from '../analysis/explain.ts';
 import { RULES } from '../analysis/driver/rules.ts';
 import { analyze } from '../analysis/driver/run.ts';
+import { explainAnalysis, explainBucket, explainFilter } from '../analysis/explain.ts';
+import type { AnalysisExplanation } from '../analysis/explain.ts';
 import type { AnalysisResult } from '../analysis/types.ts';
+import { romSha1Problems } from '../config/rom-sha1.ts';
+import type { RomliftConfig } from '../config/schema.ts';
 import { findItem, itemAt } from '../model/item-table.ts';
-import { runOffsetOf } from '../model/modules.ts';
 import { buildModel } from '../model/model.ts';
+import { runOffsetOf } from '../model/modules.ts';
 import type { ChunkKind, Item, Model, NameSource } from '../model/types.ts';
 import type { CompilerProfile } from '../profile/types.ts';
 import { parseSourceKey } from '../proposals/types.ts';
 import type { RuleMeta } from '../provenance/rule-id.ts';
 import { trailKeeps } from '../provenance/trail.ts';
 import type { TrailEvent } from '../provenance/trail.ts';
-import type { RomliftConfig } from '../config/schema.ts';
 import type { SignatureFile, SignatureRuleId } from '../signatures/schema.ts';
-import { signaturesOver } from './signature-layer.ts';
 import { discover, profileOrDefault } from './discover.ts';
-import { confirmOptions, discoverModel } from './generate.ts';
-import { romSha1Problems } from '../config/rom-sha1.ts';
 import type { DiscoverOptions } from './discover.ts';
+import { confirmOptions, discoverModel } from './generate.ts';
+import { signaturesOver } from './signature-layer.ts';
 import type { ProjectInputs } from './types.ts';
 
 export type { AnalysisExplanation } from '../analysis/explain.ts';
@@ -146,7 +146,11 @@ export function signatureOfKey(from: string | undefined, name: string): ExplainS
  * innermost model function, as namePart picks it), else of the [symbols] entry whose range holds it (its address, or
  * [address, address + size)); nothing when neither carries a signature's key.
  */
-export function signatureFromConfig(model: Pick<Model, 'functions'>, config: Pick<RomliftConfig, 'symbols'>, addr: Addr): { readonly signature?: ExplainSignature } {
+export function signatureFromConfig(
+  model: Pick<Model, 'functions'>,
+  config: Pick<RomliftConfig, 'symbols'>,
+  addr: Addr,
+): { readonly signature?: ExplainSignature } {
   const named = namePart(model, addr).name;
   if (named !== undefined) {
     const signature = named.source.kind === 'toml' ? signatureOfKey(named.source.from, named.value) : undefined;
@@ -162,16 +166,30 @@ export function signatureFromConfig(model: Pick<Model, 'functions'>, config: Pic
 }
 
 /** The signature part of `addr` on a bare ROM (phase 6): the settled placement of `files` that holds it, with its rule. */
-export function signatureFromPlacements(rom: Rom, result: AnalysisResult, files: readonly SignatureFile[], addr: Addr): { readonly signature?: ExplainSignature } {
+export function signatureFromPlacements(
+  rom: Rom,
+  result: AnalysisResult,
+  files: readonly SignatureFile[],
+  addr: Addr,
+): { readonly signature?: ExplainSignature } {
   const placed = signaturesOver(rom, result, files).placements.find((p) => p.addr <= addr && addr < p.addr + p.size);
-  return placed === undefined ? {} : { signature: { library: placed.library, version: placed.version, name: placed.name, rule: placed.rule } };
+  return placed === undefined
+    ? {}
+    : { signature: { library: placed.library, version: placed.version, name: placed.name, rule: placed.rule } };
 }
 
 /** What a report adds after its name: the signature part, from the run's result and model. */
 type SignaturePart = (result: AnalysisResult, model: Model) => { readonly signature?: ExplainSignature };
 
 /** The report of `addr`: the analysis part over `events`, then the item, chunk, name and signature of the run's model. */
-function compose(rom: Rom, result: AnalysisResult, events: readonly TrailEvent[], addr: Addr, modelOf: (result: AnalysisResult) => Model, signatureOf: SignaturePart): ExplainReport {
+function compose(
+  rom: Rom,
+  result: AnalysisResult,
+  events: readonly TrailEvent[],
+  addr: Addr,
+  modelOf: (result: AnalysisResult) => Model,
+  signatureOf: SignaturePart,
+): ExplainReport {
   const analysis = explainAnalysis(result, events, addr, ruleMetas());
   if (checkRom(rom.bytes).length > 0) return analysis;
   const model = modelOf(result);
@@ -185,7 +203,13 @@ type TracedRun = (filter: Span, events: TrailEvent[]) => AnalysisResult;
  * The traced run once over the window around `addr`, and a second time over explainFilter only when a covering
  * extent reaches outside the window (see the header); the report composes the model `modelOf` builds.
  */
-function explainWith(rom: Rom, addr: Addr, run: TracedRun, modelOf: (result: AnalysisResult) => Model, signatureOf: SignaturePart): ExplainOutcome {
+function explainWith(
+  rom: Rom,
+  addr: Addr,
+  run: TracedRun,
+  modelOf: (result: AnalysisResult) => Model,
+  signatureOf: SignaturePart,
+): ExplainOutcome {
   const bucket = explainBucket(addr);
   const window: Span = { start: Math.max(0, bucket.start - EXPLAIN_WINDOW), end: bucket.end + EXPLAIN_WINDOW };
   const kept: TrailEvent[] = [];
@@ -203,9 +227,16 @@ function explainWith(rom: Rom, addr: Addr, run: TracedRun, modelOf: (result: Ana
 /** The explanation of `addr` on a bare ROM (the discover run) with the diagnostics of its analysis, for the CLI. */
 export function explainOutcome(rom: Rom, addr: Addr, options: ExplainOptions = {}): ExplainOutcome {
   const base: DiscoverOptions = options.profile === undefined ? {} : { profile: options.profile };
-  const run: TracedRun = (filter, events) => discover(rom, { ...base, trail: 'full', trailFilter: filter }, { event: (e) => events.push(e) });
+  const run: TracedRun = (filter, events) =>
+    discover(rom, { ...base, trail: 'full', trailFilter: filter }, { event: (e) => events.push(e) });
   const files = options.signatureFiles ?? [];
-  return explainWith(rom, addr, run, (result) => discoverModel(rom, result), (result) => signatureFromPlacements(rom, result, files, addr));
+  return explainWith(
+    rom,
+    addr,
+    run,
+    (result) => discoverModel(rom, result),
+    (result) => signatureFromPlacements(rom, result, files, addr),
+  );
 }
 
 /**
@@ -213,17 +244,30 @@ export function explainOutcome(rom: Rom, addr: Addr, options: ExplainOptions = {
  * project's config, traced as on a bare ROM, and the model of that run under the config. Refused (`ok: false`)
  * when the ROM is not the one the config records.
  */
-export function explainProject(inputs: Pick<ProjectInputs, 'rom' | 'config' | 'profile'>, addr: Addr): ({ readonly ok: true } & ExplainOutcome) | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] } {
+export function explainProject(
+  inputs: Pick<ProjectInputs, 'rom' | 'config' | 'profile'>,
+  addr: Addr,
+): ({ readonly ok: true } & ExplainOutcome) | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] } {
   const refused = romSha1Problems(inputs.rom, inputs.config);
   if (refused.length > 0) return { ok: false, diagnostics: refused };
   const { rom, config } = inputs;
   const profile = profileOrDefault(inputs.profile);
   const options = confirmOptions(config);
   const run: TracedRun = (filter, events) => {
-    if (checkRom(rom.bytes).length > 0) return discover(rom, { profile, trail: 'full', trailFilter: filter }, { event: (e) => events.push(e) });
+    if (checkRom(rom.bytes).length > 0)
+      return discover(rom, { profile, trail: 'full', trailFilter: filter }, { event: (e) => events.push(e) });
     return analyze(rom, profile, { ...options, trail: 'full', trailFilter: filter }, { event: (e) => events.push(e) });
   };
-  return { ok: true, ...explainWith(rom, addr, run, (result) => buildModel(rom, result, config), (_, model) => signatureFromConfig(model, config, addr)) };
+  return {
+    ok: true,
+    ...explainWith(
+      rom,
+      addr,
+      run,
+      (result) => buildModel(rom, result, config),
+      (_, model) => signatureFromConfig(model, config, addr),
+    ),
+  };
 }
 
 /** What the analysis decided about `addr` (architecture §9.2). */

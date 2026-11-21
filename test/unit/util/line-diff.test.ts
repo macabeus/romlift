@@ -6,7 +6,9 @@ import { test } from 'node:test';
 import { unifiedDiff } from '../../../src/foundation/util/line-diff.ts';
 
 const lines = (n: number, change?: { readonly at: number; readonly text: string }): string =>
-  Array.from({ length: n }, (_, i) => (change !== undefined && i === change.at ? change.text : `l${i + 1}`)).join('\n') + '\n';
+  Array.from({ length: n }, (_, i) => (change !== undefined && i === change.at ? change.text : `l${i + 1}`)).join(
+    '\n',
+  ) + '\n';
 
 test('equal texts give the empty string', () => {
   assert.equal(unifiedDiff('a\nb\n', 'a\nb\n', 'x.toml'), '');
@@ -16,7 +18,20 @@ test('equal texts give the empty string', () => {
 test('one changed line: one hunk with three lines of context each side, labelled a/ and b/', () => {
   assert.equal(
     unifiedDiff(lines(10), lines(10, { at: 4, text: 'five' }), 'romlift.toml'),
-    ['--- a/romlift.toml', '+++ b/romlift.toml', '@@ -2,7 +2,7 @@', ' l2', ' l3', ' l4', '-l5', '+five', ' l6', ' l7', ' l8', ''].join('\n'),
+    [
+      '--- a/romlift.toml',
+      '+++ b/romlift.toml',
+      '@@ -2,7 +2,7 @@',
+      ' l2',
+      ' l3',
+      ' l4',
+      '-l5',
+      '+five',
+      ' l6',
+      ' l7',
+      ' l8',
+      '',
+    ].join('\n'),
   );
 });
 

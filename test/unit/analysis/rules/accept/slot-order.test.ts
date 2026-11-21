@@ -6,7 +6,14 @@ import { test } from 'node:test';
 import { ACCEPT_RULES } from '../../../../../src/core/analysis/rules/accept/index.ts';
 import { AGBCC } from '../../../../../src/core/profile/agbcc.ts';
 
-const ACCEPTABLE = ['accept.tiles-after-accepted', 'accept.prologue-and-loaded', 'accept.prologue-and-end-anchored', 'accept.pointer-table-run', 'accept.prologue-and-calls-accepted', 'accept.tiny-anchored-at-start'] as const;
+const ACCEPTABLE = [
+  'accept.tiles-after-accepted',
+  'accept.prologue-and-loaded',
+  'accept.prologue-and-end-anchored',
+  'accept.pointer-table-run',
+  'accept.prologue-and-calls-accepted',
+  'accept.tiny-anchored-at-start',
+] as const;
 
 test('the agbcc accept slot is acceptable() in its order, then the tiny-candidate veto', () => {
   assert.deepEqual(AGBCC.pipeline.accept, ACCEPTABLE);

@@ -3,11 +3,11 @@
 // result carrying its E_ROM_NOT_GBA diagnostics, never a throw. A cartridge is analysed in discover mode
 // under the agbcc profile (or the one given) with the evidence-only seeds, of which phase 2 has none.
 // Pure: the shell reads the file and hashes it; this file only composes.
+import { RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import { checkRom } from '../../foundation/rom/rom.ts';
 import type { Span } from '../../foundation/rom/span.ts';
-import { RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
-import { analyzeTuned, DEFAULT_TUNING } from '../analysis/driver/run.ts';
+import { DEFAULT_TUNING, analyzeTuned } from '../analysis/driver/run.ts';
 import type { AnalysisOptions, AnalysisResult } from '../analysis/types.ts';
 import { profileById } from '../profile/registry.ts';
 import type { CompilerProfile } from '../profile/types.ts';
@@ -45,7 +45,12 @@ export function discoverOptions(options: DiscoverOptions = {}): AnalysisOptions 
 }
 
 /** The result of an image that is not a cartridge: nothing analysed, only the image's diagnostics. */
-function notAnalysed(rom: Rom, profile: CompilerProfile, options: AnalysisOptions, diagnostics: AnalysisResult['diagnostics']): AnalysisResult {
+function notAnalysed(
+  rom: Rom,
+  profile: CompilerProfile,
+  options: AnalysisOptions,
+  diagnostics: AnalysisResult['diagnostics'],
+): AnalysisResult {
   return {
     schema: 'romlift/analysis@1',
     rom: { sha1: rom.sha1, end: rom.end },

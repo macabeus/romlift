@@ -7,8 +7,8 @@ import { test } from 'node:test';
 
 import { ldscriptText, ldscriptWriter } from '../../../../src/core/emit/writers/ldscript.ts';
 import type { Model } from '../../../../src/core/model/types.ts';
-import { entryDiagnostics } from '../../../helpers/text-layout.ts';
 import { dataItem, modelOf, romWith } from '../../../helpers/model.ts';
+import { entryDiagnostics } from '../../../helpers/text-layout.ts';
 
 const CX = { decomp: { defined: [] } };
 const rom = romWith([], { size: 0x400 });
@@ -58,7 +58,11 @@ test('a runs_at module: its own section at the run address, AT its load address,
     modules: [
       { name: 'rom_header', chunks: [{ kind: 'header', name: 'rom_header', items: [dataItem(0x0800_0000, 0xc0)] }] },
       { name: 'main', chunks: [{ name: 'Func', items: [dataItem(0x0800_00c0, 0x40)] }] },
-      { name: 'sound_ram', runAt: 0x0300_0388, chunks: [{ name: 'SoundMain', runAt: 0x0300_0388, items: [dataItem(0x0800_0100, 0x80)] }] },
+      {
+        name: 'sound_ram',
+        runAt: 0x0300_0388,
+        chunks: [{ name: 'SoundMain', runAt: 0x0300_0388, items: [dataItem(0x0800_0100, 0x80)] }],
+      },
       { name: 'main_2', chunks: [{ name: 'Other', items: [dataItem(0x0800_0180, 0x80)] }] },
       { name: 'data', kind: 'data', chunks: [{ kind: 'data', name: 'data', items: [dataItem(0x0800_0200, 0x200)] }] },
     ],
@@ -94,7 +98,11 @@ test('a C unit: its object build/src/<m>.o places only .text, then its C-data ch
     modules: [
       { name: 'rom_header', chunks: [{ kind: 'header', name: 'rom_header', items: [dataItem(0x0800_0000, 0xc0)] }] },
       { name: 'main', kind: 'c', chunks: [{ name: 'Func', items: [dataItem(0x0800_00c0, 0x40)] }] },
-      { name: 'sound_ram', runAt: 0x0300_0388, chunks: [{ name: 'SoundMain', runAt: 0x0300_0388, items: [dataItem(0x0800_0100, 0x80)] }] },
+      {
+        name: 'sound_ram',
+        runAt: 0x0300_0388,
+        chunks: [{ name: 'SoundMain', runAt: 0x0300_0388, items: [dataItem(0x0800_0100, 0x80)] }],
+      },
       { name: 'main_2', kind: 'c', chunks: [{ name: 'Other', items: [dataItem(0x0800_0180, 0x80)] }] },
       { name: 'data', kind: 'data', chunks: [{ kind: 'data', name: 'data', items: [dataItem(0x0800_0200, 0x200)] }] },
     ],
@@ -141,7 +149,9 @@ test('a C data range (phase 6): `.rodata_<m>` at its start, in ROM order, its AS
   // main's range is [0x08000280, 0x08000300), where `tail` stood: the modules the model keeps and main's range.
   const model: Model = {
     ...base,
-    modules: base.modules.filter((m) => m.name !== 'tail').map((m) => (m.name === 'main' ? { ...m, dataRange: { start: 0x0800_0280, end: 0x0800_0300 } } : m)),
+    modules: base.modules
+      .filter((m) => m.name !== 'tail')
+      .map((m) => (m.name === 'main' ? { ...m, dataRange: { start: 0x0800_0280, end: 0x0800_0300 } } : m)),
   };
   assert.equal(
     ldscriptText(model),

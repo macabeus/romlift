@@ -11,7 +11,10 @@ test('pops in ascending order and is empty afterwards', () => {
   assert.equal(h.size, 500);
   const out: number[] = [];
   for (let v = h.pop(); v !== undefined; v = h.pop()) out.push(v);
-  assert.deepEqual(out, [...out].sort((a, b) => a - b));
+  assert.deepEqual(
+    out,
+    [...out].sort((a, b) => a - b),
+  );
   assert.equal(h.size, 0);
   assert.equal(h.pop(), undefined);
 });
@@ -36,7 +39,7 @@ test('the work key is a total order: address, then Thumb before ARM, then rule r
 
 test('equal keys under a total order pop the same regardless of push order', () => {
   const items = [3, 1, 2, 1, 3, 2].map((v, seq) => ({ addr: v, modeRank: 0, ruleRank: 0, seq }));
-  const pops = (order: readonly typeof items[number][]): string => {
+  const pops = (order: readonly (typeof items)[number][]): string => {
     const h = minHeap(compareWorkKeys);
     for (const k of order) h.push(k);
     const out: string[] = [];

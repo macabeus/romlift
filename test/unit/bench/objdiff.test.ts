@@ -6,12 +6,12 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
-
 import type { ElfSymbol } from 'romlift';
 
-import { objectFacts, parseObjdiffDiff } from '../../../bench/src/objdiff-cli.ts';
 import { nameAddresses, objdiffClass } from '../../../bench/src/objdiff-classes.ts';
+import { objectFacts, parseObjdiffDiff } from '../../../bench/src/objdiff-cli.ts';
 import {
+  type BaseLabel,
   arOf,
   baseBindings,
   baseRenames,
@@ -21,7 +21,6 @@ import {
   objdiffDifferences,
   preferredNames,
   symbolSizes,
-  type BaseLabel,
 } from '../../../bench/src/objdiff.ts';
 import type { ObjectName } from '../../../bench/src/objects.ts';
 
@@ -31,7 +30,11 @@ async function factsDiff() {
   const reference = objectFacts(new Uint8Array(await readFile(new URL('reference.o', FACTS))));
   const base = objectFacts(new Uint8Array(await readFile(new URL('base.o', FACTS))));
   assert.ok(reference.ok && base.ok);
-  const parsed = parseObjdiffDiff(JSON.parse(await readFile(new URL('diff.json', FACTS), 'utf8')) as unknown, reference.value, base.value);
+  const parsed = parseObjdiffDiff(
+    JSON.parse(await readFile(new URL('diff.json', FACTS), 'utf8')) as unknown,
+    reference.value,
+    base.value,
+  );
   assert.ok(parsed.ok);
   const diff = parsed.value.functions.find((f) => f.name === 'FactsFunc');
   assert.ok(diff !== undefined);
@@ -46,7 +49,11 @@ test('objdiffDifferences: each difference of the recording carries its section b
   assert.deepEqual(differences, [
     {
       kind: 'missing-relocation',
-      example: { function: 'FactsFunc', kind: 'missing-relocation', detail: '+0x6 R_ARM_THM_PC22: Callee | a plain value' },
+      example: {
+        function: 'FactsFunc',
+        kind: 'missing-relocation',
+        detail: '+0x6 R_ARM_THM_PC22: Callee | a plain value',
+      },
       facts: { sectionBase: 0x0800_0100, offset: 6, relocationType: 10, referenceAddend: -4, baseField: 14 },
     },
     {
@@ -60,18 +67,31 @@ test('objdiffDifferences: each difference of the recording carries its section b
     { name: 'Callee', addr: 0x0800_0118, thumb: true },
     { name: 'gRam', addr: 0x0300_0000, size: 0x10 },
   ]);
-  assert.deepEqual(differences.map((d) => objdiffClass(d, names)), ['value-for-symbol', 'value-for-symbol']);
+  assert.deepEqual(
+    differences.map((d) => objdiffClass(d, names)),
+    ['value-for-symbol', 'value-for-symbol'],
+  );
   const moved = nameAddresses([
     { name: 'Callee', addr: 0x0800_011a, thumb: true },
     { name: 'gRam', addr: 0x0300_0004 },
   ]);
-  assert.deepEqual(differences.map((d) => objdiffClass(d, moved)), ['relocation-other', 'relocation-other']);
+  assert.deepEqual(
+    differences.map((d) => objdiffClass(d, moved)),
+    ['relocation-other', 'relocation-other'],
+  );
   const unplaced = objdiffDifferences({ name: 'FactsFunc', diff });
   assert.equal(unplaced[0]?.facts.sectionBase, undefined, 'no entry, no section base');
   assert.equal(objdiffClass(unplaced[0] ?? differences[0]!, names), 'unverified');
 });
 
-const name = (n: string, addr: number, extra: Partial<ObjectName> = {}): ObjectName => ({ name: n, addr, bind: 'global', defined: false, func: false, ...extra });
+const name = (n: string, addr: number, extra: Partial<ObjectName> = {}): ObjectName => ({
+  name: n,
+  addr,
+  bind: 'global',
+  defined: false,
+  func: false,
+  ...extra,
+});
 
 const LABELS: Readonly<Record<string, BaseLabel>> = {
   sub_08000100: { addr: 0x0800_0100, func: true, defined: true },
@@ -90,10 +110,14 @@ test('baseRenames: a label takes the name its object gives its address, unless a
     [0x0800_0110, name('Other', 0x0800_0110, { defined: true, func: true })],
   ]);
   const renames = baseRenames(new Set(['sub_08000100', 'gELF', 'sub_08000110', 'Other', 'bl']), labelOf, names);
-  assert.deepEqual([...renames], [
-    ['gELF', 'gObject'],
-    ['sub_08000100', 'sStatic'],
-  ], 'sub_08000110 keeps its name: the text already holds Other');
+  assert.deepEqual(
+    [...renames],
+    [
+      ['gELF', 'gObject'],
+      ['sub_08000100', 'sStatic'],
+    ],
+    'sub_08000110 keeps its name: the text already holds Other',
+  );
 });
 
 test('baseBindings: the object binds what it defines; a function it does not define is global', () => {
@@ -110,14 +134,17 @@ test('baseBindings: the object binds what it defines; a function it does not def
     ],
     names,
   );
-  assert.deepEqual([...binds], [
-    ['sStatic', 'local'],
-    ['Global', 'global'],
-    ['Foreign', 'global'],
-  ]);
+  assert.deepEqual(
+    [...binds],
+    [
+      ['sStatic', 'local'],
+      ['Global', 'global'],
+      ['Foreign', 'global'],
+    ],
+  );
 });
 
-test('nameBase: renames labels, binds a static function local and another object\'s global, and keeps every word as romlift spells it (D102)', () => {
+test("nameBase: renames labels, binds a static function local and another object's global, and keeps every word as romlift spells it (D102)", () => {
   const text = [
     '.thumb',
     '\tthumb_func_start sub_08000100',
@@ -163,16 +190,44 @@ test('nameBase: renames labels, binds a static function local and another object
 });
 
 test('preferredNames keeps the first name per address and drops a name defined at the BIOS addresses', () => {
-  const kept = preferredNames([name('first', 0x0300_0000), name('second', 0x0300_0000), name('_pseudo', 0x10, { defined: true }), name('gNumMusicPlayers', 4)]);
-  assert.deepEqual([...kept.values()].map((n) => n.name), ['first', 'gNumMusicPlayers']);
+  const kept = preferredNames([
+    name('first', 0x0300_0000),
+    name('second', 0x0300_0000),
+    name('_pseudo', 0x10, { defined: true }),
+    name('gNumMusicPlayers', 4),
+  ]);
+  assert.deepEqual(
+    [...kept.values()].map((n) => n.name),
+    ['first', 'gNumMusicPlayers'],
+  );
 });
 
 function elfSymbol(n: string, addr: number, size: number, extra: Partial<ElfSymbol> = {}): ElfSymbol {
-  return { name: n, value: addr, addr, size, type: 'object', bind: 'global', thumb: false, sectionIndex: 1, sectionName: '.bss', ...extra };
+  return {
+    name: n,
+    value: addr,
+    addr,
+    size,
+    type: 'object',
+    bind: 'global',
+    thumb: false,
+    sectionIndex: 1,
+    sectionName: '.bss',
+    ...extra,
+  };
 }
 
 /** An absolute symbol: in no section. */
-const ABSOLUTE: ElfSymbol = { name: 'gAbs', value: 4, addr: 4, size: 0, type: 'notype', bind: 'global', thumb: false, sectionIndex: 0xfff1 };
+const ABSOLUTE: ElfSymbol = {
+  name: 'gAbs',
+  value: 4,
+  addr: 4,
+  size: 0,
+  type: 'notype',
+  bind: 'global',
+  thumb: false,
+  sectionIndex: 0xfff1,
+};
 
 test('symbolSizes: the ELF size, else up to the next symbol of the section; an absolute symbol keeps its own', () => {
   const symbols = [
@@ -183,7 +238,10 @@ test('symbolSizes: the ELF size, else up to the next symbol of the section; an a
     ABSOLUTE,
   ];
   const sizes = symbolSizes(symbols);
-  assert.deepEqual(symbols.map((s) => sizes.get(s)), [8, 0x20, 0, 0, 0]);
+  assert.deepEqual(
+    symbols.map((s) => sizes.get(s)),
+    [8, 0x20, 0, 0, 0],
+  );
 });
 
 test('globalDefinitions: one address per global name, null for two, none for a local or a BIOS-address section symbol', () => {

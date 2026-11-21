@@ -14,7 +14,12 @@
 // directory, then saves the TOML and decomp.yaml, plans the tree and the scaffold with planWrites and applies them.
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
-import { BASEROM_FILE, DECOMP_YAML_FILE, DECOMP_YAML_NAMES, ROMLIFT_CONFIG_FILE } from '../../foundation/util/project-files.ts';
+import {
+  BASEROM_FILE,
+  DECOMP_YAML_FILE,
+  DECOMP_YAML_NAMES,
+  ROMLIFT_CONFIG_FILE,
+} from '../../foundation/util/project-files.ts';
 import { renderDecompYaml } from '../config/decomp-yaml.ts';
 import { renderScaffold } from '../scaffold/render.ts';
 import { scaffoldVars } from '../scaffold/vars.ts';
@@ -48,18 +53,49 @@ export function init(inputs: InitInputs, hash?: (text: string) => string): InitP
   const { config, tomlText } = made;
   // modules.mk records the SHA-1 of the TOML init writes (`hash`, the shell's), as generate records the one it reads.
   const configSha1 = hash === undefined ? {} : { configSha1: hash(tomlText) };
-  const result = generate({ rom, config, decomp: { defined: [] }, printer: 'readable', ...(inputs.profile === undefined ? {} : { profile: inputs.profile }), ...configSha1 });
+  const result = generate({
+    rom,
+    config,
+    decomp: { defined: [] },
+    printer: 'readable',
+    ...(inputs.profile === undefined ? {} : { profile: inputs.profile }),
+    ...configSha1,
+  });
   if (!writable(result)) {
-    return { ok: false, diagnostics: [...result.diagnostics, ...result.report.checks.flatMap((c) => c.diagnostics), ...notes] };
+    return {
+      ok: false,
+      diagnostics: [...result.diagnostics, ...result.report.checks.flatMap((c) => c.diagnostics), ...notes],
+    };
   }
-  const decompYamlText = renderDecompYaml({ name: config.build.name, title: rom.header.title, gameCode: rom.header.gameCode, sha1: rom.sha1, compiler: config.build.compiler });
-  const vars = scaffoldVars({ name: config.build.name, sha1: rom.sha1, romliftVersion: inputs.romliftVersion, agbcc: inputs.agbcc, title: rom.header.title });
+  const decompYamlText = renderDecompYaml({
+    name: config.build.name,
+    title: rom.header.title,
+    gameCode: rom.header.gameCode,
+    sha1: rom.sha1,
+    compiler: config.build.compiler,
+  });
+  const vars = scaffoldVars({
+    name: config.build.name,
+    sha1: rom.sha1,
+    romliftVersion: inputs.romliftVersion,
+    agbcc: inputs.agbcc,
+    title: rom.header.title,
+  });
   const scaffold = renderScaffold(vars, inputs.templates);
   const owned: readonly InitFile[] = [
     [ROMLIFT_CONFIG_FILE, tomlText],
     [DECOMP_YAML_FILE, decompYamlText],
   ];
-  return { ok: true, config, tomlText, files: owned, romCopy: BASEROM_FILE, result, scaffold, diagnostics: [...notes, ...made.diagnostics, ...result.diagnostics] };
+  return {
+    ok: true,
+    config,
+    tomlText,
+    files: owned,
+    romCopy: BASEROM_FILE,
+    result,
+    scaffold,
+    diagnostics: [...notes, ...made.diagnostics, ...result.diagnostics],
+  };
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -85,9 +121,15 @@ function projectEntry(name: string): boolean {
  * dot-files, or it is a romlift project (whose own files init's write then checks under the lock, replacedProblems);
  * anything else is E_DIR_NOT_EMPTY, naming up to five of the entries it holds.
  */
-export function initDirVerdict(listing: InitDirListing): { readonly ok: true } | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] } {
+export function initDirVerdict(
+  listing: InitDirListing,
+): { readonly ok: true } | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] } {
   const { dir } = listing;
-  if (listing.state === 'not-directory') return { ok: false, diagnostics: [diagnostic(WorkflowCodes, 'E_DIR_NOT_EMPTY', `${dir} is a file, not a directory`, { path: dir })] };
+  if (listing.state === 'not-directory')
+    return {
+      ok: false,
+      diagnostics: [diagnostic(WorkflowCodes, 'E_DIR_NOT_EMPTY', `${dir} is a file, not a directory`, { path: dir })],
+    };
   const project = listing.names.some(projectEntry);
   const others = listing.names.filter((name) => !name.startsWith('.') && name !== listing.romInside);
   if (!project && others.length > 0) {
@@ -103,13 +145,27 @@ export function initDirVerdict(listing: InitDirListing): { readonly ok: true } |
  * (the user's config from then on), decomp.yaml or baserom.gba. `wanted` maps each of those project paths to the sha1
  * of what init would write there, `current` to what is on disk; an absent (or unlisted) or equal file is fine.
  */
-export function replacedProblems(dir: string, wanted: ReadonlyMap<string, string>, current: ReadonlyMap<string, DiskFileState>): readonly Diagnostic[] {
+export function replacedProblems(
+  dir: string,
+  wanted: ReadonlyMap<string, string>,
+  current: ReadonlyMap<string, DiskFileState>,
+): readonly Diagnostic[] {
   const problems: Diagnostic[] = [];
   for (const [path, sha1] of wanted) {
     const now = current.get(path);
     if (now === undefined || now.kind === 'absent' || now.sha1 === sha1) continue;
-    const hint = path === ROMLIFT_CONFIG_FILE || path === DECOMP_YAML_FILE ? 'run `romlift generate` to regenerate the tree from it, or remove it to start over' : `it is another ROM; remove ${BASEROM_FILE} to start over`;
-    problems.push(diagnostic(WorkflowCodes, 'E_DIR_NOT_EMPTY', `${dir} is a romlift project whose ${path} differs from what init would write: ${hint}`, { path }));
+    const hint =
+      path === ROMLIFT_CONFIG_FILE || path === DECOMP_YAML_FILE
+        ? 'run `romlift generate` to regenerate the tree from it, or remove it to start over'
+        : `it is another ROM; remove ${BASEROM_FILE} to start over`;
+    problems.push(
+      diagnostic(
+        WorkflowCodes,
+        'E_DIR_NOT_EMPTY',
+        `${dir} is a romlift project whose ${path} differs from what init would write: ${hint}`,
+        { path },
+      ),
+    );
   }
   return problems;
 }

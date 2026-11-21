@@ -20,11 +20,11 @@
 // never print as one of those labels, which would link to the run address. No label lies at a load address of a
 // runs_at module, so such a word finds none and prints as its value; loadWordOperand names it through the ldscript's
 // `__load_<module>` symbol (LOADADDR of the module's section) instead, which links to the same bytes.
-import { abs32Word, type SymbolValue } from '../../foundation/asm/relocation.ts';
+import { type SymbolValue, abs32Word } from '../../foundation/asm/relocation.ts';
 import type { SymbolResolver } from '../../foundation/isa/types.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
-import { compareCodeUnits, compareNumbers } from '../../foundation/util/sorted.ts';
 import { lowerBound } from '../../foundation/util/arrays.ts';
+import { compareCodeUnits, compareNumbers } from '../../foundation/util/sorted.ts';
 import { loadSymbolOf, moduleIndexAt, relocatedModules } from './modules.ts';
 import type { Label, LabelKind, Model, ModelFunction, ModelSymbol, Module } from './types.ts';
 
@@ -40,8 +40,15 @@ function labelKindRank(kind: LabelKind): number {
 }
 
 /** Orders labels by address, then preference (LABEL_KIND_ORDER), then name by code unit. */
-export function compareLabels(a: Pick<Label, 'addr' | 'kind' | 'name'>, b: Pick<Label, 'addr' | 'kind' | 'name'>): number {
-  return compareNumbers(a.addr, b.addr) || compareNumbers(labelKindRank(a.kind), labelKindRank(b.kind)) || compareCodeUnits(a.name, b.name);
+export function compareLabels(
+  a: Pick<Label, 'addr' | 'kind' | 'name'>,
+  b: Pick<Label, 'addr' | 'kind' | 'name'>,
+): number {
+  return (
+    compareNumbers(a.addr, b.addr) ||
+    compareNumbers(labelKindRank(a.kind), labelKindRank(b.kind)) ||
+    compareCodeUnits(a.name, b.name)
+  );
 }
 
 /**
@@ -109,7 +116,10 @@ export interface SizedEntries {
   readonly named: ReadonlySet<string>;
 }
 
-const ENTRIES = new WeakMap<readonly ModelSymbol[], { readonly functions: readonly ModelFunction[]; readonly entries: SizedEntries }>();
+const ENTRIES = new WeakMap<
+  readonly ModelSymbol[],
+  { readonly functions: readonly ModelFunction[]; readonly entries: SizedEntries }
+>();
 
 function buildEntries(symbols: readonly ModelSymbol[], functions: readonly ModelFunction[]): SizedEntries {
   const sized: SizedEntry[] = [];
@@ -122,7 +132,8 @@ function buildEntries(symbols: readonly ModelSymbol[], functions: readonly Model
   for (const f of functions) {
     const at = f.runAt ?? f.entry;
     named.add(`${String(at)}:${f.name}`);
-    if (f.source.extent === 'toml-size' && f.extent.end > f.extent.start) sized.push({ addr: at, name: f.name, size: f.extent.end - f.entry });
+    if (f.source.extent === 'toml-size' && f.extent.end > f.extent.start)
+      sized.push({ addr: at, name: f.name, size: f.extent.end - f.entry });
   }
   sized.sort((a, b) => compareNumbers(a.addr, b.addr) || compareCodeUnits(a.name, b.name));
   const maxEnd: number[] = [];
@@ -165,12 +176,17 @@ export function sizedEntryAt(entries: SizedEntries, word: number): SizedEntry | 
  * lookup the three readers of wordNameOf pass as its `entryLabel` (pool.ts wordText and labels.ts' gUnk_ candidates and
  * label scopes), each over its own labels, so they cannot disagree on which label is the entry's (architecture-o0-5).
  */
-export function entryLabelOf<L extends Pick<Label, 'name' | 'kind'>>(entry: SizedEntry, labelsAt: (addr: Addr) => readonly L[]): L | undefined {
+export function entryLabelOf<L extends Pick<Label, 'name' | 'kind'>>(
+  entry: SizedEntry,
+  labelsAt: (addr: Addr) => readonly L[],
+): L | undefined {
   return labelsAt(entry.addr).find((l) => l.name === entry.name && l.kind !== 'local');
 }
 
 /** What a word names (wordNameOf): a label itself, or a sized entry's label with the offset from the word it links to. */
-export type WordName<L> = { readonly kind: 'label'; readonly label: L } | { readonly kind: 'inside'; readonly label: L; readonly offset: number };
+export type WordName<L> =
+  | { readonly kind: 'label'; readonly label: L }
+  | { readonly kind: 'inside'; readonly label: L; readonly offset: number };
 
 /**
  * What a word names (architecture §5 "Literal pools"), the one rule the printer (core/emit/print/pool.ts wordText) and
@@ -181,13 +197,19 @@ export type WordName<L> = { readonly kind: 'label'; readonly label: L } | { read
  * `entryLabel` (entryLabelOf over the caller's labels) gives that entry's label and `name + offset` links to the word (linkedWordOf: never an even word inside
  * a Thumb function, which the linker would write with the Thumb bit); else the first of `exact`; else nothing.
  */
-export function wordNameOf<L extends Pick<Label, 'addr' | 'name' | 'kind' | 'thumb'>>(entries: SizedEntries, word: number, exact: readonly L[], entryLabel: (entry: SizedEntry) => L | undefined): WordName<L> | undefined {
+export function wordNameOf<L extends Pick<Label, 'addr' | 'name' | 'kind' | 'thumb'>>(
+  entries: SizedEntries,
+  word: number,
+  exact: readonly L[],
+  entryLabel: (entry: SizedEntry) => L | undefined,
+): WordName<L> | undefined {
   const named = exact.find((l) => isNamedEntry(entries, l));
   if (named !== undefined) return { kind: 'label', label: named };
   const entry = sizedEntryAt(entries, word);
   const label = entry === undefined ? undefined : entryLabel(entry);
   const offset = label === undefined ? 0 : word - wordValueOf(label);
-  if (label !== undefined && offset > 0 && linkedWordOf(label, offset) === word) return { kind: 'inside', label, offset };
+  if (label !== undefined && offset > 0 && linkedWordOf(label, offset) === word)
+    return { kind: 'inside', label, offset };
   const first = exact[0];
   return first === undefined ? undefined : { kind: 'label', label: first };
 }
@@ -233,7 +255,11 @@ function indexOf(labels: readonly Label[], modules: readonly Module[]): LabelInd
 }
 
 /** The resolver of `module` over `index`; labelFor names only labels `names` accepts. */
-function resolverFromIndex(index: LabelIndex, module: string, names: (label: Label) => boolean = () => true): SymbolResolver {
+function resolverFromIndex(
+  index: LabelIndex,
+  module: string,
+  names: (label: Label) => boolean = () => true,
+): SymbolResolver {
   const visible = (i: number): boolean => index.labels[i]?.scope === 'global' || index.moduleOf[i] === module;
   return {
     // `from` does not matter in phase 3: every label visible in the module resolves the same anywhere in it.

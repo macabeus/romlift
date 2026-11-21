@@ -5,10 +5,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import type { FileEntry } from '../../../src/core/emit/tree.ts';
 import { cStubWriter } from '../../../src/core/emit/writers/c-stub.ts';
 import { WRITERS } from '../../../src/core/emit/writers/index.ts';
 import type { Model } from '../../../src/core/model/types.ts';
-import type { FileEntry } from '../../../src/core/emit/tree.ts';
 import { checkEntries } from '../../../src/core/verify/text-layout.ts';
 import { entryDiagnostics } from '../../helpers/text-layout.ts';
 import { fixtureEntries, fixtureModel, fixtureRom } from '../../unit/verify/fixture.ts';
@@ -19,17 +19,28 @@ const CX = { decomp: { defined: [] } };
 
 function stream(): FileEntry[] {
   const written = WRITERS.filter((w) => w.id === 'data' || w.id === 'ldscript' || w.id === 'symbols').flatMap((w) =>
-    w.scope === 'global' ? [...w.emit(rom, model, CX, null)] : model.modules.flatMap((_, i) => [...w.emit(rom, model, CX, i)]),
+    w.scope === 'global'
+      ? [...w.emit(rom, model, CX, null)]
+      : model.modules.flatMap((_, i) => [...w.emit(rom, model, CX, i)]),
   );
   return [...fixtureEntries(), ...written];
 }
 
 /** The stream with the text of `path` rewritten. */
-function mutated(path: string, edit: (text: string) => string): { readonly entries: FileEntry[]; readonly entry: FileEntry } {
-  const entries = stream().map((e) => (e.path === path && e.ownership === 'generated' ? { ...e, text: edit(e.text) } : e));
+function mutated(
+  path: string,
+  edit: (text: string) => string,
+): { readonly entries: FileEntry[]; readonly entry: FileEntry } {
+  const entries = stream().map((e) =>
+    e.path === path && e.ownership === 'generated' ? { ...e, text: edit(e.text) } : e,
+  );
   const entry = entries.find((e) => e.path === path);
   assert.ok(entry !== undefined);
-  assert.notDeepEqual(entry, stream().find((e) => e.path === path), 'the mutation changed the text');
+  assert.notDeepEqual(
+    entry,
+    stream().find((e) => e.path === path),
+    'the mutation changed the text',
+  );
   return { entries, entry };
 }
 
@@ -62,7 +73,14 @@ test('a wrong `.align` fails with E_SELF_CHECK_TEXT at its line and address', ()
   // Func's pool alignment widened to 16 bytes emits 10 bytes at 0x08000106, where the padding item is 2.
   const { entries, entry } = mutated('asm/nonmatchings/main/Func.s', (t) => t.replace('.align 2, 0', '.align 4, 0'));
   const found = entryDiagnostics(rom, model, entry);
-  assert.ok(found.some((d) => d.code === 'E_SELF_CHECK_TEXT' && d.addr === 0x0800_0106 && /line 7: the alignment emits 10 bytes, but the padding item there is 2 bytes/.test(d.message)));
+  assert.ok(
+    found.some(
+      (d) =>
+        d.code === 'E_SELF_CHECK_TEXT' &&
+        d.addr === 0x0800_0106 &&
+        /line 7: the alignment emits 10 bytes, but the padding item there is 2 bytes/.test(d.message),
+    ),
+  );
   assertFails(entries, entry, 5, 0x0800_0102);
 });
 
@@ -75,8 +93,18 @@ test('a missing include fails with E_SELF_CHECK_TEXT at its line and the chunk a
 test('a [symbols] entry inside the ROM that no file defines is an undefined symbol, as for `as` (correctness-1)', () => {
   // gOddSym names 0x08000101, Func + 1: the inside of Func's push, where no printer can place a label. Only its
   // label could define it (symbols.ld holds the symbols outside the ROM), so a pool word naming it does not link.
-  const odd = { ...model, symbols: [{ addr: 0x0200_0000, name: 'gRam' }, { addr: 0x0800_0101, name: 'gOddSym' }] };
-  const entries = stream().map((e) => (e.path === 'asm/nonmatchings/main/Func.s' && e.ownership === 'generated' ? { ...e, text: e.text.replace('_08000108: .4byte Func', '_08000108: .4byte gOddSym') } : e));
+  const odd = {
+    ...model,
+    symbols: [
+      { addr: 0x0200_0000, name: 'gRam' },
+      { addr: 0x0800_0101, name: 'gOddSym' },
+    ],
+  };
+  const entries = stream().map((e) =>
+    e.path === 'asm/nonmatchings/main/Func.s' && e.ownership === 'generated'
+      ? { ...e, text: e.text.replace('_08000108: .4byte Func', '_08000108: .4byte gOddSym') }
+      : e,
+  );
   const entry = entries.find((e) => e.path === 'asm/nonmatchings/main/Func.s');
   assert.ok(entry !== undefined && 'text' in entry && entry.text.includes('gOddSym'));
   const found = entryDiagnostics(rom, odd, entry);
@@ -84,16 +112,34 @@ test('a [symbols] entry inside the ROM that no file defines is an undefined symb
   assert.match(found[0]?.message ?? '', /gOddSym/);
   assert.equal(checkEntries(rom, odd, entries).ok, false);
   // A RAM symbol still resolves through symbols.ld.
-  const ram = stream().map((e) => (e.path === 'asm/nonmatchings/main/Func.s' && e.ownership === 'generated' ? { ...e, text: e.text.replace('_08000108: .4byte Func', '_08000108: .4byte gRam') } : e));
+  const ram = stream().map((e) =>
+    e.path === 'asm/nonmatchings/main/Func.s' && e.ownership === 'generated'
+      ? { ...e, text: e.text.replace('_08000108: .4byte Func', '_08000108: .4byte gRam') }
+      : e,
+  );
   const ramEntry = ram.find((e) => e.path === 'asm/nonmatchings/main/Func.s');
   assert.ok(ramEntry !== undefined);
   assert.match(entryDiagnostics(rom, model, ramEntry)[0]?.message ?? '', /lays out 0x00 where the ROM holds 0x01/);
 });
 
 /** The consistent stream with main a C unit: the c-stub writer's src/main.c instead of asm/main.s. */
-function cStream(): { readonly model: Model; readonly entries: FileEntry[]; readonly stub: FileEntry & { readonly text: string } } {
-  const c: Model = { ...model, modules: model.modules.map((m) => (m.name === 'main' ? { ...m, kind: 'c' as const } : m)) };
-  const [stub] = [...cStubWriter.emit(rom, c, CX, c.modules.findIndex((m) => m.name === 'main'))];
+function cStream(): {
+  readonly model: Model;
+  readonly entries: FileEntry[];
+  readonly stub: FileEntry & { readonly text: string };
+} {
+  const c: Model = {
+    ...model,
+    modules: model.modules.map((m) => (m.name === 'main' ? { ...m, kind: 'c' as const } : m)),
+  };
+  const [stub] = [
+    ...cStubWriter.emit(
+      rom,
+      c,
+      CX,
+      c.modules.findIndex((m) => m.name === 'main'),
+    ),
+  ];
   assert.ok(stub !== undefined && stub.ownership === 'scaffold');
   const ldscript = WRITERS.filter((w) => w.id === 'ldscript').flatMap((w) => [...w.emit(rom, c, CX, null)]);
   const entries = [...stream().filter((e) => e.path !== 'asm/main.s' && e.path !== 'ldscript.txt'), stub, ...ldscript];
@@ -101,13 +147,23 @@ function cStream(): { readonly model: Model; readonly entries: FileEntry[]; read
 }
 
 /** The C stream with the stub's text rewritten, checked: the first diagnostic of the stub and the stream's verdict. */
-function mutatedStub(edit: (text: string) => string): { readonly first: { readonly code?: string; readonly addr?: number; readonly message?: string } | undefined; readonly ok: boolean } {
+function mutatedStub(edit: (text: string) => string): {
+  readonly first: { readonly code?: string; readonly addr?: number; readonly message?: string } | undefined;
+  readonly ok: boolean;
+} {
   const { model: c, entries, stub } = cStream();
   const text = edit(stub.text);
   assert.notEqual(text, stub.text, 'the mutation changed the stub');
   const changed = { ...stub, text };
   const first = entryDiagnostics(rom, c, changed)[0];
-  return { first, ok: checkEntries(rom, c, entries.map((e) => (e.path === stub.path ? changed : e))).ok };
+  return {
+    first,
+    ok: checkEntries(
+      rom,
+      c,
+      entries.map((e) => (e.path === stub.path ? changed : e)),
+    ).ok,
+  };
 }
 
 test('the unmutated C stream passes', () => {
@@ -121,7 +177,10 @@ test('a C stub that lists a chunk twice fails with E_SELF_CHECK_TEXT at the seco
   assert.equal(ok, false);
   assert.equal(first?.code, 'E_SELF_CHECK_TEXT');
   assert.equal(first?.addr, 0x0800_010e);
-  assert.match(first?.message ?? '', /^src\/main\.c line 5: includes "asm\/nonmatchings\/main\/Veneer\.s" where the module's chunk file in ROM order is "asm\/nonmatchings\/main\/ArmFunc\.s"/);
+  assert.match(
+    first?.message ?? '',
+    /^src\/main\.c line 5: includes "asm\/nonmatchings\/main\/Veneer\.s" where the module's chunk file in ROM order is "asm\/nonmatchings\/main\/ArmFunc\.s"/,
+  );
 });
 
 test('a C stub that lists its chunks out of ROM order fails with E_SELF_CHECK_TEXT at the first misplaced one', () => {
@@ -131,13 +190,19 @@ test('a C stub that lists its chunks out of ROM order fails with E_SELF_CHECK_TE
   assert.equal(ok, false);
   assert.equal(first?.code, 'E_SELF_CHECK_TEXT');
   assert.equal(first?.addr, 0x0800_0100);
-  assert.match(first?.message ?? '', /^src\/main\.c line 3: includes "asm\/nonmatchings\/main\/Veneer\.s" where the module's chunk file in ROM order is "asm\/nonmatchings\/main\/Func\.s"/);
+  assert.match(
+    first?.message ?? '',
+    /^src\/main\.c line 3: includes "asm\/nonmatchings\/main\/Veneer\.s" where the module's chunk file in ROM order is "asm\/nonmatchings\/main\/Func\.s"/,
+  );
 });
 
 test('a C stub that drops a chunk, or defines a function, fails with E_SELF_CHECK_TEXT', () => {
   const dropped = mutatedStub((t) => t.replace('INCLUDE_ASM("asm/nonmatchings/main", ArmFunc);\n', ''));
   assert.equal(dropped.ok, false);
-  assert.match(dropped.first?.message ?? '', /includes "asm\/nonmatchings\/main\/unk_08000114\.s" where the module's chunk file in ROM order is "asm\/nonmatchings\/main\/ArmFunc\.s"/);
+  assert.match(
+    dropped.first?.message ?? '',
+    /includes "asm\/nonmatchings\/main\/unk_08000114\.s" where the module's chunk file in ROM order is "asm\/nonmatchings\/main\/ArmFunc\.s"/,
+  );
   const defined = mutatedStub((t) => `${t}int Extra(void) { return 0; }\n`);
   assert.equal(defined.ok, false);
   assert.match(defined.first?.message ?? '', /defines the function Extra/);

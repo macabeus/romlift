@@ -10,9 +10,9 @@
 import { decode, thumbWordAt } from '../../../../foundation/isa/decode.ts';
 import { contains } from '../../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../../foundation/rom/span.ts';
-import { isDense } from '../../walk/predicates.ts';
 import type { AnalysisView, ClaimEdit, Reading } from '../../types.ts';
 import { Claim } from '../../types.ts';
+import { isDense } from '../../walk/predicates.ts';
 import { defineRule } from '../define-rule.ts';
 
 /** The length of the entry stub `movs rX, #k; b T`. */
@@ -46,7 +46,8 @@ function stubCopies(r: Reading, v: AnalysisView): Addr[] {
 export default defineRule({
   meta: {
     id: 'claim.dead-code-in-extent',
-    summary: "a dense function's free bytes inside its extent are claimed as dead code, except unreached copies of its own `movs rX, #k; b T` entry stub",
+    summary:
+      "a dense function's free bytes inside its extent are claimed as dead code, except unreached copies of its own `movs rX, #k; b T` entry stub",
     restsOn:
       'a compiled function is one contiguous run, so the few bytes inside it the walk never reached are still its own; a table of entry stubs `movs rX, #k; b T` that share one tail gives each entry its own constant, so an unreached copy of the entry stub is another entry, not dead code',
     recovers: "functions proposed inside another function's unreached branch arms or alignment padding",

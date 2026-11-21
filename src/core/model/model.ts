@@ -13,24 +13,38 @@ import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import { contains } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
+import { spanIndexAt } from '../../foundation/util/arrays.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
 import { compareCodeUnits, compareNumbers, sortedEntries } from '../../foundation/util/sorted.ts';
-import { spanIndexAt } from '../../foundation/util/arrays.ts';
 import type { AnalysisResult } from '../analysis/types.ts';
 import type { FunctionConfig, RomliftConfig } from '../config/schema.ts';
-import { appliedOverrides, codeLayout, factsByEntry, headerCoveredEntries, isLabelEntry, placeEntries } from '../layout/borders.ts';
+import {
+  appliedOverrides,
+  codeLayout,
+  factsByEntry,
+  headerCoveredEntries,
+  isLabelEntry,
+  placeEntries,
+} from '../layout/borders.ts';
 import type { ListedEntry, PlacedEntry } from '../layout/borders.ts';
-import { ModelCodes } from './codes.ts';
 import type { ChunkPlan } from './chunks.ts';
 import { planChunks } from './chunks.ts';
-import { buildItems } from './items.ts';
-import { segmentsOf } from './segments.ts';
-import { buildLabels, codeRefs } from './labels.ts';
-import { sizedEntries } from './resolver.ts';
-import { modulePieces, planModules, relocatedModules, runOffsetAt } from './modules.ts';
-import { invalidNames, linkerNameCollisions, moduleNameProblems, nameCollisions, nameSourceOf, sectionNameCollisions } from './names.ts';
-import type { DefinedName } from './names.ts';
+import { ModelCodes } from './codes.ts';
 import { inferSymbolExtents } from './extents.ts';
+import { buildItems } from './items.ts';
+import { buildLabels, codeRefs } from './labels.ts';
+import { modulePieces, planModules, relocatedModules, runOffsetAt } from './modules.ts';
+import {
+  invalidNames,
+  linkerNameCollisions,
+  moduleNameProblems,
+  nameCollisions,
+  nameSourceOf,
+  sectionNameCollisions,
+} from './names.ts';
+import type { DefinedName } from './names.ts';
+import { sizedEntries } from './resolver.ts';
+import { segmentsOf } from './segments.ts';
 import { modelSymbols, romSymbols, withDefaultRamSymbols } from './symbols.ts';
 import type { Chunk, Label, Model, ModelFunction, ModelSymbol, Module } from './types.ts';
 
@@ -46,7 +60,11 @@ function chunkIndexAt(chunks: readonly ChunkPlan[], a: Addr): number {
 }
 
 /** Per chunk, the func labels of the listed entries inside it that do not start it (label entries, and the cartridge entry in the header). */
-function innerLabelsOf(chunks: readonly ChunkPlan[], placed: readonly PlacedEntry[], functions: ReadonlyMap<Addr, Label>): Label[][] {
+function innerLabelsOf(
+  chunks: readonly ChunkPlan[],
+  placed: readonly PlacedEntry[],
+  functions: ReadonlyMap<Addr, Label>,
+): Label[][] {
   const inner: Label[][] = chunks.map(() => []);
   for (const p of placed) {
     const i = chunkIndexAt(chunks, p.entry);
@@ -75,13 +93,21 @@ function modelFunctions(
     while (next < starts.length && (starts[next] ?? 0) <= p.entry) next++;
     const moduleEnd = modules.find((m) => p.entry >= m.span.start && p.entry < m.span.end)?.span.end ?? p.entry;
     const fact = facts.get(p.entry);
-    const extentEnd = p.source === 'analysis' && fact !== undefined ? fact.extent.end : (p.end ?? Math.min(starts[next] ?? moduleEnd, moduleEnd));
+    const extentEnd =
+      p.source === 'analysis' && fact !== undefined
+        ? fact.extent.end
+        : (p.end ?? Math.min(starts[next] ?? moduleEnd, moduleEnd));
     const offset = runOffsetAt(relocated, p.entry);
-    const runAt = relocated.some((m) => p.entry >= m.span.start && p.entry < m.span.end) ? p.entry + offset : fact?.runAt;
+    const runAt = relocated.some((m) => p.entry >= m.span.start && p.entry < m.span.end)
+      ? p.entry + offset
+      : fact?.runAt;
     return [
       {
         entry: p.entry,
-        extent: { start: p.source === 'analysis' && fact !== undefined ? fact.extent.start : p.entry, end: Math.max(extentEnd, p.entry) },
+        extent: {
+          start: p.source === 'analysis' && fact !== undefined ? fact.extent.start : p.entry,
+          end: Math.max(extentEnd, p.entry),
+        },
         mode: config.mode,
         name: config.name,
         aliases: [...config.aliases],
@@ -113,7 +139,10 @@ function entryPointsOutside(rom: Rom, config: RomliftConfig, analysis: AnalysisR
     const covered = analysis.functions.some((f) => f.entry !== entry && f.extent.start < entry && f.extent.end > entry);
     if (covered) continue;
     const below = analysis.functions.filter((f) => f.entry < entry && !config.entryPoints.has(f.entry)).at(-1);
-    const near = below === undefined ? 'no function lies below it' : `the nearest function below it, ${hexAddr(below.entry)}, ends at ${hexAddr(below.extent.end)}`;
+    const near =
+      below === undefined
+        ? 'no function lies below it'
+        : `the nearest function below it, ${hexAddr(below.entry)}, ends at ${hexAddr(below.extent.end)}`;
     out.push(
       diagnostic(
         ModelCodes,
@@ -132,12 +161,26 @@ function outsideTheRom(rom: Rom, config: RomliftConfig): Diagnostic[] {
   for (const [entry, f] of sortedEntries(listedEntries(config))) {
     if (contains(rom, entry)) continue;
     const table = config.entryPoints.has(entry) ? 'entry_points' : 'functions';
-    out.push(diagnostic(ModelCodes, 'W_FUNCTION_OUTSIDE_ROM', `the [${table}] entry ${hexAddr(entry)} (${f.name}) lies outside the ROM ${hexAddr(rom.base)}..${hexAddr(rom.end)}`, { addr: entry }));
+    out.push(
+      diagnostic(
+        ModelCodes,
+        'W_FUNCTION_OUTSIDE_ROM',
+        `the [${table}] entry ${hexAddr(entry)} (${f.name}) lies outside the ROM ${hexAddr(rom.base)}..${hexAddr(rom.end)}`,
+        { addr: entry },
+      ),
+    );
   }
   for (const o of config.overrides) {
     if (contains(rom, o.start) && o.start + o.size <= rom.end) continue;
     const span = { start: o.start, end: o.start + o.size };
-    out.push(diagnostic(ModelCodes, 'W_OVERRIDE_OUTSIDE_ROM', `the [[overrides]] range ${hexAddr(span.start)}..${hexAddr(span.end)} reaches outside the ROM ${hexAddr(rom.base)}..${hexAddr(rom.end)}; the part outside is ignored`, { span }));
+    out.push(
+      diagnostic(
+        ModelCodes,
+        'W_OVERRIDE_OUTSIDE_ROM',
+        `the [[overrides]] range ${hexAddr(span.start)}..${hexAddr(span.end)} reaches outside the ROM ${hexAddr(rom.base)}..${hexAddr(rom.end)}; the part outside is ignored`,
+        { span },
+      ),
+    );
   }
   return out;
 }
@@ -151,24 +194,45 @@ function outsideTheRom(rom: Rom, config: RomliftConfig): Diagnostic[] {
  * override exactly over a function the [functions] list or another rule already starts. A range wholly outside the
  * ROM is W_OVERRIDE_OUTSIDE_ROM's alone.
  */
-function ignoredOverrides(rom: Rom, config: RomliftConfig, placed: readonly PlacedEntry[], analysis: AnalysisResult): Diagnostic[] {
+function ignoredOverrides(
+  rom: Rom,
+  config: RomliftConfig,
+  placed: readonly PlacedEntry[],
+  analysis: AnalysisResult,
+): Diagnostic[] {
   // Each applied override (its own object, however many entries it gave an extent) answers for one [[overrides]]
   // entry of its kind, span and mode (fix round 7, architecture-b2-6): a data override, or a second code override, on
   // the span of an applied one is still ignored.
   const unmatched: NonNullable<PlacedEntry['override']>[] = [];
-  for (const o of [...appliedOverrides(analysis), ...placed.flatMap((p) => (p.override === undefined ? [] : [p.override]))]) if (!unmatched.includes(o)) unmatched.push(o);
+  for (const o of [
+    ...appliedOverrides(analysis),
+    ...placed.flatMap((p) => (p.override === undefined ? [] : [p.override])),
+  ])
+    if (!unmatched.includes(o)) unmatched.push(o);
   const out: Diagnostic[] = [];
   for (const o of config.overrides) {
     if (o.runsAt !== undefined) continue;
     const span = { start: o.start, end: o.start + o.size };
     if (span.end <= rom.base || span.start >= rom.end) continue;
-    const at = unmatched.findIndex((a) => a.kind === o.kind && a.mode === o.mode && a.span.start === span.start && a.span.end === span.end);
+    const at = unmatched.findIndex(
+      (a) => a.kind === o.kind && a.mode === o.mode && a.span.start === span.start && a.span.end === span.end,
+    );
     if (at >= 0) {
       unmatched.splice(at, 1);
       continue;
     }
-    const why = o.kind === 'data' ? 'the analysis claimed none of its bytes as data' : codeOverrideIgnoredWhy(o, config, analysis);
-    out.push(diagnostic(ModelCodes, 'W_OVERRIDE_IGNORED', `the [[overrides]] range ${hexAddr(span.start)}..${hexAddr(span.end)} (kind = "${o.kind}") changes nothing: ${why}`, { span, addr: o.start }));
+    const why =
+      o.kind === 'data'
+        ? 'the analysis claimed none of its bytes as data'
+        : codeOverrideIgnoredWhy(o, config, analysis);
+    out.push(
+      diagnostic(
+        ModelCodes,
+        'W_OVERRIDE_IGNORED',
+        `the [[overrides]] range ${hexAddr(span.start)}..${hexAddr(span.end)} (kind = "${o.kind}") changes nothing: ${why}`,
+        { span, addr: o.start },
+      ),
+    );
   }
   return out;
 }
@@ -179,14 +243,21 @@ function ignoredOverrides(rom: Rom, config: RomliftConfig, placed: readonly Plac
  * unlisted (W_UNLISTED_FUNCTION, D104 d), so listing the start is the fix, after which the override is redundant; another
  * rule already started a function there; or its seed added no function and it gave no listed entry its extent.
  */
-function codeOverrideIgnoredWhy(o: RomliftConfig['overrides'][number], config: RomliftConfig, analysis: AnalysisResult): string {
+function codeOverrideIgnoredWhy(
+  o: RomliftConfig['overrides'][number],
+  config: RomliftConfig,
+  analysis: AnalysisResult,
+): string {
   const at = hexAddr(o.start);
-  if (config.functions.has(o.start)) return `a function already starts at ${at}: [functions] lists it, so the override is redundant and can be removed`;
-  if (config.entryPoints.has(o.start)) return `an entry point already starts at ${at}: [entry_points] lists it, so the override is redundant and can be removed`;
+  if (config.functions.has(o.start))
+    return `a function already starts at ${at}: [functions] lists it, so the override is redundant and can be removed`;
+  if (config.entryPoints.has(o.start))
+    return `an entry point already starts at ${at}: [entry_points] lists it, so the override is redundant and can be removed`;
   if (analysis.mode === 'confirm' && analysis.unlisted.some((u) => u.entry === o.start)) {
     return `[functions] does not list ${at}, and a confirm run takes only the listed functions, reporting what the seed finds as W_UNLISTED_FUNCTION; list it (\`romlift update\` proposes it), after which the override is redundant and can be removed`;
   }
-  if (analysis.functions.some((f) => f.entry === o.start)) return `a function already starts at ${at}, found by another rule, so the override is redundant and can be removed`;
+  if (analysis.functions.some((f) => f.entry === o.start))
+    return `a function already starts at ${at}, found by another rule, so the override is redundant and can be removed`;
   return `its seed adds no function at ${at} (no ${o.mode ?? 'thumb'} instruction the analysis accepts starts there), and it gives no listed entry its extent`;
 }
 
@@ -206,11 +277,25 @@ function unplacedSymbols(symbols: readonly ModelSymbol[]): Diagnostic[] {
  * What the chunks, labels and items are laid out over: every module's span and every data range, in ROM order, a data
  * range as a `data` module of its owner's name and no data range of its own; with each piece's module index.
  */
-function layoutModules(modules: readonly Module[]): { readonly pieces: readonly Module[]; readonly owner: readonly number[] } {
+function layoutModules(modules: readonly Module[]): {
+  readonly pieces: readonly Module[];
+  readonly owner: readonly number[];
+} {
   const laid = modulePieces(modules).flatMap((p) => {
     const m = modules[p.module];
     if (m === undefined) return [];
-    const piece: Module = p.part === 'text' ? m : { name: m.name, span: p.span, kind: 'data', generated: m.generated, compiler: m.compiler, cflags: m.cflags, chunks: { first: 0, count: 0 } };
+    const piece: Module =
+      p.part === 'text'
+        ? m
+        : {
+            name: m.name,
+            span: p.span,
+            kind: 'data',
+            generated: m.generated,
+            compiler: m.compiler,
+            cflags: m.cflags,
+            chunks: { first: 0, count: 0 },
+          };
     return [{ piece, owner: p.module }];
   });
   return { pieces: laid.map((l) => l.piece), owner: laid.map((l) => l.owner) };
@@ -225,9 +310,15 @@ export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftCo
   const modules = pieces;
   const relocated = relocatedModules(modules);
 
-  const functions = new Map<Addr, FunctionConfig>(sortedEntries(listedEntries(config)).filter(([entry]) => contains(rom, entry)));
+  const functions = new Map<Addr, FunctionConfig>(
+    sortedEntries(listedEntries(config)).filter(([entry]) => contains(rom, entry)),
+  );
   const headerCovered = headerCoveredEntries(analysis.functions, layout.headerEnd);
-  const listed: ListedEntry[] = sortedEntries(functions).map(([entry, f]) => ({ entry, label: isLabelEntry(entry, config.entryPoints.has(entry), headerCovered), ...(f.size === undefined ? {} : { size: f.size }) }));
+  const listed: ListedEntry[] = sortedEntries(functions).map(([entry, f]) => ({
+    entry,
+    label: isLabelEntry(entry, config.entryPoints.has(entry), headerCovered),
+    ...(f.size === undefined ? {} : { size: f.size }),
+  }));
   const placed = placeEntries(listed, analysis);
   const symbols = modelSymbols(config);
   const inRom = romSymbols(symbols, rom);
@@ -246,21 +337,49 @@ export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftCo
   const modelFns = modelFunctions(placed, functions, analysis, planned.modules, relocated);
   const extents = inferSymbolExtents(rom, analysis, symbols, modelFns, relocated);
   const poolWords = segments.concrete.flatMap((s) => (s.kind === 'pool' ? [s.value] : []));
-  const allSymbols = withDefaultRamSymbols(poolWords, extents.symbols, sizedEntries({ symbols: extents.symbols, functions: modelFns }), relocated);
-  const labelled = buildLabels({ rom, modules, relocated, chunks: chunkPlans, functions, symbols: allSymbols, entries: sizedEntries({ symbols: allSymbols, functions: modelFns }), segments, refs });
+  const allSymbols = withDefaultRamSymbols(
+    poolWords,
+    extents.symbols,
+    sizedEntries({ symbols: extents.symbols, functions: modelFns }),
+    relocated,
+  );
+  const labelled = buildLabels({
+    rom,
+    modules,
+    relocated,
+    chunks: chunkPlans,
+    functions,
+    symbols: allSymbols,
+    entries: sizedEntries({ symbols: allSymbols, functions: modelFns }),
+    segments,
+    refs,
+  });
 
   const defined: DefinedName[] = [...labelled.labels];
   for (const [entry, f] of sortedEntries(functions)) {
     const label = labelled.functions.get(entry);
-    if (label !== undefined) for (const alias of f.aliases) defined.push({ name: alias, addr: label.addr, scope: label.scope });
+    if (label !== undefined)
+      for (const alias of f.aliases) defined.push({ name: alias, addr: label.addr, scope: label.scope });
   }
   const named = [...sortedEntries(functions), ...sortedEntries(config.symbols)];
   const configNames = named.flatMap(([addr, n]) => [n.name, ...n.aliases].map((name) => ({ name, addr })));
-  const collisions = [...nameCollisions(defined, modules), ...linkerNameCollisions([...defined, ...configNames], modules)];
+  const collisions = [
+    ...nameCollisions(defined, modules),
+    ...linkerNameCollisions([...defined, ...configNames], modules),
+  ];
   const invalid = invalidNames(configNames);
 
   const runOffsets = chunkPlans.map((c) => runOffsetAt(relocated, c.span.start));
-  const built = buildItems({ rom, chunks: chunkPlans, modules, segments, labels: labelled.labels, labelStarts: labelled.starts, runOffsets, refs });
+  const built = buildItems({
+    rom,
+    chunks: chunkPlans,
+    modules,
+    segments,
+    labels: labelled.labels,
+    labelStarts: labelled.starts,
+    runOffsets,
+    refs,
+  });
   const inner = innerLabelsOf(chunkPlans, placed, labelled.functions);
 
   const chunks = chunkPlans.map((c, i): Chunk => {
@@ -297,6 +416,18 @@ export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftCo
     labels: labelled.labels,
     symbols: allSymbols,
     unlisted: analysis.mode === 'confirm' ? analysis.unlisted : [],
-    diagnostics: [...planned.diagnostics, ...moduleNameProblems(planned.modules), ...sectionNameCollisions(planned.modules), ...collisions, ...invalid, ...built.diagnostics, ...outsideTheRom(rom, config), ...entryPointsOutside(rom, config, analysis), ...ignoredOverrides(rom, config, placed, analysis), ...unplacedSymbols(labelled.unplaced), ...extents.diagnostics].sort(compareDiagnostics),
+    diagnostics: [
+      ...planned.diagnostics,
+      ...moduleNameProblems(planned.modules),
+      ...sectionNameCollisions(planned.modules),
+      ...collisions,
+      ...invalid,
+      ...built.diagnostics,
+      ...outsideTheRom(rom, config),
+      ...entryPointsOutside(rom, config, analysis),
+      ...ignoredOverrides(rom, config, placed, analysis),
+      ...unplacedSymbols(labelled.unplaced),
+      ...extents.diagnostics,
+    ].sort(compareDiagnostics),
   };
 }

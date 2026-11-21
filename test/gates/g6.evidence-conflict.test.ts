@@ -21,6 +21,7 @@
 //   romFromBytes, sha1Of, profileById('agbcc'), analyze(rom, profile, {mode: 'discover', seeds: [],
 //   overrides: [], trail: 'off'}) -> {functions: [{entry, mode, extent: {start, end}}, …], …}
 import { readFile } from 'node:fs/promises';
+
 import { gate } from './gate.ts';
 
 type Mode = 'thumb' | 'arm';
@@ -74,9 +75,25 @@ interface AnalysisResult {
 type RomFromBytes = (bytes: Uint8Array, sha1: string) => Rom;
 type Sha1Of = (data: Uint8Array) => string;
 type ProfileById = (id: string) => object | undefined;
-type Analyze = (rom: Rom, profile: object, options: { readonly mode: 'discover'; readonly seeds: readonly never[]; readonly overrides: readonly never[]; readonly trail: 'off' }) => AnalysisResult;
-type ParseConfig = (text: string) => { readonly ok: true; readonly value: object } | { readonly ok: false; readonly diagnostics: readonly { readonly code: string; readonly message: string }[] };
-type CheckProposals = (proposals: readonly FunctionProposal[], cx: { readonly analysis: AnalysisResult; readonly config?: object }) => ProposalCheck;
+type Analyze = (
+  rom: Rom,
+  profile: object,
+  options: {
+    readonly mode: 'discover';
+    readonly seeds: readonly never[];
+    readonly overrides: readonly never[];
+    readonly trail: 'off';
+  },
+) => AnalysisResult;
+type ParseConfig = (
+  text: string,
+) =>
+  | { readonly ok: true; readonly value: object }
+  | { readonly ok: false; readonly diagnostics: readonly { readonly code: string; readonly message: string }[] };
+type CheckProposals = (
+  proposals: readonly FunctionProposal[],
+  cx: { readonly analysis: AnalysisResult; readonly config?: object },
+) => ProposalCheck;
 
 const SOURCE: SignatureSource = { kind: 'signature', library: 'gate', version: '0', rule: 'sig.unique-fit' };
 
@@ -89,7 +106,11 @@ function hex(addr: number): string {
 }
 
 function at(d: Diagnostic, addr: number): boolean {
-  return d.addr === addr || (d.span !== undefined && d.span.start <= addr && addr < d.span.end) || (d.cites ?? []).includes(addr);
+  return (
+    d.addr === addr ||
+    (d.span !== undefined && d.span.start <= addr && addr < d.span.end) ||
+    (d.cites ?? []).includes(addr)
+  );
 }
 
 /** A schema-1 romlift.toml for the fixture with the given [functions] lines and [[overrides]] blocks. */
@@ -137,23 +158,58 @@ gate({
     for (const fixture of cx.fixtures) {
       const bytes = new Uint8Array(await readFile(fixture.rom));
       const sha1 = sha1Of(bytes);
-      const analysis = analyze(romFromBytes(bytes, sha1), profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' });
+      const analysis = analyze(romFromBytes(bytes, sha1), profile, {
+        mode: 'discover',
+        seeds: [],
+        overrides: [],
+        trail: 'off',
+      });
       const [f] = analysis.functions;
-      const g = f === undefined ? undefined : analysis.functions.find((h) => h.entry < f.extent.start || h.entry >= f.extent.end);
+      const g =
+        f === undefined
+          ? undefined
+          : analysis.functions.find((h) => h.entry < f.extent.start || h.entry >= f.extent.end);
       if (f === undefined || g === undefined) continue;
       const config = (functions: readonly string[], overrides: readonly string[]): object => {
         const parsed = parseConfig(configText(sha1, functions, overrides));
-        if (!parsed.ok) throw new Error(`${fixture.name}: the gate's config does not parse: ${parsed.diagnostics.map((d) => `${d.code} ${d.message}`).join('; ')}`);
+        if (!parsed.ok)
+          throw new Error(
+            `${fixture.name}: the gate's config does not parse: ${parsed.diagnostics.map((d) => `${d.code} ${d.message}`).join('; ')}`,
+          );
         return parsed.value;
       };
-      const unrelated: FunctionProposal = { kind: 'function', addr: g.entry, mode: g.mode, name: 'GateSignatureG', source: SOURCE };
-      const atF = (mode: Mode): FunctionProposal => ({ kind: 'function', addr: f.entry, mode, name: 'GateSignatureF', source: SOURCE });
+      const unrelated: FunctionProposal = {
+        kind: 'function',
+        addr: g.entry,
+        mode: g.mode,
+        name: 'GateSignatureG',
+        source: SOURCE,
+      };
+      const atF = (mode: Mode): FunctionProposal => ({
+        kind: 'function',
+        addr: f.entry,
+        mode,
+        name: 'GateSignatureF',
+        source: SOURCE,
+      });
       const listedF = `${hex(f.entry)} = { name = "GateListedF", mode = "${f.mode}" }`;
       const dataOverF = `[[overrides]]\nstart = ${hex(f.extent.start)}\nsize = 0x${(f.extent.end - f.extent.start).toString(16).toUpperCase()}\nkind = "data"`;
-      const scenarios: readonly { readonly label: string; readonly contradiction: FunctionProposal; readonly config?: object }[] = [
+      const scenarios: readonly {
+        readonly label: string;
+        readonly contradiction: FunctionProposal;
+        readonly config?: object;
+      }[] = [
         { label: 'against the analysis: F in the other mode', contradiction: atF(other(f.mode)) },
-        { label: 'against the config: F listed in its mode, proposed in the other', contradiction: atF(other(f.mode)), config: config([listedF], []) },
-        { label: 'against the config: F under a data override', contradiction: atF(f.mode), config: config([], [dataOverF]) },
+        {
+          label: 'against the config: F listed in its mode, proposed in the other',
+          contradiction: atF(other(f.mode)),
+          config: config([listedF], []),
+        },
+        {
+          label: 'against the config: F under a data override',
+          contradiction: atF(f.mode),
+          config: config([], [dataOverF]),
+        },
       ];
       for (const scenario of scenarios) {
         cases++;
@@ -165,12 +221,16 @@ gate({
           continue;
         }
         const screened = check([unrelated, scenario.contradiction], context);
-        if (!screened.conflicts.some((d) => d.code === 'W_EVIDENCE_CONFLICT' && at(d, f.entry))) problems.push(`${label}: no W_EVIDENCE_CONFLICT at the contradicted address`);
-        if (JSON.stringify(screened.kept) !== JSON.stringify(alone.kept)) problems.push(`${label}: the contradiction changed the kept proposals`);
+        if (!screened.conflicts.some((d) => d.code === 'W_EVIDENCE_CONFLICT' && at(d, f.entry)))
+          problems.push(`${label}: no W_EVIDENCE_CONFLICT at the contradicted address`);
+        if (JSON.stringify(screened.kept) !== JSON.stringify(alone.kept))
+          problems.push(`${label}: the contradiction changed the kept proposals`);
       }
     }
     if (cases === 0) problems.push("no fixture has two found functions, the second outside the first one's extent");
     if (problems.length > 0) throw new Error(`proposal conflicts: ${problems.join(' | ')}`);
-    cx.note(`${cases} contradictions on ${cx.fixtures.length} fixtures give W_EVIDENCE_CONFLICT and keep only what U alone keeps`);
+    cx.note(
+      `${cases} contradictions on ${cx.fixtures.length} fixtures give W_EVIDENCE_CONFLICT and keep only what U alone keeps`,
+    );
   },
 });

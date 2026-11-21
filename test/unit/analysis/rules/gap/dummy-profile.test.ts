@@ -32,7 +32,9 @@ const OPTIONS: AnalysisOptions = { mode: 'discover', seeds: [], overrides: [], t
 
 /** The real gap and region rules, and stand-ins for the seed, walk, validity, bl and claim families. */
 function rules(): ReturnType<typeof registry> {
-  const own = (Object.keys(RULES) as RuleId[]).filter((id) => familyOf(id) === 'gap' || familyOf(id) === 'region').map((id) => RULES[id] as RegisteredRule);
+  const own = (Object.keys(RULES) as RuleId[])
+    .filter((id) => familyOf(id) === 'gap' || familyOf(id) === 'region')
+    .map((id) => RULES[id] as RegisteredRule);
   return registry(...own, romEntry, calls, extent, inRom, decodes, selfOrAccepted, ...walk);
 }
 

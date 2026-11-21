@@ -14,7 +14,10 @@ export async function stubBinutils(bodies: StubBodies, fn: (dir: string) => void
     for (const tool of ['as', 'ld', 'objcopy'] as const) {
       const file = path.join(dir, `arm-none-eabi-${tool}`);
       const body = bodies[tool] ?? 'exit 0';
-      await writeFile(file, `#!/bin/sh\nif [ "$1" = "--version" ]; then echo "GNU ${tool} (stub) 0.0"; exit 0; fi\n${body}\n`);
+      await writeFile(
+        file,
+        `#!/bin/sh\nif [ "$1" = "--version" ]; then echo "GNU ${tool} (stub) 0.0"; exit 0; fi\n${body}\n`,
+      );
       await chmod(file, 0o755);
     }
     await fn(dir);

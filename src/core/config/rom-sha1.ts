@@ -11,7 +11,10 @@ import type { ConfigCode } from './codes.ts';
 import type { RomliftConfig } from './schema.ts';
 
 /** E_ROM_SHA1_MISMATCH when `rom` is not the ROM `config` records in `[rom] sha1` (compared case-insensitively); empty otherwise. */
-export function romSha1Problems(rom: Pick<Rom, 'sha1'>, config: Pick<RomliftConfig, 'rom'>): readonly Diagnostic<ConfigCode>[] {
+export function romSha1Problems(
+  rom: Pick<Rom, 'sha1'>,
+  config: Pick<RomliftConfig, 'rom'>,
+): readonly Diagnostic<ConfigCode>[] {
   const expected = config.rom.sha1;
   if (rom.sha1.toLowerCase() === expected.toLowerCase()) return [];
   const message = `the ROM has SHA-1 ${rom.sha1}, but ${ROMLIFT_CONFIG_FILE} records ${expected} in [rom] sha1: it is another ROM`;

@@ -9,7 +9,16 @@ import type { RawReason } from '../isa/types.ts';
 import { hex } from '../util/hex.ts';
 import { compareCodeUnits } from '../util/sorted.ts';
 import { zeroRawCounts } from './types.ts';
-import type { Alignment, ArmCoverage, CorpusAssembly, CorpusCounts, CorpusExample, CorpusFile, CorpusSection, CorpusSectionSummary } from './types.ts';
+import type {
+  Alignment,
+  ArmCoverage,
+  CorpusAssembly,
+  CorpusCounts,
+  CorpusExample,
+  CorpusFile,
+  CorpusSection,
+  CorpusSectionSummary,
+} from './types.ts';
 
 /** Examples kept per summary block. */
 const EXAMPLES = 20;
@@ -34,7 +43,11 @@ interface SectionTally {
 export interface CorpusComparison {
   readonly file: string;
   readonly sections: Readonly<Record<CorpusSection, CorpusSectionSummary>>;
-  readonly encoder: { readonly checked: number; readonly disagree: number; readonly examples: readonly CorpusExample[] };
+  readonly encoder: {
+    readonly checked: number;
+    readonly disagree: number;
+    readonly examples: readonly CorpusExample[];
+  };
   readonly context: {
     readonly checked: number;
     readonly disagree: number;
@@ -115,8 +128,20 @@ export function compareCorpusFile(file: CorpusFile, assembly: CorpusAssembly): C
     if (c.reason !== undefined) section.rawByReason[c.reason]++;
 
     const got = assembly.ok && !sizeWrong ? readWord(assembly.bytes, c.offset, c.size) : undefined;
-    const gotText = failure ?? (sizeWrong ? `.text is ${assembly.ok ? assembly.bytes.length : 0} bytes, expected ${file.size}` : got === undefined ? 'missing' : wordHex(got, c.size));
-    const example = (expected: number): CorpusExample => ({ offset: c.offset, word: wordHex(c.word, c.size), text: c.text, expected: wordHex(expected, c.size), got: gotText });
+    const gotText =
+      failure ??
+      (sizeWrong
+        ? `.text is ${assembly.ok ? assembly.bytes.length : 0} bytes, expected ${file.size}`
+        : got === undefined
+          ? 'missing'
+          : wordHex(got, c.size));
+    const example = (expected: number): CorpusExample => ({
+      offset: c.offset,
+      word: wordHex(c.word, c.size),
+      text: c.text,
+      expected: wordHex(expected, c.size),
+      got: gotText,
+    });
     const agrees = got === c.word;
     if (agrees) section.agree++;
     else {
@@ -192,7 +217,12 @@ export function summarizeCorpus(comparisons: readonly CorpusComparison[], armCov
   return {
     sections: { thumb, bl, arm: { ...arm, coverage } },
     encoderAgrees: encoder,
-    context: { checked: context.checked, disagree: context.disagree, alignments: [...alignments].sort(compareCodeUnits), extremes, examples: context.examples },
+    context: {
+      checked: context.checked,
+      disagree: context.disagree,
+      alignments: [...alignments].sort(compareCodeUnits),
+      extremes,
+      examples: context.examples,
+    },
   };
 }
-

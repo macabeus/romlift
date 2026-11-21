@@ -10,8 +10,8 @@ import { decode } from '../../../src/foundation/isa/decode.ts';
 import { format, formatRaw } from '../../../src/foundation/isa/format.ts';
 import { rawReason } from '../../../src/foundation/isa/roundtrip.ts';
 import { specsOf } from '../../../src/foundation/isa/rows.ts';
-import { hex } from '../../../src/foundation/util/hex.ts';
 import type { Mode } from '../../../src/foundation/rom/span.ts';
+import { hex } from '../../../src/foundation/util/hex.ts';
 import { prngSequence } from '../../helpers/prng.ts';
 import { LABELS } from '../../unit/isa/resolver.ts';
 

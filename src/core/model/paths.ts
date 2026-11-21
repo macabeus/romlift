@@ -8,11 +8,18 @@
 // directory is written `<Name>_<ADDR>.s` (ADDR: eight upper-case hex digits of its load address), never
 // only the second one. core/verify/paths.ts (E_PATH_CASE_COLLISION) guards the result.
 import { DIALECT } from '../../foundation/asm/dialect.ts';
-import { chunkFileOf, cSourceOf, isCSource, nonmatchingDir, NONMATCHINGS_ROOT, stubNameOf } from '../../foundation/util/project-files.ts';
+import type { Span } from '../../foundation/rom/span.ts';
 import { foldPath } from '../../foundation/util/fold.ts';
 import { hex } from '../../foundation/util/hex.ts';
+import {
+  NONMATCHINGS_ROOT,
+  cSourceOf,
+  chunkFileOf,
+  isCSource,
+  nonmatchingDir,
+  stubNameOf,
+} from '../../foundation/util/project-files.ts';
 import { sortedKeys } from '../../foundation/util/sorted.ts';
-import type { Span } from '../../foundation/rom/span.ts';
 import type { BuildCompilerId } from '../config/compilers.ts';
 import { cDataRangeOf } from './c-data-assert.ts';
 import type { CDataRange } from './c-data-assert.ts';

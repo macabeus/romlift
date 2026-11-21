@@ -13,9 +13,10 @@
 //     text: string, start: number, end: number}[]
 //   planIncludeAsm: the stub planner whose add, remove and move edits the goldens hold (p6-rename owns the
 //   golden cases with the reconciler's rename tokens, D93)
-import { readdir, readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
-import { gate, type ExecResult } from './gate.ts';
+
+import { type ExecResult, gate } from './gate.ts';
 
 interface CToken {
   readonly kind: string;
@@ -38,7 +39,9 @@ function isIncludeAsmDir(tokens: readonly CToken[], k: number): boolean {
 }
 
 function untouchable(tokens: readonly CToken[]): readonly string[] {
-  return tokens.filter((t, k) => UNTOUCHABLE.has(t.kind) && !isIncludeAsmDir(tokens, k)).map((t) => `${t.kind}:${t.text}`);
+  return tokens
+    .filter((t, k) => UNTOUCHABLE.has(t.kind) && !isIncludeAsmDir(tokens, k))
+    .map((t) => `${t.kind}:${t.text}`);
 }
 
 gate({
@@ -54,7 +57,8 @@ gate({
       .map((e) => e.name)
       .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
     const missingKinds = KINDS.filter((kind) => !cases.some((name) => name.startsWith(kind)));
-    if (missingKinds.length > 0) throw new Error(`${ROOT} has no case for ${missingKinds.join(', ')} (cases: ${cases.join(', ') || 'none'})`);
+    if (missingKinds.length > 0)
+      throw new Error(`${ROOT} has no case for ${missingKinds.join(', ')} (cases: ${cases.join(', ') || 'none'})`);
 
     const problems: string[] = [];
     let protectedTokens = 0;
@@ -65,18 +69,29 @@ gate({
         problems.push(`${name}: needs input.c and expected.c`);
         continue;
       }
-      if (input === expected && !name.startsWith('keep')) problems.push(`${name}: expected.c equals input.c, the case edits nothing`);
+      if (input === expected && !name.startsWith('keep'))
+        problems.push(`${name}: expected.c equals input.c, the case edits nothing`);
       const before = untouchable(tokenizeC(input));
       const after = untouchable(tokenizeC(expected));
       protectedTokens += before.length;
-      if (JSON.stringify(before) !== JSON.stringify(after)) problems.push(`${name}: comments or strings differ between input.c (${before.length}) and expected.c (${after.length})`);
+      if (JSON.stringify(before) !== JSON.stringify(after))
+        problems.push(
+          `${name}: comments or strings differ between input.c (${before.length}) and expected.c (${after.length})`,
+        );
     }
     if (protectedTokens === 0) problems.push('no case holds a comment or a string, so none shows they stay untouched');
 
-    const run = await cx.exec(process.execPath, ['--conditions=source', '--test', '--test-reporter=tap', `${ROOT}/**/*.test.ts`], { cwd: cx.repoRoot, env: { UPDATE_GOLDEN: '' } });
-    if (run.code !== 0) problems.push(`the reconciler goldens fail (node --test ${ROOT} exited ${run.code}):\n${tail(run)}`);
+    const run = await cx.exec(
+      process.execPath,
+      ['--conditions=source', '--test', '--test-reporter=tap', `${ROOT}/**/*.test.ts`],
+      { cwd: cx.repoRoot, env: { UPDATE_GOLDEN: '' } },
+    );
+    if (run.code !== 0)
+      problems.push(`the reconciler goldens fail (node --test ${ROOT} exited ${run.code}):\n${tail(run)}`);
     if (problems.length > 0) throw new Error(`reconciler: ${problems.join(' | ')}`);
     const passed = /^# pass (\d+)$/m.exec(run.stdout)?.[1] ?? '?';
-    cx.note(`${cases.length} C-in, C-out cases (${passed} golden tests) add, remove and move stubs; ${protectedTokens} comment and string tokens untouched`);
+    cx.note(
+      `${cases.length} C-in, C-out cases (${passed} golden tests) add, remove and move stubs; ${protectedTokens} comment and string tokens untouched`,
+    );
   },
 });

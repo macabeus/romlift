@@ -27,6 +27,7 @@
 //   display name is a reviewed one.
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+
 import { type ExecResult, byCodeUnit, gate } from './gate.ts';
 
 interface LibraryCount {
@@ -39,10 +40,31 @@ interface LibraryCount {
 interface JudgedRom {
   readonly name: string;
   readonly libraries: readonly LibraryCount[];
-  readonly placements: { readonly total: number; readonly atElfFunc: number; readonly atUntyped: number; readonly wrong: number };
-  readonly tables: { readonly total: number; readonly objectOfSize: number; readonly label: number; readonly wrong: number };
-  readonly sizes: { readonly proposed: number; readonly equal: number; readonly differ: number; readonly unjudged: number };
-  readonly names: { readonly reference: boolean; readonly total: number; readonly equal: number; readonly differ: number; readonly reviewed: number };
+  readonly placements: {
+    readonly total: number;
+    readonly atElfFunc: number;
+    readonly atUntyped: number;
+    readonly wrong: number;
+  };
+  readonly tables: {
+    readonly total: number;
+    readonly objectOfSize: number;
+    readonly label: number;
+    readonly wrong: number;
+  };
+  readonly sizes: {
+    readonly proposed: number;
+    readonly equal: number;
+    readonly differ: number;
+    readonly unjudged: number;
+  };
+  readonly names: {
+    readonly reference: boolean;
+    readonly total: number;
+    readonly equal: number;
+    readonly differ: number;
+    readonly reviewed: number;
+  };
 }
 
 interface BenchSignatures {
@@ -59,23 +81,48 @@ type Floor = Readonly<Record<string, { readonly functions: number; readonly obje
 
 /** The floors architecture §13 and the roadmap quote, per PoC-judged ROM; the baseline file must agree with them. */
 const FLOORS: Readonly<Record<string, Floor>> = {
-  fe7j: { libagbsyscall: { functions: 18, objects: 0 }, libgcc: { functions: 22, objects: 0 }, m4a: { functions: 94, objects: 10 } },
-  klonoa: { libagbsyscall: { functions: 6, objects: 0 }, libgcc: { functions: 20, objects: 0 }, m4a: { functions: 94, objects: 10 } },
-  pokeemerald: { libagbsyscall: { functions: 15, objects: 0 }, libgcc: { functions: 67, objects: 0 }, m4a: { functions: 109, objects: 10 } },
-  sa2: { libagbsyscall: { functions: 12, objects: 0 }, libgcc: { functions: 24, objects: 0 }, m4a: { functions: 94, objects: 10 } },
-  sa3: { libagbsyscall: { functions: 13, objects: 0 }, libgcc: { functions: 65, objects: 0 }, m4a: { functions: 94, objects: 10 } },
+  fe7j: {
+    libagbsyscall: { functions: 18, objects: 0 },
+    libgcc: { functions: 22, objects: 0 },
+    m4a: { functions: 94, objects: 10 },
+  },
+  klonoa: {
+    libagbsyscall: { functions: 6, objects: 0 },
+    libgcc: { functions: 20, objects: 0 },
+    m4a: { functions: 94, objects: 10 },
+  },
+  pokeemerald: {
+    libagbsyscall: { functions: 15, objects: 0 },
+    libgcc: { functions: 67, objects: 0 },
+    m4a: { functions: 109, objects: 10 },
+  },
+  sa2: {
+    libagbsyscall: { functions: 12, objects: 0 },
+    libgcc: { functions: 24, objects: 0 },
+    m4a: { functions: 94, objects: 10 },
+  },
+  sa3: {
+    libagbsyscall: { functions: 13, objects: 0 },
+    libgcc: { functions: 65, objects: 0 },
+    m4a: { functions: 94, objects: 10 },
+  },
 };
 
 /** The owner's floors for a tuning ROM the PoC never judged (Q9 option b, D98 c): per library, and the placements. */
 const OWNER_FLOORS: Readonly<Record<string, { readonly libraries: Floor; readonly placements: number }>> = {
-  tmc: { libraries: { libagbsyscall: { functions: 13, objects: 0 }, m4a: { functions: 55, objects: 10 } }, placements: 68 },
+  tmc: {
+    libraries: { libagbsyscall: { functions: 13, objects: 0 }, m4a: { functions: 55, objects: 10 } },
+    placements: 68,
+  },
 };
 
 function tail(run: ExecResult, lines = 30): string {
   return `${run.stdout}${run.stderr}`.trimEnd().split('\n').slice(-lines).join('\n');
 }
 
-function perLibrary(rows: readonly LibraryCount[]): ReadonlyMap<string, { readonly functions: number; readonly objects: number }> {
+function perLibrary(
+  rows: readonly LibraryCount[],
+): ReadonlyMap<string, { readonly functions: number; readonly objects: number }> {
   const out = new Map<string, { functions: number; objects: number }>();
   for (const row of rows) {
     const have = out.get(row.library) ?? { functions: 0, objects: 0 };
@@ -84,7 +131,6 @@ function perLibrary(rows: readonly LibraryCount[]): ReadonlyMap<string, { readon
   return out;
 }
 
-
 gate({
   id: 'g6.signatures-judged',
   phase: 6,
@@ -92,7 +138,9 @@ gate({
   inputs: ['roms', 'elfs'],
   needs: ['matchSignatures', 'resolvePlacements', 'proposeFromSignatures', 'buildSignatures'],
   async run(cx) {
-    const baseline = JSON.parse(await readFile(path.join(cx.repoRoot, 'bench', 'baseline', 'poc-2026-10-16.json'), 'utf8')) as { readonly roms: readonly BaselineRow[] };
+    const baseline = JSON.parse(
+      await readFile(path.join(cx.repoRoot, 'bench', 'baseline', 'poc-2026-10-16.json'), 'utf8'),
+    ) as { readonly roms: readonly BaselineRow[] };
     const floors = new Map(baseline.roms.map((r) => [r.name, perLibrary(r.signatures?.versions ?? [])]));
     for (const rom of Object.keys(FLOORS).sort(byCodeUnit)) {
       const want = FLOORS[rom] ?? {};
@@ -101,14 +149,18 @@ gate({
       for (const library of libraries) {
         const w = want[library];
         const h = have?.get(library);
-        if (w === undefined || h?.functions !== w.functions || h.objects !== w.objects) throw new Error(`the baseline's ${rom} ${library} row ${JSON.stringify(h ?? null)} is not the architecture's floor ${JSON.stringify(w ?? null)}`);
+        if (w === undefined || h?.functions !== w.functions || h.objects !== w.objects)
+          throw new Error(
+            `the baseline's ${rom} ${library} row ${JSON.stringify(h ?? null)} is not the architecture's floor ${JSON.stringify(w ?? null)}`,
+          );
       }
     }
 
     const run = await cx.npm('bench', ['signatures', '--json']);
     if (run.code !== 0) throw new Error(`bench signatures --json exited ${run.code}:\n${tail(run)}`);
     const result = cx.lastJson<BenchSignatures>(run.stdout);
-    if (result.schema !== 'romlift/bench-signatures@1') throw new Error(`bench signatures printed schema '${String(result.schema)}'`);
+    if (result.schema !== 'romlift/bench-signatures@1')
+      throw new Error(`bench signatures printed schema '${String(result.schema)}'`);
     const problems: string[] = [];
     for (const dataset of cx.datasets) {
       const rom = result.roms.find((r) => r.name === dataset.name);
@@ -121,20 +173,42 @@ gate({
       const pocFloor = FLOORS[dataset.name] === undefined ? undefined : floors.get(dataset.name);
       const floor = pocFloor ?? (owner === undefined ? undefined : new Map(Object.entries(owner.libraries)));
       const whose = pocFloor === undefined ? "the owner's" : "the PoC's";
-      if (floor === undefined) cx.note(`${dataset.name}: neither a PoC signatures row nor an owner's floor, judged by the ELF checks with no floor`);
+      if (floor === undefined)
+        cx.note(
+          `${dataset.name}: neither a PoC signatures row nor an owner's floor, judged by the ELF checks with no floor`,
+        );
       for (const [library, want] of [...(floor ?? new Map())].sort((a, b) => byCodeUnit(a[0], b[0]))) {
         const have = placed.get(library) ?? { functions: 0, objects: 0 };
-        if (have.functions < want.functions) problems.push(`${dataset.name}: ${library} ${have.functions} functions < ${whose} ${want.functions}`);
-        if (have.objects < want.objects) problems.push(`${dataset.name}: ${library} ${have.objects} tables < ${whose} ${want.objects}`);
+        if (have.functions < want.functions)
+          problems.push(`${dataset.name}: ${library} ${have.functions} functions < ${whose} ${want.functions}`);
+        if (have.objects < want.objects)
+          problems.push(`${dataset.name}: ${library} ${have.objects} tables < ${whose} ${want.objects}`);
       }
-      if (owner !== undefined && rom.placements.total < owner.placements) problems.push(`${dataset.name}: ${rom.placements.total} placements < the owner's ${owner.placements}`);
-      if (rom.placements.wrong > 0 || rom.placements.atElfFunc + rom.placements.atUntyped !== rom.placements.total) problems.push(`${dataset.name}: ${rom.placements.wrong} placements at neither an ELF FUNC nor a listed untyped address`);
-      if (rom.tables.wrong > 0 || rom.tables.objectOfSize + rom.tables.label !== rom.tables.total) problems.push(`${dataset.name}: ${rom.tables.wrong} tables are neither an OBJECT of their size nor a label`);
-      if (rom.sizes.differ > 0) problems.push(`${dataset.name}: ${rom.sizes.differ} proposed sizes differ from the ELF`);
-      if (rom.sizes.equal + rom.sizes.differ + rom.sizes.unjudged !== rom.sizes.proposed) problems.push(`${dataset.name}: ${rom.sizes.proposed} proposed sizes, but ${rom.sizes.equal} equal + ${rom.sizes.differ} differ + ${rom.sizes.unjudged} unjudged`);
-      if (rom.names.reference && rom.names.differ > 0) problems.push(`${dataset.name}: ${rom.names.differ} placed members' symbols differ from this reference's own symbols`);
-      const summary = [...placed].sort((a, b) => byCodeUnit(a[0], b[0])).map(([l, c]) => `${l} ${c.functions}/${c.objects}`).join(', ');
-      cx.note(`${dataset.name}: ${summary}; ${rom.placements.total} placements, ${rom.sizes.proposed} sizes (${rom.sizes.equal} equal, ${rom.sizes.unjudged} unjudged)${rom.names.reference ? `, ${rom.names.equal} reference symbols` : ''}, ${rom.names.reviewed} reviewed names (reported)`);
+      if (owner !== undefined && rom.placements.total < owner.placements)
+        problems.push(`${dataset.name}: ${rom.placements.total} placements < the owner's ${owner.placements}`);
+      if (rom.placements.wrong > 0 || rom.placements.atElfFunc + rom.placements.atUntyped !== rom.placements.total)
+        problems.push(
+          `${dataset.name}: ${rom.placements.wrong} placements at neither an ELF FUNC nor a listed untyped address`,
+        );
+      if (rom.tables.wrong > 0 || rom.tables.objectOfSize + rom.tables.label !== rom.tables.total)
+        problems.push(`${dataset.name}: ${rom.tables.wrong} tables are neither an OBJECT of their size nor a label`);
+      if (rom.sizes.differ > 0)
+        problems.push(`${dataset.name}: ${rom.sizes.differ} proposed sizes differ from the ELF`);
+      if (rom.sizes.equal + rom.sizes.differ + rom.sizes.unjudged !== rom.sizes.proposed)
+        problems.push(
+          `${dataset.name}: ${rom.sizes.proposed} proposed sizes, but ${rom.sizes.equal} equal + ${rom.sizes.differ} differ + ${rom.sizes.unjudged} unjudged`,
+        );
+      if (rom.names.reference && rom.names.differ > 0)
+        problems.push(
+          `${dataset.name}: ${rom.names.differ} placed members' symbols differ from this reference's own symbols`,
+        );
+      const summary = [...placed]
+        .sort((a, b) => byCodeUnit(a[0], b[0]))
+        .map(([l, c]) => `${l} ${c.functions}/${c.objects}`)
+        .join(', ');
+      cx.note(
+        `${dataset.name}: ${summary}; ${rom.placements.total} placements, ${rom.sizes.proposed} sizes (${rom.sizes.equal} equal, ${rom.sizes.unjudged} unjudged)${rom.names.reference ? `, ${rom.names.equal} reference symbols` : ''}, ${rom.names.reviewed} reviewed names (reported)`,
+      );
     }
     if (problems.length > 0) throw new Error(`signatures judged: ${problems.join('; ')}`);
   },

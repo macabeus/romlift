@@ -6,7 +6,7 @@ import { DECODER_FLOW } from '../../../../../src/core/analysis/types.ts';
 import { romWith, viewWith, walkReading } from '../../../../helpers/analysis.ts';
 import { armAt } from '../../../../helpers/arm.ts';
 import { thumbAt } from '../../../../helpers/thumb.ts';
-import { cursorOf, insnAt, WALK, walkRule, without } from './support.ts';
+import { WALK, cursorOf, insnAt, walkRule, without } from './support.ts';
 
 const F = 0x0800_0200;
 const ID = 'walk.mov-lr-pc-bx-is-call';
@@ -22,7 +22,10 @@ test('mov lr, pc then bx rN is a call: the path goes on to the return after it',
   assert.deepEqual(walkRule(ID).onInsn(run[1]!, cursorOf(v, { entry: F, mode: 'arm', run })), { step: 'continue' });
   const bare = walkReading(v, F, 'arm', without(ID));
   assert.equal(bare.insns.length, 2, 'without the rule the bx is a register jump that ends the path');
-  assert.deepEqual(bare.exits.map((e) => e.kind), ['reg-jump']);
+  assert.deepEqual(
+    bare.exits.map((e) => e.kind),
+    ['reg-jump'],
+  );
 });
 
 test('the bx may name any register, lr included, and may be conditional', () => {
@@ -48,7 +51,14 @@ test('declines: another instruction before the bx, a conditional mov lr, pc, Thu
   const ends = (entry: number): number => walkReading(v, entry, 'arm', WALK).insns.length;
   assert.equal(ends(F), 2);
   assert.equal(ends(F + 0x20), 2);
-  assert.equal(walkReading(v, F + 0x40, 'arm', WALK).insnAt.has(F + 0x54), false, 'the bx after the branch has no previous instruction in its run');
+  assert.equal(
+    walkReading(v, F + 0x40, 'arm', WALK).insnAt.has(F + 0x54),
+    false,
+    'the bx after the branch has no previous instruction in its run',
+  );
   const thumbRun = [insnAt(rom, F + 0x80, 'thumb'), insnAt(rom, F + 0x82, 'thumb')];
-  assert.equal(walkRule(ID).onInsn(thumbRun[1]!, cursorOf(v, { entry: F + 0x80, mode: 'thumb', run: thumbRun })), undefined);
+  assert.equal(
+    walkRule(ID).onInsn(thumbRun[1]!, cursorOf(v, { entry: F + 0x80, mode: 'thumb', run: thumbRun })),
+    undefined,
+  );
 });

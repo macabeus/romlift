@@ -4,7 +4,14 @@
 // bits, the multiply, swap and halfword rows before the miscellaneous space, data processing last.
 import { ARM_DP_ROWS } from './arm-dp.ts';
 import { ARM_MEMORY_ROWS } from './arm-mem.ts';
-import { ARM_CONTROL_ROWS, ARM_MEDIA_UNDEFINED, ARM_MISC_ROWS, ARM_MULTIPLY_ROWS, ARM_NV, ARM_UNDEFINED } from './arm-misc.ts';
+import {
+  ARM_CONTROL_ROWS,
+  ARM_MEDIA_UNDEFINED,
+  ARM_MISC_ROWS,
+  ARM_MULTIPLY_ROWS,
+  ARM_NV,
+  ARM_UNDEFINED,
+} from './arm-misc.ts';
 import type { Row } from './row.ts';
 
 /** Every ARM row in decode order; the last one matches everything. */

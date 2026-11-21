@@ -6,9 +6,9 @@ import nearIsCall from './near-is-call.ts';
 import noreturnBeforeNoncode from './noreturn-before-noncode.ts';
 import selfOrAccepted from './self-or-accepted.ts';
 import targetBeforeEntry from './target-before-entry.ts';
+import targetBeyondCallee from './target-beyond-callee.ts';
 import targetHasPrologue from './target-has-prologue.ts';
 import targetInsideCaller from './target-inside-caller.ts';
-import targetBeyondCallee from './target-beyond-callee.ts';
 import targetPopsUnpushedFrame from './target-pops-unpushed-frame.ts';
 
 export const BL_RULES = {

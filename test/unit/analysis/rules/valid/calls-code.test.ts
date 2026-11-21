@@ -53,18 +53,41 @@ function check(targets: readonly (readonly [Addr, Mode])[], v: AnalysisView = vi
 
 test('callees that could be code, functions and ARM callees pass; only the rest are read', () => {
   const reads: Addr[] = [];
-  assert.equal(check([[GOOD, 'thumb'], [IN_CODE, 'thumb'], [FUNC, 'thumb'], [ZERO, 'arm'], [rom.end - 4, 'thumb']], view(reads)), undefined);
+  assert.equal(
+    check(
+      [
+        [GOOD, 'thumb'],
+        [IN_CODE, 'thumb'],
+        [FUNC, 'thumb'],
+        [ZERO, 'arm'],
+        [rom.end - 4, 'thumb'],
+      ],
+      view(reads),
+    ),
+    undefined,
+  );
   assert.deepEqual(reads, [GOOD, IN_CODE, rom.end - 4]);
 });
 
 test('a callee in a pool or table, blank, undecodable, odd or without a word left is not code', () => {
   for (const t of [IN_POOL, IN_TABLE, ZERO, ONES, BROKEN, GOOD + 1, rom.end - 2]) {
-    assert.equal(check([[t, 'thumb']]), `calls 0x${t.toString(16).toUpperCase().padStart(8, '0')}, which is not code`, t.toString(16));
+    assert.equal(
+      check([[t, 'thumb']]),
+      `calls 0x${t.toString(16).toUpperCase().padStart(8, '0')}, which is not code`,
+      t.toString(16),
+    );
   }
 });
 
 test('the first failing callee in calls order is reported; the failure is not intrinsic', () => {
-  assert.equal(check([[ONES, 'thumb'], [GOOD, 'thumb'], [ZERO, 'thumb']]), 'calls 0x08000310, which is not code');
+  assert.equal(
+    check([
+      [ONES, 'thumb'],
+      [GOOD, 'thumb'],
+      [ZERO, 'thumb'],
+    ]),
+    'calls 0x08000310, which is not code',
+  );
   assert.equal(callsCode.reason, 'calls-non-code');
   assert.equal(callsCode.intrinsic, false);
 });

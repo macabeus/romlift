@@ -8,7 +8,8 @@ export default defineRule({
   meta: {
     id: 'bl.target-has-prologue',
     summary: 'a bl to a word-aligned Thumb `push {.., lr}` is a call',
-    restsOn: 'agbcc opens every function that calls or spills with `push {.., lr}` on a word boundary; the tail of a function never does',
+    restsOn:
+      'agbcc opens every function that calls or spills with `push {.., lr}` on a word boundary; the tail of a function never does',
     recovers: 'calls to functions not yet found, misread as far jumps when they are far from the caller',
     reads: ['rom'],
     adds: ['bl-verdicts'],

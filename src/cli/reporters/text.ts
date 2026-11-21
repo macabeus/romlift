@@ -37,6 +37,7 @@ export function* columnLines(count: number, rowAt: (k: number) => readonly strin
   for (let k = 0; k < count; k++) rowAt(k).forEach((cell, i) => (widths[i] = Math.max(widths[i] ?? 0, cell.length)));
   for (let k = 0; k < count; k++) {
     const row = rowAt(k);
-    yield `${indent}${row.map((cell, i) => (i === row.length - 1 ? cell : cell.padEnd(widths[i] ?? 0))).join('  ')}`.trimEnd() + '\n';
+    yield `${indent}${row.map((cell, i) => (i === row.length - 1 ? cell : cell.padEnd(widths[i] ?? 0))).join('  ')}`.trimEnd() +
+      '\n';
   }
 }

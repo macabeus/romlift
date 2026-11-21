@@ -5,15 +5,22 @@
 // whose versions must equal meta.toolchain of the existing results.json when there is one, and objdiff-cli
 // against bench/tools/objdiff.version. Every missing or mismatching input is named.
 import { join } from 'node:path';
-
 import { parseElf, parseGnuMap } from 'romlift';
 import { sha1Of, sha256Of } from 'romlift/node';
 
-import { readResultsFile, type Toolchain } from './artifact.ts';
-import { resultsPath, type BenchContext } from './context.ts';
-import { loadDatasets, tuningDatasets, type Dataset } from './dataset.ts';
+import { type Toolchain, readResultsFile } from './artifact.ts';
+import { type BenchContext, resultsPath } from './context.ts';
+import { type Dataset, loadDatasets, tuningDatasets } from './dataset.ts';
 import { BenchError, exists, isDirectory, readFileBytes, readText } from './files.ts';
-import { findObjdiff, mainRepoRootOf, OBJDIFF_ENV, OBJDIFF_VERSION_FILE, objdiffVersion, readPinnedObjdiffVersion, type ObjdiffLocation } from './objdiff-cli.ts';
+import {
+  OBJDIFF_ENV,
+  OBJDIFF_VERSION_FILE,
+  type ObjdiffLocation,
+  findObjdiff,
+  mainRepoRootOf,
+  objdiffVersion,
+  readPinnedObjdiffVersion,
+} from './objdiff-cli.ts';
 import { linkedSectionMismatches, listObjectFiles, mapObjects, objectsDigest } from './objects.ts';
 import { comparePocSource, computePocSource, readPinnedPocSource } from './poc-source.ts';
 import { TOOLS, toolchainVersions } from './toolchain.ts';
@@ -29,7 +36,12 @@ export interface DoctorReport {
   readonly checks: readonly DoctorCheck[];
 }
 
-async function digestCheck(id: string, path: string, algorithm: 'sha1' | 'sha256', expected: string): Promise<DoctorCheck> {
+async function digestCheck(
+  id: string,
+  path: string,
+  algorithm: 'sha1' | 'sha256',
+  expected: string,
+): Promise<DoctorCheck> {
   if (!(await exists(path))) return { id, ok: false, detail: `${path} is missing` };
   const bytes = await readFileBytes(path);
   const actual = algorithm === 'sha1' ? sha1Of(bytes) : sha256Of(bytes);
@@ -44,7 +56,8 @@ export function toolchainChecks(found: Toolchain, recorded: Toolchain | undefine
     const version = found[key];
     if (version === null) return { id, ok: false, detail: `${TOOLS[key]} is missing from PATH` };
     const want = recorded?.[key];
-    if (want !== undefined && want !== null && want !== version) return { id, ok: false, detail: `${TOOLS[key]} is '${version}', results.json records '${want}'` };
+    if (want !== undefined && want !== null && want !== version)
+      return { id, ok: false, detail: `${TOOLS[key]} is '${version}', results.json records '${want}'` };
     return { id, ok: true, detail: version };
   });
 }
@@ -55,11 +68,13 @@ export function toolchainChecks(found: Toolchain, recorded: Toolchain | undefine
  */
 export async function objectsCheck(d: Dataset, benchRoot: string): Promise<DoctorCheck> {
   const id = `${d.name}.objects`;
-  if (d.objectsDir === undefined || d.objectsDigest === undefined) return { id, ok: false, detail: 'the dataset records no objectsDir and objectsDigest' };
+  if (d.objectsDir === undefined || d.objectsDigest === undefined)
+    return { id, ok: false, detail: 'the dataset records no objectsDir and objectsDigest' };
   const dir = join(benchRoot, d.objectsDir);
   if (!(await isDirectory(dir))) return { id, ok: false, detail: `${dir} is missing` };
   const [count, digest] = [(await listObjectFiles(dir)).length, await objectsDigest(dir)];
-  if (digest !== d.objectsDigest) return { id, ok: false, detail: `${dir} (${count} objects) has digest ${digest}, recorded ${d.objectsDigest}` };
+  if (digest !== d.objectsDigest)
+    return { id, ok: false, detail: `${dir} (${count} objects) has digest ${digest}, recorded ${d.objectsDigest}` };
   return { id, ok: true, detail: `${dir} ${count} objects sha256 ${digest}` };
 }
 
@@ -71,10 +86,12 @@ export async function objectsCheck(d: Dataset, benchRoot: string): Promise<Docto
  */
 export async function linkedObjectsCheck(d: Dataset, benchRoot: string): Promise<DoctorCheck> {
   const id = `${d.name}.objects-linked`;
-  if (d.objectsDir === undefined || d.map === undefined) return { id, ok: false, detail: 'the dataset records no objectsDir or no map' };
+  if (d.objectsDir === undefined || d.map === undefined)
+    return { id, ok: false, detail: 'the dataset records no objectsDir or no map' };
   const mapPath = join(benchRoot, d.map);
   const dir = join(benchRoot, d.objectsDir);
-  if (!(await exists(mapPath)) || !(await isDirectory(dir))) return { id, ok: false, detail: `${(await exists(mapPath)) ? dir : mapPath} is missing` };
+  if (!(await exists(mapPath)) || !(await isDirectory(dir)))
+    return { id, ok: false, detail: `${(await exists(mapPath)) ? dir : mapPath} is missing` };
   const parsed = parseGnuMap(await readText(mapPath));
   if (!parsed.ok) return { id, ok: false, detail: `${mapPath}: ${parsed.error}` };
   const linked = mapObjects(parsed.value);
@@ -92,18 +109,45 @@ export async function linkedObjectsCheck(d: Dataset, benchRoot: string): Promise
   }
   if (problems.length > 0) {
     const shown = problems.slice(0, 5).join('; ');
-    return { id, ok: false, detail: `${problems.length} of the map's ${linked.objects.length} objects are not the linked ones: ${shown}${problems.length > 5 ? '; ...' : ''}` };
+    return {
+      id,
+      ok: false,
+      detail: `${problems.length} of the map's ${linked.objects.length} objects are not the linked ones: ${shown}${problems.length > 5 ? '; ...' : ''}`,
+    };
   }
-  return { id, ok: true, detail: `the map's ${linked.objects.length} objects match; ${linked.archiveMembers.length} archive members are outside ${d.objectsDir}` };
+  return {
+    id,
+    ok: true,
+    detail: `the map's ${linked.objects.length} objects match; ${linked.archiveMembers.length} archive members are outside ${d.objectsDir}`,
+  };
 }
 
 /** The objdiff-cli check: a binary found, and its version line equal to the pinned one. */
-export function objdiffCheck(found: ObjdiffLocation | undefined, version: string | null, pinned: string | null): DoctorCheck {
+export function objdiffCheck(
+  found: ObjdiffLocation | undefined,
+  version: string | null,
+  pinned: string | null,
+): DoctorCheck {
   const id = 'toolchain.objdiff';
   if (pinned === null) return { id, ok: false, detail: `${OBJDIFF_VERSION_FILE} is missing or empty` };
-  if (found === undefined) return { id, ok: false, detail: `objdiff-cli is missing: set ${OBJDIFF_ENV} to the '${pinned}' binary, or build it into bench/.local/objdiff-target (docs/benchmark-roms.md)` };
-  if (version === null) return { id, ok: false, detail: `${found.bin} (${found.source === 'env' ? OBJDIFF_ENV : found.source}) does not run or prints no version; ${OBJDIFF_VERSION_FILE} pins '${pinned}'` };
-  if (version !== pinned) return { id, ok: false, detail: `${found.bin} is '${version}', ${OBJDIFF_VERSION_FILE} pins '${pinned}'; set ${OBJDIFF_ENV} to the pinned binary` };
+  if (found === undefined)
+    return {
+      id,
+      ok: false,
+      detail: `objdiff-cli is missing: set ${OBJDIFF_ENV} to the '${pinned}' binary, or build it into bench/.local/objdiff-target (docs/benchmark-roms.md)`,
+    };
+  if (version === null)
+    return {
+      id,
+      ok: false,
+      detail: `${found.bin} (${found.source === 'env' ? OBJDIFF_ENV : found.source}) does not run or prints no version; ${OBJDIFF_VERSION_FILE} pins '${pinned}'`,
+    };
+  if (version !== pinned)
+    return {
+      id,
+      ok: false,
+      detail: `${found.bin} is '${version}', ${OBJDIFF_VERSION_FILE} pins '${pinned}'; set ${OBJDIFF_ENV} to the pinned binary`,
+    };
   return { id, ok: true, detail: `${found.bin} ${version}` };
 }
 
@@ -117,14 +161,19 @@ export async function doctorReal(cx: BenchContext, options: DoctorRealOptions = 
   const { datasets, problems } = await loadDatasets(cx);
   for (const p of problems) checks.push({ id: `${p.dataset}.dataset`, ok: false, detail: p.detail });
   const tuning = tuningDatasets(datasets);
-  if (tuning.length === 0) checks.push({ id: 'datasets', ok: false, detail: 'no tuning datasets in bench/dataset/real' });
+  if (tuning.length === 0)
+    checks.push({ id: 'datasets', ok: false, detail: 'no tuning datasets in bench/dataset/real' });
   for (const d of tuning) {
     checks.push(await digestCheck(`${d.name}.rom`, join(cx.benchRoot, d.rom), 'sha1', d.sha1));
     checks.push(await digestCheck(`${d.name}.elf`, join(cx.benchRoot, d.elf), 'sha256', d.elfSha256));
     if (d.map === undefined) checks.push({ id: `${d.name}.map`, ok: false, detail: 'the dataset records no map' });
     else {
       const map = join(cx.benchRoot, d.map);
-      checks.push((await exists(map)) ? { id: `${d.name}.map`, ok: true, detail: `${map} present` } : { id: `${d.name}.map`, ok: false, detail: `${map} is missing` });
+      checks.push(
+        (await exists(map))
+          ? { id: `${d.name}.map`, ok: true, detail: `${map} present` }
+          : { id: `${d.name}.map`, ok: false, detail: `${map} is missing` },
+      );
     }
     checks.push(await objectsCheck(d, cx.benchRoot));
     checks.push(await linkedObjectsCheck(d, cx.benchRoot));
@@ -132,7 +181,11 @@ export async function doctorReal(cx: BenchContext, options: DoctorRealOptions = 
   try {
     const pinned = await readPinnedPocSource(cx);
     const differences = comparePocSource(pinned, await computePocSource(cx.pocRoot));
-    checks.push(differences.length === 0 ? { id: 'poc', ok: true, detail: `${cx.pocRoot} matches poc-source.json (${pinned.digest})` } : { id: 'poc', ok: false, detail: differences.join('; ') });
+    checks.push(
+      differences.length === 0
+        ? { id: 'poc', ok: true, detail: `${cx.pocRoot} matches poc-source.json (${pinned.digest})` }
+        : { id: 'poc', ok: false, detail: differences.join('; ') },
+    );
   } catch (error) {
     if (!(error instanceof BenchError)) throw error;
     checks.push({ id: 'poc', ok: false, detail: error.message });
@@ -140,7 +193,16 @@ export async function doctorReal(cx: BenchContext, options: DoctorRealOptions = 
   const recorded = await readResultsFile(resultsPath(cx)).catch(() => undefined);
   checks.push(...toolchainChecks(await toolchainVersions(), recorded?.meta.toolchain));
   const mainRepoRoot = await mainRepoRootOf(cx.repoRoot);
-  const found = await findObjdiff(options.env ?? process.env, cx.benchRoot, { repoRoot: cx.repoRoot, ...(mainRepoRoot === undefined ? {} : { mainRepoRoot }) });
-  checks.push(objdiffCheck(found, found === undefined ? null : await objdiffVersion(found.bin), await readPinnedObjdiffVersion(cx.repoRoot)));
+  const found = await findObjdiff(options.env ?? process.env, cx.benchRoot, {
+    repoRoot: cx.repoRoot,
+    ...(mainRepoRoot === undefined ? {} : { mainRepoRoot }),
+  });
+  checks.push(
+    objdiffCheck(
+      found,
+      found === undefined ? null : await objdiffVersion(found.bin),
+      await readPinnedObjdiffVersion(cx.repoRoot),
+    ),
+  );
   return { ok: checks.every((c) => c.ok), checks };
 }

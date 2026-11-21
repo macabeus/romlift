@@ -9,9 +9,8 @@
 // independent, every aligned word of it that pointed into its own code as linked is moved with it, and the
 // data block after it opens with a pointer to its `main` (where its startup's pool word pointed, moved with
 // the tile). Nothing here reads the clock or Math.random.
-import { readdir, readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-
 import { compareCodeUnits } from 'romlift';
 
 /** The size g3.large-rom requires: 32 MiB, the largest cartridge. */
@@ -40,7 +39,8 @@ export interface LargeRomOptions {
  * result, the next state, is also the generated value. The same generator as romlift's seeded samples.
  */
 export function xorshift32(state: number): number {
-  if (!Number.isInteger(state) || state <= 0 || state > 0xffff_ffff) throw new RangeError(`xorshift32 state must be a nonzero uint32, got ${state}`);
+  if (!Number.isInteger(state) || state <= 0 || state > 0xffff_ffff)
+    throw new RangeError(`xorshift32 state must be a nonzero uint32, got ${state}`);
   let x = state;
   x ^= x << 13;
   x ^= x >>> 17;
@@ -74,12 +74,16 @@ function rebase(view: DataView, start: number, end: number, delta: number): void
 export function largeRomImage(fixtures: readonly Uint8Array[], options: LargeRomOptions = {}): Uint8Array {
   const bytes = options.bytes ?? LARGE_ROM_BYTES;
   let state = options.seed ?? LARGE_ROM_SEED;
-  if (!Number.isInteger(bytes) || bytes % 4 !== 0 || bytes <= FIXTURE_STARTUP_END) throw new RangeError(`the image size must be a multiple of 4 above 0x${FIXTURE_STARTUP_END.toString(16)}, got ${bytes}`);
+  if (!Number.isInteger(bytes) || bytes % 4 !== 0 || bytes <= FIXTURE_STARTUP_END)
+    throw new RangeError(
+      `the image size must be a multiple of 4 above 0x${FIXTURE_STARTUP_END.toString(16)}, got ${bytes}`,
+    );
   xorshift32(state); // validates the seed
   const first = fixtures[0];
   if (first === undefined) throw new RangeError('largeRomImage needs at least one fixture ROM');
   const tiles = fixtures.map((rom, i) => {
-    if (rom.length <= FIXTURE_STARTUP_END) throw new RangeError(`fixture ROM ${i} has ${rom.length} bytes, no code after its startup`);
+    if (rom.length <= FIXTURE_STARTUP_END)
+      throw new RangeError(`fixture ROM ${i} has ${rom.length} bytes, no code after its startup`);
     return rom.subarray(FIXTURE_STARTUP_END);
   });
   const image = new Uint8Array(bytes).fill(PAD);
@@ -96,7 +100,11 @@ export function largeRomImage(fixtures: readonly Uint8Array[], options: LargeRom
     const tileStart = at;
     at = tileEnd;
     if (at + 4 > bytes) break;
-    view.setUint32(at, (mainWord(fixtures[i % fixtures.length] ?? first) + tileStart - FIXTURE_STARTUP_END) >>> 0, true);
+    view.setUint32(
+      at,
+      (mainWord(fixtures[i % fixtures.length] ?? first) + tileStart - FIXTURE_STARTUP_END) >>> 0,
+      true,
+    );
     at += 4;
     state = xorshift32(state);
     const words = Math.min(DATA_MIN_WORDS + (state % DATA_SPAN_WORDS), (bytes - at) / 4);

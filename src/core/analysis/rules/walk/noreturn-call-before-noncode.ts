@@ -9,7 +9,8 @@ export default defineRule({
   meta: {
     id: 'walk.noreturn-call-before-noncode',
     summary: 'a bl followed by non-code is a call that never returns: the path ends there',
-    restsOn: 'agbcc emits nothing after a call to a function that never returns (abort, a reset loop), so the next bytes are a pool or the next function',
+    restsOn:
+      'agbcc emits nothing after a call to a function that never returns (abort, a reset loop), so the next bytes are a pool or the next function',
     recovers: 'functions ending in a never-returning call, which would otherwise read as not code',
     reads: ['rom'],
     adds: ['exits'],

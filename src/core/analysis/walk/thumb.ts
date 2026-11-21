@@ -15,8 +15,8 @@ import { DECODER_FLOW } from '../types.ts';
 import type { Reading, WalkStep } from '../types.ts';
 import { walkArm } from './arm.ts';
 import { askWalk, asksWalk, externalTarget, toLoadInsn, walkCursor } from './cursor.ts';
-import { WalkRecord } from './record.ts';
 import type { MutableCursor, WalkCursor, WalkEnv } from './cursor.ts';
+import { WalkRecord } from './record.ts';
 
 /** The Thumb instruction at load address `pc`. */
 export function decodeThumbAt(env: WalkEnv, pc: Addr): Insn {
@@ -33,7 +33,14 @@ interface Path {
   readonly cursor: MutableCursor;
 }
 
-function cursorFor(path: Path, insn: Insn, sp: number, phase: 'insn' | 'stop', at: Addr, stop?: 'invalid' | 'pool'): WalkCursor {
+function cursorFor(
+  path: Path,
+  insn: Insn,
+  sp: number,
+  phase: 'insn' | 'stop',
+  at: Addr,
+  stop?: 'invalid' | 'pool',
+): WalkCursor {
   const c = path.cursor;
   c.phase = phase;
   c.stop = stop;
@@ -120,7 +127,8 @@ function apply(path: Path, insn: Insn, sp: number, id: RuleId, step: WalkStep): 
     case 'arm-tail': {
       // The ARM code is walked for its extent only; it stays free for its own discovery.
       const tail = walkArm(env, step.target);
-      if (tail.errors.length === 0 && tail.returns > 0 && tail.insns.length > 0) rec.armTails.push({ start: step.target, end: tail.end });
+      if (tail.errors.length === 0 && tail.returns > 0 && tail.insns.length > 0)
+        rec.armTails.push({ start: step.target, end: tail.end });
       return exitHere(path, insn, sp, 'reg-jump', id);
     }
   }
@@ -158,7 +166,14 @@ function externalExit(path: Path, insn: Insn, sp: number): boolean {
 }
 
 /** The bl at `insn`, as the settle loop decided it; true when the path ends here. */
-function call(path: Path, insn: Insn, sp: number, target: Addr, far: ReadonlySet<Addr>, noret: ReadonlyMap<Addr, RuleId>): boolean {
+function call(
+  path: Path,
+  insn: Insn,
+  sp: number,
+  target: Addr,
+  far: ReadonlySet<Addr>,
+  noret: ReadonlyMap<Addr, RuleId>,
+): boolean {
   const { rec, env } = path;
   // A call from a runs_at range to RAM outside every range returns like any call; it names no function here (§6.7).
   if (externalTarget(env.view, insn.addr, target)) return false;
@@ -179,13 +194,25 @@ function call(path: Path, insn: Insn, sp: number, target: Addr, far: ReadonlySet
 }
 
 /** Walks the Thumb function at `entry` under the current claims and function set. */
-export function walkThumb(env: WalkEnv, entry: Addr, far: ReadonlySet<Addr>, noret: ReadonlyMap<Addr, RuleId>): Reading {
+export function walkThumb(
+  env: WalkEnv,
+  entry: Addr,
+  far: ReadonlySet<Addr>,
+  noret: ReadonlyMap<Addr, RuleId>,
+): Reading {
   const { view } = env;
   const rom = view.rom;
   const rec = new WalkRecord(entry, 'thumb', env.trace === true);
   const work: [Addr, number][] = [[entry, 0]];
   const runs = { current: [] as Addr[] };
-  const cursor = walkCursor(view, entry, 'thumb', (a) => rec.insns.has(a), () => runs.current, (a) => decodeThumbAt(env, a));
+  const cursor = walkCursor(
+    view,
+    entry,
+    'thumb',
+    (a) => rec.insns.has(a),
+    () => runs.current,
+    (a) => decodeThumbAt(env, a),
+  );
   for (let item = work.pop(); item !== undefined; item = work.pop()) {
     let [pc, sp] = item;
     let zeros = 0;

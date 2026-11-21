@@ -4,8 +4,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-
-import { canonicalJson, profileById, romFromBytes, type AnalysisResult, type JsonValue } from 'romlift';
+import { type AnalysisResult, type JsonValue, canonicalJson, profileById, romFromBytes } from 'romlift';
 import { analyzeTuned } from 'romlift/internal';
 import { sha1Of } from 'romlift/node';
 
@@ -22,8 +21,8 @@ import {
   takeCarried,
   touch,
 } from '../../../../src/core/analysis/driver/reuse.ts';
-import { listSyntheticFixtures } from '../../../helpers/fixtures.ts';
 import { BASE, readingOf, romWith } from '../../../helpers/analysis.ts';
+import { listSyntheticFixtures } from '../../../helpers/fixtures.ts';
 
 const NONE: ReadonlySet<number> = new Set();
 const reading = readingOf(romWith([]), { entry: BASE + 0x100 });
@@ -119,7 +118,15 @@ test("'epoch-reuse' gives the analysis 'epoch' gives on every synthetic fixture"
   for (const f of fixtures) {
     const bytes = new Uint8Array(readFileSync(f.rom));
     const rom = romFromBytes(bytes, sha1Of(bytes));
-    const run = (cache: 'epoch' | 'epoch-reuse'): string => digest(analyzeTuned(rom, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' }, { cache, disabled: [] }));
+    const run = (cache: 'epoch' | 'epoch-reuse'): string =>
+      digest(
+        analyzeTuned(
+          rom,
+          profile,
+          { mode: 'discover', seeds: [], overrides: [], trail: 'off' },
+          { cache, disabled: [] },
+        ),
+      );
     assert.equal(run('epoch-reuse'), run('epoch'), f.name);
   }
 });

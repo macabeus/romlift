@@ -45,7 +45,14 @@ export function writtenChunkPath(model: Model, cx: EmitContext, module: Module, 
 }
 
 /** One generated entry per chunk of `kind` in module `module` that has a file, at its written path. */
-export function* chunkFiles(rom: Rom, model: Model, cx: EmitContext, module: number | null, kind: ChunkKind, writer: WriterId): Iterable<FileEntry> {
+export function* chunkFiles(
+  rom: Rom,
+  model: Model,
+  cx: EmitContext,
+  module: number | null,
+  kind: ChunkKind,
+  writer: WriterId,
+): Iterable<FileEntry> {
   const m = module === null ? undefined : model.modules[module];
   if (m === undefined) return;
   for (let i = m.chunks.first; i < m.chunks.first + m.chunks.count; i++) {

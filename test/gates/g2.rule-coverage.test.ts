@@ -11,7 +11,8 @@
 // Rule ids come from `RULES` (romlift/internal, see g2.rule-registry).
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { byCodeUnit, FIXTURE_PARALLELISM, gate, pooled, type ExecResult } from './gate.ts';
+
+import { type ExecResult, FIXTURE_PARALLELISM, byCodeUnit, gate, pooled } from './gate.ts';
 
 interface Ablation {
   readonly schema: string;
@@ -21,7 +22,6 @@ interface Ablation {
 }
 
 type Rules = Readonly<Record<string, unknown>>;
-
 
 function tail(run: ExecResult, lines = 20): string {
   return `${run.stdout}${run.stderr}`.trimEnd().split('\n').slice(-lines).join('\n');
@@ -47,18 +47,26 @@ gate({
     // One `bench ablate` process per rule, which reads the fixtures and writes nothing, FIXTURE_PARALLELISM at once.
     const ablations = await pooled(ids, FIXTURE_PARALLELISM, async (id) => {
       const run = await cx.npm('bench', ['ablate', id, '--tier', 'synthetic', '--json']);
-      if (run.code !== 0) throw new Error(`bench ablate ${id} --tier synthetic --json exited ${run.code}:\n${tail(run)}`);
+      if (run.code !== 0)
+        throw new Error(`bench ablate ${id} --tier synthetic --json exited ${run.code}:\n${tail(run)}`);
       const ablation = cx.lastJson<Ablation>(run.stdout);
-      if (ablation.schema !== 'romlift/bench-ablate@1' || ablation.rule !== id) throw new Error(`bench ablate ${id} printed another schema or rule`);
+      if (ablation.schema !== 'romlift/bench-ablate@1' || ablation.rule !== id)
+        throw new Error(`bench ablate ${id} printed another schema or rule`);
       return { id, decisive: ablation.decisiveIn.length > 0, moves: ablation.changed.length > 0 };
     });
     const uncovered: string[] = [];
     let covered = 0;
     for (const { id, decisive, moves } of ablations) {
       if (decisive && moves) covered++;
-      else if (!exempt.has(id)) uncovered.push(`${id} (${decisive ? 'decisive' : 'never decisive'}, ${moves ? 'moves an outcome' : 'moves nothing'})`);
+      else if (!exempt.has(id))
+        uncovered.push(
+          `${id} (${decisive ? 'decisive' : 'never decisive'}, ${moves ? 'moves an outcome' : 'moves nothing'})`,
+        );
     }
-    if (uncovered.length > 0) throw new Error(`${uncovered.length} rules lack fixture coverage and a decision record: ${uncovered.join(', ')}`);
-    cx.note(`${covered} of ${ids.length} rules decisive and load-bearing on ${cx.fixtures.length} fixtures; ${exempt.size} kept by a decision`);
+    if (uncovered.length > 0)
+      throw new Error(`${uncovered.length} rules lack fixture coverage and a decision record: ${uncovered.join(', ')}`);
+    cx.note(
+      `${covered} of ${ids.length} rules decisive and load-bearing on ${cx.fixtures.length} fixtures; ${exempt.size} kept by a decision`,
+    );
   },
 });

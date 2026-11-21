@@ -13,6 +13,7 @@
 //     entries: [{ addr, mode: 'thumb' | 'arm', extent?: { start, end } }],
 //     codeEnd?: addr }
 import { readFile } from 'node:fs/promises';
+
 import { gate } from './gate.ts';
 
 type Mode = 'thumb' | 'arm';
@@ -20,7 +21,11 @@ type AddrText = string | number;
 
 interface Expect {
   readonly negative?: boolean;
-  readonly entries: readonly { readonly addr: AddrText; readonly mode: Mode; readonly extent?: { readonly start: AddrText; readonly end: AddrText } }[];
+  readonly entries: readonly {
+    readonly addr: AddrText;
+    readonly mode: Mode;
+    readonly extent?: { readonly start: AddrText; readonly end: AddrText };
+  }[];
   readonly codeEnd?: AddrText;
 }
 
@@ -43,7 +48,16 @@ interface Rom {
 type RomFromBytes = (bytes: Uint8Array, sha1: string) => Rom;
 type Sha1Of = (data: Uint8Array) => string;
 type ProfileById = (id: string) => object | undefined;
-type Analyze = (rom: Rom, profile: object, options: { readonly mode: 'discover'; readonly seeds: readonly never[]; readonly overrides: readonly never[]; readonly trail: 'off' }) => AnalysisResult;
+type Analyze = (
+  rom: Rom,
+  profile: object,
+  options: {
+    readonly mode: 'discover';
+    readonly seeds: readonly never[];
+    readonly overrides: readonly never[];
+    readonly trail: 'off';
+  },
+) => AnalysisResult;
 
 function addr(value: AddrText, where: string): number {
   const n = typeof value === 'number' ? value : Number(value);
@@ -73,7 +87,12 @@ gate({
     for (const fixture of cx.fixtures) {
       const expect = JSON.parse(await readFile(fixture.expect, 'utf8')) as Expect;
       const bytes = new Uint8Array(await readFile(fixture.rom));
-      const result = analyze(romFromBytes(bytes, sha1Of(bytes)), profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' });
+      const result = analyze(romFromBytes(bytes, sha1Of(bytes)), profile, {
+        mode: 'discover',
+        seeds: [],
+        overrides: [],
+        trail: 'off',
+      });
       const found = new Map(result.functions.map((f) => [f.entry, f] as const));
       const expected = new Set<number>();
       for (const entry of expect.entries) {
@@ -84,22 +103,30 @@ gate({
           problems.push(`${fixture.name}: missed ${hex(at)}`);
           continue;
         }
-        if (fact.mode !== entry.mode) problems.push(`${fixture.name}: ${hex(at)} is ${fact.mode}, expected ${entry.mode}`);
+        if (fact.mode !== entry.mode)
+          problems.push(`${fixture.name}: ${hex(at)} is ${fact.mode}, expected ${entry.mode}`);
         if (entry.extent !== undefined) {
           const start = addr(entry.extent.start, `${fixture.name}/expect.json`);
           const end = addr(entry.extent.end, `${fixture.name}/expect.json`);
           if (fact.extent.start !== start || fact.extent.end !== end) {
-            problems.push(`${fixture.name}: ${hex(at)} extent [${hex(fact.extent.start)}, ${hex(fact.extent.end)}), expected [${hex(start)}, ${hex(end)})`);
+            problems.push(
+              `${fixture.name}: ${hex(at)} extent [${hex(fact.extent.start)}, ${hex(fact.extent.end)}), expected [${hex(start)}, ${hex(end)})`,
+            );
           }
         }
       }
       if (expect.codeEnd !== undefined && result.codeEnd !== addr(expect.codeEnd, `${fixture.name}/expect.json`)) {
-        problems.push(`${fixture.name}: code end ${hex(result.codeEnd)}, expected ${hex(addr(expect.codeEnd, fixture.name))}`);
+        problems.push(
+          `${fixture.name}: code end ${hex(result.codeEnd)}, expected ${hex(addr(expect.codeEnd, fixture.name))}`,
+        );
       }
       if (expect.negative === true) {
         negatives++;
-        const extra = result.functions.filter((f) => f.entry >= result.startup.span.end && !expected.has(f.entry)).map((f) => hex(f.entry));
-        if (extra.length > 0) problems.push(`${fixture.name} (negative): ${extra.length} extra entries ${extra.slice(0, 8).join(', ')}`);
+        const extra = result.functions
+          .filter((f) => f.entry >= result.startup.span.end && !expected.has(f.entry))
+          .map((f) => hex(f.entry));
+        if (extra.length > 0)
+          problems.push(`${fixture.name} (negative): ${extra.length} extra entries ${extra.slice(0, 8).join(', ')}`);
       }
     }
     if (problems.length > 0) throw new Error(`fixture expectations fail: ${problems.join('; ')}`);

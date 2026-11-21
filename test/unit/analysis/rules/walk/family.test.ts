@@ -1,6 +1,6 @@
 // The walk family: nine rules, one file each, in agbcc's walk slot, registered in RULES.
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { test } from 'node:test';
 
 import { RULES } from '../../../../../src/core/analysis/driver/rules.ts';
 import { WALK_RULES } from '../../../../../src/core/analysis/rules/walk/index.ts';

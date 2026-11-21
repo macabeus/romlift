@@ -6,8 +6,17 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-
-import { analyze, canonicalJson, profileById, romFromBytes, type AnalysisOptions, type AnalysisResult, type JsonValue, type OverrideFact, type Seed } from 'romlift';
+import {
+  type AnalysisOptions,
+  type AnalysisResult,
+  type JsonValue,
+  type OverrideFact,
+  type Seed,
+  analyze,
+  canonicalJson,
+  profileById,
+  romFromBytes,
+} from 'romlift';
 import { DEFAULT_TUNING } from 'romlift/internal';
 import { sha1Of } from 'romlift/node';
 
@@ -55,8 +64,15 @@ test('permuting the seeds and the overrides gives one analysis on every syntheti
       ...(e.extent === undefined || i % 3 !== 1 ? {} : { size: e.extent.end - e.extent.start }),
       ...(i % 4 === 3 ? { label: true } : {}),
     }));
-    const overrides: OverrideFact[] = entries.slice(0, 3).map((e, i) => ({ span: { start: e.addr, end: e.addr + 4 + 2 * i }, kind: i === 1 ? 'data' : 'code', ...(i === 2 ? { mode: e.mode } : {}) }));
-    for (const [mode, seeds] of [['discover', hints], ['confirm', listed]] as const) {
+    const overrides: OverrideFact[] = entries.slice(0, 3).map((e, i) => ({
+      span: { start: e.addr, end: e.addr + 4 + 2 * i },
+      kind: i === 1 ? 'data' : 'code',
+      ...(i === 2 ? { mode: e.mode } : {}),
+    }));
+    for (const [mode, seeds] of [
+      ['discover', hints],
+      ['confirm', listed],
+    ] as const) {
       const run = (s: readonly Seed[], o: readonly OverrideFact[]): string => {
         const options: AnalysisOptions = { mode, seeds: s, overrides: o, trail: 'off' };
         return digest(analyze(rom, profile, options));

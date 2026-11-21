@@ -4,7 +4,14 @@
 import { RAW_REASONS } from '../isa/types.ts';
 import type { RawReason } from '../isa/types.ts';
 import { CORPUS_SUMMARY_SCHEMA } from './types.ts';
-import type { Alignment, ArmCoverage, CorpusExample, CorpusOptions, CorpusSectionSummary, CorpusSummary } from './types.ts';
+import type {
+  Alignment,
+  ArmCoverage,
+  CorpusExample,
+  CorpusOptions,
+  CorpusSectionSummary,
+  CorpusSummary,
+} from './types.ts';
 
 type JsonObject = Readonly<Record<string, unknown>>;
 
@@ -42,7 +49,13 @@ function strings(value: unknown, at: string): readonly string[] {
 
 function example(value: unknown, at: string): CorpusExample {
   const r = record(value, at);
-  return { offset: count(r['offset'], `${at}.offset`), word: text(r['word'], `${at}.word`), text: text(r['text'], `${at}.text`), expected: text(r['expected'], `${at}.expected`), got: text(r['got'], `${at}.got`) };
+  return {
+    offset: count(r['offset'], `${at}.offset`),
+    word: text(r['word'], `${at}.word`),
+    text: text(r['text'], `${at}.text`),
+    expected: text(r['expected'], `${at}.expected`),
+    got: text(r['got'], `${at}.got`),
+  };
 }
 
 function examples(value: unknown, at: string): readonly CorpusExample[] {
@@ -54,7 +67,13 @@ function rawCounts(value: unknown, at: string): Readonly<Record<RawReason, numbe
   const extra = Object.keys(r).find((k) => !RAW_REASONS.some((reason) => reason === k));
   if (extra !== undefined) throw new Invalid(`${at} has the unknown reason '${extra}'`);
   const n = (reason: RawReason): number => count(r[reason], `${at}.${reason}`);
-  return { undefined: n('undefined'), unpredictable: n('unpredictable'), 'sbz-set': n('sbz-set'), 'as-alias': n('as-alias'), 'no-roundtrip': n('no-roundtrip') };
+  return {
+    undefined: n('undefined'),
+    unpredictable: n('unpredictable'),
+    'sbz-set': n('sbz-set'),
+    'as-alias': n('as-alias'),
+    'no-roundtrip': n('no-roundtrip'),
+  };
 }
 
 function section(value: unknown, at: string): CorpusSectionSummary {
@@ -74,7 +93,10 @@ function coverage(value: unknown, at: string): ArmCoverage {
   const out: Record<string, { readonly exhaustive: readonly string[]; readonly sampled: readonly string[] }> = {};
   for (const [id, entry] of Object.entries(record(value, at))) {
     const r = record(entry, `${at}.${id}`);
-    out[id] = { exhaustive: strings(r['exhaustive'], `${at}.${id}.exhaustive`), sampled: strings(r['sampled'], `${at}.${id}.sampled`) };
+    out[id] = {
+      exhaustive: strings(r['exhaustive'], `${at}.${id}.exhaustive`),
+      sampled: strings(r['sampled'], `${at}.${id}.sampled`),
+    };
   }
   return out;
 }
@@ -86,7 +108,11 @@ function alignment(value: unknown, at: string): Alignment {
 
 function options(value: unknown, at: string): CorpusOptions {
   const r = record(value, at);
-  return { seed: count(r['seed'], `${at}.seed`), armSample: count(r['armSample'], `${at}.armSample`), blSample: count(r['blSample'], `${at}.blSample`) };
+  return {
+    seed: count(r['seed'], `${at}.seed`),
+    armSample: count(r['armSample'], `${at}.armSample`),
+    blSample: count(r['blSample'], `${at}.blSample`),
+  };
 }
 
 function summary(value: unknown): CorpusSummary {
@@ -107,11 +133,17 @@ function summary(value: unknown): CorpusSummary {
       bl: section(sections['bl'], 'sections.bl'),
       arm: { ...section(arm, 'sections.arm'), coverage: coverage(arm['coverage'], 'sections.arm.coverage') },
     },
-    encoderAgrees: { checked: count(encoder['checked'], 'encoderAgrees.checked'), disagree: count(encoder['disagree'], 'encoderAgrees.disagree'), examples: examples(encoder['examples'], 'encoderAgrees.examples') },
+    encoderAgrees: {
+      checked: count(encoder['checked'], 'encoderAgrees.checked'),
+      disagree: count(encoder['disagree'], 'encoderAgrees.disagree'),
+      examples: examples(encoder['examples'], 'encoderAgrees.examples'),
+    },
     context: {
       checked: count(context['checked'], 'context.checked'),
       disagree: count(context['disagree'], 'context.disagree'),
-      alignments: list(context['alignments'], 'context.alignments').map((a, i) => alignment(a, `context.alignments[${i}]`)),
+      alignments: list(context['alignments'], 'context.alignments').map((a, i) =>
+        alignment(a, `context.alignments[${i}]`),
+      ),
       extremes: count(context['extremes'], 'context.extremes'),
       examples: examples(context['examples'], 'context.examples'),
     },
@@ -120,7 +152,9 @@ function summary(value: unknown): CorpusSummary {
 }
 
 /** The summary `value` holds, or why it is not a `romlift/corpus-summary@1`. */
-export function parseCorpusSummary(value: unknown): { readonly ok: true; readonly value: CorpusSummary } | { readonly ok: false; readonly error: string } {
+export function parseCorpusSummary(
+  value: unknown,
+): { readonly ok: true; readonly value: CorpusSummary } | { readonly ok: false; readonly error: string } {
   try {
     return { ok: true, value: summary(value) };
   } catch (error) {

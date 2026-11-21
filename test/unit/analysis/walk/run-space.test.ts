@@ -25,7 +25,9 @@ const SIZE = 0x100;
 function viewOf(parts: readonly Placed[], mapped = true): AnalysisView {
   const rom: Rom = romWith(parts, { size: 0x800 });
   const base = viewWith({ rom });
-  return mapped ? { ...base, addresses: addressMap([{ span: { start: L, end: L + SIZE }, kind: 'code', runsAt: R }]) } : base;
+  return mapped
+    ? { ...base, addresses: addressMap([{ span: { start: L, end: L + SIZE }, kind: 'code', runsAt: R }]) }
+    : base;
 }
 
 function walk(view: AnalysisView, entry: Addr, mode: Mode): Reading {
@@ -33,7 +35,9 @@ function walk(view: AnalysisView, entry: Addr, mode: Mode): Reading {
 }
 
 test('Thumb: b, bcc, bl, adr and a pool load compute their targets at run addresses and land at load addresses', () => {
-  const code = thumbAt(R)`push {lr}; cmp r0, #0; beq _03000010; ldr r1, _0300001C; adr r2, _03000020; bl _03000040; b _03000010`;
+  const code = thumbAt(
+    R,
+  )`push {lr}; cmp r0, #0; beq _03000010; ldr r1, _0300001C; adr r2, _03000020; bl _03000040; b _03000010`;
   const tail = thumbAt(R + 0x10)`pop {pc}`;
   const callee = thumbAt(R + 0x40)`bx lr`;
   const view = viewOf([
@@ -53,7 +57,9 @@ test('Thumb: b, bcc, bl, adr and a pool load compute their targets at run addres
 });
 
 test('ARM: b, bl, adr and a pc-relative ldr compute their targets at run addresses and land at load addresses', () => {
-  const code = armAt(R)`stmdb sp!, {lr}; ldr r0, _03000020; adr r1, _03000024; bl _03000040; cmp r0, #0; bne _03000018; ldmia sp!, {pc}`;
+  const code = armAt(
+    R,
+  )`stmdb sp!, {lr}; ldr r0, _03000020; adr r1, _03000024; bl _03000040; cmp r0, #0; bne _03000018; ldmia sp!, {pc}`;
   const view = viewOf([
     { at: L, bytes: code },
     { at: L + 0x20, bytes: words(0xcafe_f00d) },
@@ -72,15 +78,33 @@ test('a target in RAM outside every range is an external reference: a call goes 
   const t = walk(viewOf([{ at: L, bytes: thumbCode }]), L, 'thumb');
   assert.deepEqual(t.errors, []);
   assert.deepEqual([t.calls, t.blSites, t.branchTargets, t.tails], [[], [], [], []]);
-  assert.deepEqual(t.exits.map((e) => [e.at, e.kind]), [[L + 8, 'tail'], [L + 0x0a, 'return']]);
+  assert.deepEqual(
+    t.exits.map((e) => [e.at, e.kind]),
+    [
+      [L + 8, 'tail'],
+      [L + 0x0a, 'return'],
+    ],
+  );
   const armCode = armAt(R)`stmdb sp!, {lr}; bl _03004000; cmp r0, #0; bne _03002000; ldmia sp!, {pc}`;
   const a = walk(viewOf([{ at: L, bytes: armCode }]), L, 'arm');
   assert.deepEqual(a.errors, []);
   assert.deepEqual([a.calls, a.branchTargets], [[], []]);
-  assert.deepEqual(a.exits.map((e) => [e.at, e.kind]), [[L + 0x0c, 'tail'], [L + 0x10, 'return']]);
+  assert.deepEqual(
+    a.exits.map((e) => [e.at, e.kind]),
+    [
+      [L + 0x0c, 'tail'],
+      [L + 0x10, 'return'],
+    ],
+  );
   // On the identity map the same relative offsets name cartridge addresses past this ROM's end: errors, as before.
-  assert.deepEqual(walk(viewOf([{ at: L, bytes: thumbCode }], false), L, 'thumb').errors.map((e) => e.reason), ['bl-out-of-rom']);
-  assert.ok(walk(viewOf([{ at: L, bytes: armCode }], false), L, 'arm').calls.length === 1, 'the identity map takes the bl for a call into the cartridge');
+  assert.deepEqual(
+    walk(viewOf([{ at: L, bytes: thumbCode }], false), L, 'thumb').errors.map((e) => e.reason),
+    ['bl-out-of-rom'],
+  );
+  assert.ok(
+    walk(viewOf([{ at: L, bytes: armCode }], false), L, 'arm').calls.length === 1,
+    'the identity map takes the bl for a call into the cartridge',
+  );
 });
 
 test('a jump table inside a range: its base and targets are run addresses, found at their load addresses', () => {

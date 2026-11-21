@@ -8,11 +8,11 @@ import { test } from 'node:test';
 import { validateConfig } from '../../../src/core/config/schema.ts';
 import { inferModules } from '../../../src/core/layout/infer-modules.ts';
 import { buildModel } from '../../../src/core/model/model.ts';
-import { discover } from '../../../src/core/workflow/discover.ts';
 import { buildNameOf, configFromDiscover } from '../../../src/core/workflow/config-from-discover.ts';
+import { discover } from '../../../src/core/workflow/discover.ts';
 import { romFromBytes } from '../../../src/foundation/rom/rom.ts';
 import { listSyntheticFixtures, readFixtureRom } from '../../helpers/fixtures.ts';
-import { analysisOf, BASE, fact, HEADER_END, romWith } from '../layout/hand-made.ts';
+import { BASE, HEADER_END, analysisOf, fact, romWith } from '../layout/hand-made.ts';
 
 const SHA1 = '0123456789abcdef0123456789abcdef01234567';
 
@@ -77,9 +77,16 @@ test('every found entry is listed with its mode and default name; an entry insid
 
 test('a library region becomes an asm module carrying its library and version', () => {
   const rom = romWithCode('KLON');
-  const analysis = analysisOf(rom, { functions: [0, 1, 2, 3].map((i) => fact({ entry: BASE + 0x100 + 0x10 * i, end: BASE + 0x110 + 0x10 * i })) });
-  const config = configFromDiscover(rom, analysis, { libraries: [{ span: { start: BASE + 0x110, end: BASE + 0x120 }, library: 'm4a', version: '2001' }] });
-  assert.deepEqual(config.modules.find((m) => m.name === 'm4a'), { name: 'm4a', start: BASE + 0x110, kind: 'asm', generated: true, library: 'm4a', version: '2001' });
+  const analysis = analysisOf(rom, {
+    functions: [0, 1, 2, 3].map((i) => fact({ entry: BASE + 0x100 + 0x10 * i, end: BASE + 0x110 + 0x10 * i })),
+  });
+  const config = configFromDiscover(rom, analysis, {
+    libraries: [{ span: { start: BASE + 0x110, end: BASE + 0x120 }, library: 'm4a', version: '2001' }],
+  });
+  assert.deepEqual(
+    config.modules.find((m) => m.name === 'm4a'),
+    { name: 'm4a', start: BASE + 0x110, kind: 'asm', generated: true, library: 'm4a', version: '2001' },
+  );
 });
 
 test('on every committed fixture the config validates, lists the cartridge and startup entries, and builds without a diagnostic', () => {
@@ -90,7 +97,11 @@ test('on every committed fixture the config validates, lists the cartridge and s
     const valid = validateConfig(config);
     assert.ok(valid.ok, `${fixture.name}: ${valid.ok ? '' : JSON.stringify(valid.issues)}`);
     assert.equal(config.functions.size + config.entryPoints.size, analysis.functions.length, fixture.name);
-    for (const e of analysis.startup.entries) assert.ok(config.functions.has(e) || config.entryPoints.has(e), `${fixture.name}: startup entry 0x${e.toString(16)}`);
+    for (const e of analysis.startup.entries)
+      assert.ok(
+        config.functions.has(e) || config.entryPoints.has(e),
+        `${fixture.name}: startup entry 0x${e.toString(16)}`,
+      );
     assert.equal(config.modules[0]?.name, 'rom_header');
     const model = buildModel(rom, analysis, config);
     assert.deepEqual(model.diagnostics, [], fixture.name);

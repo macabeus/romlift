@@ -17,8 +17,9 @@ export default defineRule({
   meta: {
     id: 'walk.branch-into-function',
     summary: 'a branch into another function or claimed code (ARM: or below the entry) is a tail exit',
-    restsOn: 'a function never jumps into another function except as a tail call; agbcc and hand-written code share epilogues only by tail branches',
-    recovers: 'two functions glued into one by a tail branch, and claims of another function\'s code',
+    restsOn:
+      'a function never jumps into another function except as a tail call; agbcc and hand-written code share epilogues only by tail branches',
+    recovers: "two functions glued into one by a tail branch, and claims of another function's code",
     reads: ['function-set', 'claims', 'readings'],
     adds: ['exits'],
   },
@@ -30,7 +31,10 @@ export default defineRule({
     const v = cursor.view;
     const past = v.boundaryBetween(cursor.entry, target);
     if (past !== undefined) {
-      const leaves = target > cursor.entry ? past : cursor.mode === 'arm' || v.isBoundary(target) || v.claimAt(target) === Claim.code;
+      const leaves =
+        target > cursor.entry
+          ? past
+          : cursor.mode === 'arm' || v.isBoundary(target) || v.claimAt(target) === Claim.code;
       return leaves ? { step: 'end-path', exit: 'tail' } : undefined;
     }
     const below = cursor.mode === 'arm' && target < cursor.entry;

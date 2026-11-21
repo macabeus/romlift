@@ -4,10 +4,9 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
-
 import type { AnalysisResult } from 'romlift';
 
-import { main, type BenchIo } from '../../../bench/src/cli.ts';
+import { type BenchIo, main } from '../../../bench/src/cli.ts';
 import { withTempDir } from '../../unit/bench/fixtures.ts';
 import { syntheticTier, tinyDeps, tinyResult } from '../../unit/bench/harness.ts';
 
@@ -21,7 +20,11 @@ interface Problem {
 const NEEDED = { addr: '0x08000010', category: 'unreviewed', note: 'inside thumb_two' };
 
 /** Runs dataset-check on the synthetic tier with `overrides` applied to its dataset and `result` as romlift's run. */
-async function datasetCheck(name: string, overrides: Record<string, unknown>, result: AnalysisResult = tinyResult()): Promise<{ readonly code: number; readonly problems: readonly Problem[] }> {
+async function datasetCheck(
+  name: string,
+  overrides: Record<string, unknown>,
+  result: AnalysisResult = tinyResult(),
+): Promise<{ readonly code: number; readonly problems: readonly Problem[] }> {
   return withTempDir(`romlift-mut-dataset-${name}-`, async (root) => {
     const cx = await syntheticTier(join(root, 't'), { datasetOverrides: overrides });
     const lines: string[] = [];
@@ -33,7 +36,12 @@ async function datasetCheck(name: string, overrides: Record<string, unknown>, re
   });
 }
 
-const label = (addr: string, category = 'loop-label'): Record<string, string> => ({ addr, name: `sub_${addr}`, category, note: 'injected' });
+const label = (addr: string, category = 'loop-label'): Record<string, string> => ({
+  addr,
+  name: `sub_${addr}`,
+  category,
+  note: 'injected',
+});
 
 test('the unmutated synthetic dataset passes', async () => {
   assert.deepEqual(await datasetCheck('clean', {}), { code: 0, problems: [] });
@@ -46,7 +54,9 @@ test('a labels row that is not a FUNC symbol is reported as not-a-func', async (
 });
 
 test('an untyped row that is a FUNC symbol is reported as is-a-func', async () => {
-  const { code, problems } = await datasetCheck('is-func', { untyped: [NEEDED, { addr: '0x08000018', category: 'veneer', note: 'injected' }] });
+  const { code, problems } = await datasetCheck('is-func', {
+    untyped: [NEEDED, { addr: '0x08000018', category: 'veneer', note: 'injected' }],
+  });
   assert.equal(code, 1);
   assert.deepEqual(problems[0], { dataset: 'tiny', list: 'untyped', addr: '0x08000018', problem: 'is-a-func' });
 });
@@ -56,7 +66,9 @@ test('malformed hex is reported as malformed-address', async () => {
   assert.equal(code, 1);
   assert.deepEqual(problems, [{ dataset: 'tiny', list: 'untyped', addr: '0x8000010', problem: 'malformed-address' }]);
   const lower = await datasetCheck('lower', { labels: [label('0x0800000e')] });
-  assert.deepEqual(lower.problems, [{ dataset: 'tiny', list: 'labels', addr: '0x0800000e', problem: 'malformed-address' }]);
+  assert.deepEqual(lower.problems, [
+    { dataset: 'tiny', list: 'labels', addr: '0x0800000e', problem: 'malformed-address' },
+  ]);
 });
 
 test('an unknown category is reported as unknown-category', async () => {

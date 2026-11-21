@@ -12,7 +12,8 @@ export default defineRule({
   meta: {
     id: 'walk.mov-lr-pc-bx-is-call',
     summary: 'ARM `mov lr, pc` then `bx rN` is a call through a register: the path goes on after the bx',
-    restsOn: 'ARMv4T has no blx; hand-written ARM and interworking code call through a register with `mov lr, pc; bx rN`',
+    restsOn:
+      'ARMv4T has no blx; hand-written ARM and interworking code call through a register with `mov lr, pc; bx rN`',
     recovers: 'the code after an indirect call, which an exit at the bx would leave unreached',
     reads: ['rom', 'readings'],
     adds: ['exits'],

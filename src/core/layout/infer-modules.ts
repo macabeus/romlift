@@ -11,9 +11,9 @@
 // range's borders are the user's, which the model checks (E_OVERRIDE_INVALID).
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Span } from '../../foundation/rom/span.ts';
+import { lowerBound } from '../../foundation/util/arrays.ts';
 import { hex } from '../../foundation/util/hex.ts';
 import { compareCodeUnits, compareNumbers } from '../../foundation/util/sorted.ts';
-import { lowerBound } from '../../foundation/util/arrays.ts';
 import type { AnalysisResult } from '../analysis/types.ts';
 import type { LayoutReason, LibraryRegion, ModuleProposal, Proposal, ProposalSource } from '../proposals/types.ts';
 import { codeLayout, isLegalStart } from './borders.ts';
@@ -66,7 +66,10 @@ function without(span: Span, holes: readonly Span[]): Span[] {
   for (const h of holes) {
     parts = parts.flatMap((p) => {
       if (h.end <= p.start || h.start >= p.end) return [p];
-      return [...(p.start < h.start ? [{ start: p.start, end: h.start }] : []), ...(h.end < p.end ? [{ start: h.end, end: p.end }] : [])];
+      return [
+        ...(p.start < h.start ? [{ start: p.start, end: h.start }] : []),
+        ...(h.end < p.end ? [{ start: h.end, end: p.end }] : []),
+      ];
     });
   }
   return parts;
@@ -80,11 +83,19 @@ function without(span: Span, holes: readonly Span[]): Span[] {
  * cut around `around` (the runs_at ranges, which stay their own modules). A region outside [from, to) (a table past
  * the code end) is 'outside-code'; one that keeps no legal border between its shrunk ends, 'no-legal-border'.
  */
-export function placeLibraries(layout: CodeLayout, regions: readonly LibraryRegion[], from: Addr, to: Addr, around: readonly Span[] = []): readonly LibraryPlacement[] {
+export function placeLibraries(
+  layout: CodeLayout,
+  regions: readonly LibraryRegion[],
+  from: Addr,
+  to: Addr,
+  around: readonly Span[] = [],
+): readonly LibraryPlacement[] {
   const starts = layout.chunks.flatMap((c) => (c.entry === undefined ? [] : [c.span.start]));
   const legal = layout.borders.filter((b) => b >= from && b <= to && isLegalStart(layout, b));
   const holes = [...around].sort((a, b) => compareNumbers(a.start, b.start));
-  const ordered = [...regions].sort((a, b) => compareNumbers(a.span.start, b.span.start) || compareCodeUnits(a.library, b.library));
+  const ordered = [...regions].sort(
+    (a, b) => compareNumbers(a.span.start, b.span.start) || compareCodeUnits(a.library, b.library),
+  );
   const out: LibraryPlacement[] = [];
   let floor = from;
   for (const region of ordered) {
@@ -119,7 +130,10 @@ function runsAtRanges(ranges: readonly RunsAtRange[], from: Addr, to: Addr): Fix
 /** The assembly-only ranges widened to legal borders inside [from, to), outside the other fixed ranges, merged when they touch. */
 function asmOnlyModules(layout: CodeLayout, libraries: readonly FixedRange[], from: Addr, to: Addr): FixedRange[] {
   const widened = layout.asmOnly
-    .map((r) => ({ start: borderAtOrBelow(layout.borders, Math.max(r.start, from), from), end: borderAtOrAbove(layout.borders, Math.min(r.end, to), to) }))
+    .map((r) => ({
+      start: borderAtOrBelow(layout.borders, Math.max(r.start, from), from),
+      end: borderAtOrAbove(layout.borders, Math.min(r.end, to), to),
+    }))
     .filter((r) => r.start < r.end);
   const pieces: Span[] = [];
   for (const r of widened) {
@@ -197,26 +211,44 @@ export function mainName(n: number): string {
  * base. Module kinds: 'asm' for the header, crt0, libraries and assembly-only code, 'c' for agbcc-shaped code,
  * 'data' from the code end.
  */
-export function inferModules(rom: Rom, analysis: AnalysisResult, options: InferModulesOptions = {}): readonly Proposal[] {
+export function inferModules(
+  rom: Rom,
+  analysis: AnalysisResult,
+  options: InferModulesOptions = {},
+): readonly Proposal[] {
   const layout = codeLayout(rom, analysis);
   const starts = layout.chunks.flatMap((c) => (c.entry === undefined ? [] : [c.span.start]));
   const moduleSize = options.moduleSize ?? DEFAULT_MODULE_SIZE;
-  const out: ModuleProposal[] = [{ kind: 'module', name: 'rom_header', start: rom.base, moduleKind: 'asm', source: layoutSource('header') }];
+  const out: ModuleProposal[] = [
+    { kind: 'module', name: 'rom_header', start: rom.base, moduleKind: 'asm', source: layoutSource('header') },
+  ];
   if (layout.headerEnd >= rom.end) return out;
 
   let regionStart = layout.headerEnd;
   if (layout.startupEnd > layout.headerEnd) {
-    out.push({ kind: 'module', name: 'crt0', start: layout.headerEnd, moduleKind: 'asm', source: layoutSource('startup') });
+    out.push({
+      kind: 'module',
+      name: 'crt0',
+      start: layout.headerEnd,
+      moduleKind: 'asm',
+      source: layoutSource('startup'),
+    });
     regionStart = borderAtOrAbove(layout.borders, layout.startupEnd, layout.dataStart);
   }
   const regionEnd = layout.dataStart;
 
   const ram = runsAtRanges(options.runsAt ?? [], regionStart, regionEnd);
-  const libraries: FixedRange[] = placeLibraries(layout, options.libraries ?? [], regionStart, regionEnd, ram.map((r) => r.span)).flatMap((p) =>
-    p.spans.map((span) => ({ span, library: { name: p.region.library, version: p.region.version } })),
-  );
+  const libraries: FixedRange[] = placeLibraries(
+    layout,
+    options.libraries ?? [],
+    regionStart,
+    regionEnd,
+    ram.map((r) => r.span),
+  ).flatMap((p) => p.spans.map((span) => ({ span, library: { name: p.region.library, version: p.region.version } })));
   const taken = [...ram, ...libraries];
-  const fixed = [...taken, ...asmOnlyModules(layout, taken, regionStart, regionEnd)].sort((a, b) => compareNumbers(a.span.start, b.span.start));
+  const fixed = [...taken, ...asmOnlyModules(layout, taken, regionStart, regionEnd)].sort((a, b) =>
+    compareNumbers(a.span.start, b.span.start),
+  );
 
   // The stretches between fixed ranges hold the agbcc-shaped code.
   const pieces: { readonly span: Span; readonly fixed?: FixedRange }[] = [];
@@ -235,11 +267,30 @@ export function inferModules(rom: Rom, analysis: AnalysisResult, options: InferM
     if (piece.fixed !== undefined) {
       const library = piece.fixed.library;
       if (piece.fixed.runAt !== undefined) {
-        out.push({ kind: 'module', name: runsAtName(piece.fixed.runAt), start, moduleKind: 'asm', source: layoutSource('runs-at') });
+        out.push({
+          kind: 'module',
+          name: runsAtName(piece.fixed.runAt),
+          start,
+          moduleKind: 'asm',
+          source: layoutSource('runs-at'),
+        });
       } else if (library === undefined) {
-        out.push({ kind: 'module', name: asmOnlyName(start), start, moduleKind: 'asm', source: layoutSource('asm-only') });
+        out.push({
+          kind: 'module',
+          name: asmOnlyName(start),
+          start,
+          moduleKind: 'asm',
+          source: layoutSource('asm-only'),
+        });
       } else {
-        out.push({ kind: 'module', name: freeModuleName(library.name, libraryNames), start, moduleKind: 'asm', library, source: layoutSource('asm-only') });
+        out.push({
+          kind: 'module',
+          name: freeModuleName(library.name, libraryNames),
+          start,
+          moduleKind: 'asm',
+          library,
+          source: layoutSource('asm-only'),
+        });
       }
       continue;
     }
@@ -253,16 +304,35 @@ export function inferModules(rom: Rom, analysis: AnalysisResult, options: InferM
       }
       // A runs_at range ends where its module does, so the bytes after it take a module of their own.
       if (previous?.source.kind === 'layout' && previous.source.reason === 'runs-at') {
-        out.push({ kind: 'module', name: asmOnlyName(start), start, moduleKind: 'asm', source: layoutSource('asm-only') });
+        out.push({
+          kind: 'module',
+          name: asmOnlyName(start),
+          start,
+          moduleKind: 'asm',
+          source: layoutSource('asm-only'),
+        });
         continue;
       }
       if (previous !== undefined && previous.name !== 'rom_header') continue;
     }
     for (const s of cuts(layout, starts, start, end, moduleSize)) {
       mains += 1;
-      out.push({ kind: 'module', name: mainName(mains), start: s, moduleKind: 'c', source: layoutSource('module-size') });
+      out.push({
+        kind: 'module',
+        name: mainName(mains),
+        start: s,
+        moduleKind: 'c',
+        source: layoutSource('module-size'),
+      });
     }
   }
-  if (layout.dataStart < rom.end) out.push({ kind: 'module', name: 'data', start: layout.dataStart, moduleKind: 'data', source: layoutSource('data') });
+  if (layout.dataStart < rom.end)
+    out.push({
+      kind: 'module',
+      name: 'data',
+      start: layout.dataStart,
+      moduleKind: 'data',
+      source: layoutSource('data'),
+    });
   return out;
 }

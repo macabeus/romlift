@@ -37,16 +37,21 @@ test('the dialect preamble reads as syntax, the macro include and a mode', () =>
 });
 
 test('symbol directives keep their arguments and emit no bytes', () => {
-  assert.deepEqual(ok('.text\n.global Foo\n.globl Bar, Baz\n.type Foo, %function\n.size Foo, . - Foo\n.thumb_func\n.type D, %object\n.size D, 12'), [
-    { kind: 'symbol', line: 1, directive: '.text', args: [] },
-    { kind: 'symbol', line: 2, directive: '.global', args: ['Foo'] },
-    { kind: 'symbol', line: 3, directive: '.globl', args: ['Bar', 'Baz'] },
-    { kind: 'symbol', line: 4, directive: '.type', args: ['Foo', '%function'] },
-    { kind: 'symbol', line: 5, directive: '.size', args: ['Foo', '.-Foo'] },
-    { kind: 'symbol', line: 6, directive: '.thumb_func', args: [] },
-    { kind: 'symbol', line: 7, directive: '.type', args: ['D', '%object'] },
-    { kind: 'symbol', line: 8, directive: '.size', args: ['D', '12'] },
-  ]);
+  assert.deepEqual(
+    ok(
+      '.text\n.global Foo\n.globl Bar, Baz\n.type Foo, %function\n.size Foo, . - Foo\n.thumb_func\n.type D, %object\n.size D, 12',
+    ),
+    [
+      { kind: 'symbol', line: 1, directive: '.text', args: [] },
+      { kind: 'symbol', line: 2, directive: '.global', args: ['Foo'] },
+      { kind: 'symbol', line: 3, directive: '.globl', args: ['Bar', 'Baz'] },
+      { kind: 'symbol', line: 4, directive: '.type', args: ['Foo', '%function'] },
+      { kind: 'symbol', line: 5, directive: '.size', args: ['Foo', '.-Foo'] },
+      { kind: 'symbol', line: 6, directive: '.thumb_func', args: [] },
+      { kind: 'symbol', line: 7, directive: '.type', args: ['D', '%object'] },
+      { kind: 'symbol', line: 8, directive: '.size', args: ['D', '12'] },
+    ],
+  );
 });
 
 test('mode directives: .thumb, .arm, .code 16 and .code 32', () => {
@@ -65,23 +70,35 @@ test('.align with and without a fill byte', () => {
 });
 
 test('data directives read comma lists of numbers and symbols with addends', () => {
-  assert.deepEqual(ok('.byte 0x1A, 255, -1\n.2byte 0xF800\n.hword 7\n.4byte Func, _08001234 + 1, gFoo - 0x10, 0\n.word 0xFFFFFFFF'), [
-    { kind: 'data', line: 1, width: 1, values: [{ kind: 'number', value: 0x1a }, { kind: 'number', value: 255 }, { kind: 'number', value: -1 }] },
-    { kind: 'data', line: 2, width: 2, values: [{ kind: 'number', value: 0xf800 }] },
-    { kind: 'data', line: 3, width: 2, values: [{ kind: 'number', value: 7 }] },
-    {
-      kind: 'data',
-      line: 4,
-      width: 4,
-      values: [
-        { kind: 'symbol', name: 'Func', addend: 0 },
-        { kind: 'symbol', name: '_08001234', addend: 1 },
-        { kind: 'symbol', name: 'gFoo', addend: -16 },
-        { kind: 'number', value: 0 },
-      ],
-    },
-    { kind: 'data', line: 5, width: 4, values: [{ kind: 'number', value: 0xffff_ffff }] },
-  ]);
+  assert.deepEqual(
+    ok('.byte 0x1A, 255, -1\n.2byte 0xF800\n.hword 7\n.4byte Func, _08001234 + 1, gFoo - 0x10, 0\n.word 0xFFFFFFFF'),
+    [
+      {
+        kind: 'data',
+        line: 1,
+        width: 1,
+        values: [
+          { kind: 'number', value: 0x1a },
+          { kind: 'number', value: 255 },
+          { kind: 'number', value: -1 },
+        ],
+      },
+      { kind: 'data', line: 2, width: 2, values: [{ kind: 'number', value: 0xf800 }] },
+      { kind: 'data', line: 3, width: 2, values: [{ kind: 'number', value: 7 }] },
+      {
+        kind: 'data',
+        line: 4,
+        width: 4,
+        values: [
+          { kind: 'symbol', name: 'Func', addend: 0 },
+          { kind: 'symbol', name: '_08001234', addend: 1 },
+          { kind: 'symbol', name: 'gFoo', addend: -16 },
+          { kind: 'number', value: 0 },
+        ],
+      },
+      { kind: 'data', line: 5, width: 4, values: [{ kind: 'number', value: 0xffff_ffff }] },
+    ],
+  );
 });
 
 test('numbers are decimal or 0x hex; a leading zero (octal to GNU as) and the location counter are refused', () => {
@@ -99,26 +116,35 @@ test('numbers are decimal or 0x hex; a leading zero (octal to GNU as) and the lo
 });
 
 test('.inst.n, .inst.w and .inst with trailing comments; .inst.w is stored first halfword | second << 16', () => {
-  assert.deepEqual(ok('\t.inst.n 0x46C0 @ mov r8, r8 (as-alias)\n\t.inst.w 0xF000F800 @ bl 0x08000004\n\t.inst 0xE1A00000 @ nop'), [
-    { kind: 'inst', line: 1, directive: '.inst.n', width: 2, word: 0x46c0 },
-    { kind: 'inst', line: 2, directive: '.inst.w', width: 4, word: 0xf800_f000 },
-    { kind: 'inst', line: 3, directive: '.inst', width: 4, word: 0xe1a0_0000 },
-  ]);
+  assert.deepEqual(
+    ok('\t.inst.n 0x46C0 @ mov r8, r8 (as-alias)\n\t.inst.w 0xF000F800 @ bl 0x08000004\n\t.inst 0xE1A00000 @ nop'),
+    [
+      { kind: 'inst', line: 1, directive: '.inst.n', width: 2, word: 0x46c0 },
+      { kind: 'inst', line: 2, directive: '.inst.w', width: 4, word: 0xf800_f000 },
+      { kind: 'inst', line: 3, directive: '.inst', width: 4, word: 0xe1a0_0000 },
+    ],
+  );
   assert.match(failure('.inst.n 0x12345').message, /fits/);
 });
 
 test('.incbin reads a file, an offset and a length', () => {
-  assert.deepEqual(ok('\t.incbin "baserom.gba", 0x1A3C, 0x100'), [{ kind: 'incbin', line: 1, file: 'baserom.gba', offset: 0x1a3c, length: 0x100 }]);
+  assert.deepEqual(ok('\t.incbin "baserom.gba", 0x1A3C, 0x100'), [
+    { kind: 'incbin', line: 1, file: 'baserom.gba', offset: 0x1a3c, length: 0x100 },
+  ]);
   assert.match(failure('.incbin "baserom.gba", 4').message, /offset, length/);
   assert.match(failure('.incbin baserom.gba, 0, 4').message, /offset, length/);
 });
 
 test('an include that is not a macro file becomes an include statement', () => {
-  assert.deepEqual(ok('.include "asm/nonmatchings/main/Foo.s"'), [{ kind: 'include', line: 1, path: 'asm/nonmatchings/main/Foo.s' }]);
+  assert.deepEqual(ok('.include "asm/nonmatchings/main/Foo.s"'), [
+    { kind: 'include', line: 1, path: 'asm/nonmatchings/main/Foo.s' },
+  ]);
   // Known to the caller but holding no macros: still the caller's to resolve.
   assert.deepEqual(ok('.include "x.s"', new Map([['x.s', '\tbx lr\n']])), [{ kind: 'include', line: 1, path: 'x.s' }]);
   // Without the macro file the macros are unknown, so the include stays a statement.
-  assert.deepEqual(ok('.include "include/macros.inc"', new Map()), [{ kind: 'include', line: 1, path: 'include/macros.inc' }]);
+  assert.deepEqual(ok('.include "include/macros.inc"', new Map()), [
+    { kind: 'include', line: 1, path: 'include/macros.inc' },
+  ]);
 });
 
 test('labels: one, several on a line, and a label followed by a statement', () => {
@@ -134,12 +160,15 @@ test('labels: one, several on a line, and a label followed by a statement', () =
 });
 
 test('comments run to the end of the line, blank lines vanish, `;` separates statements, CRLF is read', () => {
-  assert.deepEqual(ok('@ a whole-line comment\n\n\tldr r0, _08001A3C @ =gFoo\r\n\tmovs r0, #1; bx lr\n.incbin "a@b", 0, 1 @ c'), [
-    { kind: 'insn', line: 3, text: 'ldr r0, _08001A3C' },
-    { kind: 'insn', line: 4, text: 'movs r0, #1' },
-    { kind: 'insn', line: 4, text: 'bx lr' },
-    { kind: 'incbin', line: 5, file: 'a@b', offset: 0, length: 1 },
-  ]);
+  assert.deepEqual(
+    ok('@ a whole-line comment\n\n\tldr r0, _08001A3C @ =gFoo\r\n\tmovs r0, #1; bx lr\n.incbin "a@b", 0, 1 @ c'),
+    [
+      { kind: 'insn', line: 3, text: 'ldr r0, _08001A3C' },
+      { kind: 'insn', line: 4, text: 'movs r0, #1' },
+      { kind: 'insn', line: 4, text: 'bx lr' },
+      { kind: 'incbin', line: 5, file: 'a@b', offset: 0, length: 1 },
+    ],
+  );
 });
 
 /** The statements one macro invocation expands to, at line 3 (after the preamble's include). */
@@ -168,10 +197,26 @@ test('the eight macros of DIALECT.macrosInc expand with the invoking line', () =
 test('a macro defined in the text expands with comma or space separated arguments and \\()', () => {
   const text = '.macro pair a, b\n\t.2byte \\a, \\b\n\t\\a\\()_end: .byte 0\n.endm\n\tpair n, 2\n\tpair x y';
   assert.deepEqual(ok(text), [
-    { kind: 'data', line: 5, width: 2, values: [{ kind: 'symbol', name: 'n', addend: 0 }, { kind: 'number', value: 2 }] },
+    {
+      kind: 'data',
+      line: 5,
+      width: 2,
+      values: [
+        { kind: 'symbol', name: 'n', addend: 0 },
+        { kind: 'number', value: 2 },
+      ],
+    },
     { kind: 'label', line: 5, name: 'n_end' },
     { kind: 'data', line: 5, width: 1, values: [{ kind: 'number', value: 0 }] },
-    { kind: 'data', line: 6, width: 2, values: [{ kind: 'symbol', name: 'x', addend: 0 }, { kind: 'symbol', name: 'y', addend: 0 }] },
+    {
+      kind: 'data',
+      line: 6,
+      width: 2,
+      values: [
+        { kind: 'symbol', name: 'x', addend: 0 },
+        { kind: 'symbol', name: 'y', addend: 0 },
+      ],
+    },
     { kind: 'label', line: 6, name: 'x_end' },
     { kind: 'data', line: 6, width: 1, values: [{ kind: 'number', value: 0 }] },
   ]);
@@ -216,10 +261,14 @@ test('errors are values with their line, and the other statements are kept', () 
 
 // Fix round 2 (architecture-r1-3): agbcc's stub assembly closes each INCLUDE_ASM with `.syntax divided`.
 test('`.syntax divided` is read as no bytes; `.syntax unified` lifts it before the next include or instruction', () => {
-  const result = parsed('\t.syntax unified\n.include "asm/a.s"\n.syntax divided\n\n\t.syntax unified\n.include "asm/b.s"\n.syntax divided\n');
+  const result = parsed(
+    '\t.syntax unified\n.include "asm/a.s"\n.syntax divided\n\n\t.syntax unified\n.include "asm/b.s"\n.syntax divided\n',
+  );
   assert.deepEqual(result.errors, []);
   assert.deepEqual(
-    result.statements.map((st) => (st.kind === 'symbol' ? `${st.directive} ${st.args.join(',')}` : st.kind === 'include' ? st.path : st.kind)),
+    result.statements.map((st) =>
+      st.kind === 'symbol' ? `${st.directive} ${st.args.join(',')}` : st.kind === 'include' ? st.path : st.kind,
+    ),
     ['.syntax unified', 'asm/a.s', '.syntax divided', '.syntax unified', 'asm/b.s', '.syntax divided'],
   );
 });
@@ -235,7 +284,10 @@ test('macro errors: wrong argument count, recursion, a missing .endm', () => {
 test('a macro defined twice is an error, as in GNU as (macros.inc included twice)', () => {
   const twice = parsed('.include "include/macros.inc"\n.include "include/macros.inc"');
   assert.equal(twice.errors.length, 8);
-  assert.deepEqual(twice.errors[0], { line: 2, message: 'in "include/macros.inc" line 1: macro `arm_func_start` is already defined' });
+  assert.deepEqual(twice.errors[0], {
+    line: 2,
+    message: 'in "include/macros.inc" line 1: macro `arm_func_start` is already defined',
+  });
   assert.deepEqual(failure('.macro m\n.endm\n.macro m\n.endm'), { line: 3, message: 'macro `m` is already defined' });
 });
 
@@ -249,6 +301,11 @@ test('a macro file holding anything but macros is an error at the include line',
   const broken = parseStatements('.include "m.inc"', { includes: new Map([['m.inc', '.macro m\n\t.byte 1\n']]) });
   assert.match(broken.errors[0]?.message ?? '', /in "m.inc" line 1: macro `m` has no `.endm`/);
 
-  const cyclic = parseStatements('.include "m.inc"', { includes: new Map([['m.inc', '.macro m\n.endm\n.include "m.inc"\n']]) });
-  assert.ok(cyclic.errors.some((e) => e.line === 1 && /included deeper than 32/.test(e.message)), JSON.stringify(cyclic.errors));
+  const cyclic = parseStatements('.include "m.inc"', {
+    includes: new Map([['m.inc', '.macro m\n.endm\n.include "m.inc"\n']]),
+  });
+  assert.ok(
+    cyclic.errors.some((e) => e.line === 1 && /included deeper than 32/.test(e.message)),
+    JSON.stringify(cyclic.errors),
+  );
 });

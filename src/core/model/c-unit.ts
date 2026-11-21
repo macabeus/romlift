@@ -30,9 +30,9 @@
 // test/local/c-stub-agbcc.test.ts compiles every emitted stub of two fixtures and klonoa and compares both the text
 // and the object's `.text` with this encoding.
 import { DIALECT } from '../../foundation/asm/dialect.ts';
-import { stubNameOf } from '../../foundation/util/project-files.ts';
-import type { Mode } from '../../foundation/rom/span.ts';
 import { RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
+import type { Mode } from '../../foundation/rom/span.ts';
+import { stubNameOf } from '../../foundation/util/project-files.ts';
 import { buildCompilerOf } from '../config/compilers.ts';
 import type { BuildCompiler, BuildCompilerId } from '../config/compilers.ts';
 import { chunkPathsOf } from './paths.ts';
@@ -74,7 +74,11 @@ function includeAsmBody(chunkFile: string): string {
  */
 export function stubAssemblyText(chunkFiles: readonly string[], compiler: BuildCompilerId): string {
   const prelude = stubUnitPrelude(registeredCompiler(compiler, 'stubAssemblyText').banner);
-  const parts = [`${prelude.join('\n')}\n`, fileScopeAsm(`${DIALECT.macrosInclude}\n`), ...chunkFiles.map((file) => fileScopeAsm(includeAsmBody(file)))];
+  const parts = [
+    `${prelude.join('\n')}\n`,
+    fileScopeAsm(`${DIALECT.macrosInclude}\n`),
+    ...chunkFiles.map((file) => fileScopeAsm(includeAsmBody(file))),
+  ];
   return parts.join('');
 }
 
@@ -122,7 +126,10 @@ export function stubUnitAssembly(model: Pick<Model, 'chunks'>, module: Module): 
  * The cc1 and the flags a C module compiles with: its build compiler's cc1 (BUILD_COMPILERS) and the Model's cflags,
  * which modules.ts builds as the compiler's default flags followed by the module's `cflags`.
  */
-export function moduleCompile(module: Pick<Module, 'compiler' | 'cflags'>): { readonly cc1: string; readonly flags: readonly string[] } {
+export function moduleCompile(module: Pick<Module, 'compiler' | 'cflags'>): {
+  readonly cc1: string;
+  readonly flags: readonly string[];
+} {
   const compiler = registeredCompiler(module.compiler, 'moduleCompile');
   return { cc1: compiler.cc1, flags: module.cflags };
 }

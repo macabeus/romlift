@@ -24,13 +24,13 @@
 import { chmod, mkdir, rmdir, unlink } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 
-import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
-import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { encodeJournal, journalOf } from '../../core/write-plan/journal.ts';
 import { encodeManifest, isProjectPath } from '../../core/write-plan/manifest.ts';
 import { planHasErrors, staleEdit } from '../../core/write-plan/plan-writes.ts';
 import { JOURNAL_PATH, MANIFEST_PATH, ROMLIFT_DIR } from '../../core/write-plan/types.ts';
 import type { WriteOp, WritePlan } from '../../core/write-plan/types.ts';
+import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
+import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { ShellCodes } from '../codes.ts';
 import { atomicWrite, errnoOf, errorReason } from '../fs.ts';
 import { digestOf, onDisk, readJournal } from './disk-state.ts';
@@ -81,7 +81,13 @@ interface DiskKnown {
 /** The permission bits of a file written executable (setup.sh) and of a `mode` op. */
 export const EXECUTABLE_MODE = 0o755;
 
-async function writeText(file: string, text: string | Iterable<string>, durable: boolean, known: DiskKnown, mode?: number): Promise<Diagnostic | undefined> {
+async function writeText(
+  file: string,
+  text: string | Iterable<string>,
+  durable: boolean,
+  known: DiskKnown,
+  mode?: number,
+): Promise<Diagnostic | undefined> {
   const parent = dirname(file);
   if (!known.made.has(parent)) {
     try {
@@ -91,7 +97,11 @@ async function writeText(file: string, text: string | Iterable<string>, durable:
     }
     known.made.add(parent);
   }
-  const written = await atomicWrite(file, text, { durable, inPlaceWhenAbsent: !durable, ...(mode === undefined ? {} : { mode }) });
+  const written = await atomicWrite(file, text, {
+    durable,
+    inPlaceWhenAbsent: !durable,
+    ...(mode === undefined ? {} : { mode }),
+  });
   return written.ok ? undefined : written.diagnostic;
 }
 
@@ -111,20 +121,34 @@ export function durableOp(op: Extract<WriteOp, { readonly op: 'write' | 'edit' }
  * a file removed since is E_STALE_EDIT too). A file that exists but cannot be read is left to the write, which reports
  * its own failure (E_IO_WRITE).
  */
-async function staleAtWrite(dir: string, op: Extract<WriteOp, { readonly op: 'edit' }>): Promise<Diagnostic | undefined> {
+async function staleAtWrite(
+  dir: string,
+  op: Extract<WriteOp, { readonly op: 'edit' }>,
+): Promise<Diagnostic | undefined> {
   // disk-state's digestOf: the snapshot's own rule for what is absent (architecture-b2-11).
   const now = await digestOf(dir, op.path);
   if (!now.ok) return undefined;
-  return staleEdit(op, now.value.kind === 'absent' ? { kind: 'absent' } : { kind: 'sha1', sha1: now.value.sha1 }, 'written');
+  return staleEdit(
+    op,
+    now.value.kind === 'absent' ? { kind: 'absent' } : { kind: 'sha1', sha1: now.value.sha1 },
+    'written',
+  );
 }
 
 async function applyOp(dir: string, op: WriteOp, known: DiskKnown): Promise<Diagnostic | undefined> {
   const file = onDisk(dir, op.path);
   switch (op.op) {
     case 'write':
-      return (await respell(dir, op.path, known.listings)) ?? writeText(file, op.text, durableOp(op), known, op.executable === true ? EXECUTABLE_MODE : undefined);
+      return (
+        (await respell(dir, op.path, known.listings)) ??
+        writeText(file, op.text, durableOp(op), known, op.executable === true ? EXECUTABLE_MODE : undefined)
+      );
     case 'edit':
-      return (await respell(dir, op.path, known.listings)) ?? (await staleAtWrite(dir, op)) ?? writeText(file, op.text, durableOp(op), known);
+      return (
+        (await respell(dir, op.path, known.listings)) ??
+        (await staleAtWrite(dir, op)) ??
+        writeText(file, op.text, durableOp(op), known)
+      );
     case 'mode':
       try {
         await chmod(file, EXECUTABLE_MODE);
@@ -154,8 +178,11 @@ async function applyOp(dir: string, op: WriteOp, known: DiskKnown): Promise<Diag
  * removes the journal. The first failure stops it with E_IO_WRITE and leaves the journal for the next run.
  */
 export async function applyWrites(dir: string, plan: WritePlan): Promise<ApplyResult> {
-  if (planHasErrors(plan)) return { ok: false, applied: 0, diagnostics: plan.diagnostics.filter((d) => d.severity === 'error') };
-  const unsafe = [...plan.ops.map((op) => op.path), ...Object.keys(plan.manifest.files)].find((path) => !isProjectPath(path));
+  if (planHasErrors(plan))
+    return { ok: false, applied: 0, diagnostics: plan.diagnostics.filter((d) => d.severity === 'error') };
+  const unsafe = [...plan.ops.map((op) => op.path), ...Object.keys(plan.manifest.files)].find(
+    (path) => !isProjectPath(path),
+  );
   if (unsafe !== undefined) {
     const message = `refusing the plan: ${JSON.stringify(unsafe)} is not a project path`;
     return { ok: false, applied: 0, diagnostics: [diagnostic(ShellCodes, 'E_IO_WRITE', message, { path: unsafe })] };
@@ -183,5 +210,7 @@ export async function applyWrites(dir: string, plan: WritePlan): Promise<ApplyRe
   const manifest = await writeText(onDisk(dir, MANIFEST_PATH), encodeManifest(plan.manifest), true, known);
   if (manifest !== undefined) return { ok: false, applied, diagnostics: [manifest] };
   const cleared = await removeFile(onDisk(dir, JOURNAL_PATH));
-  return cleared === undefined ? { ok: true, applied, diagnostics: [] } : { ok: false, applied, diagnostics: [cleared] };
+  return cleared === undefined
+    ? { ok: true, applied, diagnostics: [] }
+    : { ok: false, applied, diagnostics: [cleared] };
 }

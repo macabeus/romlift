@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import { COMMANDS } from '../../../src/cli/commands/index.ts';
 import { commandHelp, findCommand, usageText } from '../../../src/cli/registry.ts';
-import { scanFake, FAKE_COMMANDS } from './fake.ts';
+import { FAKE_COMMANDS, scanFake } from './fake.ts';
 
 test('findCommand finds by exact name', () => {
   assert.equal(findCommand(FAKE_COMMANDS, 'scan'), scanFake);

@@ -10,7 +10,7 @@ import { packageVersion } from '../shell/project/read-inputs.ts';
 import { parseArgs } from './args.ts';
 import { COMMANDS } from './commands/index.ts';
 import { ExitCode, isExitCode } from './exit-codes.ts';
-import { commandHelp, HELP_FLAG, PROGRAM, usageText } from './registry.ts';
+import { HELP_FLAG, PROGRAM, commandHelp, usageText } from './registry.ts';
 import type { CliIo, CommandSpec } from './registry.ts';
 
 function isHelpToken(token: string | undefined): boolean {
@@ -30,7 +30,11 @@ function internalErrorLine(error: unknown): string {
 }
 
 /** Runs one command line; the returned code is the process exit code. */
-export async function main(argv: readonly string[], io: CliIo, commands: readonly CommandSpec[] = COMMANDS): Promise<ExitCode> {
+export async function main(
+  argv: readonly string[],
+  io: CliIo,
+  commands: readonly CommandSpec[] = COMMANDS,
+): Promise<ExitCode> {
   try {
     if (argv.length === 0 || isHelpToken(argv[0])) {
       io.stdout(usageText(commands));
@@ -55,7 +59,8 @@ export async function main(argv: readonly string[], io: CliIo, commands: readonl
       return ExitCode.ok;
     }
     const code: unknown = await parsed.spec.run(parsed.args, io);
-    if (!isExitCode(code)) throw new RomliftInvariantError(`command '${parsed.spec.name}' returned ${String(code)}, not an exit code`);
+    if (!isExitCode(code))
+      throw new RomliftInvariantError(`command '${parsed.spec.name}' returned ${String(code)}, not an exit code`);
     return code;
   } catch (error) {
     io.stderr(internalErrorLine(error));
@@ -96,7 +101,10 @@ if (import.meta.main) {
     stderr: (text) => {
       process.stderr.write(text);
     },
-    drained: () => (process.stdout.writableNeedDrain ? new Promise((resolve) => process.stdout.once('drain', resolve)) : Promise.resolve()),
+    drained: () =>
+      process.stdout.writableNeedDrain
+        ? new Promise((resolve) => process.stdout.once('drain', resolve))
+        : Promise.resolve(),
     cwd: process.cwd(),
     env: process.env,
   };

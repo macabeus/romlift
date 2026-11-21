@@ -10,28 +10,31 @@
 // contents is ever shown.
 import { writeFile } from 'node:fs/promises';
 import { isAbsolute, join, normalize } from 'node:path';
-
 import { sha1Of, sha256Of } from 'romlift/node';
 
-import { parseArgs, UsageError } from '../src/args.ts';
+import { UsageError, parseArgs } from '../src/args.ts';
 import { contextFromEnv, datasetDir } from '../src/context.ts';
 import { parseDataset } from '../src/dataset.ts';
 import { BenchError, exists, isDirectory, prettyJson, readFileBytes } from '../src/files.ts';
 import { runProcess } from '../src/process.ts';
 import { sealedDataset } from '../src/seal.ts';
 
-const USAGE = 'usage: seal-dataset --name <n> --rom <path> --elf <path> --map <path> --family <f> --checkout <dir> [--build-note <text>]';
+const USAGE =
+  'usage: seal-dataset --name <n> --rom <path> --elf <path> --map <path> --family <f> --checkout <dir> [--build-note <text>]';
 const ID = /^[a-z0-9][a-z0-9-]*$/;
 
 /** A path under the benchmark root, as the dataset records it. */
 function benchPath(option: string, value: string): string {
   const path = normalize(value);
-  if (isAbsolute(path) || path === '..' || path.startsWith('../')) throw new UsageError(`--${option} must be a path relative to ROMLIFT_BENCH_ROOT`);
+  if (isAbsolute(path) || path === '..' || path.startsWith('../'))
+    throw new UsageError(`--${option} must be a path relative to ROMLIFT_BENCH_ROOT`);
   return path;
 }
 
 async function main(): Promise<number> {
-  const args = parseArgs(process.argv.slice(2), { options: ['name', 'rom', 'elf', 'map', 'family', 'checkout', 'build-note'] });
+  const args = parseArgs(process.argv.slice(2), {
+    options: ['name', 'rom', 'elf', 'map', 'family', 'checkout', 'build-note'],
+  });
   const need = (key: string): string => {
     const value = args.options[key];
     if (value === undefined || value === '') throw new UsageError(`--${key} is required\n${USAGE}`);
@@ -49,9 +52,15 @@ async function main(): Promise<number> {
 
   const cx = contextFromEnv(process.env);
   const file = join(datasetDir(cx), `${name}.json`);
-  if (await exists(file)) throw new BenchError(`${file} exists; a dataset is sealed once, at creation, and never rewritten`);
-  for (const [option, path] of [['rom', rom], ['elf', elf], ['map', map]] as const) {
-    if (!(await exists(join(cx.benchRoot, path)))) throw new BenchError(`--${option}: ${join(cx.benchRoot, path)} is missing`);
+  if (await exists(file))
+    throw new BenchError(`${file} exists; a dataset is sealed once, at creation, and never rewritten`);
+  for (const [option, path] of [
+    ['rom', rom],
+    ['elf', elf],
+    ['map', map],
+  ] as const) {
+    if (!(await exists(join(cx.benchRoot, path))))
+      throw new BenchError(`--${option}: ${join(cx.benchRoot, path)} is missing`);
   }
   const checkoutDir = join(cx.benchRoot, checkout);
   if (!(await isDirectory(checkoutDir))) throw new BenchError(`--checkout: ${checkoutDir} is not a directory`);
@@ -73,7 +82,9 @@ async function main(): Promise<number> {
   if (parsed.dataset === undefined) throw new BenchError(parsed.problems.map((p) => p.detail).join('; '));
   // 'wx' fails if the file appeared since the check: a dataset is never overwritten.
   await writeFile(file, prettyJson(dataset), { flag: 'wx' });
-  process.stdout.write(`wrote ${file}\nsha1 ${dataset.sha1}\nelfSha256 ${dataset.elfSha256}\nelfCommit ${dataset.elfCommit}\n`);
+  process.stdout.write(
+    `wrote ${file}\nsha1 ${dataset.sha1}\nelfSha256 ${dataset.elfSha256}\nelfCommit ${dataset.elfCommit}\n`,
+  );
   return 0;
 }
 

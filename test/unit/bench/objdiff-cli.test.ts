@@ -7,23 +7,22 @@ import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-
 import { parseElf } from 'romlift';
 
 import {
+  type FunctionDiff,
+  OBJDIFF_CHECKOUT_BUILD,
+  OBJDIFF_LOCAL_BUILD,
+  type ReferenceObject,
   diffObjects,
   findObjdiff,
   functionOutcome,
   mainRepoRootOf,
-  OBJDIFF_CHECKOUT_BUILD,
-  OBJDIFF_LOCAL_BUILD,
   objdiffDiffArgs,
   objdiffVersion,
+  objectFacts,
   parseObjdiffDiff,
   readPinnedObjdiffVersion,
-  type FunctionDiff,
-  objectFacts,
-  type ReferenceObject,
 } from '../../../bench/src/objdiff-cli.ts';
 import { objectRelocations } from '../../../bench/src/objects.ts';
 import { withTempDir } from './fixtures.ts';
@@ -44,7 +43,11 @@ async function committed(): Promise<readonly FunctionDiff[]> {
   const left = objectFacts(new Uint8Array(await readFile(join(FIXTURES, 'reference.o'))));
   const right = objectFacts(new Uint8Array(await readFile(join(FIXTURES, 'base.o'))));
   assert.ok(left.ok && right.ok);
-  const parsed = parseObjdiffDiff(JSON.parse(await readFile(join(FIXTURES, 'diff.json'), 'utf8')) as unknown, left.value, right.value);
+  const parsed = parseObjdiffDiff(
+    JSON.parse(await readFile(join(FIXTURES, 'diff.json'), 'utf8')) as unknown,
+    left.value,
+    right.value,
+  );
   assert.ok(parsed.ok);
   return parsed.value.functions;
 }
@@ -61,12 +64,34 @@ test('the committed diff parses to one row per reference function, each with its
     ],
   );
   const [insn, pool, same, sect] = functions;
-  assert.deepEqual(insn?.instructionDifferences, [{ offset: 0x0e, kind: 'replace', reference: 'add r0, r1', base: 'sub r0, r1' }]);
+  assert.deepEqual(insn?.instructionDifferences, [
+    { offset: 0x0e, kind: 'replace', reference: 'add r0, r1', base: 'sub r0, r1' },
+  ]);
   assert.deepEqual(insn?.relocationDifferences, []);
   assert.deepEqual(pool?.instructionDifferences, []);
-  assert.deepEqual(pool?.relocationDifferences, [{ offset: 0x1c, kind: 'arg-mismatch', type: 'R_ARM_ABS32', reference: { name: 'gTarget', symbol: 'named', addend: 0 }, base: 'gOther', typeCode: 2, baseAddend: 0 }]);
+  assert.deepEqual(pool?.relocationDifferences, [
+    {
+      offset: 0x1c,
+      kind: 'arg-mismatch',
+      type: 'R_ARM_ABS32',
+      reference: { name: 'gTarget', symbol: 'named', addend: 0 },
+      base: 'gOther',
+      typeCode: 2,
+      baseAddend: 0,
+    },
+  ]);
   assert.deepEqual([same?.instructionDifferences, same?.relocationDifferences], [[], []]);
-  assert.deepEqual(sect?.relocationDifferences, [{ offset: 0x28, kind: 'arg-mismatch', type: 'R_ARM_ABS32', reference: { name: '.rodata', symbol: 'section', addend: 0 }, base: 'sectData', typeCode: 2, baseAddend: 0 }]);
+  assert.deepEqual(sect?.relocationDifferences, [
+    {
+      offset: 0x28,
+      kind: 'arg-mismatch',
+      type: 'R_ARM_ABS32',
+      reference: { name: '.rodata', symbol: 'section', addend: 0 },
+      base: 'sectData',
+      typeCode: 2,
+      baseAddend: 0,
+    },
+  ]);
 });
 
 test("with the base object's facts each relocation difference carries the base addend (architecture-r1-1)", async () => {
@@ -74,24 +99,59 @@ test("with the base object's facts each relocation difference carries the base a
   const right = objectFacts(new Uint8Array(await readFile(join(FIXTURES, 'base.o'))));
   assert.ok(left.ok && right.ok);
   assert.equal(right.value.contents?.get('.text')?.length, 0x2c);
-  const parsed = parseObjdiffDiff(JSON.parse(await readFile(join(FIXTURES, 'diff.json'), 'utf8')) as unknown, left.value, right.value);
+  const parsed = parseObjdiffDiff(
+    JSON.parse(await readFile(join(FIXTURES, 'diff.json'), 'utf8')) as unknown,
+    left.value,
+    right.value,
+  );
   assert.ok(parsed.ok);
   const byName = new Map(parsed.value.functions.map((f) => [f.name, f] as const));
-  assert.deepEqual(byName.get('PoolFunc')?.relocationDifferences.map((r) => [r.reference?.addend, r.baseAddend, r.typeCode, r.baseField]), [[0, 0, 2, undefined]]);
-  assert.deepEqual(byName.get('SectFunc')?.relocationDifferences.map((r) => [r.reference?.addend, r.baseAddend, r.typeCode]), [[0, 0, 2]]);
+  assert.deepEqual(
+    byName
+      .get('PoolFunc')
+      ?.relocationDifferences.map((r) => [r.reference?.addend, r.baseAddend, r.typeCode, r.baseField]),
+    [[0, 0, 2, undefined]],
+  );
+  assert.deepEqual(
+    byName.get('SectFunc')?.relocationDifferences.map((r) => [r.reference?.addend, r.baseAddend, r.typeCode]),
+    [[0, 0, 2]],
+  );
 });
 
 test('functionOutcome: unpaired, and a relocation difference with no reference side differs', () => {
-  const base: FunctionDiff = { name: 'f', offset: 0, size: 4, paired: true, matchPercent: 100, instructionDifferences: [], relocationDifferences: [] };
+  const base: FunctionDiff = {
+    name: 'f',
+    offset: 0,
+    size: 4,
+    paired: true,
+    matchPercent: 100,
+    instructionDifferences: [],
+    relocationDifferences: [],
+  };
   assert.equal(functionOutcome(base), 'match');
   assert.equal(functionOutcome({ ...base, paired: false, matchPercent: null }), 'unpaired');
   assert.equal(functionOutcome({ ...base, matchPercent: 99.5 }), 'differs');
-  assert.equal(functionOutcome({ ...base, matchPercent: 99, relocationDifferences: [{ offset: 0, kind: 'arg-mismatch', type: 'R_ARM_ABS32', reference: null, base: 'x' }] }), 'differs');
   assert.equal(
     functionOutcome({
       ...base,
       matchPercent: 99,
-      relocationDifferences: [{ offset: 0, kind: 'arg-mismatch', type: 'R_ARM_ABS32', reference: { name: '.data', symbol: 'section' }, base: 'x' }],
+      relocationDifferences: [{ offset: 0, kind: 'arg-mismatch', type: 'R_ARM_ABS32', reference: null, base: 'x' }],
+    }),
+    'differs',
+  );
+  assert.equal(
+    functionOutcome({
+      ...base,
+      matchPercent: 99,
+      relocationDifferences: [
+        {
+          offset: 0,
+          kind: 'arg-mismatch',
+          type: 'R_ARM_ABS32',
+          reference: { name: '.data', symbol: 'section' },
+          base: 'x',
+        },
+      ],
       instructionDifferences: [{ offset: 2, kind: 'replace', reference: 'a', base: 'b' }],
     }),
     'differs',
@@ -102,9 +162,29 @@ test('parseObjdiffDiff refuses a value without a reference side and reads an unp
   const ref = await reference();
   assert.equal(parseObjdiffDiff([], ref).ok, false);
   assert.equal(parseObjdiffDiff({ right: {} }, ref).ok, false);
-  const parsed = parseObjdiffDiff({ left: { symbols: [{ name: 'Lonely', address: '16', size: '8', kind: 'SYMBOL_FUNCTION' }, { name: 'gData', kind: 'SYMBOL_OBJECT' }] } }, ref);
+  const parsed = parseObjdiffDiff(
+    {
+      left: {
+        symbols: [
+          { name: 'Lonely', address: '16', size: '8', kind: 'SYMBOL_FUNCTION' },
+          { name: 'gData', kind: 'SYMBOL_OBJECT' },
+        ],
+      },
+    },
+    ref,
+  );
   assert.ok(parsed.ok);
-  assert.deepEqual(parsed.value.functions, [{ name: 'Lonely', offset: 16, size: 8, paired: false, matchPercent: null, instructionDifferences: [], relocationDifferences: [] }]);
+  assert.deepEqual(parsed.value.functions, [
+    {
+      name: 'Lonely',
+      offset: 16,
+      size: 8,
+      paired: false,
+      matchPercent: null,
+      instructionDifferences: [],
+      relocationDifferences: [],
+    },
+  ]);
 });
 
 test('objdiffDiffArgs is the one-shot JSON diff of the reference (-1) against the base (-2) with the pinned options', () => {
@@ -142,15 +222,30 @@ test('findObjdiff: ROMLIFT_OBJDIFF, the repository build, the main checkout buil
     const env = { PATH: bin };
     assert.equal(await findObjdiff(env, bench, { repoRoot: repo, mainRepoRoot: main }), undefined);
     await stub(join(bench, OBJDIFF_CHECKOUT_BUILD), 'objdiff-cli 0.0.1');
-    assert.deepEqual(await findObjdiff(env, bench, { repoRoot: repo }), { bin: join(bench, OBJDIFF_CHECKOUT_BUILD), source: 'bench-root' });
+    assert.deepEqual(await findObjdiff(env, bench, { repoRoot: repo }), {
+      bin: join(bench, OBJDIFF_CHECKOUT_BUILD),
+      source: 'bench-root',
+    });
     await stub(join(bin, 'objdiff-cli'), 'objdiff-cli 0.0.2');
-    assert.deepEqual(await findObjdiff(env, bench, { repoRoot: repo }), { bin: join(bin, 'objdiff-cli'), source: 'path' });
+    assert.deepEqual(await findObjdiff(env, bench, { repoRoot: repo }), {
+      bin: join(bin, 'objdiff-cli'),
+      source: 'path',
+    });
     await stub(join(main, OBJDIFF_LOCAL_BUILD), 'objdiff-cli 0.0.3');
-    assert.deepEqual(await findObjdiff(env, bench, { repoRoot: repo, mainRepoRoot: main }), { bin: join(main, OBJDIFF_LOCAL_BUILD), source: 'main-repo-build' });
+    assert.deepEqual(await findObjdiff(env, bench, { repoRoot: repo, mainRepoRoot: main }), {
+      bin: join(main, OBJDIFF_LOCAL_BUILD),
+      source: 'main-repo-build',
+    });
     await stub(join(repo, OBJDIFF_LOCAL_BUILD), 'objdiff-cli 0.0.4');
-    assert.deepEqual(await findObjdiff(env, bench, { repoRoot: repo, mainRepoRoot: main }), { bin: join(repo, OBJDIFF_LOCAL_BUILD), source: 'repo-build' });
+    assert.deepEqual(await findObjdiff(env, bench, { repoRoot: repo, mainRepoRoot: main }), {
+      bin: join(repo, OBJDIFF_LOCAL_BUILD),
+      source: 'repo-build',
+    });
     const named = join(root, 'nowhere', 'objdiff-cli');
-    assert.deepEqual(await findObjdiff({ ...env, ROMLIFT_OBJDIFF: named }, bench, { repoRoot: repo }), { bin: named, source: 'env' });
+    assert.deepEqual(await findObjdiff({ ...env, ROMLIFT_OBJDIFF: named }, bench, { repoRoot: repo }), {
+      bin: named,
+      source: 'env',
+    });
     assert.equal(await objdiffVersion(join(repo, OBJDIFF_LOCAL_BUILD)), 'objdiff-cli 0.0.4');
     assert.equal(await objdiffVersion(named), null);
   });
@@ -160,7 +255,10 @@ test('bench/tools/objdiff.version pins the objdiff-cli that produced the committ
   const pinned = await readPinnedObjdiffVersion(REPO_ROOT);
   assert.match(pinned ?? '', /^objdiff-cli \d+\.\d+\.\d+/);
   const info = await readFile(join(FIXTURES, 'build-info.txt'), 'utf8');
-  assert.ok(info.includes(`# objdiff-cli: ${pinned ?? ''}\n`), `build-info.txt records another objdiff-cli than ${pinned ?? ''}`);
+  assert.ok(
+    info.includes(`# objdiff-cli: ${pinned ?? ''}\n`),
+    `build-info.txt records another objdiff-cli than ${pinned ?? ''}`,
+  );
   await withTempDir('romlift-objdiff-pin-', async (root) => {
     assert.equal(await readPinnedObjdiffVersion(root), null);
   });
@@ -168,7 +266,10 @@ test('bench/tools/objdiff.version pins the objdiff-cli that produced the committ
 
 test('a fresh run of the pinned objdiff-cli on the fixture objects parses as the committed output does', async (t) => {
   const mainRepoRoot = await mainRepoRootOf(REPO_ROOT);
-  const found = await findObjdiff(process.env, dirname(REPO_ROOT), { repoRoot: REPO_ROOT, ...(mainRepoRoot === undefined ? {} : { mainRepoRoot }) });
+  const found = await findObjdiff(process.env, dirname(REPO_ROOT), {
+    repoRoot: REPO_ROOT,
+    ...(mainRepoRoot === undefined ? {} : { mainRepoRoot }),
+  });
   const pinned = await readPinnedObjdiffVersion(REPO_ROOT);
   if (found === undefined || (await objdiffVersion(found.bin)) !== pinned) {
     t.skip(`the pinned ${pinned ?? 'objdiff-cli'} is not installed`);

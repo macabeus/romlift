@@ -59,7 +59,12 @@ test('the model: Handler is a Thumb function with a local label beside its funct
       ['sub_08000104', 'func', true],
     ],
   );
-  for (let i = 0; i < model.items.count; i++) assert.notEqual(model.items.kind[i], ItemKind.rawInsn, `a raw item at 0x${(model.items.start[i] ?? 0).toString(16)}`);
+  for (let i = 0; i < model.items.count; i++)
+    assert.notEqual(
+      model.items.kind[i],
+      ItemKind.rawInsn,
+      `a raw item at 0x${(model.items.start[i] ?? 0).toString(16)}`,
+    );
 });
 
 test('each adr names the local label, which links to the address itself; the call names the function', () => {
@@ -81,16 +86,20 @@ test('the readable tree passes the text-layout check: no E_SELF_CHECK_TEXT', () 
 });
 
 for (const printer of ['readable', 'raw'] as const satisfies readonly Printer[]) {
-  test(`the ${printer} tree links to the fixture's SHA-1`, { skip: 'code' in tools ? `unavailable: ${tools.message}` : false }, async () => {
-    assert.ok(!('code' in tools));
-    const dir = await mkdtemp(join(tmpdir(), `romlift-adr-function-label-${printer}-`));
-    roots.push(dir);
-    for (const e of emitTree(rom, model, { decomp: { defined: [] }, printer })) {
-      if (!('text' in e)) continue;
-      await mkdir(dirname(join(dir, e.path)), { recursive: true });
-      await writeFile(join(dir, e.path), e.text);
-    }
-    const result = await linkCheck({ dir, rom, units: buildUnits(model), tools });
-    assert.equal(result.sha1, rom.sha1, `${result.detail} ${result.diagnostics.map((d) => d.message).join('; ')}`);
-  });
+  test(
+    `the ${printer} tree links to the fixture's SHA-1`,
+    { skip: 'code' in tools ? `unavailable: ${tools.message}` : false },
+    async () => {
+      assert.ok(!('code' in tools));
+      const dir = await mkdtemp(join(tmpdir(), `romlift-adr-function-label-${printer}-`));
+      roots.push(dir);
+      for (const e of emitTree(rom, model, { decomp: { defined: [] }, printer })) {
+        if (!('text' in e)) continue;
+        await mkdir(dirname(join(dir, e.path)), { recursive: true });
+        await writeFile(join(dir, e.path), e.text);
+      }
+      const result = await linkCheck({ dir, rom, units: buildUnits(model), tools });
+      assert.equal(result.sha1, rom.sha1, `${result.detail} ${result.diagnostics.map((d) => d.message).join('; ')}`);
+    },
+  );
 }

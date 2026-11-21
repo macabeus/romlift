@@ -84,7 +84,8 @@ export class WalkRecord {
   private sortedInsns(): InsnSpan[] {
     const order = this.order;
     let ascending = !this.dropped;
-    for (let i = 1; ascending && i < order.length; i++) if ((order[i] as Addr) <= (order[i - 1] as Addr)) ascending = false;
+    for (let i = 1; ascending && i < order.length; i++)
+      if ((order[i] as Addr) <= (order[i - 1] as Addr)) ascending = false;
     // A single straight path walks in ascending order with nothing dropped: the walk order is the answer.
     if (ascending) return order.map((addr, i) => ({ addr, len: this.lens[i] ?? 0 }));
     const addrs = order.filter((a) => this.insns.has(a)).sort((a, b) => a - b);
@@ -111,7 +112,13 @@ export class WalkRecord {
   /** The immutable reading (the settle loop adds its verdicts with reading.ts's withVerdicts). */
   finish(env: WalkEnv): Reading {
     const insns = this.sortedInsns();
-    const shape: ReadingShape = { entry: this.entry, codeEnd: codeEndOf(this.entry, insns), pools: this.poolOrder.map((p) => p.addr), tables: this.tables, armTails: this.armTails };
+    const shape: ReadingShape = {
+      entry: this.entry,
+      codeEnd: codeEndOf(this.entry, insns),
+      pools: this.poolOrder.map((p) => p.addr),
+      tables: this.tables,
+      armTails: this.armTails,
+    };
     return makeReading(
       {
         entry: this.entry,

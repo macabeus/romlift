@@ -2,9 +2,9 @@
 // readdir in the shell, architecture §2), reading bytes, and writing a file atomically. Failures are
 // returned as E_IO_READ or E_IO_WRITE diagnostics, never thrown.
 import { randomBytes } from 'node:crypto';
-import { open, readdir, readFile, rename, rm, stat } from 'node:fs/promises';
-import type { FileHandle } from 'node:fs/promises';
 import { closeSync, openSync, rmSync, writeSync } from 'node:fs';
+import { open, readFile, readdir, rename, rm, stat } from 'node:fs/promises';
+import type { FileHandle } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 
 import { diagnostic } from '../foundation/diagnostics/diagnostic.ts';
@@ -13,7 +13,9 @@ import { compareCodeUnits } from '../foundation/util/sorted.ts';
 import { ShellCodes } from './codes.ts';
 import type { ShellCode } from './codes.ts';
 
-export type IoResult<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly diagnostic: Diagnostic<ShellCode> };
+export type IoResult<T> =
+  | { readonly ok: true; readonly value: T }
+  | { readonly ok: false; readonly diagnostic: Diagnostic<ShellCode> };
 
 /** Bytes gathered from a stream of string chunks before one write call. */
 const WRITE_BATCH = 1 << 20;
@@ -102,7 +104,9 @@ export async function readTextIfPresent(path: string): Promise<IoResult<string |
 }
 
 /** What readJson's caller decodes the parsed JSON with: the value, or why it is refused. */
-export type JsonDecode<T> = (json: unknown) => { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: string };
+export type JsonDecode<T> = (
+  json: unknown,
+) => { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: string };
 
 /**
  * The JSON file at `path` read, parsed and decoded with `decode`: E_IO_READ when it cannot be read, `invalid` (the
@@ -115,10 +119,15 @@ export async function readJson<T>(path: string, decode: JsonDecode<T>, invalid: 
   try {
     json = JSON.parse(text.value);
   } catch (error) {
-    return { ok: false, diagnostic: diagnostic(ShellCodes, invalid, `${path} is not JSON: ${errorReason(error)}`, { path }) };
+    return {
+      ok: false,
+      diagnostic: diagnostic(ShellCodes, invalid, `${path} is not JSON: ${errorReason(error)}`, { path }),
+    };
   }
   const decoded = decode(json);
-  return decoded.ok ? decoded : { ok: false, diagnostic: diagnostic(ShellCodes, invalid, `${path}: ${decoded.error}`, { path }) };
+  return decoded.ok
+    ? decoded
+    : { ok: false, diagnostic: diagnostic(ShellCodes, invalid, `${path}: ${decoded.error}`, { path }) };
 }
 
 /** The bytes of file `path`. */

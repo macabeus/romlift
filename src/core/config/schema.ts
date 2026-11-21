@@ -6,7 +6,7 @@
 // (p6-c-data-expected). Addresses are numbers here; the TOML spells them '0x' and eight upper-case hex digits.
 import { z } from 'zod';
 
-import { isModuleName, isSymbolName, MODULE_NAME_RULE, SYMBOL_NAME_RULE } from '../../foundation/asm/dialect.ts';
+import { MODULE_NAME_RULE, SYMBOL_NAME_RULE, isModuleName, isSymbolName } from '../../foundation/asm/dialect.ts';
 import type { Addr, Mode } from '../../foundation/rom/span.ts';
 import { BASEROM_FILE } from '../../foundation/util/project-files.ts';
 import { compareNumbers, sortedEntries } from '../../foundation/util/sorted.ts';
@@ -97,7 +97,9 @@ export interface RomliftConfig {
  * Every listed entry of `config`, functions and entry points together, by address: what the analysis seeds, the model
  * names and labels, and `rename` finds. An address is in one table only (parse.ts E_DUPLICATE_ADDRESS).
  */
-export function listedEntries(config: Pick<RomliftConfig, 'functions' | 'entryPoints'>): ReadonlyMap<Addr, FunctionConfig> {
+export function listedEntries(
+  config: Pick<RomliftConfig, 'functions' | 'entryPoints'>,
+): ReadonlyMap<Addr, FunctionConfig> {
   const all: [Addr, FunctionConfig][] = [];
   for (const [addr, f] of sortedEntries(config.functions)) all.push([addr, f]);
   for (const [addr, e] of sortedEntries(config.entryPoints)) if (!config.functions.has(addr)) all.push([addr, e]);
@@ -134,7 +136,12 @@ export function isBuildName(name: string): boolean {
 }
 const buildName = z.string().refine(isBuildName, `not a build name (${BUILD_NAME_RULE})`);
 /** The project's ROM: always baserom.gba (D74 c), which setup.sh, the Makefile and every `.incbin` name. */
-const romPath = z.string().refine((path): boolean => path === BASEROM_FILE, `the project's ROM is always ${BASEROM_FILE}, which setup.sh, the Makefile and every .incbin name (D74 c)`);
+const romPath = z
+  .string()
+  .refine(
+    (path): boolean => path === BASEROM_FILE,
+    `the project's ROM is always ${BASEROM_FILE}, which setup.sh, the Makefile and every .incbin name (D74 c)`,
+  );
 const sha1 = z.string().regex(/^[0-9a-f]{40}$/, 'not a lower-case hex SHA-1');
 const nonEmpty = z.string().min(1);
 
@@ -219,7 +226,11 @@ const ROMLIFT_CONFIG_SCHEMA = z
 
 // The schema's output is exactly the interface above, so neither can drift from the other.
 type SchemaOutput = z.output<typeof ROMLIFT_CONFIG_SCHEMA>;
-const sameShape: [SchemaOutput] extends [RomliftConfig] ? ([RomliftConfig] extends [SchemaOutput] ? true : false) : false = true;
+const sameShape: [SchemaOutput] extends [RomliftConfig]
+  ? [RomliftConfig] extends [SchemaOutput]
+    ? true
+    : false
+  : false = true;
 void sameShape;
 
 /** One problem validateConfig found: the path of the offending member and what is wrong. */
@@ -235,17 +246,29 @@ export type ConfigValidation =
   | { readonly ok: false; readonly issues: readonly ConfigIssue[] };
 
 function pathText(path: readonly PropertyKey[]): string {
-  return path.map((key) => (typeof key === 'number' ? `[${key}]` : `.${String(key)}`)).join('').replace(/^\./, '');
+  return path
+    .map((key) => (typeof key === 'number' ? `[${key}]` : `.${String(key)}`))
+    .join('')
+    .replace(/^\./, '');
 }
 
 /** The issue's own code, read from its refinement's structured marker. */
 function issueCode(issue: z.core.$ZodIssue): Pick<ConfigIssue, 'code'> {
-  return issue.code === 'custom' && issue.params?.['romliftCode'] === UNKNOWN_COMPILER_PARAMS.romliftCode ? { code: 'E_UNKNOWN_COMPILER' } : {};
+  return issue.code === 'custom' && issue.params?.['romliftCode'] === UNKNOWN_COMPILER_PARAMS.romliftCode
+    ? { code: 'E_UNKNOWN_COMPILER' }
+    : {};
 }
 
 /** Validates an in-memory config against schema 1; every issue at once, never a throw. */
 export function validateConfig(value: unknown): ConfigValidation {
   const parsed = ROMLIFT_CONFIG_SCHEMA.safeParse(value);
   if (parsed.success) return { ok: true, config: parsed.data };
-  return { ok: false, issues: parsed.error.issues.map((issue) => ({ path: pathText(issue.path), message: issue.message, ...issueCode(issue) })) };
+  return {
+    ok: false,
+    issues: parsed.error.issues.map((issue) => ({
+      path: pathText(issue.path),
+      message: issue.message,
+      ...issueCode(issue),
+    })),
+  };
 }

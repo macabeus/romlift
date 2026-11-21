@@ -83,24 +83,36 @@ export function romEvidenceProblems(name: string, e: RomParityEvidence): string[
   for (const set of LOCKSTEP_SETS) {
     const s = e.lockstep.find((l) => l.set === set.name);
     if (s === undefined) out.push(`${name}: no lockstep summary for ${set.name}`);
-    else if (s.divergence !== null) out.push(`${name}: lockstep ${set.name} diverges at seq ${s.divergence.seq} (${s.divergence.kind}): ${s.divergence.detail}`);
-    else if (s.parityDigest !== e.expected) out.push(`${name}: lockstep ${set.name} ends with parity digest ${s.parityDigest ?? 'none'}, the PoC's is ${e.expected}`);
-    else if (s.matched + s.skipped !== s.queries) out.push(`${name}: lockstep ${set.name} matched ${s.matched} and skipped ${s.skipped} of ${s.queries} records`);
+    else if (s.divergence !== null)
+      out.push(
+        `${name}: lockstep ${set.name} diverges at seq ${s.divergence.seq} (${s.divergence.kind}): ${s.divergence.detail}`,
+      );
+    else if (s.parityDigest !== e.expected)
+      out.push(
+        `${name}: lockstep ${set.name} ends with parity digest ${s.parityDigest ?? 'none'}, the PoC's is ${e.expected}`,
+      );
+    else if (s.matched + s.skipped !== s.queries)
+      out.push(`${name}: lockstep ${set.name} matched ${s.matched} and skipped ${s.skipped} of ${s.queries} records`);
   }
   return out;
 }
 
 /** What the evidence fails on for the tuning ROMs `digests` names, empty when every one proves parity. */
-export function evidenceProblems(e: ParityEvidence, digests: { readonly pocSourceDigest: string; readonly roms: Readonly<Record<string, string>> }): string[] {
+export function evidenceProblems(
+  e: ParityEvidence,
+  digests: { readonly pocSourceDigest: string; readonly roms: Readonly<Record<string, string>> },
+): string[] {
   const out: string[] = [];
-  if (e.pocSourceDigest !== digests.pocSourceDigest) out.push(`the evidence pins PoC source ${e.pocSourceDigest}, poc-digests.json ${digests.pocSourceDigest}`);
+  if (e.pocSourceDigest !== digests.pocSourceDigest)
+    out.push(`the evidence pins PoC source ${e.pocSourceDigest}, poc-digests.json ${digests.pocSourceDigest}`);
   for (const name of Object.keys(digests.roms).sort(compareCodeUnits)) {
     const rom = e.roms[name];
     if (rom === undefined) {
       out.push(`${name}: no parity evidence`);
       continue;
     }
-    if (rom.expected !== digests.roms[name]) out.push(`${name}: the evidence expects ${rom.expected}, poc-digests.json holds ${digests.roms[name] ?? ''}`);
+    if (rom.expected !== digests.roms[name])
+      out.push(`${name}: the evidence expects ${rom.expected}, poc-digests.json holds ${digests.roms[name] ?? ''}`);
     out.push(...romEvidenceProblems(name, rom));
   }
   return out;
@@ -134,7 +146,13 @@ function isFamily(value: unknown): value is EvidenceFamily {
 function divergence(value: unknown, at: string): DivergenceSummary | null {
   if (value === null) return null;
   const d = rec(value, at);
-  return { seq: count(d['seq'], `${at}.seq`), kind: str(d['kind'], `${at}.kind`), epoch: count(d['epoch'], `${at}.epoch`), method: str(d['method'], `${at}.method`), detail: str(d['detail'], `${at}.detail`) };
+  return {
+    seq: count(d['seq'], `${at}.seq`),
+    kind: str(d['kind'], `${at}.kind`),
+    epoch: count(d['epoch'], `${at}.epoch`),
+    method: str(d['method'], `${at}.method`),
+    detail: str(d['detail'], `${at}.detail`),
+  };
 }
 
 function summary(value: unknown, at: string): LockstepSummary {

@@ -6,10 +6,10 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
+import { type BenchIo, main } from '../../../bench/src/cli.ts';
 import type { BenchContext } from '../../../bench/src/context.ts';
-import { main, type BenchIo } from '../../../bench/src/cli.ts';
 import { printerSummary, withTempDir } from '../../unit/bench/fixtures.ts';
-import { syntheticTier, TINY_DEPS } from '../../unit/bench/harness.ts';
+import { TINY_DEPS, syntheticTier } from '../../unit/bench/harness.ts';
 
 interface Check {
   readonly id: string;
@@ -19,7 +19,9 @@ interface Check {
 
 const quiet: BenchIo = { out: () => {}, err: () => {} };
 
-async function provenance(cx: BenchContext): Promise<{ readonly code: number; readonly checks: Readonly<Record<string, Check>> }> {
+async function provenance(
+  cx: BenchContext,
+): Promise<{ readonly code: number; readonly checks: Readonly<Record<string, Check>> }> {
   const lines: string[] = [];
   const code = await main(['provenance', '--json'], cx, { out: (l) => lines.push(l), err: () => {} });
   const last = JSON.parse(lines.at(-1) ?? '{}') as { ok: boolean; checks: Check[] };
@@ -27,7 +29,11 @@ async function provenance(cx: BenchContext): Promise<{ readonly code: number; re
   return { code, checks: Object.fromEntries(last.checks.map((c) => [c.id, c])) };
 }
 
-async function withRunTier(name: string, body: (cx: BenchContext) => Promise<void>, before?: (cx: BenchContext) => Promise<void>): Promise<void> {
+async function withRunTier(
+  name: string,
+  body: (cx: BenchContext) => Promise<void>,
+  before?: (cx: BenchContext) => Promise<void>,
+): Promise<void> {
   await withTempDir(`romlift-mut-prov-${name}-`, async (root) => {
     const cx = await syntheticTier(join(root, 't'));
     if (before) await before(cx);
@@ -105,7 +111,10 @@ test('landed 1 with no real-tier gate record fails gate-record', async () => {
     },
     async (cx) => {
       await writeFile(join(cx.repoRoot, 'test', 'gates', 'phase.json'), '{ "landed": 1 }');
-      await writeFile(join(cx.repoRoot, 'test', 'gates', 'g1.fake-real.test.ts'), "gate({ id: 'g1.fake-real', phase: 1, tier: 'real', needs: [], async run() {} });\n");
+      await writeFile(
+        join(cx.repoRoot, 'test', 'gates', 'g1.fake-real.test.ts'),
+        "gate({ id: 'g1.fake-real', phase: 1, tier: 'real', needs: [], async run() {} });\n",
+      );
     },
   );
 });

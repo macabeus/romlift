@@ -13,12 +13,22 @@ import type { AnalysisOptions, AnalysisResult, OverrideFact } from '../../../../
 import { AGBCC } from '../../../../src/core/profile/agbcc.ts';
 import { listSyntheticFixtures, readFixtureRom } from '../../../helpers/fixtures.ts';
 
-const fixture = listSyntheticFixtures().find((f) => f.name === 'code-copied-to-ram') ?? assert.fail('code-copied-to-ram');
+const fixture =
+  listSyntheticFixtures().find((f) => f.name === 'code-copied-to-ram') ?? assert.fail('code-copied-to-ram');
 const ROM = readFixtureRom(fixture);
-const ramCopy = (JSON.parse(readFileSync(fixture.expect, 'utf8')) as { readonly ramCopy: { readonly start: string; readonly size: string; readonly runAt: string; readonly mode: 'arm' } }).ramCopy;
+const ramCopy = (
+  JSON.parse(readFileSync(fixture.expect, 'utf8')) as {
+    readonly ramCopy: { readonly start: string; readonly size: string; readonly runAt: string; readonly mode: 'arm' };
+  }
+).ramCopy;
 const START = Number(ramCopy.start);
 const RUN = Number(ramCopy.runAt);
-const OVERRIDE: OverrideFact = { span: { start: START, end: START + Number(ramCopy.size) }, kind: 'code', mode: ramCopy.mode, runsAt: RUN };
+const OVERRIDE: OverrideFact = {
+  span: { start: START, end: START + Number(ramCopy.size) },
+  kind: 'code',
+  mode: ramCopy.mode,
+  runsAt: RUN,
+};
 
 function run(options: Partial<AnalysisOptions>): AnalysisResult {
   return analyze(ROM, AGBCC, { mode: 'discover', seeds: [], overrides: [], trail: 'off', ...options });
@@ -35,7 +45,10 @@ test('discover: the range start is a function at its load address, run at 0x0300
   const ram = mapped.functions.find((f) => f.entry === START);
   assert.ok(ram !== undefined);
   assert.deepEqual([ram.mode, ram.runAt, ram.extent, ram.origin], ['arm', RUN, OVERRIDE.span, 'override']);
-  assert.deepEqual(mapped.functions.filter((f) => f.runAt !== undefined).map((f) => f.entry), [START]);
+  assert.deepEqual(
+    mapped.functions.filter((f) => f.runAt !== undefined).map((f) => f.entry),
+    [START],
+  );
   assert.deepEqual(
     mapped.functions.filter((f) => f.entry !== START),
     plain.functions,
@@ -51,7 +64,10 @@ test('discover: the range start is a function at its load address, run at 0x0300
 
 test('confirm: a listed entry inside the range carries its run address too', () => {
   const plain = run({});
-  const seeds = [...plain.functions.map((f) => ({ entry: f.entry, mode: f.mode, rule: 'seed.listed' as const })), { entry: START, mode: 'arm' as const, rule: 'seed.listed' as const }];
+  const seeds = [
+    ...plain.functions.map((f) => ({ entry: f.entry, mode: f.mode, rule: 'seed.listed' as const })),
+    { entry: START, mode: 'arm' as const, rule: 'seed.listed' as const },
+  ];
   const r = run({ mode: 'confirm', seeds, overrides: [OVERRIDE] });
   assert.equal(r.mode, 'confirm');
   assert.equal(r.functions.find((f) => f.entry === START)?.runAt, RUN);

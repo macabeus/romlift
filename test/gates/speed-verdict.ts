@@ -26,11 +26,17 @@ export const RATCHET = 1.5;
 export const ANALYSIS_RUNS = 9;
 
 /** Why `speed` fails g2.speed for the tuning ROMs `datasets` (empty when it passes), and one note per measured ROM. */
-export function speedVerdict(speed: SpeedLine, datasets: readonly string[]): { readonly problems: readonly string[]; readonly notes: readonly string[] } {
+export function speedVerdict(
+  speed: SpeedLine,
+  datasets: readonly string[],
+): { readonly problems: readonly string[]; readonly notes: readonly string[] } {
   const problems: string[] = [];
   const notes: string[] = [];
   if (speed.schema !== 'romlift/bench-speed@1') problems.push(`bench speed printed schema '${String(speed.schema)}'`);
-  if (speed.runs?.analysis !== ANALYSIS_RUNS) problems.push(`bench speed measured each ROM's analysis over ${String(speed.runs?.analysis)} runs, not ${ANALYSIS_RUNS} (D76 b)`);
+  if (speed.runs?.analysis !== ANALYSIS_RUNS)
+    problems.push(
+      `bench speed measured each ROM's analysis over ${String(speed.runs?.analysis)} runs, not ${ANALYSIS_RUNS} (D76 b)`,
+    );
   const ratio = speed.calibration.ratio;
   if (!(ratio > 0)) problems.push(`the calibration ratio is ${ratio}`);
   for (const name of datasets) {
@@ -39,9 +45,15 @@ export function speedVerdict(speed: SpeedLine, datasets: readonly string[]): { r
       problems.push(`${name}: not measured`);
       continue;
     }
-    if (rom.analysisRuns !== ANALYSIS_RUNS) problems.push(`${rom.name}: its median is of ${String(rom.analysisRuns)} measured runs, not ${ANALYSIS_RUNS} (D76 b)`);
+    if (rom.analysisRuns !== ANALYSIS_RUNS)
+      problems.push(
+        `${rom.name}: its median is of ${String(rom.analysisRuns)} measured runs, not ${ANALYSIS_RUNS} (D76 b)`,
+      );
     const limit = RATCHET * rom.baselineCpuMs * ratio;
-    if (!(rom.analysisCpuMs <= limit)) problems.push(`${rom.name}: ${Math.round(rom.analysisCpuMs)} ms CPU > ${Math.round(limit)} ms (1.5 x ${Math.round(rom.baselineCpuMs)} x ${ratio.toFixed(3)})`);
+    if (!(rom.analysisCpuMs <= limit))
+      problems.push(
+        `${rom.name}: ${Math.round(rom.analysisCpuMs)} ms CPU > ${Math.round(limit)} ms (1.5 x ${Math.round(rom.baselineCpuMs)} x ${ratio.toFixed(3)})`,
+      );
     notes.push(`${rom.name} ${Math.round(rom.analysisCpuMs)}/${Math.round(limit)} ms`);
   }
   return { problems, notes };

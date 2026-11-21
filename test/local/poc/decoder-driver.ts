@@ -30,7 +30,14 @@ async function load(root: string, file: string): Promise<Record<string, unknown>
 }
 
 function isDecoded(value: unknown): value is Decoded {
-  return typeof value === 'object' && value !== null && 'kind' in value && 'arg' in value && typeof value.kind === 'string' && typeof value.arg === 'number';
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'kind' in value &&
+    'arg' in value &&
+    typeof value.kind === 'string' &&
+    typeof value.arg === 'number'
+  );
 }
 
 function decoder(module: Record<string, unknown>, name: string): Decoder {
@@ -81,10 +88,32 @@ const run = (bytes: Uint8Array, count: number, decode: Decoder, offset = 0): [st
   return out;
 };
 const reply = {
-  thumb: run(image(request.thumb.map((hw) => [hw, 0] as const), true), request.thumb.length, decodeThumb),
+  thumb: run(
+    image(
+      request.thumb.map((hw) => [hw, 0] as const),
+      true,
+    ),
+    request.thumb.length,
+    decodeThumb,
+  ),
   // [0, hw]: the halfword at 4i + 2, followed by the next slot's zero halfword.
-  thumbOdd: run(image(request.thumb.map((hw) => [0, hw] as const), true), request.thumb.length, decodeThumb, 2),
+  thumbOdd: run(
+    image(
+      request.thumb.map((hw) => [0, hw] as const),
+      true,
+    ),
+    request.thumb.length,
+    decodeThumb,
+    2,
+  ),
   bl: run(image(request.bl, true), request.bl.length, decodeThumb),
-  arm: run(image(request.arm.map((w) => [w, 0] as const), false), request.arm.length, decodeArm),
+  arm: run(
+    image(
+      request.arm.map((w) => [w, 0] as const),
+      false,
+    ),
+    request.arm.length,
+    decodeArm,
+  ),
 };
 process.stdout.write(JSON.stringify(reply));

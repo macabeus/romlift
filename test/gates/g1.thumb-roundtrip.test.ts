@@ -4,7 +4,7 @@
 // FROZEN input: romlift/corpus-summary@1, the last stdout line of `npm run corpus -- --json --reuse`
 // (exit 0 when every section agrees, 1 when one does not; both print the summary). This gate reads
 // {schema, inputsDigest, sections.thumb.{cases, mnemonic, raw, agree, disagree, rawByReason, examples}}.
-import { gate, withLock, type ExecResult, type GateContext } from './gate.ts';
+import { type ExecResult, type GateContext, gate, withLock } from './gate.ts';
 
 type RawReason = 'undefined' | 'unpredictable' | 'sbz-set' | 'as-alias' | 'no-roundtrip';
 const RAW_REASONS: readonly RawReason[] = ['undefined', 'unpredictable', 'sbz-set', 'as-alias', 'no-roundtrip'];
@@ -29,7 +29,8 @@ function tail(run: ExecResult, lines = 30): string {
  */
 async function corpusSummary(cx: GateContext): Promise<CorpusSummary> {
   const run = await withLock('corpus', () => cx.npm('corpus', ['--json', '--reuse']));
-  if (run.code !== 0 && run.code !== 1) throw new Error(`npm run corpus -- --json --reuse exited ${run.code}:\n${tail(run)}`);
+  if (run.code !== 0 && run.code !== 1)
+    throw new Error(`npm run corpus -- --json --reuse exited ${run.code}:\n${tail(run)}`);
   const summary = cx.lastJson<CorpusSummary>(run.stdout);
   if (summary.schema !== 'romlift/corpus-summary@1') {
     throw new Error(`npm run corpus printed schema '${String(summary.schema)}', expected 'romlift/corpus-summary@1'`);
@@ -54,7 +55,8 @@ function rawCounts(section: CorpusSection): string {
 
 /** Every printed mnemonic of the section assembles to its own bytes. */
 function assertSection(name: string, section: CorpusSection, minCases: number): string {
-  if (section.cases < minCases) throw new Error(`the ${name} corpus has ${section.cases} cases, expected at least ${minCases}`);
+  if (section.cases < minCases)
+    throw new Error(`the ${name} corpus has ${section.cases} cases, expected at least ${minCases}`);
   if (section.mnemonic <= 0) throw new Error(`the ${name} corpus printed no mnemonic`);
   if (section.disagree !== 0) {
     throw new Error(

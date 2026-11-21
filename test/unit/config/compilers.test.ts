@@ -5,7 +5,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { BUILD_COMPILERS, buildCompilerOf, DEFAULT_BUILD_COMPILER, isBuildCompilerId } from '../../../src/core/config/compilers.ts';
+import {
+  BUILD_COMPILERS,
+  DEFAULT_BUILD_COMPILER,
+  buildCompilerOf,
+  isBuildCompilerId,
+} from '../../../src/core/config/compilers.ts';
 
 test('agbcc and old_agbcc ship', () => {
   assert.deepEqual(Object.keys(BUILD_COMPILERS), ['agbcc', 'old_agbcc']);
@@ -32,7 +37,12 @@ test('lookups accept only registered ids, never inherited members', () => {
 });
 
 test('templates/MANIFEST.json installs exactly one Makefile fragment per registered compiler', () => {
-  const manifest = JSON.parse(readFileSync(new URL('../../../templates/MANIFEST.json', import.meta.url), 'utf8')) as { readonly files: readonly { readonly target: string; readonly source: string | null }[] };
+  const manifest = JSON.parse(readFileSync(new URL('../../../templates/MANIFEST.json', import.meta.url), 'utf8')) as {
+    readonly files: readonly { readonly target: string; readonly source: string | null }[];
+  };
   const fragments = manifest.files.filter((f) => f.target.startsWith('mk/')).map((f) => [f.target, f.source]);
-  assert.deepEqual(fragments, Object.keys(BUILD_COMPILERS).map((id) => [`mk/${id}.mk`, `compilers/${id}.mk`]));
+  assert.deepEqual(
+    fragments,
+    Object.keys(BUILD_COMPILERS).map((id) => [`mk/${id}.mk`, `compilers/${id}.mk`]),
+  );
 });

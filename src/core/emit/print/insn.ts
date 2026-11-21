@@ -65,7 +65,13 @@ export function printInsn(insn: Insn, cx: InsnContext): PrintedInsn {
 
 /** A decoded instruction printed raw for `reason`. */
 export function printRawInsn(insn: Insn, reason: ItemRawReason): PrintedInsn {
-  return { line: `\t${rawText(insn, reason)}`, mode: insn.mode, rawReason: reason, branch: isBranch(insn), poolLoad: isPoolLoad(insn) };
+  return {
+    line: `\t${rawText(insn, reason)}`,
+    mode: insn.mode,
+    rawReason: reason,
+    branch: isBranch(insn),
+    poolLoad: isPoolLoad(insn),
+  };
 }
 
 /**
@@ -78,5 +84,11 @@ export function printUndecodedInsn(rom: Rom, span: Span, mode: Mode, reason: Ite
   if (mode === 'arm' && length === 4) text = `.inst 0x${hex(u32(rom, span.start))}`;
   else if (length === 4) text = `.inst.w 0x${hex(u16(rom, span.start), 4)}${hex(u16(rom, span.start + 2), 4)}`;
   else text = `.inst.n 0x${hex(u16(rom, span.start), 4)}`;
-  return { line: `\t${text} @ (${reason})`, mode: mode === 'arm' && length !== 4 ? 'thumb' : mode, rawReason: reason, branch: false, poolLoad: false };
+  return {
+    line: `\t${text} @ (${reason})`,
+    mode: mode === 'arm' && length !== 4 ? 'thumb' : mode,
+    rawReason: reason,
+    branch: false,
+    poolLoad: false,
+  };
 }

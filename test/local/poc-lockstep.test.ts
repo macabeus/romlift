@@ -30,24 +30,52 @@ interface LockstepSummary {
 
 interface EvidenceModule {
   readonly LOCKSTEP_SETS: ReadonlyArray<{ readonly name: string; readonly real: readonly string[] }>;
-  parseParityEvidence(value: unknown, where: string): { readonly roms: Readonly<Record<string, { readonly expected: string; readonly lockstep: readonly LockstepSummary[] }>> };
+  parseParityEvidence(
+    value: unknown,
+    where: string,
+  ): {
+    readonly roms: Readonly<
+      Record<string, { readonly expected: string; readonly lockstep: readonly LockstepSummary[] }>
+    >;
+  };
 }
 
-const digests = JSON.parse(readFileSync(path.join(REPO, 'bench', 'baseline', 'poc-digests.json'), 'utf8')) as { readonly roms: Readonly<Record<string, string>> };
-const results = JSON.parse(readFileSync(path.join(REPO, 'bench', 'results.json'), 'utf8')) as { readonly parity?: unknown };
+const digests = JSON.parse(readFileSync(path.join(REPO, 'bench', 'baseline', 'poc-digests.json'), 'utf8')) as {
+  readonly roms: Readonly<Record<string, string>>;
+};
+const results = JSON.parse(readFileSync(path.join(REPO, 'bench', 'results.json'), 'utf8')) as {
+  readonly parity?: unknown;
+};
 
 for (const rom of Object.keys(digests.roms).sort(byCodeUnit)) {
   test(`the committed lockstep of every family set followed the PoC's log: ${rom}`, async (t) => {
-    const module = (await import(pathToFileURL(path.join(REPO, 'bench', 'src', 'parity-evidence.ts')).href)) as EvidenceModule;
+    const module = (await import(
+      pathToFileURL(path.join(REPO, 'bench', 'src', 'parity-evidence.ts')).href
+    )) as EvidenceModule;
     const evidence = module.parseParityEvidence(results.parity, 'bench/results.json: parity');
     const r = evidence.roms[rom];
     assert.ok(r !== undefined, `${rom} has evidence`);
-    assert.deepEqual(r.lockstep.map((s) => s.set), module.LOCKSTEP_SETS.map((s) => s.name));
+    assert.deepEqual(
+      r.lockstep.map((s) => s.set),
+      module.LOCKSTEP_SETS.map((s) => s.name),
+    );
     for (const s of r.lockstep) {
-      t.diagnostic(`${rom} ${s.set}: ${s.queries} records, ${s.matched} matched (${s.markers} markers), ${s.answered} answered, ${s.compared} compared, ${s.skipped} skipped`);
-      assert.equal(s.divergence, null, s.divergence === null ? '' : `${s.set} diverges at seq ${s.divergence.seq} (${s.divergence.kind}): ${s.divergence.detail}`);
+      t.diagnostic(
+        `${rom} ${s.set}: ${s.queries} records, ${s.matched} matched (${s.markers} markers), ${s.answered} answered, ${s.compared} compared, ${s.skipped} skipped`,
+      );
+      assert.equal(
+        s.divergence,
+        null,
+        s.divergence === null
+          ? ''
+          : `${s.set} diverges at seq ${s.divergence.seq} (${s.divergence.kind}): ${s.divergence.detail}`,
+      );
       assert.ok(s.markers > 0);
-      assert.equal(s.matched + s.skipped, s.queries, `${s.set}: every record matched, or skipped as nested under an answered query`);
+      assert.equal(
+        s.matched + s.skipped,
+        s.queries,
+        `${s.set}: every record matched, or skipped as nested under an answered query`,
+      );
       assert.equal(s.parityDigest, digests.roms[rom], `${s.set}: the parity digest equals the PoC digest`);
     }
     const driver = r.lockstep.find((s) => s.set === 'driver');

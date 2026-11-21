@@ -16,6 +16,9 @@ test('the recorded ROM is fine, in either case', () => {
 test('another ROM is E_ROM_SHA1_MISMATCH on romlift.toml, naming both SHA-1s', () => {
   const other = '037702b1febd5c9535262165bf030551d153de81';
   const found = romSha1Problems({ sha1: other }, config);
-  assert.deepEqual(found.map((d) => [d.code, d.path]), [['E_ROM_SHA1_MISMATCH', 'romlift.toml']]);
+  assert.deepEqual(
+    found.map((d) => [d.code, d.path]),
+    [['E_ROM_SHA1_MISMATCH', 'romlift.toml']],
+  );
   assert.match(found[0]?.message ?? '', new RegExp(`${other}.*${SHA1}`));
 });

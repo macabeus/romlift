@@ -20,7 +20,8 @@ import type { DataNote, Item, ItemKindCode, ItemRawReason, ItemTable } from './t
 const SPEC_IDS: readonly SpecId[] = [...ROWS.thumb, ...ROWS.arm].map((row) => row.spec.id);
 const SPEC_INDEX: ReadonlyMap<SpecId, number> = new Map(SPEC_IDS.map((id, i) => [id, i] as const));
 
-if (SPEC_IDS.length >= NO_SPEC) throw new RomliftInvariantError(`item table: ${SPEC_IDS.length} isa rows do not fit below NO_SPEC`);
+if (SPEC_IDS.length >= NO_SPEC)
+  throw new RomliftInvariantError(`item table: ${SPEC_IDS.length} isa rows do not fit below NO_SPEC`);
 
 /** The ItemTable.spec index of an isa row id. */
 export function specIndex(id: SpecId): number {
@@ -45,7 +46,13 @@ export function modeOfSpec(id: SpecId): Mode {
 /** One item to append, in load addresses. */
 export type ItemInput =
   | { readonly kind: 'insn'; readonly start: Addr; readonly length: 2 | 4; readonly specId: SpecId }
-  | { readonly kind: 'raw-insn'; readonly start: Addr; readonly length: 2 | 4; readonly specId: SpecId | null; readonly reason: ItemRawReason }
+  | {
+      readonly kind: 'raw-insn';
+      readonly start: Addr;
+      readonly length: 2 | 4;
+      readonly specId: SpecId | null;
+      readonly reason: ItemRawReason;
+    }
   | { readonly kind: 'pool'; readonly start: Addr; readonly value: number }
   | { readonly kind: 'table-entry'; readonly start: Addr; readonly target: Addr; readonly thumbBit: boolean }
   | { readonly kind: 'padding'; readonly start: Addr; readonly length: number }
@@ -89,12 +96,27 @@ function rowOf(item: ItemInput): Row {
     case 'pool':
       return { kind: ItemKind.pool, start: item.start, length: 4, spec: NO_SPEC, aux: item.value };
     case 'table-entry':
-      if (item.target % 2 !== 0) throw new RomliftInvariantError(`item table: table target ${hexAddr(item.target)} is odd; the Thumb bit is thumbBit`);
-      return { kind: ItemKind.tableEntry, start: item.start, length: 4, spec: NO_SPEC, aux: (item.target | (item.thumbBit ? 1 : 0)) >>> 0 };
+      if (item.target % 2 !== 0)
+        throw new RomliftInvariantError(
+          `item table: table target ${hexAddr(item.target)} is odd; the Thumb bit is thumbBit`,
+        );
+      return {
+        kind: ItemKind.tableEntry,
+        start: item.start,
+        length: 4,
+        spec: NO_SPEC,
+        aux: (item.target | (item.thumbBit ? 1 : 0)) >>> 0,
+      };
     case 'padding':
       return { kind: ItemKind.padding, start: item.start, length: item.length, spec: NO_SPEC, aux: 0 };
     case 'data':
-      return { kind: ItemKind.data, start: item.start, length: item.length, spec: NO_SPEC, aux: item.note === undefined ? 0 : DATA_NOTES.indexOf(item.note) + 1 };
+      return {
+        kind: ItemKind.data,
+        start: item.start,
+        length: item.length,
+        spec: NO_SPEC,
+        aux: item.note === undefined ? 0 : DATA_NOTES.indexOf(item.note) + 1,
+      };
   }
 }
 
@@ -133,9 +155,14 @@ export function itemTableBuilder(capacity = 1024): ItemTableBuilder {
       if (finished) throw new RomliftInvariantError('item table: append after finish');
       const row = rowOf(item);
       if (!isU32(row.start) || !isU32(row.length) || row.length === 0 || row.start + row.length > U32_MAX + 1) {
-        throw new RomliftInvariantError(`item table: bad ${item.kind} item at ${String(row.start)} of length ${String(row.length)}`);
+        throw new RomliftInvariantError(
+          `item table: bad ${item.kind} item at ${String(row.start)} of length ${String(row.length)}`,
+        );
       }
-      if (!isU32(row.aux)) throw new RomliftInvariantError(`item table: ${item.kind} item at ${hexAddr(row.start)} has aux ${String(row.aux)}`);
+      if (!isU32(row.aux))
+        throw new RomliftInvariantError(
+          `item table: ${item.kind} item at ${hexAddr(row.start)} has aux ${String(row.aux)}`,
+        );
       if (count === size) grow();
       kind[count] = row.kind;
       start[count] = row.start;
@@ -173,7 +200,8 @@ export function emptyItemTable(): ItemTable {
 export function itemSpan(items: ItemTable, i: number): Span {
   const start = items.start[i];
   const length = items.length[i];
-  if (start === undefined || length === undefined || i >= items.count) throw new RomliftInvariantError(`item table: no item ${i} of ${items.count}`);
+  if (start === undefined || length === undefined || i >= items.count)
+    throw new RomliftInvariantError(`item table: no item ${i} of ${items.count}`);
   return { start, end: start + length };
 }
 
@@ -208,14 +236,16 @@ export function decodeItemAt(rom: Rom, items: ItemTable, i: number, runOffset: n
   const word = size === 4 ? u32(rom, start) : size === 2 && mode === 'thumb' ? u16(rom, start) : undefined;
   if (word === undefined) return `a ${size}-byte ${mode} instruction cannot exist`;
   const insn = decode(mode, word, start + runOffset);
-  if (insn.specId !== specId || insn.size !== size) return `it records ${specId} (${size} bytes) but its bytes decode as ${insn.specId} (${insn.size} bytes)`;
+  if (insn.specId !== specId || insn.size !== size)
+    return `it records ${specId} (${size} bytes) but its bytes decode as ${insn.specId} (${insn.size} bytes)`;
   return insn;
 }
 
 /** decodeItemAt, for an item the model built: a reason is a broken model, never content. */
 function decodeAt(rom: Rom, items: ItemTable, i: number, runOffset: number): Insn {
   const insn = decodeItemAt(rom, items, i, runOffset);
-  if (typeof insn === 'string') throw new RomliftInvariantError(`item table: the item at ${hexAddr(items.start[i] ?? 0)}: ${insn}`);
+  if (typeof insn === 'string')
+    throw new RomliftInvariantError(`item table: the item at ${hexAddr(items.start[i] ?? 0)}: ${insn}`);
   return insn;
 }
 
@@ -231,15 +261,20 @@ export function itemAt(items: ItemTable, i: number, rom: Rom, runOffset = 0): It
   switch (kind) {
     case ItemKind.insn: {
       const specId = specIdAt(spec);
-      if (specId === undefined) throw new RomliftInvariantError(`item table: insn item ${i} at ${hexAddr(span.start)} has no spec`);
+      if (specId === undefined)
+        throw new RomliftInvariantError(`item table: insn item ${i} at ${hexAddr(span.start)} has no spec`);
       return { kind: 'insn', span, insn: decodeAt(rom, items, i, runOffset) };
     }
     case ItemKind.rawInsn: {
       const reason = ITEM_RAW_REASONS[aux];
-      if (reason === undefined) throw new RomliftInvariantError(`item table: raw-insn item ${i} has reason code ${aux}`);
+      if (reason === undefined)
+        throw new RomliftInvariantError(`item table: raw-insn item ${i} has reason code ${aux}`);
       const specId = spec === NO_SPEC ? undefined : specIdAt(spec);
-      if (spec !== NO_SPEC && specId === undefined) throw new RomliftInvariantError(`item table: raw-insn item ${i} has spec index ${spec}`);
-      return specId === undefined ? { kind: 'raw-insn', span, reason } : { kind: 'raw-insn', span, insn: decodeAt(rom, items, i, runOffset), reason };
+      if (spec !== NO_SPEC && specId === undefined)
+        throw new RomliftInvariantError(`item table: raw-insn item ${i} has spec index ${spec}`);
+      return specId === undefined
+        ? { kind: 'raw-insn', span, reason }
+        : { kind: 'raw-insn', span, insn: decodeAt(rom, items, i, runOffset), reason };
     }
     case ItemKind.pool:
       return { kind: 'pool', span, value: aux };

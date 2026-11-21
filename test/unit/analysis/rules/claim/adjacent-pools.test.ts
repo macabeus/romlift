@@ -17,7 +17,10 @@ const C = F + 0x10;
 const rule = CLAIM_RULES['claim.adjacent-pools'];
 
 function extentEnd(shape: Partial<ReadingShape>, gap = AGBCC.extentPoolGap): number {
-  const end = rule.extentEnd?.({ entry: F, codeEnd: C, pools: [], tables: [], ...shape }, { ...AGBCC, extentPoolGap: gap });
+  const end = rule.extentEnd?.(
+    { entry: F, codeEnd: C, pools: [], tables: [], ...shape },
+    { ...AGBCC, extentPoolGap: gap },
+  );
   assert.notEqual(end, undefined);
   return end ?? 0;
 }
@@ -27,7 +30,7 @@ test('extentPoolGap (8): a pool starting 8 bytes past the code end joins the ext
   assert.equal(extentEnd({}), C);
   assert.equal(extentEnd({ pools: [C + 8] }), C + 12);
   assert.equal(extentEnd({ pools: [C + 9] }), C);
-  assert.equal(extentEnd({ pools: [C + 8] }, 4), C, 'the gap is the profile\'s');
+  assert.equal(extentEnd({ pools: [C + 8] }, 4), C, "the gap is the profile's");
 });
 
 test('the extent grows through a chain of pools and tables in any walk order, and ignores what lies below', () => {
@@ -37,12 +40,15 @@ test('the extent grows through a chain of pools and tables in any walk order, an
   assert.equal(extentEnd({ pools: [F - 8, C - 4] }), C, 'pools below the code end extend nothing');
 });
 
-test('claims: pools inside the extent start-free, every table always; a far pool is not this rule\'s', () => {
+test("claims: pools inside the extent start-free, every table always; a far pool is not this rule's", () => {
   const rom = romWith([]);
   const r = readingOf(rom, {
     entry: F,
     insns: [{ addr: F, len: 2 }],
-    pools: [{ addr: F + 4, value: 0 }, { addr: F + 0x100, value: 0 }],
+    pools: [
+      { addr: F + 4, value: 0 },
+      { addr: F + 0x100, value: 0 },
+    ],
     tables: [{ base: F + 0x200, targets: [F, F], thumbBit: false }],
     end: F + 8,
   });
@@ -54,7 +60,10 @@ test('claims: pools inside the extent start-free, every table always; a far pool
 });
 
 test('through accept: the adjacent pool is claimed as pool and the padding before it is in the extent', () => {
-  const rom = romWith([{ at: F, bytes: thumbAt(F)`ldr r0, _08000208; bx lr` }, { at: F + 8, bytes: words(0x1234_5678) }]);
+  const rom = romWith([
+    { at: F, bytes: thumbAt(F)`ldr r0, _08000208; bx lr` },
+    { at: F + 8, bytes: words(0x1234_5678) },
+  ]);
   const s = driverOver(rom);
   take(s, F);
   assert.equal(s.funcs.get(F)?.reading.end, F + 12);
@@ -62,7 +71,11 @@ test('through accept: the adjacent pool is claimed as pool and the padding befor
   const taken = driverOver(rom);
   taken.claims[F + 8 - BASE] = Claim.code;
   take(taken, F);
-  assert.deepEqual(claimsOf(taken, F + 8, F + 12), [Claim.code, Claim.dead, Claim.dead, Claim.dead], 'a pool whose first byte is taken is not claimed');
+  assert.deepEqual(
+    claimsOf(taken, F + 8, F + 12),
+    [Claim.code, Claim.dead, Claim.dead, Claim.dead],
+    'a pool whose first byte is taken is not claimed',
+  );
 });
 
 test('through accept: a jump table overwrites what was claimed before', () => {

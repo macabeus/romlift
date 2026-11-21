@@ -5,7 +5,7 @@
 // by its run address, and a word holding its load address is the copy's source (pointers.ts, §6.7).
 import type { Addr } from '../../../../foundation/rom/span.ts';
 import { runsElsewhere } from '../../address-map.ts';
-import { pointersTo, pointerTargets } from '../../pointers.ts';
+import { pointerTargets, pointersTo } from '../../pointers.ts';
 import { Claim } from '../../types.ts';
 import { defineRule } from '../define-rule.ts';
 

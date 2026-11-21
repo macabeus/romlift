@@ -7,7 +7,8 @@
 // patch-planner p4-config.
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
-import { gate, type ExecResult } from './gate.ts';
+
+import { type ExecResult, gate } from './gate.ts';
 
 const DIR = 'test/mutation/phase4';
 const FILES: readonly string[] = ['lock', 'journal', 'patch-planner'].map((name) => `${DIR}/${name}.test.ts`);
@@ -33,9 +34,13 @@ gate({
     const absent: string[] = [];
     for (const file of FILES) if (!(await isFile(path.join(cx.repoRoot, file)))) absent.push(file);
     if (absent.length > 0) throw new Error(`missing mutation tests: ${absent.join(', ')}`);
-    const run = await cx.exec(process.execPath, ['--conditions=source', '--test', '--test-reporter=tap', `${DIR}/**/*.test.ts`], {
-      cwd: cx.repoRoot,
-    });
+    const run = await cx.exec(
+      process.execPath,
+      ['--conditions=source', '--test', '--test-reporter=tap', `${DIR}/**/*.test.ts`],
+      {
+        cwd: cx.repoRoot,
+      },
+    );
     if (run.code !== 0) throw new Error(`node --test ${DIR}/ exited ${run.code}:\n${tail(run)}`);
     const passed = /^# pass (\d+)$/m.exec(run.stdout)?.[1] ?? '?';
     cx.note(`${FILES.length} phase-4 mutation test files, ${passed} tests pass`);

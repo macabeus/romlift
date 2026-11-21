@@ -45,7 +45,10 @@ function assertSortedKeys(value: unknown): void {
     return;
   }
   const keys = Object.keys(value);
-  assert.deepEqual(keys, [...keys].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)));
+  assert.deepEqual(
+    keys,
+    [...keys].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
+  );
   for (const key of keys) assertSortedKeys((value as Record<string, unknown>)[key]);
 }
 
@@ -89,7 +92,12 @@ test('summaryLine and recordLine', () => {
     '{"counts":{"error":1,"warning":0},"exitCode":3,"ok":false,"type":"summary"}\n',
   );
   assert.equal(summaryLine({ ok: true, exitCode: ExitCode.ok }), '{"exitCode":0,"ok":true,"type":"summary"}\n');
-  const check = recordLine('check', { name: 'as', ok: true, version: '2.43', details: { z: 1, a: [2, { y: null, b: 'x' }] } });
+  const check = recordLine('check', {
+    name: 'as',
+    ok: true,
+    version: '2.43',
+    details: { z: 1, a: [2, { y: null, b: 'x' }] },
+  });
   assert.deepEqual(parseLine(check), {
     details: { a: [2, { b: 'x', y: null }], z: 1 },
     name: 'as',
@@ -106,11 +114,23 @@ test('isExitCode accepts exactly the five codes', () => {
 });
 
 test('columns pads every column but the last and trims the line end', () => {
-  assert.equal(columns([['a', 'bbb', 'c'], ['dddd', 'e', '']], '  '), '  a     bbb  c\n  dddd  e\n');
+  assert.equal(
+    columns(
+      [
+        ['a', 'bbb', 'c'],
+        ['dddd', 'e', ''],
+      ],
+      '  ',
+    ),
+    '  a     bbb  c\n  dddd  e\n',
+  );
 });
 
 test('columnLines yields the lines of columns one row at a time, building each row twice and holding none', () => {
-  const rows = [['a', 'bbb', 'c'], ['dddd', 'e', '']];
+  const rows = [
+    ['a', 'bbb', 'c'],
+    ['dddd', 'e', ''],
+  ];
   const built: number[] = [];
   const lines = [...columnLines(rows.length, (k) => (built.push(k), rows[k] ?? []), '  ')];
   assert.deepEqual(lines, ['  a     bbb  c\n', '  dddd  e\n']);
@@ -136,7 +156,10 @@ test('writeLines: batches of 4,096 lines, awaiting io.drained between batches, t
   const lines = Array.from({ length: 10_000 }, (_, i) => `${i}\n`);
   await writeLines(io, lines);
   assert.equal(out.join(''), lines.join(''));
-  assert.deepEqual(out.map((t) => t.split('\n').length - 1), [4096, 4096, 1808]);
+  assert.deepEqual(
+    out.map((t) => t.split('\n').length - 1),
+    [4096, 4096, 1808],
+  );
   assert.equal(drains, 2, 'awaited after each full batch');
   const bare: string[] = [];
   await writeLines({ stdout: (t) => bare.push(t), stderr: () => undefined, cwd: '/', env: {} }, ['a\n']);

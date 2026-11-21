@@ -9,16 +9,23 @@ import type { Span } from '../../../../../src/foundation/rom/span.ts';
 import { romWith, viewWith, words } from '../../../../helpers/analysis.ts';
 
 const W = 0x0800_0300;
-const [T1, T2, T3, T4, T5, T6] = [0x0800_0400, 0x0800_0410, 0x0800_0420, 0x0800_0430, 0x0800_0440, 0x0800_0450] as const;
+const [T1, T2, T3, T4, T5, T6] = [
+  0x0800_0400, 0x0800_0410, 0x0800_0420, 0x0800_0430, 0x0800_0440, 0x0800_0450,
+] as const;
 
 function view(claims: readonly { span: Span; kind: ClaimKind }[], neverValid: readonly number[] = []): AnalysisView {
   // T6 is named twice: once from a word claimed as code, once from a free word.
-  const rom = romWith([{ at: W, bytes: words(T6 + 1, T5 + 1, T4 + 1, T3 + 1, T2 + 1, T1 + 1, T6 + 1) }], { size: 0x800 });
+  const rom = romWith([{ at: W, bytes: words(T6 + 1, T5 + 1, T4 + 1, T3 + 1, T2 + 1, T1 + 1, T6 + 1) }], {
+    size: 0x800,
+  });
   return { ...viewWith({ rom, claims, functions: [T1] }), neverValid: (a) => neverValid.includes(a) };
 }
 
 test('every pointer target outside the functions, the earlier list and neverValid, named by a word not claimed as code, ascending', () => {
-  const code = (start: number): { span: Span; kind: ClaimKind } => ({ span: { start, end: start + 4 }, kind: Claim.code });
+  const code = (start: number): { span: Span; kind: ClaimKind } => ({
+    span: { start, end: start + 4 },
+    kind: Claim.code,
+  });
   const v = view([code(W), code(W + 8), { span: { start: W + 4, end: W + 8 }, kind: Claim.pool }], [T3]);
   assert.deepEqual(dataPointer.harvest(v, new Set([T2])), [T5, T6]);
 });
@@ -34,6 +41,9 @@ test('a target whose only referring word is claimed as code is not a candidate',
 });
 
 test('a target inside a runs_at range is no candidate: the word holds the copy source, its code is named by its run address', () => {
-  const v = { ...view([]), addresses: addressMap([{ span: { start: T3, end: T5 }, kind: 'code', runsAt: 0x0300_0000 }]) };
+  const v = {
+    ...view([]),
+    addresses: addressMap([{ span: { start: T3, end: T5 }, kind: 'code', runsAt: 0x0300_0000 }]),
+  };
   assert.deepEqual(dataPointer.harvest(v, new Set()), [T2, T5, T6]);
 });

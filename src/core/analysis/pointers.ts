@@ -6,11 +6,11 @@
 // inside a range, plus the Thumb bit, points at the code loaded there (thumbPointerTarget maps it to that load
 // address), and a word equal to a load address inside a range is the copy's source, never an entry. The index stays
 // the ROM's own words at their values; the rules that read it leave out the targets inside a range.
-import { csrFromPairs, csrHas, csrRow } from '../../foundation/util/csr.ts';
-import type { Csr } from '../../foundation/util/csr.ts';
 import { ROM_BASE } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
+import { csrFromPairs, csrHas, csrRow } from '../../foundation/util/csr.ts';
+import type { Csr } from '../../foundation/util/csr.ts';
 import { runsElsewhere, toLoad } from './address-map.ts';
 import type { AddressMap } from './address-map.ts';
 

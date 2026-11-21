@@ -12,7 +12,15 @@
 // the first line still starts after it, as the host preprocessor reads such a file (fix round 2, correctness-a0-3).
 
 /** What a token is. */
-export type CTokenKind = 'comment' | 'string' | 'char' | 'preprocessor' | 'identifier' | 'number' | 'punctuator' | 'other';
+export type CTokenKind =
+  | 'comment'
+  | 'string'
+  | 'char'
+  | 'preprocessor'
+  | 'identifier'
+  | 'number'
+  | 'punctuator'
+  | 'other';
 
 export interface CToken {
   readonly kind: CTokenKind;
@@ -164,7 +172,8 @@ function ppNumber(c: Cursor): void {
     const ch = c.text[c.at] ?? '';
     const prev = c.text[c.at - 1] ?? '';
     if (isIdentifierPart(ch) || ch === '.') advance(c, 1);
-    else if ((ch === '+' || ch === '-') && (prev === 'e' || prev === 'E' || prev === 'p' || prev === 'P')) advance(c, 1);
+    else if ((ch === '+' || ch === '-') && (prev === 'e' || prev === 'E' || prev === 'p' || prev === 'P'))
+      advance(c, 1);
     else break;
   }
 }
@@ -246,12 +255,62 @@ export function isTrivia(token: CToken): boolean {
  * may be (architecture-14: the one table of C's lexical rules lives beside the tokenizer).
  */
 export const C_KEYWORDS: ReadonlySet<string> = new Set([
-  'asm', 'auto', 'break', 'case', 'char', 'const', 'continue', 'default', 'do', 'double', 'else', 'enum', 'extern',
-  'float', 'for', 'goto', 'if', 'inline', 'int', 'long', 'register', 'restrict', 'return', 'short', 'signed', 'sizeof',
-  'static', 'struct', 'switch', 'typedef', 'typeof', 'union', 'unsigned', 'void', 'volatile', 'while', '_Bool',
-  '_Complex', '_Imaginary', '_Alignas', '_Alignof', '_Atomic', '_Generic', '_Noreturn', '_Static_assert',
-  '_Thread_local', '__asm__', '__attribute__', '__inline__', '__typeof__', '__volatile__', '__const__', '__signed__',
-  '__extension__', '__label__', '__restrict__',
+  'asm',
+  'auto',
+  'break',
+  'case',
+  'char',
+  'const',
+  'continue',
+  'default',
+  'do',
+  'double',
+  'else',
+  'enum',
+  'extern',
+  'float',
+  'for',
+  'goto',
+  'if',
+  'inline',
+  'int',
+  'long',
+  'register',
+  'restrict',
+  'return',
+  'short',
+  'signed',
+  'sizeof',
+  'static',
+  'struct',
+  'switch',
+  'typedef',
+  'typeof',
+  'union',
+  'unsigned',
+  'void',
+  'volatile',
+  'while',
+  '_Bool',
+  '_Complex',
+  '_Imaginary',
+  '_Alignas',
+  '_Alignof',
+  '_Atomic',
+  '_Generic',
+  '_Noreturn',
+  '_Static_assert',
+  '_Thread_local',
+  '__asm__',
+  '__attribute__',
+  '__inline__',
+  '__typeof__',
+  '__volatile__',
+  '__const__',
+  '__signed__',
+  '__extension__',
+  '__label__',
+  '__restrict__',
 ]);
 
 /** A preprocessor line read as a directive: its name, and the tokens of its body after the name. */
@@ -268,7 +327,11 @@ export interface CDirective {
  * whitespace, as the preprocessor reads it: `#  ifdef X` is `ifdef` with the body `X`.
  */
 export function directiveOf(line: { readonly text: string; readonly start: number }): CDirective {
-  const tokens = tokenizeC(line.text.slice(1)).map((t) => ({ ...t, start: t.start + line.start + 1, end: t.end + line.start + 1 }));
+  const tokens = tokenizeC(line.text.slice(1)).map((t) => ({
+    ...t,
+    start: t.start + line.start + 1,
+    end: t.end + line.start + 1,
+  }));
   const first = tokens.findIndex((t) => t.kind !== 'comment');
   const head = tokens[first];
   if (head === undefined || head.kind !== 'identifier') return { name: '', body: tokens };

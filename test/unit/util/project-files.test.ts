@@ -3,14 +3,22 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { dataName, defaultFunctionName, defaultSpellingAddress, isDefaultSpelling, localName, orphanName } from '../../../src/foundation/util/project-files.ts';
+import {
+  dataName,
+  defaultFunctionName,
+  defaultSpellingAddress,
+  isDefaultSpelling,
+  localName,
+  orphanName,
+} from '../../../src/foundation/util/project-files.ts';
 
 test('the default spellings: sub_, unk_, _ and gUnk_ with eight upper-case hex digits', () => {
   assert.equal(defaultFunctionName(0x0800_00ab), 'sub_080000AB');
   assert.equal(orphanName(0x0800_00ab), 'unk_080000AB');
   assert.equal(localName(0x0800_00ab), '_080000AB');
   assert.equal(dataName(0x0300_0010), 'gUnk_03000010');
-  for (const name of ['sub_080000AB', 'unk_080000AB', '_080000AB', 'gUnk_03000010']) assert.ok(isDefaultSpelling(name), name);
+  for (const name of ['sub_080000AB', 'unk_080000AB', '_080000AB', 'gUnk_03000010'])
+    assert.ok(isDefaultSpelling(name), name);
   for (const name of ['sub_080000ab', 'Main', 'sub_0800AB', 'r0']) assert.ok(!isDefaultSpelling(name), name);
 });
 

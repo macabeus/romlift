@@ -5,7 +5,13 @@ export { diagnoseMiss, diagnoseMisses } from '../core/analysis/driver/diagnose.t
 export type { MissDiagnosis, MissQuery } from '../core/analysis/driver/diagnose.ts';
 export { codeEndOf, compareCalls, makeReading, partsOf } from '../core/analysis/reading.ts';
 export type { ReadingParts } from '../core/analysis/reading.ts';
-export { buildPointerIndex, isPointedAt, isThumbPointer, pointersTo, pointerTargets } from '../core/analysis/pointers.ts';
+export {
+  buildPointerIndex,
+  isPointedAt,
+  isThumbPointer,
+  pointersTo,
+  pointerTargets,
+} from '../core/analysis/pointers.ts';
 export type { PointerIndex } from '../core/analysis/pointers.ts';
 export { LIMITS } from '../core/analysis/limits.ts';
 export type { AnalysisLimits } from '../core/analysis/limits.ts';

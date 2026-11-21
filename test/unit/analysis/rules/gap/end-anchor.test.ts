@@ -4,9 +4,9 @@ import { test } from 'node:test';
 
 import rule from '../../../../../src/core/analysis/rules/gap/end-anchor.ts';
 import { Claim } from '../../../../../src/core/analysis/types.ts';
+import { AGBCC } from '../../../../../src/core/profile/agbcc.ts';
 import type { ViewSetup } from '../../../../helpers/analysis.ts';
 import { readingOf, romWith, viewWith, words } from '../../../../helpers/analysis.ts';
-import { AGBCC } from '../../../../../src/core/profile/agbcc.ts';
 import { DUMMY_PROFILE } from '../../../../helpers/dummy-profile.ts';
 import { thumbAt } from '../../../../helpers/thumb.ts';
 import { gapCursor } from './cursor.ts';
@@ -14,10 +14,15 @@ import { gapCursor } from './cursor.ts';
 const X = 0x0800_0300;
 const END = X + 0x10;
 // X: push {lr}; X+4.. three readings without a prologue; every one ends at X+14, 2 bytes before END.
-const rom = romWith([{ at: X, bytes: thumbAt(X)`push {lr}; movs r0, #0; movs r0, #1; movs r0, #2; movs r1, #1; movs r2, #2; pop {pc}` }]);
+const rom = romWith([
+  { at: X, bytes: thumbAt(X)`push {lr}; movs r0, #0; movs r0, #1; movs r0, #2; movs r1, #1; movs r2, #2; pop {pc}` },
+]);
 const propose = (setup: Partial<ViewSetup>, opts: { at?: number; end?: number; head?: number } = {}) =>
   rule.propose(
-    gapCursor(X - 0x100, END, opts.at ?? X - 0x100, { end: opts.end ?? END, ...(opts.head === undefined ? {} : { head: readingOf(rom, { entry: X - 0x100, end: opts.head }) }) }),
+    gapCursor(X - 0x100, END, opts.at ?? X - 0x100, {
+      end: opts.end ?? END,
+      ...(opts.head === undefined ? {} : { head: readingOf(rom, { entry: X - 0x100, end: opts.head }) }),
+    }),
     viewWith({ rom, ...setup }),
   );
 
@@ -35,9 +40,16 @@ test('with a prologue chosen the scan goes on to the floor without replacing it 
     { at: X - 8, bytes: thumbAt(X - 8)`push {lr}; movs r0, #0; movs r0, #0; movs r0, #0` },
     { at: X, bytes: thumbAt(X)`push {lr}; movs r0, #0; movs r0, #1; movs r0, #2; movs r1, #1; movs r2, #2; pop {pc}` },
   ]);
-  const found = rule.propose(gapCursor(X - 0x20, END, X - 0x20), viewWith({ rom: twin, valid: (a) => (asked.push(a), a === X || a === X - 8) }));
+  const found = rule.propose(
+    gapCursor(X - 0x20, END, X - 0x20),
+    viewWith({ rom: twin, valid: (a) => (asked.push(a), a === X || a === X - 8) }),
+  );
   assert.equal(found?.entry, X, 'the highest prologue');
-  assert.deepEqual(asked.map((a) => a - X), [12, 8, 4, 0, -4, -8], 'valid() is still asked below the chosen prologue (zero words are skipped before it)');
+  assert.deepEqual(
+    asked.map((a) => a - X),
+    [12, 8, 4, 0, -4, -8],
+    'valid() is still asked below the chosen prologue (zero words are skipped before it)',
+  );
 });
 
 test('a reading anchored at its end by a function counts when it does not reach the end', () => {
@@ -52,19 +64,35 @@ test('a reading anchored at its end by a function counts when it does not reach 
 
 test('declined: functions, claimed bytes, invalid entries, short readings, code past the end', () => {
   assert.equal(propose({ valid: () => false }), undefined);
-  assert.equal(propose({ functions: [X, X + 4, X + 8], valid: (a) => a >= X }), undefined, 'every candidate is a function');
+  assert.equal(
+    propose({ functions: [X, X + 4, X + 8], valid: (a) => a >= X }),
+    undefined,
+    'every candidate is a function',
+  );
   assert.equal(propose({ claims: [{ span: { start: X, end: END }, kind: Claim.dead }] }), undefined);
   assert.equal(propose({}, { end: X + 0x0c }), undefined, 'code past the end');
-  assert.equal(propose({ profile: DUMMY_PROFILE, valid: (a) => a === X + 8 }), undefined, 'dummy: 3 instructions < minInsns 4');
+  assert.equal(
+    propose({ profile: DUMMY_PROFILE, valid: (a) => a === X + 8 }),
+    undefined,
+    'dummy: 3 instructions < minInsns 4',
+  );
 });
 
 test('the floor: the cursor, the head end and end - backwardWindow (profile boundary)', () => {
   assert.equal(propose({}, { at: X + 0x0a }), undefined, 'cursor above every candidate');
   assert.equal(propose({}, { head: X + 0x0a }), undefined, 'head end above every candidate');
-  assert.equal(propose({ profile: DUMMY_PROFILE, valid: (a) => a === X }, { end: X + 0x0f })?.entry, X, 'dummy: within 64 bytes, 1 byte of slack');
+  assert.equal(
+    propose({ profile: DUMMY_PROFILE, valid: (a) => a === X }, { end: X + 0x0f })?.entry,
+    X,
+    'dummy: within 64 bytes, 1 byte of slack',
+  );
   const far = romWith([{ at: X, bytes: thumbAt(X)`push {lr}; movs r0, #0; movs r0, #1; pop {pc}; bx lr` }]);
   const c = gapCursor(X - 0x100, X + 0x48, X - 0x100);
-  assert.equal(rule.propose(c, viewWith({ rom: far, profile: DUMMY_PROFILE, functions: [X + 8] }))?.entry, undefined, 'dummy: X is 72 bytes below the end');
+  assert.equal(
+    rule.propose(c, viewWith({ rom: far, profile: DUMMY_PROFILE, functions: [X + 8] }))?.entry,
+    undefined,
+    'dummy: X is 72 bytes below the end',
+  );
   assert.equal(rule.propose(c, viewWith({ rom: far, functions: [X + 8] }))?.entry, X, 'agbcc: within 4096 bytes');
 });
 
@@ -77,8 +105,16 @@ test('a load-and-jump stub that ends exactly at an accepted stub of the same sha
     { at: Y + 8, bytes: words(0x03000001, 0x03000101) },
   ]);
   const c = gapCursor(X, Y + 4, X);
-  assert.deepEqual(rule.propose(c, viewWith({ rom: veneers, functions: [Y + 4], valid: (a) => a === Y })), { entry: Y, mode: 'thumb', cites: [Y, Y + 4] });
-  assert.equal(rule.propose(c, viewWith({ rom: veneers, valid: (a) => a === Y })), undefined, 'the next stub is not accepted');
+  assert.deepEqual(rule.propose(c, viewWith({ rom: veneers, functions: [Y + 4], valid: (a) => a === Y })), {
+    entry: Y,
+    mode: 'thumb',
+    cites: [Y, Y + 4],
+  });
+  assert.equal(
+    rule.propose(c, viewWith({ rom: veneers, valid: (a) => a === Y })),
+    undefined,
+    'the next stub is not accepted',
+  );
   // The next function is not such a stub: two instructions stay below minInsns.
   const other = romWith([
     { at: Y, bytes: thumbAt(Y)`ldr r3, _08000328; bx r3; movs r0, #0; bx lr` },
@@ -92,7 +128,11 @@ test('a load-and-jump stub that ends exactly at an accepted stub of the same sha
   ]);
   assert.equal(rule.propose(c, viewWith({ rom: mixed, functions: [Y + 4], valid: (a) => a === Y })), undefined);
   // The dummy profile's minInsns is 4; the veneer array element does not depend on it.
-  assert.equal(rule.propose(c, viewWith({ rom: veneers, profile: DUMMY_PROFILE, functions: [Y + 4], valid: (a) => a === Y }))?.entry, Y);
+  assert.equal(
+    rule.propose(c, viewWith({ rom: veneers, profile: DUMMY_PROFILE, functions: [Y + 4], valid: (a) => a === Y }))
+      ?.entry,
+    Y,
+  );
 });
 
 test('a `push {.., lr}` on the halfword between two words opens a hand-written function there, ranked as a prologue (D60 c)', () => {
@@ -104,7 +144,11 @@ test('a `push {.., lr}` on the halfword between two words opens a hand-written f
     { at: H, bytes: thumbAt(H)`push {lr}; movs r0, #0; pop {pc}` },
   ]);
   const c = gapCursor(X, END2, X);
-  assert.deepEqual(rule.propose(c, viewWith({ rom: half, valid: (a) => a === H })), { entry: H, mode: 'thumb', cites: [H, END2] });
+  assert.deepEqual(rule.propose(c, viewWith({ rom: half, valid: (a) => a === H })), {
+    entry: H,
+    mode: 'thumb',
+    cites: [H, END2],
+  });
   // The word-aligned reading at H - 2 that runs into it is not taken instead.
   assert.deepEqual(rule.propose(c, viewWith({ rom: half, valid: (a) => a === H || a === H - 2 }))?.entry, H);
   // A profile whose Thumb functions are word-aligned only looks at words.

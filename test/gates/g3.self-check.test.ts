@@ -4,7 +4,7 @@
 //
 // The checks run in process through romlift/node (verify-rom.ts, D108).
 import { gate } from './gate.ts';
-import { failedChecks, targets, VERIFY_NEEDS, verifyRom } from './verify-rom.ts';
+import { VERIFY_NEEDS, failedChecks, targets, verifyRom } from './verify-rom.ts';
 import type { CheckId } from './verify-rom.ts';
 
 const REQUIRED: readonly CheckId[] = ['tiling', 'reencode', 'module-size'];
@@ -24,6 +24,8 @@ gate({
       if (failed.length > 0 || !result.ok) problems.push(`${target.name}: ${failed.join('; ') || 'not ok'}`);
     }
     if (problems.length > 0) throw new Error(`self-checks fail: ${problems.join(' | ')}`);
-    cx.note(`tiling, re-encode and module-size pass on ${list.length} ROMs (${cx.fixtures.length} fixtures${cx.tier === 'real' ? `, ${cx.datasets.length} tuning ROMs` : ''})`);
+    cx.note(
+      `tiling, re-encode and module-size pass on ${list.length} ROMs (${cx.fixtures.length} fixtures${cx.tier === 'real' ? `, ${cx.datasets.length} tuning ROMs` : ''})`,
+    );
   },
 });

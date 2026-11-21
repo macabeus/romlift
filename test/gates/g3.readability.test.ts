@@ -12,7 +12,7 @@
 //     name
 //     readability: {mnemonicShare, symbolicBranchShare, symbolicPoolShare,    each in [0, 1]
 //                   floor: {mnemonicShare, symbolicBranchShare, symbolicPoolShare}}   the first committed values
-import { gate, type ExecResult } from './gate.ts';
+import { type ExecResult, gate } from './gate.ts';
 
 const SHARES = ['mnemonicShare', 'symbolicBranchShare', 'symbolicPoolShare'] as const;
 type ShareName = (typeof SHARES)[number];

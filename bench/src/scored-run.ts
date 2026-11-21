@@ -2,7 +2,15 @@
 // export-poc in a frozen shape, and its reader. The dump keeps the PoC's own texts (origins such as
 // 'gap scan', miss diagnoses such as 'inside code of the accepted function at …'); this reader is
 // the only place that maps them to the vocabulary ids, with the PoC's own prefix rules.
-import { canonicalJson, isOrigin, parseHexAddr, type JsonValue, type MissReason, type Mode, type Origin } from 'romlift';
+import {
+  type JsonValue,
+  type MissReason,
+  type Mode,
+  type Origin,
+  canonicalJson,
+  isOrigin,
+  parseHexAddr,
+} from 'romlift';
 import { sha256Stream } from 'romlift/node';
 
 import { BenchError, isRecord } from './files.ts';
@@ -78,7 +86,8 @@ export function originId(text: string): Origin | undefined {
 const ADDR = /^0x[0-9A-F]{8}$/;
 
 function addr(value: unknown, where: string): string {
-  if (typeof value !== 'string' || !ADDR.test(value)) throw new BenchError(`${where}: expected 0x and eight upper-case hex digits, got ${String(value)}`);
+  if (typeof value !== 'string' || !ADDR.test(value))
+    throw new BenchError(`${where}: expected 0x and eight upper-case hex digits, got ${String(value)}`);
   return value;
 }
 
@@ -90,9 +99,15 @@ function str(value: unknown, where: string): string {
 /** Reads a scored.json value; throws a BenchError naming the first field that is not as frozen. */
 export function parseScoredRun(value: unknown, where: string): ScoredRun {
   if (!isRecord(value)) throw new BenchError(`${where}: not a JSON object`);
-  if (value['schema'] !== SCORED_SCHEMA) throw new BenchError(`${where}: schema is ${String(value['schema'])}, expected ${SCORED_SCHEMA}`);
+  if (value['schema'] !== SCORED_SCHEMA)
+    throw new BenchError(`${where}: schema is ${String(value['schema'])}, expected ${SCORED_SCHEMA}`);
   const analysis = value['analysis'];
-  if (!isRecord(analysis) || !Array.isArray(analysis['functions']) || !isRecord(analysis['startup']) || !Array.isArray(analysis['codeRange'])) {
+  if (
+    !isRecord(analysis) ||
+    !Array.isArray(analysis['functions']) ||
+    !isRecord(analysis['startup']) ||
+    !Array.isArray(analysis['codeRange'])
+  ) {
     throw new BenchError(`${where}: analysis must hold functions, startup and codeRange`);
   }
   const functions: DumpFunction[] = analysis['functions'].map((f: unknown, i: number) => {
@@ -100,7 +115,12 @@ export function parseScoredRun(value: unknown, where: string): ScoredRun {
     if (!isRecord(f)) throw new BenchError(`${at}: not an object`);
     const mode = f['mode'];
     if (mode !== 'thumb' && mode !== 'arm') throw new BenchError(`${at}: mode must be thumb or arm`);
-    return { entry: addr(f['entry'], `${at}.entry`), mode, end: addr(f['end'], `${at}.end`), origin: str(f['origin'], `${at}.origin`) };
+    return {
+      entry: addr(f['entry'], `${at}.entry`),
+      mode,
+      end: addr(f['end'], `${at}.end`),
+      origin: str(f['origin'], `${at}.origin`),
+    };
   });
   const startup = analysis['startup'];
   if (!Array.isArray(startup['entries'])) throw new BenchError(`${where}: analysis.startup.entries must be an array`);
@@ -111,11 +131,13 @@ export function parseScoredRun(value: unknown, where: string): ScoredRun {
   const digests = value['digests'];
   if (!Array.isArray(digests) || digests.length !== 2) throw new BenchError(`${where}: digests must hold two digests`);
   const scaffold = value['scaffold'];
-  if (!isRecord(scaffold) || typeof scaffold['ok'] !== 'boolean') throw new BenchError(`${where}: scaffold.ok must be a boolean`);
+  if (!isRecord(scaffold) || typeof scaffold['ok'] !== 'boolean')
+    throw new BenchError(`${where}: scaffold.ok must be a boolean`);
   const pocRow = value['pocRow'];
   if (!isRecord(pocRow)) throw new BenchError(`${where}: pocRow must be an object`);
   const datasetDigest = value['datasetDigest'];
-  if (datasetDigest !== null && typeof datasetDigest !== 'string') throw new BenchError(`${where}: datasetDigest must be a digest or null (re-run export-poc --mode scored)`);
+  if (datasetDigest !== null && typeof datasetDigest !== 'string')
+    throw new BenchError(`${where}: datasetDigest must be a digest or null (re-run export-poc --mode scored)`);
   return {
     schema: SCORED_SCHEMA,
     rom: str(value['rom'], `${where}: rom`),
@@ -132,7 +154,10 @@ export function parseScoredRun(value: unknown, where: string): ScoredRun {
     },
     misses: misses.map((m: unknown, i: number) => {
       if (!isRecord(m)) throw new BenchError(`${where}: misses[${i}] is not an object`);
-      return { addr: addr(m['addr'], `${where}: misses[${i}].addr`), reason: str(m['reason'], `${where}: misses[${i}].reason`) };
+      return {
+        addr: addr(m['addr'], `${where}: misses[${i}].addr`),
+        reason: str(m['reason'], `${where}: misses[${i}].reason`),
+      };
     }),
     digests: [str(digests[0], `${where}: digests[0]`), str(digests[1], `${where}: digests[1]`)],
     scaffold: { ok: scaffold['ok'], summary: str(scaffold['summary'], `${where}: scaffold.summary`) },

@@ -8,9 +8,9 @@ import { dirname, join, resolve } from 'node:path';
 
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
+import { DECOMP_YAML_NAMES } from '../../foundation/util/project-files.ts';
 import { ShellCodes } from '../codes.ts';
 import type { ShellCode } from '../codes.ts';
-import { DECOMP_YAML_NAMES } from '../../foundation/util/project-files.ts';
 import { errorReason, isAbsentError } from '../fs.ts';
 
 /** A located project: its root directory and its decomp.yaml, both absolute. */
@@ -19,10 +19,14 @@ export interface ProjectLocation {
   readonly decompYaml: string;
 }
 
-export type LocateResult = { readonly ok: true; readonly value: ProjectLocation } | { readonly ok: false; readonly diagnostics: readonly Diagnostic<ShellCode>[] };
+export type LocateResult =
+  | { readonly ok: true; readonly value: ProjectLocation }
+  | { readonly ok: false; readonly diagnostics: readonly Diagnostic<ShellCode>[] };
 
 /** Whether `path` is a regular file, or why it cannot be examined. */
-async function isFile(path: string): Promise<{ readonly ok: true; readonly file: boolean } | { readonly ok: false; readonly reason: string }> {
+async function isFile(
+  path: string,
+): Promise<{ readonly ok: true; readonly file: boolean } | { readonly ok: false; readonly reason: string }> {
   try {
     return { ok: true, file: (await stat(path)).isFile() };
   } catch (error) {
@@ -32,11 +36,20 @@ async function isFile(path: string): Promise<{ readonly ok: true; readonly file:
 }
 
 /** The settings file in `dir` itself, or undefined; E_IO_READ when `dir` cannot be examined. */
-export async function decompYamlIn(dir: string): Promise<{ readonly ok: true; readonly path: string | undefined } | { readonly ok: false; readonly diagnostics: readonly Diagnostic<ShellCode>[] }> {
+export async function decompYamlIn(
+  dir: string,
+): Promise<
+  | { readonly ok: true; readonly path: string | undefined }
+  | { readonly ok: false; readonly diagnostics: readonly Diagnostic<ShellCode>[] }
+> {
   for (const name of DECOMP_YAML_NAMES) {
     const path = join(dir, name);
     const found = await isFile(path);
-    if (!found.ok) return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot examine ${path}: ${found.reason}`, { path })] };
+    if (!found.ok)
+      return {
+        ok: false,
+        diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot examine ${path}: ${found.reason}`, { path })],
+      };
     if (found.file) return { ok: true, path };
   }
   return { ok: true, path: undefined };
@@ -56,9 +69,14 @@ export async function locateProject(from: string = process.cwd()): Promise<Locat
   return {
     ok: false,
     diagnostics: [
-      diagnostic(ShellCodes, 'E_PROJECT_NOT_FOUND', `no decomp.yaml in ${start} or any parent directory; run \`romlift init <rom>\` to create a project`, {
-        path: start,
-      }),
+      diagnostic(
+        ShellCodes,
+        'E_PROJECT_NOT_FOUND',
+        `no decomp.yaml in ${start} or any parent directory; run \`romlift init <rom>\` to create a project`,
+        {
+          path: start,
+        },
+      ),
     ],
   };
 }

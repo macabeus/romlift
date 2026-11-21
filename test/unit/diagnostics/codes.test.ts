@@ -2,13 +2,13 @@
 // in its module's directory, every raised code is defined, and core/diagnostic-codes.ts unions every
 // core codes module (plus foundation/rom's).
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { ALL_CODES } from '../../../src/core/diagnostic-codes.ts';
 import { AnalysisCodes } from '../../../src/core/analysis/codes.ts';
+import { ALL_CODES } from '../../../src/core/diagnostic-codes.ts';
 import { RomCodes } from '../../../src/foundation/rom/codes.ts';
 import { ShellCodes } from '../../../src/shell/codes.ts';
 
@@ -17,7 +17,9 @@ const UNION = 'core/diagnostic-codes.ts';
 
 function sourceFiles(dir: string): string[] {
   const out: string[] = [];
-  const entries = readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  const entries = readdirSync(dir, { withFileTypes: true }).sort((a, b) =>
+    a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
+  );
   for (const entry of entries) {
     const path = join(dir, entry.name);
     if (entry.isDirectory()) out.push(...sourceFiles(path));
@@ -66,7 +68,9 @@ test('every defined code is raised in its module directory', () => {
   for (const [code, file] of defined) {
     const dir = dirname(file);
     const prefix = dir === '.' ? '' : `${dir}/`;
-    const raised = files.some((f) => f.startsWith(prefix) && !codesFiles.includes(f) && raisedIn(text.get(f) ?? '').includes(code));
+    const raised = files.some(
+      (f) => f.startsWith(prefix) && !codesFiles.includes(f) && raisedIn(text.get(f) ?? '').includes(code),
+    );
     if (!raised) unused.push(`${code} (${file})`);
   }
   assert.deepEqual(unused, []);
@@ -102,8 +106,13 @@ test('architecture §9.1 lists exactly the codes the codes.ts files define (fina
   const start = doc.indexOf('### 9.1 ');
   const end = doc.indexOf('### 9.2 ', start);
   assert.ok(start >= 0 && end > start, 'architecture.md has §9.1 and §9.2');
-  const rows = doc.slice(start, end).split('\n').filter((line) => line.startsWith('| `'));
-  const listed = rows.flatMap((line) => [...(line.split(' | ')[0] ?? '').matchAll(/`([EW]_[A-Z0-9_]+)`/g)].map((m) => m[1] ?? ''));
+  const rows = doc
+    .slice(start, end)
+    .split('\n')
+    .filter((line) => line.startsWith('| `'));
+  const listed = rows.flatMap((line) =>
+    [...(line.split(' | ')[0] ?? '').matchAll(/`([EW]_[A-Z0-9_]+)`/g)].map((m) => m[1] ?? ''),
+  );
   const sorted = (codes: Iterable<string>): string[] => [...codes].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   assert.deepEqual(sorted(new Set(listed)), sorted(defined.keys()));
   assert.equal(listed.length, new Set(listed).size, 'no code is listed twice');

@@ -14,11 +14,11 @@ import { DIALECT, incbinLine } from '../../../foundation/asm/dialect.ts';
 import { RomliftInvariantError } from '../../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../foundation/rom/span.ts';
+import { lowerBound } from '../../../foundation/util/arrays.ts';
 import { hex, hexAddr } from '../../../foundation/util/hex.ts';
 import { compareCodeUnits, compareNumbers } from '../../../foundation/util/sorted.ts';
-import { lowerBound } from '../../../foundation/util/arrays.ts';
-import { moduleSource } from '../../model/paths.ts';
 import { moduleIndexAt, relocatedModules, runOffsetOf, runStartOf } from '../../model/modules.ts';
+import { moduleSource } from '../../model/paths.ts';
 import { compareLabels, loadOperandIn, wordValueOf } from '../../model/resolver.ts';
 import { ItemKind } from '../../model/types.ts';
 import type { Label, Model, Module } from '../../model/types.ts';
@@ -51,7 +51,8 @@ function firstLabelAt(labels: readonly { readonly addr: Addr }[], addr: Addr): n
 /** The module at `index`; the writer is called only with indexes of `model.modules`. */
 function moduleOf(model: Model, index: number): Module {
   const module = model.modules[index];
-  if (module === undefined) throw new RomliftInvariantError(`data writer: no module ${index} of ${model.modules.length}`);
+  if (module === undefined)
+    throw new RomliftInvariantError(`data writer: no module ${index} of ${model.modules.length}`);
   return module;
 }
 
@@ -106,7 +107,11 @@ function wordName(model: Model, index: number, word: number, relocated: readonly
   }
   const label = at
     .sort(compareLabels)
-    .find((l) => wordValueOf(l) === word && (l.scope === 'global' || model.modules[moduleIndexAt(model.modules, l.addr, relocated)]?.name === own));
+    .find(
+      (l) =>
+        wordValueOf(l) === word &&
+        (l.scope === 'global' || model.modules[moduleIndexAt(model.modules, l.addr, relocated)]?.name === own),
+    );
   if (label !== undefined) return label.name;
   if (word !== target) return undefined;
   const symbol = model.symbols[firstLabelAt(model.symbols, target)];
@@ -118,7 +123,9 @@ function dataText(model: Model, index: number): string {
   const module = moduleOf(model, index);
   const marks = marksOf(model, index);
   const relocated = relocatedModules(model.modules);
-  const lines: string[] = [`@ data module ${module.name}: ${hexAddr(module.span.start)}..${hexAddr(module.span.end)}, ${module.span.end - module.span.start} bytes`];
+  const lines: string[] = [
+    `@ data module ${module.name}: ${hexAddr(module.span.start)}..${hexAddr(module.span.end)}, ${module.span.end - module.span.start} bytes`,
+  ];
   let next = 0;
   let pending = module.span.start;
   /** Writes the bytes [pending, to) as slices split at every label, and the labels up to `to` (inclusive). */
@@ -126,7 +133,12 @@ function dataText(model: Model, index: number): string {
     for (let m = marks[next]; m !== undefined && (m.at < to || (inclusive && m.at === to)); m = marks[++next]) {
       if (m.at > pending) lines.push(incbinLine(pending, m.at));
       pending = Math.max(pending, m.at);
-      lines.push('', ...(m.global ? [`\t.global ${m.name}`] : []), ...(m.thumbFunc ? ['\t.thumb_func'] : []), `${m.name}: @ ${hexAddr(m.at + runOffsetOf(module))}`);
+      lines.push(
+        '',
+        ...(m.global ? [`\t.global ${m.name}`] : []),
+        ...(m.thumbFunc ? ['\t.thumb_func'] : []),
+        `${m.name}: @ ${hexAddr(m.at + runOffsetOf(module))}`,
+      );
     }
     if (to > pending) lines.push(incbinLine(pending, to));
     pending = Math.max(pending, to);
@@ -152,7 +164,9 @@ function dataText(model: Model, index: number): string {
       advance(start, true);
       if (table) {
         const word = items.aux[i] ?? 0;
-        lines.push(`\t.4byte ${wordName(model, index, word, relocated) ?? loadOperandIn(relocated, word) ?? `0x${hex(word)}`}`);
+        lines.push(
+          `\t.4byte ${wordName(model, index, word, relocated) ?? loadOperandIn(relocated, word) ?? `0x${hex(word)}`}`,
+        );
       } else {
         lines.push('\t.align 2, 0');
       }

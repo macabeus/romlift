@@ -1,11 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-
 import { MISS_REASONS } from 'romlift';
 
 import { analysisDigest } from '../../../bench/src/scored-run.ts';
-import { scoredFromChild } from '../../../bench/tools/export-poc.ts';
 import { missReasonId, originId, parseScoredRun } from '../../../bench/src/scored-run.ts';
+import { scoredFromChild } from '../../../bench/tools/export-poc.ts';
 import { dump, fn } from './fixtures.ts';
 
 test('missReasonId maps every PoC diagnosis to its reason id', () => {
@@ -37,29 +36,87 @@ test('originId turns a PoC origin text into its id, and rejects text that names 
 });
 
 test('parseScoredRun accepts the frozen shape and names the first field that is not', () => {
-  const value = JSON.parse(JSON.stringify(dump({ analysis: { functions: [fn('0x08000000', '0x08000010')], startup: { end: '0x08000000', entries: [] }, codeRange: ['0x08000000', '0x08000010'] } }))) as Record<string, unknown>;
+  const value = JSON.parse(
+    JSON.stringify(
+      dump({
+        analysis: {
+          functions: [fn('0x08000000', '0x08000010')],
+          startup: { end: '0x08000000', entries: [] },
+          codeRange: ['0x08000000', '0x08000010'],
+        },
+      }),
+    ),
+  ) as Record<string, unknown>;
   assert.equal(parseScoredRun(value, 'x').analysis.functions.length, 1);
   assert.throws(() => parseScoredRun({ ...value, schema: 'other' }, 'x'), /schema is other/);
   assert.throws(() => parseScoredRun({ ...value, digests: ['a'] }, 'x'), /digests must hold two/);
-  const bad = { ...value, analysis: { functions: [fn('0x8000000', '0x08000010')], startup: { end: '0x08000000', entries: [] }, codeRange: ['0x08000000', '0x08000010'] } };
+  const bad = {
+    ...value,
+    analysis: {
+      functions: [fn('0x8000000', '0x08000010')],
+      startup: { end: '0x08000000', entries: [] },
+      codeRange: ['0x08000000', '0x08000010'],
+    },
+  };
   assert.throws(() => parseScoredRun(bad, 'x'), /analysis.functions\[0\].entry/);
 });
 
 test('export-poc builds the frozen document: digests of each analysis, the row without seconds', () => {
-  const analysis = { functions: [fn('0x08000000', '0x08000010', 'rom entry', 'arm')], startup: { end: '0x08000010', entries: ['0x08000000'] }, codeRange: ['0x08000000', '0x08000010'] };
+  const analysis = {
+    functions: [fn('0x08000000', '0x08000010', 'rom entry', 'arm')],
+    startup: { end: '0x08000010', entries: ['0x08000000'] },
+    codeRange: ['0x08000000', '0x08000010'],
+  };
   const other = { ...analysis, codeRange: ['0x08000000', '0x08000014'] };
   const row = { name: 'tiny', seconds: 1.5, tp: 1, scaffold: { ok: true, seconds: 2, summary: 'built' } };
-  const scored = scoredFromChild({ analyses: [analysis, other], misses: [{ addr: '0x08000020', reason: 'inside code' }], row }, 'tiny', 'f'.repeat(40), 'p'.repeat(64));
+  const scored = scoredFromChild(
+    { analyses: [analysis, other], misses: [{ addr: '0x08000020', reason: 'inside code' }], row },
+    'tiny',
+    'f'.repeat(40),
+    'p'.repeat(64),
+  );
   assert.equal(scored.schema, 'romlift-bench/poc-scored@1');
-  assert.deepEqual(Object.keys(scored), ['schema', 'rom', 'sha1', 'pocSourceDigest', 'datasetDigest', 'analysis', 'misses', 'digests', 'scaffold', 'pocRow']);
+  assert.deepEqual(Object.keys(scored), [
+    'schema',
+    'rom',
+    'sha1',
+    'pocSourceDigest',
+    'datasetDigest',
+    'analysis',
+    'misses',
+    'digests',
+    'scaffold',
+    'pocRow',
+  ]);
   // The dataset digest is recorded only when the child ran on the dataset romlift handed it.
   assert.equal(scored.datasetDigest, null);
-  assert.equal(scoredFromChild({ analyses: [analysis, other], misses: [], row, dataset: 'poc' }, 'tiny', 'f'.repeat(40), 'p'.repeat(64), 'd'.repeat(64)).datasetDigest, null);
-  assert.equal(scoredFromChild({ analyses: [analysis, other], misses: [], row, dataset: 'given' }, 'tiny', 'f'.repeat(40), 'p'.repeat(64), 'd'.repeat(64)).datasetDigest, 'd'.repeat(64));
+  assert.equal(
+    scoredFromChild(
+      { analyses: [analysis, other], misses: [], row, dataset: 'poc' },
+      'tiny',
+      'f'.repeat(40),
+      'p'.repeat(64),
+      'd'.repeat(64),
+    ).datasetDigest,
+    null,
+  );
+  assert.equal(
+    scoredFromChild(
+      { analyses: [analysis, other], misses: [], row, dataset: 'given' },
+      'tiny',
+      'f'.repeat(40),
+      'p'.repeat(64),
+      'd'.repeat(64),
+    ).datasetDigest,
+    'd'.repeat(64),
+  );
   assert.equal(scored.digests[0], analysisDigest(analysis));
   assert.notEqual(scored.digests[0], scored.digests[1]);
   // Canonical JSON: the digest does not depend on key order.
-  assert.equal(analysisDigest({ codeRange: analysis.codeRange, startup: analysis.startup, functions: analysis.functions }), scored.digests[0]);
+  assert.equal(
+    analysisDigest({ codeRange: analysis.codeRange, startup: analysis.startup, functions: analysis.functions }),
+    scored.digests[0],
+  );
   assert.deepEqual(scored.scaffold, { ok: true, summary: 'built' });
   assert.deepEqual(scored.pocRow, { name: 'tiny', tp: 1, scaffold: { ok: true, summary: 'built' } });
   assert.throws(() => scoredFromChild({ analyses: [analysis], row }, 'tiny', '', ''), /printed no/);

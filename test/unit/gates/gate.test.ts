@@ -2,12 +2,18 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+
 import {
+  type DatasetRef,
+  type ExecResult,
+  type GateIo,
+  type InputCheck,
+  type InputEnv,
   checkInput,
   decideHistorical,
   decideVerdict,
@@ -28,11 +34,6 @@ import {
   testOutcome,
   tierIncludes,
   withLock,
-  type DatasetRef,
-  type ExecResult,
-  type GateIo,
-  type InputCheck,
-  type InputEnv,
 } from '../../gates/gate.ts';
 
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
@@ -66,12 +67,20 @@ function fakeIo(files: Readonly<Record<string, string>>, commands: Readonly<Reco
       const hasher = createHash('sha256');
       return { update: (chunk) => void hasher.update(chunk), digest: () => hasher.digest('hex') };
     },
-    exec: async (command, args) => commands[[command, ...args].join(' ')] ?? { code: 127, stdout: '', stderr: 'not found' },
+    exec: async (command, args) =>
+      commands[[command, ...args].join(' ')] ?? { code: 127, stdout: '', stderr: 'not found' },
   };
 }
 
 function dataset(overrides: Partial<DatasetRef> & Pick<DatasetRef, 'name'>): DatasetRef {
-  return { rom: `${overrides.name}.gba`, elf: `${overrides.name}.elf`, sha1: '', heldout: false, revealed: [], ...overrides };
+  return {
+    rom: `${overrides.name}.gba`,
+    elf: `${overrides.name}.elf`,
+    sha1: '',
+    heldout: false,
+    revealed: [],
+    ...overrides,
+  };
 }
 
 const ok: InputCheck = { available: true, detail: '', digest: 'd' };
@@ -90,8 +99,14 @@ test('the selected tier defaults to ci and refuses unknown values', () => {
 
 test('roots default to the parent of the repository and its romlift-poc', () => {
   assert.deepEqual(resolveRoots({}, '/w/romlift'), { benchRoot: '/w', pocRoot: '/w/romlift-poc' });
-  assert.deepEqual(resolveRoots({ ROMLIFT_BENCH_ROOT: '/b' }, '/w/romlift'), { benchRoot: '/b', pocRoot: '/b/romlift-poc' });
-  assert.deepEqual(resolveRoots({ ROMLIFT_BENCH_ROOT: '/b', ROMLIFT_POC: '/p' }, '/w/romlift'), { benchRoot: '/b', pocRoot: '/p' });
+  assert.deepEqual(resolveRoots({ ROMLIFT_BENCH_ROOT: '/b' }, '/w/romlift'), {
+    benchRoot: '/b',
+    pocRoot: '/b/romlift-poc',
+  });
+  assert.deepEqual(resolveRoots({ ROMLIFT_BENCH_ROOT: '/b', ROMLIFT_POC: '/p' }, '/w/romlift'), {
+    benchRoot: '/b',
+    pocRoot: '/p',
+  });
 });
 
 test('verdict order: historical, then pending, then unavailable, then run', () => {
@@ -118,7 +133,10 @@ test('verdict order: historical, then pending, then unavailable, then run', () =
 test('node:test outcomes: pass and historical pass, pending and unavailable skip, fail fails', () => {
   assert.deepEqual(testOutcome('pass', ''), { kind: 'pass' });
   assert.deepEqual(testOutcome('historical', 'x'), { kind: 'pass' });
-  assert.deepEqual(testOutcome('pending', 'not exported yet: a'), { kind: 'skip', message: 'pending: not exported yet: a' });
+  assert.deepEqual(testOutcome('pending', 'not exported yet: a'), {
+    kind: 'skip',
+    message: 'pending: not exported yet: a',
+  });
   assert.deepEqual(testOutcome('unavailable', 'roms: no tuning datasets'), {
     kind: 'skip',
     message: 'unavailable: roms: no tuning datasets',
@@ -137,7 +155,10 @@ test('a report record is one line with a fixed key order and sorted inputs', () 
     missing: [],
     ms: 12.6,
   });
-  assert.equal(line, '{"id":"g1.x","phase":1,"tier":"ci","verdict":"pass","detail":"","inputs":{"a":"2","z":"1"},"missing":[],"ms":13}\n');
+  assert.equal(
+    line,
+    '{"id":"g1.x","phase":1,"tier":"ci","verdict":"pass","detail":"","inputs":{"a":"2","z":"1"},"missing":[],"ms":13}\n',
+  );
 });
 
 test('lastJson reads the last non-empty line', () => {
@@ -232,10 +253,27 @@ test('withLock serialises holders and takes over a lock whose owner has exited',
 
 test('datasets parse, and split into tuning and sealed', () => {
   const parsed = parseDataset(
-    { name: 'sa2', rom: 'sa2/sa2.gba', elf: 'sa2/sa2.elf', sha1: 'ab', elfSha256: 'cd', heldout: false, revealed: [], labels: [] },
+    {
+      name: 'sa2',
+      rom: 'sa2/sa2.gba',
+      elf: 'sa2/sa2.elf',
+      sha1: 'ab',
+      elfSha256: 'cd',
+      heldout: false,
+      revealed: [],
+      labels: [],
+    },
     'sa2.json',
   );
-  assert.deepEqual(parsed, { name: 'sa2', rom: 'sa2/sa2.gba', elf: 'sa2/sa2.elf', sha1: 'ab', elfSha256: 'cd', heldout: false, revealed: [] });
+  assert.deepEqual(parsed, {
+    name: 'sa2',
+    rom: 'sa2/sa2.gba',
+    elf: 'sa2/sa2.elf',
+    sha1: 'ab',
+    elfSha256: 'cd',
+    heldout: false,
+    revealed: [],
+  });
   assert.throws(() => parseDataset({ name: 'x', rom: 'r', elf: 'e', sha1: 's' }, 'x.json'), /heldout/);
   assert.throws(() => parseDataset({ name: '', rom: 'r', elf: 'e', sha1: 's', heldout: false }, 'x.json'), /name/);
   const sealed = dataset({ name: 'h', heldout: true });
@@ -265,21 +303,37 @@ test('roms and elfs: unavailable with no tuning datasets, a missing file or a di
   assert.equal((await checkInput('elfs', env([a]), io)).available, true);
 
   const wrong = dataset({ name: 'a', sha1: '00' });
-  assert.match((await checkInput('roms', env([wrong]), io)).detail, /a: a\.gba has sha1 [0-9a-f]+, the dataset records 00/);
+  assert.match(
+    (await checkInput('roms', env([wrong]), io)).detail,
+    /a: a\.gba has sha1 [0-9a-f]+, the dataset records 00/,
+  );
   assert.match((await checkInput('elfs', env([wrong]), io)).detail, /a: the dataset records no elfSha256/);
   // Sealed datasets are checked too: their ROM must be present for any gate that declares roms.
   const missing = dataset({ name: 'm', heldout: true, sha1: 'x' });
-  assert.deepEqual(await checkInput('roms', env([a], [missing]), io), { available: false, detail: 'm: m.gba is missing' });
+  assert.deepEqual(await checkInput('roms', env([a], [missing]), io), {
+    available: false,
+    detail: 'm: m.gba is missing',
+  });
 });
 
 test('objects: sha256 over sorted relative path, NUL and bytes of every .o', async () => {
   const files = { '/bench/o/b.o': 'B', '/bench/o/sub/a.o': 'A', '/bench/o/notes.txt': 'ignored' };
   const io = fakeIo(files);
-  const expected = createHash('sha256').update('b.o').update('\0').update('B').update('sub/a.o').update('\0').update('A').digest('hex');
+  const expected = createHash('sha256')
+    .update('b.o')
+    .update('\0')
+    .update('B')
+    .update('sub/a.o')
+    .update('\0')
+    .update('A')
+    .digest('hex');
   assert.equal(await objectsDigest('/bench/o', io), expected);
   const good = dataset({ name: 'a', objectsDir: 'o', objectsDigest: expected });
   assert.equal((await checkInput('objects', env([good]), io)).available, true);
-  assert.equal((await checkInput('objects', env([dataset({ name: 'a' })]), io)).detail, 'no dataset records objectsDir');
+  assert.equal(
+    (await checkInput('objects', env([dataset({ name: 'a' })]), io)).detail,
+    'no dataset records objectsDir',
+  );
   assert.match((await checkInput('objects', env([{ ...good, objectsDigest: 'f' }]), io)).detail, /objects digest/);
   assert.match((await checkInput('objects', env([{ ...good, objectsDir: 'gone' }]), io)).detail, /gone is missing/);
 });
@@ -304,7 +358,10 @@ test('toolchain: as, ld and objcopy must run', async () => {
   };
   assert.equal((await checkInput('toolchain', env([]), fakeIo({}, all))).available, true);
   const { 'arm-none-eabi-ld --version': _ld, ...noLd } = all;
-  assert.equal((await checkInput('toolchain', env([]), fakeIo({}, noLd))).detail, 'arm-none-eabi-ld --version exited 127');
+  assert.equal(
+    (await checkInput('toolchain', env([]), fakeIo({}, noLd))).detail,
+    'arm-none-eabi-ld --version exited 127',
+  );
 });
 
 test('gate() registers one test per gate and appends one NDJSON line per recorded verdict', () => {
@@ -340,14 +397,30 @@ test('gate() registers one test per gate and appends one NDJSON line per recorde
     const records = readFileSync(reportFile, 'utf8')
       .trim()
       .split('\n')
-      .map((line) => JSON.parse(line) as { id: string; verdict: string; detail: string; inputs: Record<string, string>; missing: string[] });
+      .map(
+        (line) =>
+          JSON.parse(line) as {
+            id: string;
+            verdict: string;
+            detail: string;
+            inputs: Record<string, string>;
+            missing: string[];
+          },
+      );
     const byId = new Map(records.map((r) => [r.id, r]));
     assert.equal(records.length, 4, 'the real-tier gate records nothing under the ci tier');
-    assert.deepEqual([byId.get('g1.later')?.verdict, byId.get('g1.later')?.detail], ['pass', 'fixtures true'], 'realInputs are not checked on ci');
+    assert.deepEqual(
+      [byId.get('g1.later')?.verdict, byId.get('g1.later')?.detail],
+      ['pass', 'fixtures true'],
+      'realInputs are not checked on ci',
+    );
     assert.deepEqual([byId.get('g1.passes')?.verdict, byId.get('g1.passes')?.detail], ['pass', 'fine']);
     assert.deepEqual(byId.get('g1.passes')?.inputs, { extra: 'abc' });
     assert.deepEqual([byId.get('g1.fails')?.verdict, byId.get('g1.fails')?.detail], ['fail', 'broken']);
-    assert.deepEqual([byId.get('g1.waits')?.verdict, byId.get('g1.waits')?.missing], ['pending', ['noSuchExportAnywhere']]);
+    assert.deepEqual(
+      [byId.get('g1.waits')?.verdict, byId.get('g1.waits')?.missing],
+      ['pending', ['noSuchExportAnywhere']],
+    );
     assert.match(output, /not ok \d+ - g1\.fails/);
     assert.match(output, /ok \d+ - g1\.waits # SKIP pending: not exported yet: noSuchExportAnywhere/);
     assert.match(output, /ok \d+ - g1\.elsewhere # SKIP/);
@@ -359,7 +432,10 @@ test('gate() registers one test per gate and appends one NDJSON line per recorde
 
 test('a failing gate records its notes after the failure, so the measurements that explain it survive (D59 q)', () => {
   assert.equal(failureDetail('held-out: 1 family', []), 'held-out: 1 family');
-  assert.equal(failureDetail('held-out: 1 family', ['tmc [zeldaret-tmc] fail: glued 51', 'pokeruby pass']), 'held-out: 1 family; tmc [zeldaret-tmc] fail: glued 51; pokeruby pass');
+  assert.equal(
+    failureDetail('held-out: 1 family', ['tmc [zeldaret-tmc] fail: glued 51', 'pokeruby pass']),
+    'held-out: 1 family; tmc [zeldaret-tmc] fail: glued 51; pokeruby pass',
+  );
 });
 
 test('gateStep: a frozen gate still runs its run and is historical only when it returns; pending and unavailable run nothing', () => {
@@ -368,8 +444,18 @@ test('gateStep: a frozen gate still runs its run and is historical only when it 
   assert.deepEqual(gateStep(frozen), { kind: 'run', onReturn: 'historical', detail: 'frozen since phase 2 landed' });
   // Before landing, run runs and passes.
   assert.deepEqual(gateStep(decideHistorical({ needs: [], historicalAfter: 2 }, 1)), { kind: 'run', onReturn: 'pass' });
-  assert.deepEqual(gateStep({ verdict: 'unavailable', detail: 'roms: missing', missing: ['roms'] }), { kind: 'record', verdict: 'unavailable', detail: 'roms: missing', missing: ['roms'] });
-  assert.deepEqual(gateStep({ verdict: 'pending', detail: 'not exported yet: x', missing: ['x'] }), { kind: 'record', verdict: 'pending', detail: 'not exported yet: x', missing: ['x'] });
+  assert.deepEqual(gateStep({ verdict: 'unavailable', detail: 'roms: missing', missing: ['roms'] }), {
+    kind: 'record',
+    verdict: 'unavailable',
+    detail: 'roms: missing',
+    missing: ['roms'],
+  });
+  assert.deepEqual(gateStep({ verdict: 'pending', detail: 'not exported yet: x', missing: ['x'] }), {
+    kind: 'record',
+    verdict: 'pending',
+    detail: 'not exported yet: x',
+    missing: ['x'],
+  });
 });
 
 test('the harness end to end: at landed 2 a historical gate whose run throws records fail, one whose run returns records historical', () => {
@@ -379,20 +465,35 @@ test('the harness end to end: at landed 2 a historical gate whose run throws rec
   try {
     const gates = path.join(root, 'test', 'gates');
     mkdirSync(gates, { recursive: true });
-    for (const name of ['gate.ts', 'order.ts']) writeFileSync(path.join(gates, name), readFileSync(path.join(repoRoot, 'test', 'gates', name)));
+    for (const name of ['gate.ts', 'order.ts'])
+      writeFileSync(path.join(gates, name), readFileSync(path.join(repoRoot, 'test', 'gates', name)));
     writeFileSync(path.join(gates, 'phase.json'), '{ "landed": 2 }\n');
-    const file = (id: string, body: string): string => `import { gate } from './gate.ts';\ngate({ id: '${id}', phase: 2, tier: 'ci', needs: [], historicalAfter: 2, async run() { ${body} } });\n`;
+    const file = (id: string, body: string): string =>
+      `import { gate } from './gate.ts';\ngate({ id: '${id}', phase: 2, tier: 'ci', needs: [], historicalAfter: 2, async run() { ${body} } });\n`;
     writeFileSync(path.join(gates, 'g2.failing.test.ts'), file('g2.failing', "throw new Error('rows differ');"));
     writeFileSync(path.join(gates, 'g2.holding.test.ts'), file('g2.holding', 'return;'));
     const report = path.join(root, 'report.ndjson');
     const { NODE_TEST_CONTEXT: _context, ...outer } = process.env;
-    const child = spawnSync(process.execPath, ['--test', path.join(gates, 'g2.failing.test.ts'), path.join(gates, 'g2.holding.test.ts')], {
-      cwd: root,
-      env: { ...outer, ROMLIFT_GATE_TIER: 'ci', ROMLIFT_GATE_REPORT: report, ROMLIFT_BENCH_ROOT: root, ROMLIFT_POC: root },
-      encoding: 'utf8',
-    });
+    const child = spawnSync(
+      process.execPath,
+      ['--test', path.join(gates, 'g2.failing.test.ts'), path.join(gates, 'g2.holding.test.ts')],
+      {
+        cwd: root,
+        env: {
+          ...outer,
+          ROMLIFT_GATE_TIER: 'ci',
+          ROMLIFT_GATE_REPORT: report,
+          ROMLIFT_BENCH_ROOT: root,
+          ROMLIFT_POC: root,
+        },
+        encoding: 'utf8',
+      },
+    );
     assert.notEqual(child.status, 0, 'the failing historical gate fails the test run');
-    const lines = readFileSync(report, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { readonly id: string; readonly verdict: string; readonly detail: string });
+    const lines = readFileSync(report, 'utf8')
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l) as { readonly id: string; readonly verdict: string; readonly detail: string });
     const byId = new Map(lines.map((l) => [l.id, l]));
     assert.equal(byId.get('g2.failing')?.verdict, 'fail');
     assert.match(byId.get('g2.failing')?.detail ?? '', /rows differ/);

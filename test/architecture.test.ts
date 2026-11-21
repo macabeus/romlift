@@ -3,11 +3,11 @@
 // sort or stray hex formatting in src, sorted Map/Set iteration where §2 asks for it, one directory listing in the
 // shell, well-formed barrels, literal dynamic imports, and no inline disable comment), and
 // `tsc --noEmit -p tsconfig.json` passes.
+import { ESLint } from 'eslint';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { ESLint } from 'eslint';
 import ts from 'typescript';
 
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)));
@@ -29,7 +29,12 @@ test('the repository typechecks', { timeout: 120_000 }, () => {
 
 test('the repository follows every architecture rule (eslint.config.js)', { timeout: 600_000 }, async () => {
   const results = await new ESLint({ cwd: root }).lintFiles(['.']);
-  const lines = results.flatMap((r) => r.messages.map((m) => `${path.relative(root, r.filePath)}:${m.line} [${m.ruleId ?? 'eslint'}] ${m.message}`));
+  const lines = results.flatMap((r) =>
+    r.messages.map((m) => `${path.relative(root, r.filePath)}:${m.line} [${m.ruleId ?? 'eslint'}] ${m.message}`),
+  );
   assert.deepEqual(lines, []);
-  assert.ok(results.length > 400, `ESLint checked ${results.length} files; eslint.config.js no longer reaches the repository`);
+  assert.ok(
+    results.length > 400,
+    `ESLint checked ${results.length} files; eslint.config.js no longer reaches the repository`,
+  );
 });

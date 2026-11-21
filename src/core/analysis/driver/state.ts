@@ -35,9 +35,9 @@ import { reuseState } from './reuse.ts';
 import type { ReuseState } from './reuse.ts';
 import { resolveRules } from './rules.ts';
 import type { ResolvedRules } from './rules.ts';
+import { dataOverrideSpans, overrideSeeds, wellFormedSeeds } from './seeds.ts';
 import { read } from './settle.ts';
 import { valid, whyInvalid } from './validity.ts';
-import { dataOverrideSpans, overrideSeeds, wellFormedSeeds } from './seeds.ts';
 import { makeView } from './view.ts';
 
 /** An accepted function: its current reading and how it was accepted. */
@@ -153,19 +153,29 @@ export function isListedBoundary(s: Pick<DriverState, 'listed'>, a: Addr): boole
 /** Records that a function starts at `a` in isFunction's index (accepted or listed entries only). */
 export function markEntry(s: Pick<DriverState, 'rom' | 'claims' | 'entryBits'>, a: Addr): void {
   const k = a - s.rom.base;
-  if (k >= 0 && k < s.claims.length && Number.isInteger(k)) s.entryBits[k >>> 3] = (s.entryBits[k >>> 3] ?? 0) | (1 << (k & 7));
+  if (k >= 0 && k < s.claims.length && Number.isInteger(k))
+    s.entryBits[k >>> 3] = (s.entryBits[k >>> 3] ?? 0) | (1 << (k & 7));
 }
 
 /** A fresh driver state for one run. */
-export function createDriver(rom: Rom, profile: CompilerProfile, given: AnalysisOptions, tuning: AnalysisTuning, registry: RuleRegistry, sink?: TrailSink): DriverState {
+export function createDriver(
+  rom: Rom,
+  profile: CompilerProfile,
+  given: AnalysisOptions,
+  tuning: AnalysisTuning,
+  registry: RuleRegistry,
+  sink?: TrailSink,
+): DriverState {
   const rules = resolveRules(profile, registry, tuning);
   // A malformed seed never reaches a rule or the result's options (seeds.ts).
   const checked = wellFormedSeeds(rom, given.seeds);
-  const options: AnalysisOptions = checked.seeds.length === given.seeds.length ? given : { ...given, seeds: checked.seeds };
+  const options: AnalysisOptions =
+    checked.seeds.length === given.seeds.length ? given : { ...given, seeds: checked.seeds };
   const listed = listedSeeds(options);
   let state: DriverState | undefined;
   const get = (): DriverState => {
-    if (state === undefined) throw new RomliftInvariantError('the analysis view was used before the driver state was built');
+    if (state === undefined)
+      throw new RomliftInvariantError('the analysis view was used before the driver state was built');
     return state;
   };
   const view = makeView(get);
@@ -186,7 +196,9 @@ export function createDriver(rom: Rom, profile: CompilerProfile, given: Analysis
     claims,
     funcs: new Map(),
     entryBits: new Uint8Array((rom.bytes.length + 7) >>> 3),
-    ...(tuning.cache === 'epoch-reuse' && options.trail === 'off' ? { reuse: reuseState(rom.base, rom.bytes.length) } : {}),
+    ...(tuning.cache === 'epoch-reuse' && options.trail === 'off'
+      ? { reuse: reuseState(rom.base, rom.bytes.length) }
+      : {}),
     order: [],
     settled: new Map(),
     held: 0,
@@ -214,9 +226,13 @@ export function createDriver(rom: Rom, profile: CompilerProfile, given: Analysis
       whyInvalid: (entry) => whyInvalid(get(), entry),
     },
     view,
-    walkEnv: { view, policies: rules.walk, extentEnd: (shape) => rules.extentEnd(shape, profile), trace: sink !== undefined && options.trail !== 'off' },
+    walkEnv: {
+      view,
+      policies: rules.walk,
+      extentEnd: (shape) => rules.extentEnd(shape, profile),
+      trace: sink !== undefined && options.trail !== 'off',
+    },
   };
   for (const entry of state.listedOrder) if (isListedBoundary(state, entry)) markEntry(state, entry);
   return state;
 }
-

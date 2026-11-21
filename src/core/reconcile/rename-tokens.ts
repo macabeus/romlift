@@ -31,7 +31,9 @@ export function identifierTokens(text: string, name: string): readonly CToken[] 
   const out: CToken[] = [];
   for (const token of tokenizeC(text)) {
     if (token.kind === 'identifier' && token.text === name) out.push(token);
-    else if (token.kind === 'preprocessor') for (const inner of directiveTokens(token)) if (inner.kind === 'identifier' && inner.text === name) out.push(inner);
+    else if (token.kind === 'preprocessor')
+      for (const inner of directiveTokens(token))
+        if (inner.kind === 'identifier' && inner.text === name) out.push(inner);
   }
   return out;
 }
@@ -43,5 +45,10 @@ export function identifierTokens(text: string, name: string): readonly CToken[] 
  */
 export function renameIdentifiers(text: string, from: string, to: string): readonly TextEdit[] {
   if (from === to || from === '') return [];
-  return identifierTokens(text, from).map((t) => ({ start: t.start, end: t.end, text: to, reason: 'rename-identifier' }));
+  return identifierTokens(text, from).map((t) => ({
+    start: t.start,
+    end: t.end,
+    text: to,
+    reason: 'rename-identifier',
+  }));
 }

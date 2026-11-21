@@ -22,8 +22,8 @@
 //   name the bench gives a change.
 //   For a ROM the owner kept as a benchmark row (baseline-rows-verdict.ts BENCHMARK_ROWS: tmc, D61 d) it
 //   also reads tp, elfFunctions, recall and misses[]/falseEntries[] ({addr, listed, category}).
-import { baselineRowsVerdict, staleBenchmarkRows, type BaselineRowsInput } from './baseline-rows-verdict.ts';
-import { gate, noPocReference, type ExecResult } from './gate.ts';
+import { type BaselineRowsInput, baselineRowsVerdict, staleBenchmarkRows } from './baseline-rows-verdict.ts';
+import { type ExecResult, gate, noPocReference } from './gate.ts';
 
 interface BenchRun {
   readonly schema: string;
@@ -45,7 +45,12 @@ gate({
     if (run.code !== 0) throw new Error(`bench run --json exited ${run.code}:\n${tail(run)}`);
     const result = cx.lastJson<BenchRun>(run.stdout);
     if (result.schema !== 'romlift/bench-run@1') throw new Error(`bench run printed schema '${String(result.schema)}'`);
-    const problems: string[] = [...staleBenchmarkRows(cx.datasets.map((d) => d.name), result.roms)];
+    const problems: string[] = [
+      ...staleBenchmarkRows(
+        cx.datasets.map((d) => d.name),
+        result.roms,
+      ),
+    ];
     const notes: string[] = [];
     for (const dataset of cx.datasets) {
       const rom = result.roms.find((r) => r.name === dataset.name);

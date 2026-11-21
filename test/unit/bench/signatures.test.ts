@@ -8,26 +8,29 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-
 import type { ElfSymbol, MemberId, Proposal, SignatureFile, SignaturePlacement, SignatureSpec } from 'romlift';
 import { buildSignatures, sha1Of, sha256Of, writeSignatureFile } from 'romlift/node';
 
 import { ROMLIFT_RUNNER } from '../../../bench/src/analysis-run.ts';
-import { main, type BenchIo } from '../../../bench/src/cli.ts';
+import { type BenchIo, main } from '../../../bench/src/cli.ts';
 import type { BenchContext } from '../../../bench/src/context.ts';
 import { BenchError } from '../../../bench/src/files.ts';
 import { assertCountsOnly } from '../../../bench/src/seal.ts';
 import {
   BENCH_SIGNATURES_LOO_SCHEMA,
   BENCH_SIGNATURES_SCHEMA,
+  type BenchSignaturesLooReport,
+  type BenchSignaturesReport,
+  type JudgeInput,
+  SIGNATURES_BUILD_LOOP,
   benchSignatures,
   benchSignaturesLoo,
   classifyTable,
+  counterparts,
   elfIndex,
   isMappingSymbol,
   judgeSignatures,
   libraryPlacements,
-  counterparts,
   looCounts,
   looPairs,
   memberSymbol,
@@ -37,12 +40,8 @@ import {
   sealedSignatures,
   sharedMembers,
   signaturesDigest,
-  SIGNATURES_BUILD_LOOP,
   sizeAgrees,
   withoutReference,
-  type BenchSignaturesLooReport,
-  type BenchSignaturesReport,
-  type JudgeInput,
 } from '../../../bench/src/signatures.ts';
 import { signatureFile } from '../../helpers/signatures.ts';
 import { dataset, withTempDir } from './fixtures.ts';
@@ -50,25 +49,64 @@ import { dataset, withTempDir } from './fixtures.ts';
 const ROM_SIZE = 0x1000;
 
 function sym(name: string, addr: number, size: number, type: ElfSymbol['type'] = 'func'): ElfSymbol {
-  return { name, value: type === 'func' ? addr | 1 : addr, addr, size, type, bind: 'global', thumb: type === 'func', sectionIndex: 1 };
+  return {
+    name,
+    value: type === 'func' ? addr | 1 : addr,
+    addr,
+    size,
+    type,
+    bind: 'global',
+    thumb: type === 'func',
+    sectionIndex: 1,
+  };
 }
 
 function placement(member: MemberId, addr: number, overrides: Partial<SignaturePlacement> = {}): SignaturePlacement {
-  return { library: 'lib', version: '1', member, name: memberSymbol(member), kind: 'function', addr, size: 8, mode: 'thumb', rule: 'sig.unique-fit', ...overrides };
+  return {
+    library: 'lib',
+    version: '1',
+    member,
+    name: memberSymbol(member),
+    kind: 'function',
+    addr,
+    size: 8,
+    mode: 'thumb',
+    rule: 'sig.unique-fit',
+    ...overrides,
+  };
 }
 
 function table(member: MemberId, addr: number, size: number): SignaturePlacement {
-  return { library: 'lib', version: '1', member, name: memberSymbol(member), kind: 'table', addr, size, rule: 'sig.unique-fit' };
+  return {
+    library: 'lib',
+    version: '1',
+    member,
+    name: memberSymbol(member),
+    kind: 'table',
+    addr,
+    size,
+    rule: 'sig.unique-fit',
+  };
 }
 
-const fnProposal = (addr: number, name: string, size?: number): Proposal => ({ kind: 'function', addr, mode: 'thumb', name, ...(size === undefined ? {} : { size }), source: { kind: 'signature', library: 'lib', version: '1', rule: 'sig.unique-fit' } });
+const fnProposal = (addr: number, name: string, size?: number): Proposal => ({
+  kind: 'function',
+  addr,
+  mode: 'thumb',
+  name,
+  ...(size === undefined ? {} : { size }),
+  source: { kind: 'signature', library: 'lib', version: '1', rule: 'sig.unique-fit' },
+});
 
 /** A signature file naming `dataset` as the reference of lib@1. */
 function referenceFile(datasetName: string): SignatureFile {
   const file = signatureFile('lib', { id: '1', members: [] });
   const v = file.versions[0];
   if (v === undefined) throw new Error('no version');
-  return { ...file, versions: [{ ...v, references: [{ dataset: datasetName, commit: 'c', romSha1: '0'.repeat(40) }] }] };
+  return {
+    ...file,
+    versions: [{ ...v, references: [{ dataset: datasetName, commit: 'c', romSha1: '0'.repeat(40) }] }],
+  };
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -98,7 +136,10 @@ test('elfIndex keeps the FUNC, OBJECT and NOTYPE symbols inside the ROM, the lar
 });
 
 test('a FUNC whose size runs over the start of another FUNC is spanning: its size is no extent', () => {
-  const elf = elfIndex([sym('whole_file', 0x0800_0100, 0x722), sym('next', 0x0800_010c, 0x20), sym('last', 0x0800_0900, 4)], ROM_SIZE);
+  const elf = elfIndex(
+    [sym('whole_file', 0x0800_0100, 0x722), sym('next', 0x0800_010c, 0x20), sym('last', 0x0800_0900, 4)],
+    ROM_SIZE,
+  );
   assert.deepEqual([...elf.spanning], [0x0800_0100]);
 });
 
@@ -112,7 +153,15 @@ test('sizeAgrees allows the padding to the next 4-byte boundary on either side, 
 });
 
 test('classifyTable: an OBJECT of its size, a label where no OBJECT starts, else wrong', () => {
-  const elf = elfIndex([sym('gTable', 0x0800_0200, 16, 'object'), sym('gUntyped', 0x0800_0300, 0, 'notype'), sym('$d', 0x0800_0400, 0, 'notype'), sym('Fn', 0x0800_0500, 32)], ROM_SIZE);
+  const elf = elfIndex(
+    [
+      sym('gTable', 0x0800_0200, 16, 'object'),
+      sym('gUntyped', 0x0800_0300, 0, 'notype'),
+      sym('$d', 0x0800_0400, 0, 'notype'),
+      sym('Fn', 0x0800_0500, 32),
+    ],
+    ROM_SIZE,
+  );
   assert.equal(classifyTable(elf, 0x0800_0200, 16), 'object-of-size');
   assert.equal(classifyTable(elf, 0x0800_0200, 12), 'wrong');
   assert.equal(classifyTable(elf, 0x0800_0300, 12), 'label');
@@ -123,7 +172,16 @@ test('classifyTable: an OBJECT of its size, a label where no OBJECT starts, else
 
 test('judgeSignatures counts each classifier and names every placement, table, size and name that fails', () => {
   const elf = elfIndex(
-    [sym('Good', 0x0800_0100, 8), sym('Sized', 0x0800_0110, 26), sym('Whole', 0x0800_0140, 0x400), sym('Inner', 0x0800_0150, 8), sym('Unsized', 0x0800_0600, 0), sym('gTable', 0x0800_0700, 16, 'object'), sym('label', 0x0800_0720, 0, 'notype'), sym('Theirs', 0x0800_0800, 8)],
+    [
+      sym('Good', 0x0800_0100, 8),
+      sym('Sized', 0x0800_0110, 26),
+      sym('Whole', 0x0800_0140, 0x400),
+      sym('Inner', 0x0800_0150, 8),
+      sym('Unsized', 0x0800_0600, 0),
+      sym('gTable', 0x0800_0700, 16, 'object'),
+      sym('label', 0x0800_0720, 0, 'notype'),
+      sym('Theirs', 0x0800_0800, 8),
+    ],
     ROM_SIZE,
   );
   const input: JudgeInput = {
@@ -143,7 +201,14 @@ test('judgeSignatures counts each classifier and names every placement, table, s
       table('gWrong@d.o', 0x0800_0740, 8),
       placement('Mine@a.o', 0x0800_0800, { name: 'Reviewed' }),
     ],
-    proposals: [fnProposal(0x0800_0100, 'Good'), fnProposal(0x0800_0110, 'Sized', 28), fnProposal(0x0800_0140, 'Whole', 16), fnProposal(0x0800_0600, 'Unsized', 8), fnProposal(0x0800_0130, 'Second', 4), fnProposal(0x0800_0800, 'Reviewed', 12)],
+    proposals: [
+      fnProposal(0x0800_0100, 'Good'),
+      fnProposal(0x0800_0110, 'Sized', 28),
+      fnProposal(0x0800_0140, 'Whole', 16),
+      fnProposal(0x0800_0600, 'Unsized', 8),
+      fnProposal(0x0800_0130, 'Second', 4),
+      fnProposal(0x0800_0800, 'Reviewed', 12),
+    ],
   };
   const { member, problems } = judgeSignatures(input);
   assert.deepEqual(member.placements, { total: 7, atElfFunc: 5, atUntyped: 1, wrong: 1 });
@@ -153,7 +218,11 @@ test('judgeSignatures counts each classifier and names every placement, table, s
   // Every placement is of lib@1, which names tiny as a reference: symbols compared; Mine is not the ELF's Theirs.
   assert.equal(member.names.reference, true);
   assert.equal(member.names.total, 10);
-  assert.equal(member.names.differ, 5, 'Second, Nowhere, gWrong (nothing there), gLabel (label there) and Mine (Theirs there)');
+  assert.equal(
+    member.names.differ,
+    5,
+    'Second, Nowhere, gWrong (nothing there), gLabel (label there) and Mine (Theirs there)',
+  );
   assert.equal(member.names.equal, 5);
   assert.equal(member.names.reviewed, 1);
   assert.deepEqual(member.libraries, [{ library: 'lib', version: '1', functions: 7, objects: 3 }]);
@@ -165,7 +234,11 @@ test('judgeSignatures counts each classifier and names every placement, table, s
       "size 0x08000800 Reviewed: proposed 12, the ELF's 8",
     ],
   );
-  assert.ok(problems.includes("name 0x08000800 Reviewed (Mine@a.o, lib@1, sig.unique-fit): this reference's symbol there is Theirs, not Mine"));
+  assert.ok(
+    problems.includes(
+      "name 0x08000800 Reviewed (Mine@a.o, lib@1, sig.unique-fit): this reference's symbol there is Theirs, not Mine",
+    ),
+  );
 });
 
 test('names are compared only for the versions the ROM is a reference of', () => {
@@ -179,7 +252,12 @@ test('names are compared only for the versions the ROM is a reference of', () =>
 });
 
 test('libraryPlacements counts functions and tables per library version, sorted by code unit', () => {
-  const ps = [placement('a@x.o', 1, { library: 'm4a', version: '2004' }), { ...table('t@x.o', 2, 4), library: 'm4a', version: '2004' }, placement('b@x.o', 3, { library: 'Lib', version: '1' }), placement('c@x.o', 4, { library: 'm4a', version: '2001' })];
+  const ps = [
+    placement('a@x.o', 1, { library: 'm4a', version: '2004' }),
+    { ...table('t@x.o', 2, 4), library: 'm4a', version: '2004' },
+    placement('b@x.o', 3, { library: 'Lib', version: '1' }),
+    placement('c@x.o', 4, { library: 'm4a', version: '2001' }),
+  ];
   assert.deepEqual(libraryPlacements(ps), [
     { library: 'Lib', version: '1', functions: 1, objects: 0 },
     { library: 'm4a', version: '2001', functions: 1, objects: 0 },
@@ -207,14 +285,22 @@ test('a sealed entry holds counts only: the classifiers of §8.4 decide untyped,
     ],
     untypedClass: (addr) => (addr === 0x0800_0120 ? 'inside-elf-function' : 'other'),
   });
-  assert.deepEqual(entry, { name: 'sealed', placements: { total: 3, atElfFunc: 1, untyped: 1, wrong: 1 }, tables: { total: 2, object: 1, label: 0, wrong: 1 } });
+  assert.deepEqual(entry, {
+    name: 'sealed',
+    placements: { total: 3, atElfFunc: 1, untyped: 1, wrong: 1 },
+    tables: { total: 2, object: 1, label: 0, wrong: 1 },
+  });
   assertCountsOnly(entry);
   const { name: _name, ...numbers } = entry;
   assert.doesNotMatch(JSON.stringify(numbers), LEAK);
 });
 
-test('mutation: a sealed entry that leaks an address or a name fails the guard; the gate\'s pattern catches a spelled one', () => {
-  const entry = { name: 'sealed', placements: { total: 1, atElfFunc: 1, untyped: 0, wrong: 0 }, tables: { total: 0, object: 0, label: 0, wrong: 0 } };
+test("mutation: a sealed entry that leaks an address or a name fails the guard; the gate's pattern catches a spelled one", () => {
+  const entry = {
+    name: 'sealed',
+    placements: { total: 1, atElfFunc: 1, untyped: 0, wrong: 0 },
+    tables: { total: 0, object: 0, label: 0, wrong: 0 },
+  };
   assertCountsOnly(entry);
   const leaks: readonly unknown[] = [
     { ...entry, placements: { ...entry.placements, firstWrong: 0x0800_0300 } },
@@ -233,10 +319,23 @@ test('mutation: a sealed entry that leaks an address or a name fails the guard; 
 // Leave one reference out.
 
 test('looCounts: added, moved and the shared members the rebuilt version does not place', () => {
-  const full = [placement('A@x.o', 0x100), placement('B@x.o', 0x200), placement('C@x.o', 0x300), placement('Own@x.o', 0x400)];
-  assert.deepEqual(looCounts(full, full.slice(0, 3), new Set<MemberId>(['A@x.o', 'B@x.o', 'C@x.o'])), { added: 0, moved: 0, missingShared: 0 }, 'only R-own members missing');
+  const full = [
+    placement('A@x.o', 0x100),
+    placement('B@x.o', 0x200),
+    placement('C@x.o', 0x300),
+    placement('Own@x.o', 0x400),
+  ];
+  assert.deepEqual(
+    looCounts(full, full.slice(0, 3), new Set<MemberId>(['A@x.o', 'B@x.o', 'C@x.o'])),
+    { added: 0, moved: 0, missingShared: 0 },
+    'only R-own members missing',
+  );
   const loo = [placement('A@x.o', 0x100), placement('B@x.o', 0x210), placement('New@y.o', 0x500)];
-  assert.deepEqual(looCounts(full, loo, new Set<MemberId>(['A@x.o', 'B@x.o', 'C@x.o'])), { added: 1, moved: 1, missingShared: 1 });
+  assert.deepEqual(looCounts(full, loo, new Set<MemberId>(['A@x.o', 'B@x.o', 'C@x.o'])), {
+    added: 1,
+    moved: 1,
+    missingShared: 1,
+  });
   assert.deepEqual(looCounts([], [], new Set<MemberId>(['A@x.o'])), { added: 0, moved: 0, missingShared: 1 });
 });
 
@@ -245,10 +344,22 @@ test('looCounts: a renamed member is its counterpart, and another member at an a
   const shared = new Set<MemberId>(['A@x.o', 'B@x.o']);
   // B is linked by R and another reference, under R's id; without R it carries the other reference's id.
   const loo = [placement('A@x.o', 0x100), placement('B@y.o', 0x200), placement('Same@z.o', 0x300)];
-  assert.deepEqual(looCounts(full, loo, shared), { added: 0, moved: 0, missingShared: 1 }, 'without counterparts B is missing');
-  assert.deepEqual(looCounts(full, loo, shared, new Map<MemberId, MemberId>([['B@y.o', 'B@x.o']])), { added: 0, moved: 0, missingShared: 0 });
+  assert.deepEqual(
+    looCounts(full, loo, shared),
+    { added: 0, moved: 0, missingShared: 1 },
+    'without counterparts B is missing',
+  );
+  assert.deepEqual(looCounts(full, loo, shared, new Map<MemberId, MemberId>([['B@y.o', 'B@x.o']])), {
+    added: 0,
+    moved: 0,
+    missingShared: 0,
+  });
   const movedLoo = [placement('A@x.o', 0x100), placement('B@y.o', 0x240)];
-  assert.deepEqual(looCounts(full, movedLoo, shared, new Map<MemberId, MemberId>([['B@y.o', 'B@x.o']])), { added: 0, moved: 1, missingShared: 0 });
+  assert.deepEqual(looCounts(full, movedLoo, shared, new Map<MemberId, MemberId>([['B@y.o', 'B@x.o']])), {
+    added: 0,
+    moved: 1,
+    missingShared: 0,
+  });
 });
 
 test("counterparts: the full build's id of the member another reference links at the same address", () => {
@@ -256,19 +367,43 @@ test("counterparts: the full build's id of the member another reference links at
     id: '1',
     members: [],
     linkOrder: [
-      { reference: 'r1', members: [{ name: 'A', addr: 1 }, { name: 'B', addr: 2 }] },
-      { reference: 'r2', members: [{ name: 'A', addr: 5 }, { name: 'C', addr: 6 }] },
+      {
+        reference: 'r1',
+        members: [
+          { name: 'A', addr: 1 },
+          { name: 'B', addr: 2 },
+        ],
+      },
+      {
+        reference: 'r2',
+        members: [
+          { name: 'A', addr: 5 },
+          { name: 'C', addr: 6 },
+        ],
+      },
     ],
   });
   const rebuiltFile = signatureFile('lib', {
     id: '1',
     members: [],
-    linkOrder: [{ reference: 'r2', members: [{ name: 'A', addr: 5, object: 'other' }, { name: 'C', addr: 6 }, { name: 'D', addr: 7 }] }],
+    linkOrder: [
+      {
+        reference: 'r2',
+        members: [
+          { name: 'A', addr: 5, object: 'other' },
+          { name: 'C', addr: 6 },
+          { name: 'D', addr: 7 },
+        ],
+      },
+    ],
   });
   const full = fullFile.versions[0];
   const rebuilt = rebuiltFile.versions[0];
   assert.ok(full !== undefined && rebuilt !== undefined);
-  assert.deepEqual([...counterparts(full, rebuilt)].sort(), [['A@other.o', 'A@lib.o'], ['C@lib.o', 'C@lib.o']]);
+  assert.deepEqual([...counterparts(full, rebuilt)].sort(), [
+    ['A@other.o', 'A@lib.o'],
+    ['C@lib.o', 'C@lib.o'],
+  ]);
 });
 
 test("sharedMembers is R's link order intersected with the other references' link orders", () => {
@@ -276,8 +411,21 @@ test("sharedMembers is R's link order intersected with the other references' lin
     id: '1',
     members: [],
     linkOrder: [
-      { reference: 'r1', members: [{ name: 'A', addr: 1 }, { name: 'B', addr: 2 }, { name: 'Own', addr: 3 }] },
-      { reference: 'r2', members: [{ name: 'A', addr: 5 }, { name: 'C', addr: 6 }] },
+      {
+        reference: 'r1',
+        members: [
+          { name: 'A', addr: 1 },
+          { name: 'B', addr: 2 },
+          { name: 'Own', addr: 3 },
+        ],
+      },
+      {
+        reference: 'r2',
+        members: [
+          { name: 'A', addr: 5 },
+          { name: 'C', addr: 6 },
+        ],
+      },
       { reference: 'r3', members: [{ name: 'B', addr: 7 }] },
     ],
   });
@@ -292,14 +440,27 @@ test('withoutReference, looPairs and replaceLibrary', () => {
   const spec: SignatureSpec = {
     library: 'lib',
     versions: [
-      { id: '1', idNote: '', references: [{ dataset: 'a', objects: ['*.o'] }, { dataset: 'b', objects: ['*.o'] }] },
+      {
+        id: '1',
+        idNote: '',
+        references: [
+          { dataset: 'a', objects: ['*.o'] },
+          { dataset: 'b', objects: ['*.o'] },
+        ],
+      },
       { id: '2', idNote: '', references: [{ dataset: 'a', objects: ['*.o'] }] },
     ],
     reviewedNames: {},
   };
-  assert.deepEqual(looPairs(spec), [{ version: '1', reference: 'a' }, { version: '1', reference: 'b' }]);
+  assert.deepEqual(looPairs(spec), [
+    { version: '1', reference: 'a' },
+    { version: '1', reference: 'b' },
+  ]);
   const less = withoutReference(spec, '1', 'a');
-  assert.deepEqual(less.versions.map((v) => v.references.map((r) => r.dataset)), [['b'], ['a']]);
+  assert.deepEqual(
+    less.versions.map((v) => v.references.map((r) => r.dataset)),
+    [['b'], ['a']],
+  );
   assert.deepEqual(spec.versions[0]?.references.length, 2, 'the spec itself is untouched');
   const a = signatureFile('a', { id: '1', members: [] });
   const b = signatureFile('b', { id: '1', members: [] });
@@ -346,7 +507,10 @@ async function libraryTier(root: string, options: { readonly build?: boolean } =
   await put('sealedgame', 'library-game', { heldout: true, family: 'other' });
   await writeFile(join(repoRoot, 'signatures', 'specs', 'libfix.json'), await readFile(FIXTURE_SPEC, 'utf8'));
   if (options.build !== false) {
-    const built = await buildSignatures({ specPath: join(repoRoot, 'signatures', 'specs', 'libfix.json') }, { benchRoot: SYNTHETIC, builtWith: 'test' });
+    const built = await buildSignatures(
+      { specPath: join(repoRoot, 'signatures', 'specs', 'libfix.json') },
+      { benchRoot: SYNTHETIC, builtWith: 'test' },
+    );
     assert.ok(built.ok, built.ok ? '' : built.diagnostic.message);
     const written = await writeSignatureFile(join(repoRoot, 'signatures'), built.value);
     assert.ok(written.ok);
@@ -357,7 +521,10 @@ async function libraryTier(root: string, options: { readonly build?: boolean } =
 test('bench signatures refuses a tier with no built file, naming the build loop', async () => {
   await withTempDir('romlift-bench-sig-', async (root) => {
     const cx = await libraryTier(root, { build: false });
-    await assert.rejects(readBuiltSignatures(cx), (e: unknown) => e instanceof BenchError && e.message.includes(SIGNATURES_BUILD_LOOP));
+    await assert.rejects(
+      readBuiltSignatures(cx),
+      (e: unknown) => e instanceof BenchError && e.message.includes(SIGNATURES_BUILD_LOOP),
+    );
     const io = capture();
     assert.equal(await main(['signatures', '--json'], cx, io, { runner: ROMLIFT_RUNNER, now: () => '' }), 1);
     assert.match(io.errors.join('\n'), /no built signature file/);
@@ -368,10 +535,17 @@ test('bench signatures --json: the references judged with their own symbols, the
   await withTempDir('romlift-bench-sig-', async (root) => {
     const cx = await libraryTier(root);
     const io = capture();
-    assert.equal(await main(['signatures', '--json'], cx, io, { runner: ROMLIFT_RUNNER, now: () => '' }), 0, io.errors.join('\n'));
+    assert.equal(
+      await main(['signatures', '--json'], cx, io, { runner: ROMLIFT_RUNNER, now: () => '' }),
+      0,
+      io.errors.join('\n'),
+    );
     const report = JSON.parse(io.lines.at(-1) ?? '') as BenchSignaturesReport;
     assert.equal(report.schema, BENCH_SIGNATURES_SCHEMA);
-    assert.deepEqual(report.roms.map((r) => r.name), ['game', 'library', 'library-ref2']);
+    assert.deepEqual(
+      report.roms.map((r) => r.name),
+      ['game', 'library', 'library-ref2'],
+    );
     for (const rom of report.roms) {
       assert.equal(rom.placements.wrong, 0, `${rom.name}: ${io.lines.join('\n')}`);
       assert.equal(rom.placements.atElfFunc, rom.placements.total, rom.name);
@@ -380,13 +554,23 @@ test('bench signatures --json: the references judged with their own symbols, the
     }
     const game = report.roms.find((r) => r.name === 'game');
     assert.deepEqual(game?.libraries, [{ library: 'libfix', version: '1.0', functions: 13, objects: 1 }]);
-    assert.deepEqual(game?.names, { reference: false, total: 0, equal: 0, differ: 0, reviewed: 1 }, 'Halt is the reviewed name of FixSwiHalt');
+    assert.deepEqual(
+      game?.names,
+      { reference: false, total: 0, equal: 0, differ: 0, reviewed: 1 },
+      'Halt is the reviewed name of FixSwiHalt',
+    );
     const library = report.roms.find((r) => r.name === 'library');
     assert.equal(library?.names.reference, true);
     assert.equal(library?.names.differ, 0);
     assert.equal(library?.names.equal, library?.names.total);
     assert.ok((library?.names.total ?? 0) > 0);
-    assert.deepEqual(report.sealed, [{ name: 'sealedgame', placements: { total: 13, atElfFunc: 13, untyped: 0, wrong: 0 }, tables: { total: 1, object: game?.tables.objectOfSize ?? -1, label: game?.tables.label ?? -1, wrong: 0 } }]);
+    assert.deepEqual(report.sealed, [
+      {
+        name: 'sealedgame',
+        placements: { total: 13, atElfFunc: 13, untyped: 0, wrong: 0 },
+        tables: { total: 1, object: game?.tables.objectOfSize ?? -1, label: game?.tables.label ?? -1, wrong: 0 },
+      },
+    ]);
     // The sealed ROM's lines print counts only.
     const sealedLines = io.lines.filter((l) => l.startsWith('sealedgame'));
     assert.equal(sealedLines.length, 1);
@@ -403,7 +587,10 @@ test('bench signatures --only <sealed> runs that dataset alone and reports its c
     const cx = await libraryTier(root);
     const report = await benchSignatures(cx, { only: 'sealedgame', runner: ROMLIFT_RUNNER });
     assert.deepEqual(report.roms, []);
-    assert.deepEqual(report.sealed.map((s) => s.name), ['sealedgame']);
+    assert.deepEqual(
+      report.sealed.map((s) => s.name),
+      ['sealedgame'],
+    );
     await assert.rejects(benchSignatures(cx, { only: 'nosuch', runner: ROMLIFT_RUNNER }), /no dataset named nosuch/);
   });
 });
@@ -412,7 +599,11 @@ test('bench signatures --loo: every reference of the two-reference version left 
   await withTempDir('romlift-bench-sig-', async (root) => {
     const cx = await libraryTier(root);
     const io = capture();
-    assert.equal(await main(['signatures', '--loo', '--json'], cx, io, { runner: ROMLIFT_RUNNER, now: () => '' }), 0, io.errors.join('\n'));
+    assert.equal(
+      await main(['signatures', '--loo', '--json'], cx, io, { runner: ROMLIFT_RUNNER, now: () => '' }),
+      0,
+      io.errors.join('\n'),
+    );
     const report = JSON.parse(io.lines.at(-1) ?? '') as BenchSignaturesLooReport;
     assert.equal(report.schema, BENCH_SIGNATURES_LOO_SCHEMA);
     assert.deepEqual(
@@ -423,9 +614,20 @@ test('bench signatures --loo: every reference of the two-reference version left 
       ],
     );
     // The fixture's two references link the same objects in different orders: leaving either out changes nothing they share.
-    for (const r of report.runs) assert.deepEqual({ added: r.added, moved: r.moved, missingShared: r.missingShared }, { added: 0, moved: 0, missingShared: 0 }, r.reference);
-    assert.deepEqual(io.lines.slice(0, 2), ['libfix@1.0 without library: 0 added, 0 moved, 0 shared members not placed', 'libfix@1.0 without library-ref2: 0 added, 0 moved, 0 shared members not placed']);
+    for (const r of report.runs)
+      assert.deepEqual(
+        { added: r.added, moved: r.moved, missingShared: r.missingShared },
+        { added: 0, moved: 0, missingShared: 0 },
+        r.reference,
+      );
+    assert.deepEqual(io.lines.slice(0, 2), [
+      'libfix@1.0 without library: 0 added, 0 moved, 0 shared members not placed',
+      'libfix@1.0 without library-ref2: 0 added, 0 moved, 0 shared members not placed',
+    ]);
     const only = await benchSignaturesLoo(cx, { only: 'library-ref2', runner: ROMLIFT_RUNNER });
-    assert.deepEqual(only.runs.map((r) => r.reference), ['library-ref2']);
+    assert.deepEqual(
+      only.runs.map((r) => r.reference),
+      ['library-ref2'],
+    );
   });
 });

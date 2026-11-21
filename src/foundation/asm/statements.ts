@@ -55,9 +55,21 @@ export type Statement =
   | { readonly kind: 'mode'; readonly line: number; readonly mode: Mode }
   | { readonly kind: 'align'; readonly line: number; readonly power: number; readonly fill?: number }
   | { readonly kind: 'data'; readonly line: number; readonly width: 1 | 2 | 4; readonly values: readonly Expr[] }
-  | { readonly kind: 'inst'; readonly line: number; readonly directive: InstDirective; readonly width: 2 | 4; readonly word: number }
+  | {
+      readonly kind: 'inst';
+      readonly line: number;
+      readonly directive: InstDirective;
+      readonly width: 2 | 4;
+      readonly word: number;
+    }
   | { readonly kind: 'insn'; readonly line: number; readonly text: string }
-  | { readonly kind: 'incbin'; readonly line: number; readonly file: string; readonly offset: number; readonly length: number }
+  | {
+      readonly kind: 'incbin';
+      readonly line: number;
+      readonly file: string;
+      readonly offset: number;
+      readonly length: number;
+    }
   | { readonly kind: 'include'; readonly line: number; readonly path: string }
   | { readonly kind: 'symbol'; readonly line: number; readonly directive: string; readonly args: readonly string[] };
 
@@ -163,9 +175,19 @@ function stringArg(text: string): string | undefined {
   return STRING.exec(text)?.[1];
 }
 
-const DATA_WIDTHS: Readonly<Record<string, 1 | 2 | 4>> = { '.byte': 1, '.2byte': 2, '.hword': 2, '.4byte': 4, '.word': 4 };
+const DATA_WIDTHS: Readonly<Record<string, 1 | 2 | 4>> = {
+  '.byte': 1,
+  '.2byte': 2,
+  '.hword': 2,
+  '.4byte': 4,
+  '.word': 4,
+};
 const INST_WIDTHS: Readonly<Record<InstDirective, 2 | 4>> = { '.inst': 4, '.inst.n': 2, '.inst.w': 4 };
-const INST_LIMITS: Readonly<Record<InstDirective, number>> = { '.inst': 0xffff_ffff, '.inst.n': 0xffff, '.inst.w': 0xffff_ffff };
+const INST_LIMITS: Readonly<Record<InstDirective, number>> = {
+  '.inst': 0xffff_ffff,
+  '.inst.n': 0xffff,
+  '.inst.w': 0xffff_ffff,
+};
 
 function isInstDirective(d: string): d is InstDirective {
   return d === '.inst' || d === '.inst.n' || d === '.inst.w';
@@ -180,7 +202,9 @@ interface Reader {
   /** Whether `.syntax divided` is in force: no instruction or include is read until `.syntax unified`. */
   divided: boolean;
   /** A macro being defined, until its `.endm`. */
-  defining: { readonly name: string; readonly params: readonly string[]; readonly body: MacroLine[]; readonly line: number } | undefined;
+  defining:
+    | { readonly name: string; readonly params: readonly string[]; readonly body: MacroLine[]; readonly line: number }
+    | undefined;
 }
 
 /** Reads one directive (lower-cased name, argument text) at `line`. */
@@ -222,7 +246,8 @@ function readDirective(r: Reader, directive: string, rest: string, line: number,
     if (args.length === 0) return err(`\`${directive}\` needs a value`);
     for (const arg of args) {
       const value = parseNumber(arg);
-      if (value === undefined || value < 0 || value > INST_LIMITS[directive]) return err(`\`${directive}\` value \`${arg}\` is not a number that fits`);
+      if (value === undefined || value < 0 || value > INST_LIMITS[directive])
+        return err(`\`${directive}\` value \`${arg}\` is not a number that fits`);
       // `.inst.w 0xXXXXYYYY` stores halfword XXXX first; the decoder's word is first | second << 16.
       const word = directive === '.inst.w' ? ((value >>> 16) | ((value & 0xffff) << 16)) >>> 0 : value;
       push({ kind: 'inst', line, directive, width: INST_WIDTHS[directive], word });
@@ -252,7 +277,14 @@ function readDirective(r: Reader, directive: string, rest: string, line: number,
       const file = stringArg(args[0] ?? '');
       const offset = parseNumber(args[1] ?? '');
       const length = parseNumber(args[2] ?? '');
-      if (file === undefined || offset === undefined || length === undefined || offset < 0 || length < 0 || args.length !== 3) {
+      if (
+        file === undefined ||
+        offset === undefined ||
+        length === undefined ||
+        offset < 0 ||
+        length < 0 ||
+        args.length !== 3
+      ) {
         return err(`\`.incbin ${rest}\`: expected "file", offset, length`);
       }
       return push({ kind: 'incbin', line, file, offset, length });
@@ -266,7 +298,10 @@ function readDirective(r: Reader, directive: string, rest: string, line: number,
       return push({ kind: 'include', line, path });
     }
     case '.syntax':
-      if (rest !== 'unified' && rest !== 'divided') return err(`\`.syntax ${rest}\`: only \`.syntax unified\` and \`.syntax divided\` (agbcc's, after each INCLUDE_ASM include) are read`);
+      if (rest !== 'unified' && rest !== 'divided')
+        return err(
+          `\`.syntax ${rest}\`: only \`.syntax unified\` and \`.syntax divided\` (agbcc's, after each INCLUDE_ASM include) are read`,
+        );
       r.divided = rest === 'divided';
       return push({ kind: 'symbol', line, directive, args: [rest] });
     case '.text':
@@ -294,7 +329,12 @@ function readDirective(r: Reader, directive: string, rest: string, line: number,
     case '.size': {
       const [name, size] = args;
       const compact = size?.replace(/\s+/g, '');
-      if (args.length !== 2 || name === undefined || !NAME.test(name) || (compact !== `.-${name}` && parseNumber(size ?? '') === undefined)) {
+      if (
+        args.length !== 2 ||
+        name === undefined ||
+        !NAME.test(name) ||
+        (compact !== `.-${name}` && parseNumber(size ?? '') === undefined)
+      ) {
         return err(`\`.size ${rest}\`: expected name, .-name or a number`);
       }
       return push({ kind: 'symbol', line, directive, args: [name, compact === `.-${name}` ? compact : (size ?? '')] });
@@ -310,13 +350,25 @@ function readMacroFile(r: Reader, path: string, text: string, line: number, dept
     r.errors.push({ line, message: `"${path}" is included deeper than ${MAX_MACRO_DEPTH} (an include cycle?)` });
     return;
   }
-  const sub: Reader = { statements: [], errors: [], macros: r.macros, includes: r.includes, divided: false, defining: undefined };
+  const sub: Reader = {
+    statements: [],
+    errors: [],
+    macros: r.macros,
+    includes: r.includes,
+    divided: false,
+    defining: undefined,
+  };
   const lines = text.split('\n');
   for (let i = 0; i < lines.length; i++) readLine(sub, lines[i] ?? '', i + 1, depth + 1);
-  if (sub.defining !== undefined) sub.errors.push({ line: sub.defining.line, message: `macro \`${sub.defining.name}\` has no \`.endm\`` });
+  if (sub.defining !== undefined)
+    sub.errors.push({ line: sub.defining.line, message: `macro \`${sub.defining.name}\` has no \`.endm\`` });
   for (const e of sub.errors) r.errors.push({ line, message: `in "${path}" line ${e.line}: ${e.message}` });
   const first = sub.statements[0];
-  if (first !== undefined) r.errors.push({ line, message: `"${path}" holds macros and also statements (line ${first.line}); a macro file holds only macros` });
+  if (first !== undefined)
+    r.errors.push({
+      line,
+      message: `"${path}" holds macros and also statements (line ${first.line}); a macro file holds only macros`,
+    });
 }
 
 /** Substitutes the arguments of one invocation into a macro body line. */
@@ -365,7 +417,8 @@ function readLine(r: Reader, raw: string, line: number, depth: number): void {
     const code = stripComment(raw).trim();
     if (/^\.endm\b/i.test(code)) {
       // GNU as refuses a second definition (a macro file included twice, for one).
-      if (r.macros.has(defining.name)) r.errors.push({ line: defining.line, message: `macro \`${defining.name}\` is already defined` });
+      if (r.macros.has(defining.name))
+        r.errors.push({ line: defining.line, message: `macro \`${defining.name}\` is already defined` });
       else r.macros.set(defining.name, { params: defining.params, body: defining.body });
       r.defining = undefined;
     } else if (/^\.macro\b/i.test(code)) {
@@ -388,9 +441,17 @@ function readLine(r: Reader, raw: string, line: number, depth: number): void {
 
 /** Parses an assembly text of romlift's directive subset into statements and errors. */
 export function parseStatements(text: string, options: ParseOptions): ParsedStatements {
-  const r: Reader = { statements: [], errors: [], macros: new Map(), includes: options.includes, divided: false, defining: undefined };
+  const r: Reader = {
+    statements: [],
+    errors: [],
+    macros: new Map(),
+    includes: options.includes,
+    divided: false,
+    defining: undefined,
+  };
   const lines = text.split('\n');
   for (let i = 0; i < lines.length; i++) readLine(r, lines[i] ?? '', i + 1, 0);
-  if (r.defining !== undefined) r.errors.push({ line: r.defining.line, message: `macro \`${r.defining.name}\` has no \`.endm\`` });
+  if (r.defining !== undefined)
+    r.errors.push({ line: r.defining.line, message: `macro \`${r.defining.name}\` has no \`.endm\`` });
   return { statements: r.statements, errors: r.errors };
 }

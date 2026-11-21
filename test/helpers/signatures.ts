@@ -3,7 +3,13 @@
 // order of a reference laid out from given addresses, a ROM with the snippets placed (romWith), and the smallest
 // discover AnalysisResult the matcher and the proposals read (its functions' entries and extents).
 import type { AnalysisResult, FunctionFact } from '../../src/core/analysis/types.ts';
-import type { LibraryVersion, MemberId, SignatureFile, SignatureFunction, SignatureTable } from '../../src/core/signatures/schema.ts';
+import type {
+  LibraryVersion,
+  MemberId,
+  SignatureFile,
+  SignatureFunction,
+  SignatureTable,
+} from '../../src/core/signatures/schema.ts';
 import type { Addr, Mode } from '../../src/foundation/rom/span.ts';
 import { prngSequence } from './prng.ts';
 
@@ -68,7 +74,12 @@ function alignOf(spec: MemberSpec): number {
  * A reference's link order with the members laid out contiguously from `start`, each aligned as it would be linked
  * (Thumb 2, ARM and tables 4), `gaps[name]` extra bytes before a member.
  */
-export function contiguous(reference: string, members: readonly MemberSpec[], start: Addr = 0x0810_0000, gaps: Readonly<Record<string, number>> = {}): LinkOrderSpec {
+export function contiguous(
+  reference: string,
+  members: readonly MemberSpec[],
+  start: Addr = 0x0810_0000,
+  gaps: Readonly<Record<string, number>> = {},
+): LinkOrderSpec {
   let at = start;
   const out: { name: string; addr: Addr; object?: string }[] = [];
   for (const m of members) {
@@ -86,9 +97,22 @@ export function libraryVersion(spec: VersionSpec): LibraryVersion {
   const functions: SignatureFunction[] = [];
   const tables: SignatureTable[] = [];
   for (const m of spec.members) {
-    const common = { id: idOf(m.name, m.object), name: m.name, size: m.bytes.length, bytes: hexOf(m.bytes), mask: maskOf(m) };
+    const common = {
+      id: idOf(m.name, m.object),
+      name: m.name,
+      size: m.bytes.length,
+      bytes: hexOf(m.bytes),
+      mask: maskOf(m),
+    };
     if (m.kind === 'table') {
-      tables.push(m.names === undefined ? common : { ...common, names: m.names.map((n) => (n === null ? null : idOf(n, spec.members.find((x) => x.name === n)?.object))) });
+      tables.push(
+        m.names === undefined
+          ? common
+          : {
+              ...common,
+              names: m.names.map((n) => (n === null ? null : idOf(n, spec.members.find((x) => x.name === n)?.object))),
+            },
+      );
     } else functions.push({ ...common, mode: m.mode ?? 'thumb' });
   }
   const linkOrder = spec.linkOrder ?? [contiguous('ref', spec.members)];
@@ -96,7 +120,13 @@ export function libraryVersion(spec: VersionSpec): LibraryVersion {
     id: spec.id,
     idNote: 'a test version',
     references: linkOrder.map((l) => ({ dataset: l.reference, commit: 'test', romSha1: '0'.repeat(40) })),
-    linkOrder: linkOrder.map((l) => ({ reference: l.reference, members: l.members.map((m) => ({ id: idOf(m.name, m.object ?? spec.members.find((x) => x.name === m.name)?.object), addr: m.addr })) })),
+    linkOrder: linkOrder.map((l) => ({
+      reference: l.reference,
+      members: l.members.map((m) => ({
+        id: idOf(m.name, m.object ?? spec.members.find((x) => x.name === m.name)?.object),
+        addr: m.addr,
+      })),
+    })),
     functions,
     tables,
   };

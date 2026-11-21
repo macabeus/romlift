@@ -19,6 +19,12 @@ test('spanContains includes start and excludes end', () => {
 
 test('insnUnit and insnAligned: a Thumb instruction on a halfword, an ARM one on a word (fix round 7, architecture-b2-8)', () => {
   assert.deepEqual([insnUnit('thumb'), insnUnit('arm')], [2, 4]);
-  assert.deepEqual([0x0800_0000, 0x0800_0001, 0x0800_0002, 0x0800_0003].map((a) => insnAligned('thumb', a)), [true, false, true, false]);
-  assert.deepEqual([0x0800_0000, 0x0800_0001, 0x0800_0002, 0x0800_0004].map((a) => insnAligned('arm', a)), [true, false, false, true]);
+  assert.deepEqual(
+    [0x0800_0000, 0x0800_0001, 0x0800_0002, 0x0800_0003].map((a) => insnAligned('thumb', a)),
+    [true, false, true, false],
+  );
+  assert.deepEqual(
+    [0x0800_0000, 0x0800_0001, 0x0800_0002, 0x0800_0004].map((a) => insnAligned('arm', a)),
+    [true, false, false, true],
+  );
 });

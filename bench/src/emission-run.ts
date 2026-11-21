@@ -5,8 +5,7 @@
 // outcome says why and nothing is written. The tree digest is the sha256 over path, NUL, text, NUL of every entry in
 // stream order (g3.tree-determinism's), hashed while planWrites reads the stream, so no tree is held for it.
 import { createHash } from 'node:crypto';
-
-import { generate, generatedEntries, initConfigOf, type FileEntry, type Rom, type RomliftConfig } from 'romlift';
+import { type FileEntry, type Rom, type RomliftConfig, generate, generatedEntries, initConfigOf } from 'romlift';
 import { writeFreshTree } from 'romlift/node';
 
 /** What one emission run did. */
@@ -36,7 +35,11 @@ export interface EmissionRunner {
 /** `entries` unchanged, each one hashed into `hash` as it passes (path NUL text NUL). */
 function* hashing(entries: Iterable<FileEntry>, hash: ReturnType<typeof createHash>): Generator<FileEntry> {
   for (const entry of entries) {
-    hash.update(entry.path).update('\0').update('text' in entry ? entry.text : JSON.stringify(entry.edits)).update('\0');
+    hash
+      .update(entry.path)
+      .update('\0')
+      .update('text' in entry ? entry.text : JSON.stringify(entry.edits))
+      .update('\0');
     yield entry;
   }
 }
@@ -44,7 +47,10 @@ function* hashing(entries: Iterable<FileEntry>, hash: ReturnType<typeof createHa
 /** The config of a ROM as `init` writes it (initConfigOf: discover, configFromDiscover, the canonical TOML parsed back). */
 export function configOf(rom: Rom): RomliftConfig {
   const init = initConfigOf(rom);
-  if (!init.ok) throw new Error(`the discover run raised errors: ${init.diagnostics.map((d) => `${d.code}: ${d.message}`).join('; ')}`);
+  if (!init.ok)
+    throw new Error(
+      `the discover run raised errors: ${init.diagnostics.map((d) => `${d.code}: ${d.message}`).join('; ')}`,
+    );
   return init.config;
 }
 
@@ -53,13 +59,25 @@ export async function generateInto(rom: Rom, config: RomliftConfig, dir: string)
   const result = generate({ rom, config, decomp: { defined: [] }, printer: 'readable' });
   const files = result.paths.length;
   const failed = result.report.checks.find((c) => !c.ok);
-  if (failed !== undefined) return { ok: false, failure: 'check', detail: `the ${failed.id} check failed: ${failed.detail}; nothing written`, files };
+  if (failed !== undefined)
+    return {
+      ok: false,
+      failure: 'check',
+      detail: `the ${failed.id} check failed: ${failed.detail}; nothing written`,
+      files,
+    };
   const error = result.diagnostics.find((d) => d.severity === 'error');
-  if (error !== undefined) return { ok: false, failure: 'error', detail: `${error.code}: ${error.message}; nothing written`, files };
+  if (error !== undefined)
+    return { ok: false, failure: 'error', detail: `${error.code}: ${error.message}; nothing written`, files };
   const hash = createHash('sha256');
-  const applied = await writeFreshTree(dir, { model: result.model, entries: hashing(generatedEntries(rom, result), hash), paths: result.paths });
+  const applied = await writeFreshTree(dir, {
+    model: result.model,
+    entries: hashing(generatedEntries(rom, result), hash),
+    paths: result.paths,
+  });
   const treeDigest = hash.digest('hex');
-  if (!applied.ok) return { ok: false, failure: 'write', detail: applied.diagnostics.map((d) => d.message).join('; '), files };
+  if (!applied.ok)
+    return { ok: false, failure: 'write', detail: applied.diagnostics.map((d) => d.message).join('; '), files };
   return { ok: true, detail: `${applied.applied} files written`, files, treeDigest };
 }
 
@@ -69,7 +87,13 @@ export const ROMLIFT_EMISSION: EmissionRunner = {
   generate: generateInto,
   async init(rom, dir) {
     const init = initConfigOf(rom);
-    if (!init.ok) return { ok: false, failure: 'error', detail: `${init.diagnostics.map((d) => `${d.code}: ${d.message}`).join('; ')}; nothing written`, files: 0 };
+    if (!init.ok)
+      return {
+        ok: false,
+        failure: 'error',
+        detail: `${init.diagnostics.map((d) => `${d.code}: ${d.message}`).join('; ')}; nothing written`,
+        files: 0,
+      };
     return generateInto(rom, init.config, dir);
   },
 };

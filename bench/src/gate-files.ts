@@ -3,7 +3,6 @@
 // read as text, so the provenance check knows which real-tier gates a landed phase needs without
 // running them.
 import { join } from 'node:path';
-
 import { listDir } from 'romlift/node';
 
 import { BenchError, isDirectory, readText } from './files.ts';

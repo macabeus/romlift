@@ -15,7 +15,6 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-
 import { LIMITS } from 'romlift/internal';
 
 const REPO = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
@@ -33,7 +32,11 @@ interface FloodRun {
 }
 
 function flood(heapMiB: number, args: readonly string[]): FloodRun {
-  const child = spawnSync(process.execPath, ['--conditions=source', `--max-old-space-size=${heapMiB}`, CHILD, ...args], { encoding: 'utf8', timeout: 300_000 });
+  const child = spawnSync(
+    process.execPath,
+    ['--conditions=source', `--max-old-space-size=${heapMiB}`, CHILD, ...args],
+    { encoding: 'utf8', timeout: 300_000 },
+  );
   assert.equal(child.status, 0, child.stderr);
   return JSON.parse(child.stdout.trim().split('\n').pop() ?? '{}') as FloodRun;
 }
@@ -50,17 +53,26 @@ test('a 32 MiB image flooded with self-referencing Thumb pointers is analysed un
   assert.ok(out.rssMiB < 2048, `peak RSS ${out.rssMiB} MiB`);
 });
 
-const dataset = JSON.parse(readFileSync(path.join(REPO, 'bench', 'dataset', 'real', 'klonoa.json'), 'utf8')) as { readonly rom: string };
+const dataset = JSON.parse(readFileSync(path.join(REPO, 'bench', 'dataset', 'real', 'klonoa.json'), 'utf8')) as {
+  readonly rom: string;
+};
 const klonoa = path.join(BENCH_ROOT, dataset.rom);
 const unavailable = existsSync(klonoa) ? undefined : `unavailable: rom ${klonoa}`;
 
-test('klonoa with 8 MiB of pointers appended keeps its functions; its rejections stay within the run-wide budget over several grow rounds', { skip: REQUIRE ? false : (unavailable ?? false) }, (t) => {
-  assert.equal(unavailable, undefined, unavailable);
-  const plain = flood(1024, ['0', klonoa]);
-  const out = flood(1024, ['8', klonoa]);
-  t.diagnostic(`plain ${JSON.stringify(plain)}; flooded ${JSON.stringify(out)}`);
-  assert.equal(out.functions, plain.functions, 'the flood adds and removes no function');
-  assert.equal(once(out, 'W_CANDIDATE_BUDGET'), 1, out.diagnostics.join(', '));
-  assert.ok(out.rejections <= LIMITS.candidateBudget + plain.rejections, `${out.rejections} rejections, budget ${LIMITS.candidateBudget}, klonoa alone ${plain.rejections}`);
-  assert.ok(out.rssMiB < 2048, `peak RSS ${out.rssMiB} MiB`);
-});
+test(
+  'klonoa with 8 MiB of pointers appended keeps its functions; its rejections stay within the run-wide budget over several grow rounds',
+  { skip: REQUIRE ? false : (unavailable ?? false) },
+  (t) => {
+    assert.equal(unavailable, undefined, unavailable);
+    const plain = flood(1024, ['0', klonoa]);
+    const out = flood(1024, ['8', klonoa]);
+    t.diagnostic(`plain ${JSON.stringify(plain)}; flooded ${JSON.stringify(out)}`);
+    assert.equal(out.functions, plain.functions, 'the flood adds and removes no function');
+    assert.equal(once(out, 'W_CANDIDATE_BUDGET'), 1, out.diagnostics.join(', '));
+    assert.ok(
+      out.rejections <= LIMITS.candidateBudget + plain.rejections,
+      `${out.rejections} rejections, budget ${LIMITS.candidateBudget}, klonoa alone ${plain.rejections}`,
+    );
+    assert.ok(out.rssMiB < 2048, `peak RSS ${out.rssMiB} MiB`);
+  },
+);

@@ -26,7 +26,11 @@ export function isCanonicalArmImmediate(field: number): boolean {
 
 /** The `{const}` operand values of a 12-bit field: its value, rotation, and whether the text must spell the rotation. */
 export function constOperands(field: number): Fields {
-  return { imm: decodeArmImmediate(field), rot: ((field >>> 8) & 0xf) * 2, explicit: isCanonicalArmImmediate(field) ? 0 : 1 };
+  return {
+    imm: decodeArmImmediate(field),
+    rot: ((field >>> 8) & 0xf) * 2,
+    explicit: isCanonicalArmImmediate(field) ? 0 : 1,
+  };
 }
 
 /** The 12-bit field of `{const}` operand values: GNU as's choice for `#v`, the given rotation for `#imm8, rot`. */

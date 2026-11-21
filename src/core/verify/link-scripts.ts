@@ -11,10 +11,16 @@ import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { ROM_BASE } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { hexAddr, parseHexAddr } from '../../foundation/util/hex.ts';
-import { cDataAssertLine, cDataSectionLine, cRamDataSectionLine, cRodataAssertLine, cRodataSectionLine } from '../model/c-data-assert.ts';
-import { linkerDefinedNames, loadSymbolOf, modulePieces } from '../model/modules.ts';
 import { isCSource } from '../../foundation/util/project-files.ts';
-import { buildUnits, SYMBOLS_PATH } from '../model/paths.ts';
+import {
+  cDataAssertLine,
+  cDataSectionLine,
+  cRamDataSectionLine,
+  cRodataAssertLine,
+  cRodataSectionLine,
+} from '../model/c-data-assert.ts';
+import { linkerDefinedNames, loadSymbolOf, modulePieces } from '../model/modules.ts';
+import { SYMBOLS_PATH, buildUnits } from '../model/paths.ts';
 import { externalSymbols } from '../model/symbols.ts';
 import type { Model } from '../model/types.ts';
 import { textError } from './text-error.ts';
@@ -56,12 +62,18 @@ interface CDataLine {
 }
 
 /** The C-data lines the model's C units need, in ROM order: each unit's check section, then its ASSERT. */
-function expectedCDataLines(model: Model): readonly { readonly text: string; readonly addr: Addr; readonly module: string }[] {
+function expectedCDataLines(
+  model: Model,
+): readonly { readonly text: string; readonly addr: Addr; readonly module: string }[] {
   const units = buildUnits(model);
   return model.modules.flatMap((module, i) =>
     isCSource(units[i]?.source ?? '')
       ? [
-          { text: module.dataRange === undefined ? cDataSectionLine(module.name) : cRamDataSectionLine(module.name), addr: module.span.start, module: module.name },
+          {
+            text: module.dataRange === undefined ? cDataSectionLine(module.name) : cRamDataSectionLine(module.name),
+            addr: module.span.start,
+            module: module.name,
+          },
           { text: cDataAssertLine(module.name), addr: module.span.start, module: module.name },
         ]
       : [],
@@ -95,10 +107,22 @@ interface RodataLine {
 }
 
 /** What each data range of the model needs in the script, in ROM order: its two lines and how many units precede it. */
-function expectedRodataLines(model: Model): readonly { readonly section: string; readonly assert: string; readonly module: string; readonly addr: Addr; readonly unitsBefore: number }[] {
+function expectedRodataLines(model: Model): readonly {
+  readonly section: string;
+  readonly assert: string;
+  readonly module: string;
+  readonly addr: Addr;
+  readonly unitsBefore: number;
+}[] {
   const units = buildUnits(model);
   let unitsBefore = 0;
-  const out: { readonly section: string; readonly assert: string; readonly module: string; readonly addr: Addr; readonly unitsBefore: number }[] = [];
+  const out: {
+    readonly section: string;
+    readonly assert: string;
+    readonly module: string;
+    readonly addr: Addr;
+    readonly unitsBefore: number;
+  }[] = [];
   for (const piece of modulePieces(model.modules)) {
     const module = model.modules[piece.module];
     if (module === undefined) continue;
@@ -106,7 +130,13 @@ function expectedRodataLines(model: Model): readonly { readonly section: string;
       unitsBefore++;
       continue;
     }
-    out.push({ section: cRodataSectionLine(module.name, units[piece.module]?.object ?? '', piece.span), assert: cRodataAssertLine(module.name, piece.span), module: module.name, addr: piece.span.start, unitsBefore });
+    out.push({
+      section: cRodataSectionLine(module.name, units[piece.module]?.object ?? '', piece.span),
+      assert: cRodataAssertLine(module.name, piece.span),
+      module: module.name,
+      addr: piece.span.start,
+      unitsBefore,
+    });
   }
   return out;
 }
@@ -117,11 +147,39 @@ function checkRodataLines(model: Model, path: string, got: readonly RodataLine[]
   for (let k = 0; k < Math.max(want.length, got.length); k++) {
     const w = want[k];
     const g = got[k];
-    if (w === undefined) return [textError(path, g?.line ?? lastLine, ROM_BASE, `holds \`${g?.text ?? ''}\`, which no data range of the model needs`)];
-    if (g === undefined) return [textError(path, lastLine, w.addr, `lacks \`${w.section}\`, the data range of C unit ${w.module}`)];
-    if (g.text !== w.section) return [textError(path, g.line, w.addr, `holds \`${g.text}\` where the data range of C unit ${w.module} needs \`${w.section}\``)];
-    if (g.assert?.text !== w.assert) return [textError(path, g.assert?.line ?? g.line, w.addr, `does not follow \`${w.section}\` with \`${w.assert}\``)];
-    if (g.objectsBefore !== w.unitsBefore) return [textError(path, g.line, w.addr, `places the data range of C unit ${w.module} after ${g.objectsBefore} units, where ROM order puts it after ${w.unitsBefore}`)];
+    if (w === undefined)
+      return [
+        textError(
+          path,
+          g?.line ?? lastLine,
+          ROM_BASE,
+          `holds \`${g?.text ?? ''}\`, which no data range of the model needs`,
+        ),
+      ];
+    if (g === undefined)
+      return [textError(path, lastLine, w.addr, `lacks \`${w.section}\`, the data range of C unit ${w.module}`)];
+    if (g.text !== w.section)
+      return [
+        textError(
+          path,
+          g.line,
+          w.addr,
+          `holds \`${g.text}\` where the data range of C unit ${w.module} needs \`${w.section}\``,
+        ),
+      ];
+    if (g.assert?.text !== w.assert)
+      return [
+        textError(path, g.assert?.line ?? g.line, w.addr, `does not follow \`${w.section}\` with \`${w.assert}\``),
+      ];
+    if (g.objectsBefore !== w.unitsBefore)
+      return [
+        textError(
+          path,
+          g.line,
+          w.addr,
+          `places the data range of C unit ${w.module} after ${g.objectsBefore} units, where ROM order puts it after ${w.unitsBefore}`,
+        ),
+      ];
   }
   return [];
 }
@@ -199,11 +257,19 @@ export function checkLdscript(model: Model, path: string, text: string): Diagnos
     const plain = SECTION.exec(s);
     const loadSymbol = LOAD_SYMBOL.exec(s);
     const startAt = START.exec(s);
-    if (at !== null) section = { name: at[1] ?? '', vma: parseHexAddr(at[2] ?? '') ?? 0, lma: parseHexAddr(at[3] ?? '') ?? 0, count: 0 };
+    if (at !== null)
+      section = {
+        name: at[1] ?? '',
+        vma: parseHexAddr(at[2] ?? '') ?? 0,
+        lma: parseHexAddr(at[3] ?? '') ?? 0,
+        count: 0,
+      };
     else if (plain !== null) {
-      if (start === undefined) err(`section .${plain[1] ?? ''} has no address and no \`. = ${hexAddr(ROM_BASE)};\` precedes it`);
+      if (start === undefined)
+        err(`section .${plain[1] ?? ''} has no address and no \`. = ${hexAddr(ROM_BASE)};\` precedes it`);
       section = { name: plain[1] ?? '', count: 0 };
-    } else if (loadSymbol !== null && loadNames.has(loadSymbol[1] ?? '')) loads.set(loadSymbol[1] ?? '', loadSymbol[2] ?? '');
+    } else if (loadSymbol !== null && loadNames.has(loadSymbol[1] ?? ''))
+      loads.set(loadSymbol[1] ?? '', loadSymbol[2] ?? '');
     else if (startAt !== null) {
       start = parseHexAddr(startAt[1] ?? '');
       if (start !== ROM_BASE) err(`the link starts at ${startAt[1] ?? ''}, not ${hexAddr(ROM_BASE)}`);
@@ -214,7 +280,16 @@ export function checkLdscript(model: Model, path: string, text: string): Diagnos
   const lastLine = lines.length;
   const wantSymbols = externalSymbols(model).length > 0;
   if (wantSymbols !== includesSymbols) {
-    out.push(textError(path, 1, ROM_BASE, wantSymbols ? `does not INCLUDE ${SYMBOLS_PATH}, which defines symbols the code names` : `INCLUDEs ${SYMBOLS_PATH}, which defines nothing`));
+    out.push(
+      textError(
+        path,
+        1,
+        ROM_BASE,
+        wantSymbols
+          ? `does not INCLUDE ${SYMBOLS_PATH}, which defines symbols the code names`
+          : `INCLUDEs ${SYMBOLS_PATH}, which defines nothing`,
+      ),
+    );
   }
   out.push(...checkCDataLines(model, path, cData, lastLine));
   out.push(...checkRodataLines(model, path, rodata, lastLine));
@@ -245,13 +320,42 @@ export function checkLdscript(model: Model, path: string, text: string): Diagnos
     const at = module.span.start;
     if (module.runAt !== undefined) {
       if (!got.first || got.vma !== module.runAt || got.lma !== at) {
-        out.push(textError(path, got.line, at, `${unit.object} runs from ${hexAddr(module.runAt)} and must open its own section at ${hexAddr(module.runAt)} : AT(${hexAddr(at)})`));
+        out.push(
+          textError(
+            path,
+            got.line,
+            at,
+            `${unit.object} runs from ${hexAddr(module.runAt)} and must open its own section at ${hexAddr(module.runAt)} : AT(${hexAddr(at)})`,
+          ),
+        );
       }
-      if (loads.get(loadSymbolOf(module)) !== got.section) out.push(textError(path, got.line, at, `no \`${loadSymbolOf(module)} = LOADADDR(.${got.section});\` names where ${unit.object} is loaded`));
+      if (loads.get(loadSymbolOf(module)) !== got.section)
+        out.push(
+          textError(
+            path,
+            got.line,
+            at,
+            `no \`${loadSymbolOf(module)} = LOADADDR(.${got.section});\` names where ${unit.object} is loaded`,
+          ),
+        );
     } else if (afterRange.has(k) && (!got.first || got.lma !== at || got.vma !== at)) {
-      out.push(textError(path, got.line, at, `${unit.object} follows a data range and must open its own section at ${hexAddr(at)} : AT(${hexAddr(at)})`));
+      out.push(
+        textError(
+          path,
+          got.line,
+          at,
+          `${unit.object} follows a data range and must open its own section at ${hexAddr(at)} : AT(${hexAddr(at)})`,
+        ),
+      );
     } else if (got.first && got.lma !== undefined && (got.lma !== at || got.vma !== at)) {
-      out.push(textError(path, got.line, at, `section .${got.section} opens at ${hexAddr(got.vma ?? 0)} : AT(${hexAddr(got.lma)}), but ${unit.object} loads at ${hexAddr(at)}`));
+      out.push(
+        textError(
+          path,
+          got.line,
+          at,
+          `section .${got.section} opens at ${hexAddr(got.vma ?? 0)} : AT(${hexAddr(got.lma)}), but ${unit.object} loads at ${hexAddr(at)}`,
+        ),
+      );
     } else if (got.vma !== undefined && got.vma !== got.lma) {
       out.push(textError(path, got.line, at, `${unit.object} shares a runs_at section with another unit`));
     }
@@ -275,9 +379,13 @@ export function checkSymbolsFile(model: Model, path: string, text: string): Diag
     const name = m[1] ?? '';
     const value = parseHexAddr(m[2] ?? '') ?? -1;
     const expected = want.get(name);
-    if (expected === undefined) out.push(textError(path, i + 1, value, `defines ${name}, which is no [symbols] entry outside the ROM`));
+    if (expected === undefined)
+      out.push(textError(path, i + 1, value, `defines ${name}, which is no [symbols] entry outside the ROM`));
     else if (seen.has(name)) out.push(textError(path, i + 1, value, `defines ${name} twice`));
-    else if (value !== expected) out.push(textError(path, i + 1, value, `defines ${name} as ${m[2] ?? ''}, but the model has ${hexAddr(expected)}`));
+    else if (value !== expected)
+      out.push(
+        textError(path, i + 1, value, `defines ${name} as ${m[2] ?? ''}, but the model has ${hexAddr(expected)}`),
+      );
     seen.add(name);
   });
   for (const s of model.symbols) {

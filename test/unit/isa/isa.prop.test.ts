@@ -62,7 +62,10 @@ function checkPrinting(insn: Insn, counts: Record<RawReason, number>): void {
     assert.ok(roundTrips(insn, LABELS), `${where}: '${text}' does not round-trip`);
   } else {
     assert.ok(RAW_REASONS.includes(reason), `${where}: reason ${reason}`);
-    assert.match(formatRaw(insn), insn.mode === 'arm' ? /^\.inst 0x[0-9A-F]{8} @ / : /^\.inst\.[nw] 0x[0-9A-F]{4,8} @ /);
+    assert.match(
+      formatRaw(insn),
+      insn.mode === 'arm' ? /^\.inst 0x[0-9A-F]{8} @ / : /^\.inst\.[nw] 0x[0-9A-F]{4,8} @ /,
+    );
     counts[reason]++;
   }
 }

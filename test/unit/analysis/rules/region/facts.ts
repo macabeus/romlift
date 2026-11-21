@@ -1,8 +1,8 @@
 // Function facts for the region rule tests: the fields a region rule reads (entry, extent, origin), the
 // rest empty. Not a test file; the region tests import it.
-import type { Addr } from '../../../../../src/foundation/rom/span.ts';
-import type { Origin } from '../../../../../src/core/provenance/vocabulary.ts';
 import type { FunctionFact } from '../../../../../src/core/analysis/types.ts';
+import type { Origin } from '../../../../../src/core/provenance/vocabulary.ts';
+import type { Addr } from '../../../../../src/foundation/rom/span.ts';
 
 export function fact(entry: Addr, end: Addr, origin: Origin): FunctionFact {
   return {
@@ -31,5 +31,6 @@ export function fact(entry: Addr, end: Addr, origin: Origin): FunctionFact {
 
 /** owner() over facts: the covering extent with the greatest start, as the driver's interval index. */
 export function ownerOver(facts: readonly FunctionFact[]): (a: Addr) => FunctionFact | undefined {
-  return (a) => facts.filter((f) => f.extent.start <= a && a < f.extent.end).sort((x, y) => y.extent.start - x.extent.start)[0];
+  return (a) =>
+    facts.filter((f) => f.extent.start <= a && a < f.extent.end).sort((x, y) => y.extent.start - x.extent.start)[0];
 }

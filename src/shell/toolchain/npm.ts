@@ -14,7 +14,13 @@ import type { ShellCode } from '../codes.ts';
 import { findExecutable } from './binutils.ts';
 
 /** The arguments of the lock step: the lock only, no scripts, no audit or funding requests. */
-export const NPM_LOCK_ARGS: readonly string[] = ['install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund'];
+export const NPM_LOCK_ARGS: readonly string[] = [
+  'install',
+  '--package-lock-only',
+  '--ignore-scripts',
+  '--no-audit',
+  '--no-fund',
+];
 
 /** How long the lock step may take before it is deferred. */
 export const NPM_LOCK_TIME_LIMIT_MS = 60_000;
@@ -62,7 +68,9 @@ export function npmMessage(output: string): string {
 }
 
 /** What one npm run gave: its exit code (null when it was killed) or the error that kept it from starting. */
-type NpmRun = { readonly kind: 'exited'; readonly code: number | null; readonly output: string; readonly timedOut: boolean } | { readonly kind: 'failed'; readonly reason: string };
+type NpmRun =
+  | { readonly kind: 'exited'; readonly code: number | null; readonly output: string; readonly timedOut: boolean }
+  | { readonly kind: 'failed'; readonly reason: string };
 
 /** Kills npm and every process it started (its process group); one already gone is fine. */
 function killGroup(pid: number | undefined): void {
@@ -74,7 +82,12 @@ function killGroup(pid: number | undefined): void {
   }
 }
 
-function runNpm(npm: string, cwd: string, env: Readonly<Record<string, string | undefined>>, timeoutMs: number): Promise<NpmRun> {
+function runNpm(
+  npm: string,
+  cwd: string,
+  env: Readonly<Record<string, string | undefined>>,
+  timeoutMs: number,
+): Promise<NpmRun> {
   return new Promise((resolve) => {
     let output = '';
     let settled = false;
@@ -85,7 +98,12 @@ function runNpm(npm: string, cwd: string, env: Readonly<Record<string, string | 
       resolve(run);
     };
     // Its own process group, so the time limit kills the scripts and fetchers npm started too.
-    const child = spawn(npm, [...NPM_LOCK_ARGS], { cwd, env: { ...env }, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
+    const child = spawn(npm, [...NPM_LOCK_ARGS], {
+      cwd,
+      env: { ...env },
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: true,
+    });
     const keep = (chunk: Buffer): void => {
       if (output.length < OUTPUT_KEPT) output += chunk.toString('utf8');
     };
@@ -113,6 +131,7 @@ export async function writePackageLock(dir: string, options: NpmLockOptions = {}
   const run = await runNpm(npm, dir, env, timeoutMs);
   if (run.kind === 'failed') return deferred(`npm did not start (${run.reason})`);
   if (run.timedOut) return deferred(`npm ${NPM_LOCK_ARGS.join(' ')} took longer than ${timeoutMs} ms`);
-  if (run.code !== 0) return deferred(`npm ${NPM_LOCK_ARGS.join(' ')} exited ${run.code ?? 'on a signal'} (${npmMessage(run.output)})`);
+  if (run.code !== 0)
+    return deferred(`npm ${NPM_LOCK_ARGS.join(' ')} exited ${run.code ?? 'on a signal'} (${npmMessage(run.output)})`);
   return { ok: true };
 }

@@ -5,7 +5,7 @@
 // rename` carries it into the C and the next generate into the tree; a definition only inside `#ifdef NONMATCHING`
 // keeps its file in asm/nonmatchings; and once the C is gone the file moves back.
 import assert from 'node:assert/strict';
-import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
@@ -23,7 +23,10 @@ const STUB = `INCLUDE_ASM("asm/nonmatchings/main_2", ${NAME});`;
 const C = `int ${NAME}(void) {\n  return 0;\n}`;
 let fresh = 0;
 
-async function run(cwd: string, argv: readonly string[]): Promise<{ readonly code: ExitCode; readonly stdout: string }> {
+async function run(
+  cwd: string,
+  argv: readonly string[],
+): Promise<{ readonly code: ExitCode; readonly stdout: string }> {
   const io = { ...capturingIo(), cwd };
   const code = await main(argv, io);
   return { code, stdout: io.out.join('') + io.err.join('') };
@@ -43,7 +46,11 @@ async function snapshot(dir: string, prefix = ''): Promise<Map<string, string>> 
   for (const entry of await readdir(path.join(dir, prefix), { withFileTypes: true })) {
     const relative = prefix === '' ? entry.name : `${prefix}/${entry.name}`;
     if (entry.isDirectory()) for (const [k, v] of await snapshot(dir, relative)) out.set(k, v);
-    else out.set(relative, `${(await readFile(path.join(dir, relative))).toString('base64')} ${(await stat(path.join(dir, relative))).mtimeMs}`);
+    else
+      out.set(
+        relative,
+        `${(await readFile(path.join(dir, relative))).toString('base64')} ${(await stat(path.join(dir, relative))).mtimeMs}`,
+      );
   }
   return out;
 }
@@ -75,15 +82,28 @@ test('a decompiled function moves to asm/matchings, and a second generate change
   const first = await run(dir, ['generate', '--json']);
   assert.equal(first.code, ExitCode.ok, first.stdout);
   assert.deepEqual(diagnostics(first.stdout), []);
-  assert.equal(await readFile(path.join(dir, 'asm', 'matchings', 'main_2', `${NAME}.s`), 'utf8'), text, 'the same chunk text');
+  assert.equal(
+    await readFile(path.join(dir, 'asm', 'matchings', 'main_2', `${NAME}.s`), 'utf8'),
+    text,
+    'the same chunk text',
+  );
   assert.ok(!(await exists(nonmatching)), 'the old spelling is deleted (the manifest owned it)');
-  assert.ok(!(await readFile(path.join(dir, 'src', 'main_2.c'), 'utf8')).includes('asm/matchings'), 'no INCLUDE_ASM names matchings');
-  const manifest = JSON.parse(await readFile(path.join(dir, '.romlift', 'manifest.json'), 'utf8')) as { files: Record<string, unknown> };
+  assert.ok(
+    !(await readFile(path.join(dir, 'src', 'main_2.c'), 'utf8')).includes('asm/matchings'),
+    'no INCLUDE_ASM names matchings',
+  );
+  const manifest = JSON.parse(await readFile(path.join(dir, '.romlift', 'manifest.json'), 'utf8')) as {
+    files: Record<string, unknown>;
+  };
   assert.ok(`asm/matchings/main_2/${NAME}.s` in manifest.files);
 
   const before = await snapshot(dir);
   const dry = await run(dir, ['generate', '--dry-run', '--json']);
-  const ops = dry.stdout.trimEnd().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>).filter((l) => l['type'] === 'op');
+  const ops = dry.stdout
+    .trimEnd()
+    .split('\n')
+    .map((l) => JSON.parse(l) as Record<string, unknown>)
+    .filter((l) => l['type'] === 'op');
   assert.deepEqual([...new Set(ops.map((l) => l['op']))], ['keep'], 'the second run plans keeps only');
   const second = await run(dir, ['generate', '--json']);
   assert.equal(second.code, ExitCode.ok, second.stdout);
@@ -130,5 +150,8 @@ test('once the C is gone, the next generate puts the stub back and moves the fil
   assert.equal(out.code, ExitCode.ok, out.stdout);
   assert.ok((await readFile(file, 'utf8')).includes(STUB), 'the stub is inserted again');
   assert.ok(await exists(path.join(dir, 'asm', 'nonmatchings', 'main_2', `${NAME}.s`)));
-  assert.ok(!(await exists(path.join(dir, 'asm', 'matchings', 'main_2', `${NAME}.s`))), 'the matchings file is deleted');
+  assert.ok(
+    !(await exists(path.join(dir, 'asm', 'matchings', 'main_2', `${NAME}.s`))),
+    'the matchings file is deleted',
+  );
 });

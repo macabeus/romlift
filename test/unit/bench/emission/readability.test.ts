@@ -6,18 +6,27 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
-
-import { addPrintStats, buildModel, configFromDiscover, discover, emitTree, emptyPrintStats, printChunk, profileById, type PrintStats } from 'romlift';
+import {
+  type PrintStats,
+  addPrintStats,
+  buildModel,
+  configFromDiscover,
+  discover,
+  emitTree,
+  emptyPrintStats,
+  printChunk,
+  profileById,
+} from 'romlift';
 
 import { BenchError } from '../../../../bench/src/files.ts';
 import {
+  READABILITY_FLOOR_SCHEMA,
   addFloors,
   parseReadabilityFloors,
-  READABILITY_FLOOR_SCHEMA,
+  readReadabilityFloors,
   readabilityFloorPath,
   readabilityMember,
   readableStats,
-  readReadabilityFloors,
   sharesOf,
   treePass,
   writeReadabilityFloors,
@@ -28,19 +37,29 @@ import { withTempDir } from '../fixtures.ts';
 const stats = (s: Partial<PrintStats>): PrintStats => ({ ...emptyPrintStats(), ...s });
 
 test('the shares: 1 - raw/insns, symbolic branches and pool loads over their totals, 1 over an empty denominator', () => {
-  assert.deepEqual(sharesOf(stats({ insns: 10, rawInsns: 1, branches: 4, symbolicBranches: 3, poolLoads: 8, symbolicPoolLoads: 2 })), {
-    mnemonicShare: 0.9,
-    symbolicBranchShare: 0.75,
-    symbolicPoolShare: 0.25,
-  });
+  assert.deepEqual(
+    sharesOf(stats({ insns: 10, rawInsns: 1, branches: 4, symbolicBranches: 3, poolLoads: 8, symbolicPoolLoads: 2 })),
+    {
+      mnemonicShare: 0.9,
+      symbolicBranchShare: 0.75,
+      symbolicPoolShare: 0.25,
+    },
+  );
   assert.deepEqual(sharesOf(emptyPrintStats()), { mnemonicShare: 1, symbolicBranchShare: 1, symbolicPoolShare: 1 });
-  assert.deepEqual(sharesOf(stats({ insns: 4, rawInsns: 4 })), { mnemonicShare: 0, symbolicBranchShare: 1, symbolicPoolShare: 1 });
+  assert.deepEqual(sharesOf(stats({ insns: 4, rawInsns: 4 })), {
+    mnemonicShare: 0,
+    symbolicBranchShare: 1,
+    symbolicPoolShare: 1,
+  });
 });
 
 test('readabilityMember carries the floor, or null when the ROM has none', () => {
   const shares = { mnemonicShare: 0.5, symbolicBranchShare: 1, symbolicPoolShare: 1 };
   assert.deepEqual(readabilityMember(shares, undefined), { ...shares, floor: null });
-  assert.deepEqual(readabilityMember(shares, { ...shares, mnemonicShare: 0.25 }), { ...shares, floor: { ...shares, mnemonicShare: 0.25 } });
+  assert.deepEqual(readabilityMember(shares, { ...shares, mnemonicShare: 0.25 }), {
+    ...shares,
+    floor: { ...shares, mnemonicShare: 0.25 },
+  });
 });
 
 const profile = profileById('agbcc');
@@ -67,24 +86,49 @@ for (const name of ['far-jump', 'arm-pools-in-front', 'large-data-referenced']) 
       hash.update(`${entry.path}\0${entry.ownership === 'reconciled' ? JSON.stringify(entry.edits) : entry.text}\0`);
       paths.push(entry.path);
     }
-    assert.deepEqual(treePass(emitTree(rom, model, { decomp: { defined: [] } })), { paths, treeDigest: hash.digest('hex') });
+    assert.deepEqual(treePass(emitTree(rom, model, { decomp: { defined: [] } })), {
+      paths,
+      treeDigest: hash.digest('hex'),
+    });
   });
 }
 
 test('treePass hashes a reconciled entry by its edits', () => {
-  const pass = treePass([{ ownership: 'reconciled', path: 'src/a.c', baseSha1: 'x', edits: [{ start: 0, end: 1, text: 'y', reason: 'add-stub' }] }]);
-  const expected = createHash('sha256').update(`src/a.c\0${JSON.stringify([{ start: 0, end: 1, text: 'y', reason: 'add-stub' }])}\0`).digest('hex');
+  const pass = treePass([
+    {
+      ownership: 'reconciled',
+      path: 'src/a.c',
+      baseSha1: 'x',
+      edits: [{ start: 0, end: 1, text: 'y', reason: 'add-stub' }],
+    },
+  ]);
+  const expected = createHash('sha256')
+    .update(`src/a.c\0${JSON.stringify([{ start: 0, end: 1, text: 'y', reason: 'add-stub' }])}\0`)
+    .digest('hex');
   assert.deepEqual(pass, { paths: ['src/a.c'], treeDigest: expected });
 });
 
 const SHARES = { mnemonicShare: 0.99, symbolicBranchShare: 1, symbolicPoolShare: 0.98 };
 
 test('the floor file: its schema, every share in [0, 1], ROMs sorted by name', () => {
-  const floors = parseReadabilityFloors({ schema: READABILITY_FLOOR_SCHEMA, roms: { sa2: SHARES, klonoa: SHARES } }, 'f');
+  const floors = parseReadabilityFloors(
+    { schema: READABILITY_FLOOR_SCHEMA, roms: { sa2: SHARES, klonoa: SHARES } },
+    'f',
+  );
   assert.deepEqual(Object.keys(floors.roms), ['klonoa', 'sa2']);
   assert.throws(() => parseReadabilityFloors({ schema: 'other', roms: {} }, 'f'), BenchError);
-  assert.throws(() => parseReadabilityFloors({ schema: READABILITY_FLOOR_SCHEMA, roms: { sa2: { ...SHARES, mnemonicShare: 1.5 } } }, 'f'), /mnemonicShare must be a number in \[0, 1\]/);
-  assert.throws(() => parseReadabilityFloors({ schema: READABILITY_FLOOR_SCHEMA, roms: { sa2: { mnemonicShare: 1 } } }, 'f'), /symbolicBranchShare/);
+  assert.throws(
+    () =>
+      parseReadabilityFloors(
+        { schema: READABILITY_FLOOR_SCHEMA, roms: { sa2: { ...SHARES, mnemonicShare: 1.5 } } },
+        'f',
+      ),
+    /mnemonicShare must be a number in \[0, 1\]/,
+  );
+  assert.throws(
+    () => parseReadabilityFloors({ schema: READABILITY_FLOOR_SCHEMA, roms: { sa2: { mnemonicShare: 1 } } }, 'f'),
+    /symbolicBranchShare/,
+  );
 });
 
 test('addFloors adds the ROMs without a floor and never changes, lowers or raises an existing one', () => {

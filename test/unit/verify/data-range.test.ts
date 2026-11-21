@@ -17,10 +17,10 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
 
+import type { RomliftConfig } from '../../../src/core/config/schema.ts';
 import { emitTree } from '../../../src/core/emit/emit-tree.ts';
 import type { FileEntry } from '../../../src/core/emit/tree.ts';
 import { ldscriptText } from '../../../src/core/emit/writers/ldscript.ts';
-import type { RomliftConfig } from '../../../src/core/config/schema.ts';
 import { buildModel } from '../../../src/core/model/model.ts';
 import { assembleUnits, buildUnits } from '../../../src/core/model/paths.ts';
 import type { AssembleUnit } from '../../../src/core/model/paths.ts';
@@ -57,7 +57,10 @@ const TABLE = 0x0800_014c;
 /** The discover config with main's data_start and, optionally, a data module `tail` at `tail`. */
 function withRange(dataStart: number, tail?: number): RomliftConfig {
   const modules = base.modules.map((m) => (m.name === 'main' ? { ...m, dataStart } : m));
-  return { ...base, modules: tail === undefined ? modules : [...modules, { name: 'tail', start: tail, kind: 'data', generated: true }] };
+  return {
+    ...base,
+    modules: tail === undefined ? modules : [...modules, { name: 'tail', start: tail, kind: 'data', generated: true }],
+  };
 }
 
 const LAYOUTS = {
@@ -67,10 +70,17 @@ const LAYOUTS = {
 } as const;
 
 function spans(model: Model): readonly (readonly (string | number)[])[] {
-  return model.modules.map((m) => [m.name, m.span.start, m.span.end, ...(m.dataRange === undefined ? [] : [m.dataRange.start, m.dataRange.end])]);
+  return model.modules.map((m) => [
+    m.name,
+    m.span.start,
+    m.span.end,
+    ...(m.dataRange === undefined ? [] : [m.dataRange.start, m.dataRange.end]),
+  ]);
 }
 
-function failures(report: { readonly checks: readonly { readonly id: string; readonly ok: boolean; readonly detail: string }[] }): string {
+function failures(report: {
+  readonly checks: readonly { readonly id: string; readonly ok: boolean; readonly detail: string }[];
+}): string {
   return report.checks
     .filter((c) => !c.ok)
     .map((c) => `${c.id}: ${c.detail}`)
@@ -91,8 +101,14 @@ async function writeTree(entries: readonly FileEntry[]): Promise<string> {
 test('the three layouts: the data module dropped, clipped, or clipped with a module after the range', () => {
   assert.equal(base.modules.find((m) => m.name === 'data')?.start, TABLE, 'the fixture as this test knows it');
   // A range nothing ends runs to the ROM end, and says so (D112); the range a module after it ends does not.
-  assert.deepEqual(LAYOUTS.at.diagnostics.map((d) => d.code), ['W_DATA_RANGE_TO_ROM_END']);
-  assert.deepEqual(LAYOUTS.inside.diagnostics.map((d) => d.code), ['W_DATA_RANGE_TO_ROM_END']);
+  assert.deepEqual(
+    LAYOUTS.at.diagnostics.map((d) => d.code),
+    ['W_DATA_RANGE_TO_ROM_END'],
+  );
+  assert.deepEqual(
+    LAYOUTS.inside.diagnostics.map((d) => d.code),
+    ['W_DATA_RANGE_TO_ROM_END'],
+  );
   assert.deepEqual(LAYOUTS.between.diagnostics, []);
   const mainStart = LAYOUTS.at.modules.find((m) => m.name === 'main')?.span.start ?? 0;
   assert.deepEqual(spans(LAYOUTS.at).slice(2), [['main', mainStart, TABLE, TABLE, rom.end]]);
@@ -107,9 +123,17 @@ test('the three layouts: the data module dropped, clipped, or clipped with a mod
   ]);
   // The range's chunks: data chunks naming main, in ROM order, outside main's chunk range.
   const range = LAYOUTS.between.chunks.filter((c) => c.span.start >= TABLE + 4 && c.span.end <= TABLE + 0xc);
-  assert.deepEqual(range.map((c) => [c.kind, c.module, c.span.start, c.span.end]), [['data', 'main', TABLE + 4, TABLE + 0xc]]);
+  assert.deepEqual(
+    range.map((c) => [c.kind, c.module, c.span.start, c.span.end]),
+    [['data', 'main', TABLE + 4, TABLE + 0xc]],
+  );
   const main = LAYOUTS.between.modules.find((m) => m.name === 'main');
-  assert.ok(main !== undefined && LAYOUTS.between.chunks.slice(main.chunks.first, main.chunks.first + main.chunks.count).every((c) => c.span.end <= TABLE));
+  assert.ok(
+    main !== undefined &&
+      LAYOUTS.between.chunks
+        .slice(main.chunks.first, main.chunks.first + main.chunks.count)
+        .every((c) => c.span.end <= TABLE),
+  );
   // The pool word naming the table names a global data label, which the C object defines.
   const label = LAYOUTS.at.labels.find((l) => l.addr === TABLE);
   assert.deepEqual([label?.name, label?.kind, label?.scope], ['gUnk_0800014C', 'data', 'global']);
@@ -123,11 +147,13 @@ test('each layout passes the model self-checks and its stream the text-layout an
     const layout = checkEntries(rom, model, entries);
     assert.ok(layout.ok, `${name}: ${failures(layout)}`);
     assert.ok(!entries.some((e) => e.path === 'data/data.s') || name !== 'at', 'a dropped data module writes no file');
-    for (const e of entries) if ('text' in e && e.path !== 'ldscript.txt') assert.ok(!e.text.includes('0x14C, 0x10'), `${e.path} emits no byte of the range`);
+    for (const e of entries)
+      if ('text' in e && e.path !== 'ldscript.txt')
+        assert.ok(!e.text.includes('0x14C, 0x10'), `${e.path} emits no byte of the range`);
   }
 });
 
-test('the ldscript places main\'s .rodata at its range, in ROM order, with its ASSERT; main\'s check section keeps only RAM data', () => {
+test("the ldscript places main's .rodata at its range, in ROM order, with its ASSERT; main's check section keeps only RAM data", () => {
   const text = ldscriptText(LAYOUTS.between);
   // From the line after `SECTIONS {`: an INCLUDE of symbols.ld comes first when the code names RAM (D111).
   const lines = text.split('\n');
@@ -151,7 +177,10 @@ test('the ldscript places main\'s .rodata at its range, in ROM order, with its A
 `,
   );
   assert.deepEqual(checkLdscript(LAYOUTS.between, 'ldscript.txt', text), []);
-  assert.match(ldscriptText(LAYOUTS.at), /\.rodata_main 0x0800014C : AT\(0x0800014C\) \{ build\/src\/main\.o\(\.rodata \.rodata\.\*\) \}\n {4}ASSERT\(SIZEOF\(\.rodata_main\) == 16, /);
+  assert.match(
+    ldscriptText(LAYOUTS.at),
+    /\.rodata_main 0x0800014C : AT\(0x0800014C\) \{ build\/src\/main\.o\(\.rodata \.rodata\.\*\) \}\n {4}ASSERT\(SIZEOF\(\.rodata_main\) == 16, /,
+  );
 });
 
 test('mutations of the data-range lines are E_SELF_CHECK_TEXT at their line', () => {
@@ -160,56 +189,85 @@ test('mutations of the data-range lines are E_SELF_CHECK_TEXT at their line', ()
   const messages = (t: string): string[] => checkLdscript(model, 'ldscript.txt', t).map((d) => d.message);
   const fails = (t: string, pattern: RegExp): void => {
     const found = messages(t);
-    assert.ok(found.some((m) => pattern.test(m)), `${pattern}:\n${found.join('\n')}`);
+    assert.ok(
+      found.some((m) => pattern.test(m)),
+      `${pattern}:\n${found.join('\n')}`,
+    );
   };
   const rodata = '    .rodata_main 0x08000150 : AT(0x08000150) { build/src/main.o(.rodata .rodata.*) }\n';
   const assertLine = text.split('\n').find((l) => l.includes('SIZEOF(.rodata_main)')) ?? '';
   fails(text.replace(rodata, ''), /lacks `\.rodata_main 0x08000150 : AT\(0x08000150\)/);
-  fails(text.replace(`${assertLine}\n`, ''), /does not follow `\.rodata_main .*` with `ASSERT\(SIZEOF\(\.rodata_main\) == 8,/);
+  fails(
+    text.replace(`${assertLine}\n`, ''),
+    /does not follow `\.rodata_main .*` with `ASSERT\(SIZEOF\(\.rodata_main\) == 8,/,
+  );
   fails(text.replace('== 8,', '== 4,'), /does not follow/);
-  fails(text.replace('0x08000150 : AT(0x08000150)', '0x08000154 : AT(0x08000154)'), /holds `\.rodata_main 0x08000154.*` where the data range of C unit main needs/);
+  fails(
+    text.replace('0x08000150 : AT(0x08000150)', '0x08000154 : AT(0x08000154)'),
+    /holds `\.rodata_main 0x08000154.*` where the data range of C unit main needs/,
+  );
   // The range moved before main's text: after 2 units, where ROM order puts it after 4.
-  const early = text.replace(rodata + assertLine + '\n', '').replace('    .text : {\n', `${rodata}${assertLine}\n    .text : {\n`);
+  const early = text
+    .replace(rodata + assertLine + '\n', '')
+    .replace('    .text : {\n', `${rodata}${assertLine}\n    .text : {\n`);
   fails(early, /places the data range of C unit main after 0 units, where ROM order puts it after 4/);
   // The unit after the range in a section without its load address.
   const unplaced = text.replace('    .text.tail 0x08000158 : AT(0x08000158) {\n', '    .text.tail : {\n');
   fails(unplaced, /build\/tail\.o follows a data range and must open its own section at 0x08000158 : AT\(0x08000158\)/);
   // The phase-4 check section of a module with a range.
-  fails(text.replace('(.data* .bss* COMMON)', '(.rodata* .data* .bss* COMMON)'), /where C unit main needs `\.c_data_main \(NOLOAD\) : \{ \*src\/main\.o\(\.data\* \.bss\* COMMON\) \}`/);
+  fails(
+    text.replace('(.data* .bss* COMMON)', '(.rodata* .data* .bss* COMMON)'),
+    /where C unit main needs `\.c_data_main \(NOLOAD\) : \{ \*src\/main\.o\(\.data\* \.bss\* COMMON\) \}`/,
+  );
 });
 
 test('tiling: a data range spanned by a chunk of another module, or by no chunk, fails at the range', () => {
   const model = LAYOUTS.at;
   const i = model.chunks.findIndex((c) => c.span.start === TABLE);
   const renamed: Model = { ...model, chunks: model.chunks.map((c, k) => (k === i ? { ...c, module: 'data' } : c)) };
-  assert.match(checkTiling(rom, renamed).detail, /chunk gUnk_0800014C lies in module main's data range \(0x0800014C\.\.0x0800015C\) but is a data chunk of module data/);
+  assert.match(
+    checkTiling(rom, renamed).detail,
+    /chunk gUnk_0800014C lies in module main's data range \(0x0800014C\.\.0x0800015C\) but is a data chunk of module data/,
+  );
   const dropped: Model = { ...model, chunks: model.chunks.filter((_, k) => k !== i) };
   assert.equal(checkTiling(rom, dropped).ok, false);
-  const moved: Model = { ...model, modules: model.modules.map((m) => (m.name === 'main' && m.dataRange !== undefined ? { ...m, dataRange: { start: TABLE + 4, end: rom.end } } : m)) };
+  const moved: Model = {
+    ...model,
+    modules: model.modules.map((m) =>
+      m.name === 'main' && m.dataRange !== undefined ? { ...m, dataRange: { start: TABLE + 4, end: rom.end } } : m,
+    ),
+  };
   assert.equal(checkTiling(rom, moved).ok, false, 'a range that leaves a gap after the text');
 });
 
 for (const [name, model] of Object.entries(LAYOUTS)) {
-  test(`${name}: every unit assembles to its ROM range, main's .rodata to its data range, and the tree links to the SHA-1`, { skip }, async () => {
-    if ('code' in tools) return;
-    const entries = [...emitTree(rom, model, { decomp: { defined: [] } })];
-    const dir = await writeTree(entries);
-    const assembled = await assembleCheck({ dir, rom, units: assembleUnits(model), tools });
-    assert.ok(assembled.ok, assembled.detail);
-    assert.match(assembled.modules.find((m) => m.module === 'main')?.detail ?? '', /and its data range 0x0800/);
-    const linked = await linkCheck({ dir, rom, units: buildUnits(model), tools });
-    assert.ok(linked.ok, linked.detail);
-    assert.equal(linked.sha1, rom.sha1);
-    if (name !== 'at') return;
-    // The verdict reads the object's .rodata against the range the unit names: 4 bytes later it differs; 4 bytes
-    // shorter, its size does.
-    const object = new Uint8Array(await readFile(join(dir, 'build', 'src', 'main.o')));
-    const unit = assembleUnits(model).find((u) => u.module === 'main');
-    const data = unit?.data;
-    assert.ok(unit !== undefined && data !== undefined);
-    const at = (start: number, end: number): AssembleUnit => ({ ...unit, data: { ...data, span: { start, end } } });
-    assert.match(compareObject(object, at(TABLE - 4, rom.end - 4), rom).detail, /^first difference at 0x0800014/);
-    assert.equal(compareObject(object, at(TABLE, rom.end - 4), rom).detail, 'build/src/main.o has 0x10 bytes of .rodata, its data range spans 0xC');
-    assert.equal(compareObject(object, at(TABLE, rom.end), rom).ok, true);
-  });
+  test(
+    `${name}: every unit assembles to its ROM range, main's .rodata to its data range, and the tree links to the SHA-1`,
+    { skip },
+    async () => {
+      if ('code' in tools) return;
+      const entries = [...emitTree(rom, model, { decomp: { defined: [] } })];
+      const dir = await writeTree(entries);
+      const assembled = await assembleCheck({ dir, rom, units: assembleUnits(model), tools });
+      assert.ok(assembled.ok, assembled.detail);
+      assert.match(assembled.modules.find((m) => m.module === 'main')?.detail ?? '', /and its data range 0x0800/);
+      const linked = await linkCheck({ dir, rom, units: buildUnits(model), tools });
+      assert.ok(linked.ok, linked.detail);
+      assert.equal(linked.sha1, rom.sha1);
+      if (name !== 'at') return;
+      // The verdict reads the object's .rodata against the range the unit names: 4 bytes later it differs; 4 bytes
+      // shorter, its size does.
+      const object = new Uint8Array(await readFile(join(dir, 'build', 'src', 'main.o')));
+      const unit = assembleUnits(model).find((u) => u.module === 'main');
+      const data = unit?.data;
+      assert.ok(unit !== undefined && data !== undefined);
+      const at = (start: number, end: number): AssembleUnit => ({ ...unit, data: { ...data, span: { start, end } } });
+      assert.match(compareObject(object, at(TABLE - 4, rom.end - 4), rom).detail, /^first difference at 0x0800014/);
+      assert.equal(
+        compareObject(object, at(TABLE, rom.end - 4), rom).detail,
+        'build/src/main.o has 0x10 bytes of .rodata, its data range spans 0xC',
+      );
+      assert.equal(compareObject(object, at(TABLE, rom.end), rom).ok, true);
+    },
+  );
 }

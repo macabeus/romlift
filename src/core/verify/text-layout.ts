@@ -60,12 +60,28 @@ import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Mode, Span } from '../../foundation/rom/span.ts';
 import { pushAll } from '../../foundation/util/arrays.ts';
 import { hex, hexAddr } from '../../foundation/util/hex.ts';
-import type { FileEntry, WriterId } from '../emit/tree.ts';
-import { findItem, modeOfSpec, specIdAt } from '../model/item-table.ts';
-import { dataRangeModuleAt, linkerDefinedNames, moduleIndexAt, relocatedModules, runOffsetOf, toLoad } from '../model/modules.ts';
 import { BASEROM_FILE, isCSource, matchingFileOf, nonmatchingFileOf } from '../../foundation/util/project-files.ts';
-import { chunkPathsOf, expectedSourcePath, hasExpectedTarget, LDSCRIPT_PATH, MACROS_PATH, moduleSource, SYMBOLS_PATH, writesModuleFiles } from '../model/paths.ts';
+import type { FileEntry, WriterId } from '../emit/tree.ts';
 import { STUB_UNIT_MODE } from '../model/c-unit.ts';
+import { findItem, modeOfSpec, specIdAt } from '../model/item-table.ts';
+import {
+  dataRangeModuleAt,
+  linkerDefinedNames,
+  moduleIndexAt,
+  relocatedModules,
+  runOffsetOf,
+  toLoad,
+} from '../model/modules.ts';
+import {
+  LDSCRIPT_PATH,
+  MACROS_PATH,
+  SYMBOLS_PATH,
+  chunkPathsOf,
+  expectedSourcePath,
+  hasExpectedTarget,
+  moduleSource,
+  writesModuleFiles,
+} from '../model/paths.ts';
 import { symbolValueOf } from '../model/resolver.ts';
 import { ItemKind } from '../model/types.ts';
 import type { Label, Model, Module } from '../model/types.ts';
@@ -80,7 +96,18 @@ import { textError } from './text-error.ts';
 export const MAX_PER_ENTRY = 16;
 
 /** The writers whose files this check reads; an unknown path of one of them is an error. */
-const CHECKED_WRITERS: ReadonlySet<WriterId> = new Set<WriterId>(['header', 'crt0', 'function', 'orphan', 'module', 'data', 'ldscript', 'symbols', 'c-stub', 'expected']);
+const CHECKED_WRITERS: ReadonlySet<WriterId> = new Set<WriterId>([
+  'header',
+  'crt0',
+  'function',
+  'orphan',
+  'module',
+  'data',
+  'ldscript',
+  'symbols',
+  'c-stub',
+  'expected',
+]);
 
 const INCLUDES: ReadonlyMap<string, string> = new Map([[MACROS_PATH, DIALECT.macrosInc]]);
 
@@ -162,7 +189,16 @@ function indexData(model: Model): IndexData {
     else list.push(label);
   }
   const loadSymbols = new Map(linkerDefinedNames(model.modules).map((d) => [d.name, d.addr] as const));
-  return { targets, chunkPaths: paths, expected, relocated, labelsByName, symbolsByName: externalSymbolValues(model), loadSymbols, memo: layoutMemo() };
+  return {
+    targets,
+    chunkPaths: paths,
+    expected,
+    relocated,
+    labelsByName,
+    symbolsByName: externalSymbolValues(model),
+    loadSymbols,
+    memo: layoutMemo(),
+  };
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -178,7 +214,8 @@ function objectModuleAt(model: Model, index: IndexData, addr: number): number {
 function resolveIn(model: Model, index: IndexData, m: number): (name: string) => SymbolValue | undefined {
   return (name) => {
     const labels = index.labelsByName.get(name) ?? [];
-    const label = labels.find((l) => objectModuleAt(model, index, l.addr) === m) ?? labels.find((l) => l.scope === 'global');
+    const label =
+      labels.find((l) => objectModuleAt(model, index, l.addr) === m) ?? labels.find((l) => l.scope === 'global');
     if (label !== undefined) return symbolValueOf(label);
     const addr = index.symbolsByName.get(name) ?? index.loadSymbols.get(name);
     return addr === undefined ? undefined : { addr, thumbFunction: false };
@@ -191,7 +228,10 @@ function inModule(model: Model, index: IndexData, m: number): (name: string) => 
 }
 
 function romIncbin(rom: Rom): (file: string, offset: number, length: number) => Uint8Array | undefined {
-  return (file, offset, length) => (file === BASEROM_FILE && offset + length <= rom.bytes.length ? rom.bytes.subarray(offset, offset + length) : undefined);
+  return (file, offset, length) =>
+    file === BASEROM_FILE && offset + length <= rom.bytes.length
+      ? rom.bytes.subarray(offset, offset + length)
+      : undefined;
 }
 
 /** The mode of an item's isa row, or undefined when it names none. */
@@ -260,11 +300,17 @@ interface FileCheck {
 }
 
 /** Every difference between a laid-out file and the model: bytes, length and padding. */
-function compareLayout(rom: Rom, model: Model, job: Job, parseErrors: readonly { readonly line: number; readonly message: string }[]): FileCheck {
+function compareLayout(
+  rom: Rom,
+  model: Model,
+  job: Job,
+  parseErrors: readonly { readonly line: number; readonly message: string }[],
+): FileCheck {
   const out: Diagnostic[] = [];
   const load = (at: Addr): Addr => at - job.runOffset;
   // Each parse error costs a layout of the statements before it, so only as many as an entry reports.
-  for (const e of parseErrors.slice(0, MAX_PER_ENTRY)) out.push(textError(job.path, e.line, load(addressBefore(job, e.line)), e.message));
+  for (const e of parseErrors.slice(0, MAX_PER_ENTRY))
+    out.push(textError(job.path, e.line, load(addressBefore(job, e.line)), e.message));
   const layout = layoutOf(job, job.statements);
   for (const e of layout.errors) out.push(textError(job.path, e.line, load(e.at), e.message));
 
@@ -285,7 +331,14 @@ function compareLayout(rom: Rom, model: Model, job: Job, parseErrors: readonly {
   } else if (got !== expected) {
     const addr = job.range.start + Math.min(expected, got);
     const message = `the file lays out ${got} bytes, but its range ${hexAddr(job.range.start)}..${hexAddr(job.range.end)} holds ${expected}`;
-    out.push(textError(job.path, got > expected ? lineAt(job, addr + job.runOffset) : (job.statements[job.statements.length - 1]?.line ?? 1), addr, message));
+    out.push(
+      textError(
+        job.path,
+        got > expected ? lineAt(job, addr + job.runOffset) : (job.statements[job.statements.length - 1]?.line ?? 1),
+        addr,
+        message,
+      ),
+    );
   }
 
   for (const a of layout.aligns) {
@@ -302,7 +355,10 @@ function compareLayout(rom: Rom, model: Model, job: Job, parseErrors: readonly {
   return { diagnostics: out, sectionAlign: layout.sectionAlign };
 }
 
-function parse(text: string): { readonly statements: readonly Statement[]; readonly errors: readonly { readonly line: number; readonly message: string }[] } {
+function parse(text: string): {
+  readonly statements: readonly Statement[];
+  readonly errors: readonly { readonly line: number; readonly message: string }[];
+} {
   return parseStatements(text, { includes: INCLUDES });
 }
 
@@ -322,16 +378,34 @@ function macrosIncludeLine(text: string): number | undefined {
 }
 
 /** A function or orphan file: laid out from its chunk's start. */
-function checkChunkFile(rom: Rom, model: Model, index: IndexData, entry: { readonly path: string; readonly text: string }, m: number, c: number): FileCheck {
+function checkChunkFile(
+  rom: Rom,
+  model: Model,
+  index: IndexData,
+  entry: { readonly path: string; readonly text: string },
+  m: number,
+  c: number,
+): FileCheck {
   const module = model.modules[m];
   const chunk = model.chunks[c];
-  if (module === undefined || chunk === undefined) throw new RomliftInvariantError(`text-layout: the path index names chunk ${c} of module ${m}, which the model lacks`);
+  if (module === undefined || chunk === undefined)
+    throw new RomliftInvariantError(
+      `text-layout: the path index names chunk ${c} of module ${m}, which the model lacks`,
+    );
   const runOffset = runOffsetOf(chunk);
   const parsed = parse(asIncluded(entry.text));
   const job: Job = {
     path: entry.path,
     statements: parsed.statements,
-    input: { start: chunk.span.start + runOffset, mode: incomingMode(model, module, c), resolve: resolveIn(model, index, m), incbin: romIncbin(rom), include: () => undefined, memo: index.memo, sameObject: inModule(model, index, m) },
+    input: {
+      start: chunk.span.start + runOffset,
+      mode: incomingMode(model, module, c),
+      resolve: resolveIn(model, index, m),
+      incbin: romIncbin(rom),
+      include: () => undefined,
+      memo: index.memo,
+      sameObject: inModule(model, index, m),
+    },
     range: chunk.span,
     runOffset,
   };
@@ -339,7 +413,11 @@ function checkChunkFile(rom: Rom, model: Model, index: IndexData, entry: { reado
 }
 
 /** A module's chunk files in ROM order, with the span each stands for. */
-function moduleChunkFiles(model: Model, index: IndexData, module: Module): readonly { readonly path: string; readonly span: Span }[] {
+function moduleChunkFiles(
+  model: Model,
+  index: IndexData,
+  module: Module,
+): readonly { readonly path: string; readonly span: Span }[] {
   const order: { readonly path: string; readonly span: Span }[] = [];
   for (let c = module.chunks.first; c < module.chunks.first + module.chunks.count; c++) {
     const path = index.chunkPaths[c];
@@ -358,7 +436,9 @@ function spansByPath(order: readonly { readonly path: string; readonly span: Spa
 function chunkBytes(files: ReadonlyMap<string, Span>): (path: string) => readonly Statement[] | undefined {
   return (path) => {
     const span = files.get(path);
-    return span === undefined ? undefined : [{ kind: 'incbin', line: 1, file: BASEROM_FILE, offset: span.start - ROM_BASE, length: span.end - span.start }];
+    return span === undefined
+      ? undefined
+      : [{ kind: 'incbin', line: 1, file: BASEROM_FILE, offset: span.start - ROM_BASE, length: span.end - span.start }];
   };
 }
 
@@ -366,7 +446,13 @@ function chunkBytes(files: ReadonlyMap<string, Span>): (path: string) => readonl
  * The first place a unit file's includes (`got`, in text order) differ from the module's chunk files in ROM order
  * (`want`), or undefined when they are the same list: the byte comparison would only repeat a wrong order.
  */
-function includeOrderError(path: string, got: readonly { readonly path: string; readonly line: number }[], want: readonly { readonly path: string; readonly span: Span }[], module: Module, lastLine: number): Diagnostic | undefined {
+function includeOrderError(
+  path: string,
+  got: readonly { readonly path: string; readonly line: number }[],
+  want: readonly { readonly path: string; readonly span: Span }[],
+  module: Module,
+  lastLine: number,
+): Diagnostic | undefined {
   for (let k = 0; k < Math.max(got.length, want.length); k++) {
     const g = got[k];
     const w = want[k];
@@ -389,23 +475,39 @@ function includeOrderError(path: string, got: readonly { readonly path: string; 
  * including them (asIncluded), so the module file defines them once, before the first chunk file; undefined when the
  * macro file comes first or nothing is included.
  */
-function macrosOrderError(entry: { readonly path: string; readonly text: string }, includes: readonly { readonly line: number }[], module: Module): Diagnostic | undefined {
+function macrosOrderError(
+  entry: { readonly path: string; readonly text: string },
+  includes: readonly { readonly line: number }[],
+  module: Module,
+): Diagnostic | undefined {
   const firstInclude = includes[0];
   if (firstInclude === undefined) return undefined;
   const macrosLine = macrosIncludeLine(entry.text);
   if (macrosLine !== undefined && macrosLine <= firstInclude.line) return undefined;
-  return textError(entry.path, firstInclude.line, module.span.start, `includes a chunk file before it includes "${MACROS_PATH}", whose macros the chunk files use`);
+  return textError(
+    entry.path,
+    firstInclude.line,
+    module.span.start,
+    `includes a chunk file before it includes "${MACROS_PATH}", whose macros the chunk files use`,
+  );
 }
 
 /** The module at `m`, which the path index names. */
 function moduleAtIndex(model: Model, m: number): Module {
   const module = model.modules[m];
-  if (module === undefined) throw new RomliftInvariantError(`text-layout: the path index names module ${m}, which the model lacks`);
+  if (module === undefined)
+    throw new RomliftInvariantError(`text-layout: the path index names module ${m}, which the model lacks`);
   return module;
 }
 
 /** A module's source: laid out from the module's start, each include of a chunk file standing for its bytes. */
-function checkSourceFile(rom: Rom, model: Model, index: IndexData, entry: { readonly path: string; readonly text: string }, m: number): FileCheck {
+function checkSourceFile(
+  rom: Rom,
+  model: Model,
+  index: IndexData,
+  entry: { readonly path: string; readonly text: string },
+  m: number,
+): FileCheck {
   const module = moduleAtIndex(model, m);
   const runOffset = runOffsetOf(module);
   const order = moduleChunkFiles(model, index, module);
@@ -413,7 +515,14 @@ function checkSourceFile(rom: Rom, model: Model, index: IndexData, entry: { read
   const job: Job = {
     path: entry.path,
     statements: parsed.statements,
-    input: { start: module.span.start + runOffset, mode: 'arm', resolve: resolveIn(model, index, m), incbin: romIncbin(rom), memo: index.memo, include: chunkBytes(spansByPath(order)) },
+    input: {
+      start: module.span.start + runOffset,
+      mode: 'arm',
+      resolve: resolveIn(model, index, m),
+      incbin: romIncbin(rom),
+      memo: index.memo,
+      include: chunkBytes(spansByPath(order)),
+    },
     range: module.span,
     runOffset,
   };
@@ -433,26 +542,56 @@ function checkSourceFile(rom: Rom, model: Model, index: IndexData, entry: { read
  * module's start in STUB_UNIT_MODE, each statement's chunk file standing for its chunk's bytes, and nothing else. The
  * header's include of the macro file comes before every statement, as the chunk files need (asIncluded).
  */
-function checkStubFile(rom: Rom, model: Model, index: IndexData, entry: { readonly path: string; readonly text: string }, m: number): FileCheck {
+function checkStubFile(
+  rom: Rom,
+  model: Model,
+  index: IndexData,
+  entry: { readonly path: string; readonly text: string },
+  m: number,
+): FileCheck {
   const module = moduleAtIndex(model, m);
   const runOffset = runOffsetOf(module);
   const reading = readStub(entry.text);
-  if (reading.problems.length > 0) return { diagnostics: reading.problems.map((p) => textError(entry.path, p.line, module.span.start, p.message)), sectionAlign: 0 };
+  if (reading.problems.length > 0)
+    return {
+      diagnostics: reading.problems.map((p) => textError(entry.path, p.line, module.span.start, p.message)),
+      sectionAlign: 0,
+    };
   for (let c = module.chunks.first; c < module.chunks.first + module.chunks.count; c++) {
     const chunk = model.chunks[c];
     if (chunk !== undefined && index.chunkPaths[c] === undefined) {
-      return { diagnostics: [textError(entry.path, 1, chunk.span.start, `the ${chunk.kind} chunk ${chunk.name} at ${hexAddr(chunk.span.start)} has no file of its own, and a C unit holds only INCLUDE_ASM statements`)], sectionAlign: 0 };
+      return {
+        diagnostics: [
+          textError(
+            entry.path,
+            1,
+            chunk.span.start,
+            `the ${chunk.kind} chunk ${chunk.name} at ${hexAddr(chunk.span.start)} has no file of its own, and a C unit holds only INCLUDE_ASM statements`,
+          ),
+        ],
+        sectionAlign: 0,
+      };
     }
   }
   const order = moduleChunkFiles(model, index, module);
   const lastLine = reading.includes[reading.includes.length - 1]?.line ?? 1;
   const misordered = includeOrderError(entry.path, reading.includes, order, module, lastLine);
   if (misordered !== undefined) return { diagnostics: [misordered], sectionAlign: 0 };
-  const statements: Statement[] = [{ kind: 'mode', line: 1, mode: STUB_UNIT_MODE }, ...reading.includes.map((i): Statement => ({ kind: 'include', line: i.line, path: i.path }))];
+  const statements: Statement[] = [
+    { kind: 'mode', line: 1, mode: STUB_UNIT_MODE },
+    ...reading.includes.map((i): Statement => ({ kind: 'include', line: i.line, path: i.path })),
+  ];
   const job: Job = {
     path: entry.path,
     statements,
-    input: { start: module.span.start + runOffset, mode: 'arm', resolve: resolveIn(model, index, m), incbin: romIncbin(rom), memo: index.memo, include: chunkBytes(spansByPath(order)) },
+    input: {
+      start: module.span.start + runOffset,
+      mode: 'arm',
+      resolve: resolveIn(model, index, m),
+      incbin: romIncbin(rom),
+      memo: index.memo,
+      include: chunkBytes(spansByPath(order)),
+    },
     range: module.span,
     runOffset,
   };
@@ -465,13 +604,22 @@ function checkStubFile(rom: Rom, model: Model, index: IndexData, entry: { readon
  * only its own source. Laid out from the module's start in ARM state (its run address for a runs_at module, as its
  * source is), each include standing for its bytes.
  */
-function checkExpectedFile(rom: Rom, model: Model, index: IndexData, entry: { readonly path: string; readonly text: string }, m: number): FileCheck {
+function checkExpectedFile(
+  rom: Rom,
+  model: Model,
+  index: IndexData,
+  entry: { readonly path: string; readonly text: string },
+  m: number,
+): FileCheck {
   const module = moduleAtIndex(model, m);
   const runOffset = runOffsetOf(module);
   const parsed = parse(entry.text);
   const includes = parsed.statements.filter((s): s is Statement & { readonly kind: 'include' } => s.kind === 'include');
   const lastLine = parsed.statements[parsed.statements.length - 1]?.line ?? 1;
-  const order = module.kind === 'c' ? moduleChunkFiles(model, index, module) : [{ path: moduleSource(model, module), span: module.span }];
+  const order =
+    module.kind === 'c'
+      ? moduleChunkFiles(model, index, module)
+      : [{ path: moduleSource(model, module), span: module.span }];
   const files = new Map<string, Span>();
   for (const f of order) {
     files.set(f.path, f.span);
@@ -485,7 +633,14 @@ function checkExpectedFile(rom: Rom, model: Model, index: IndexData, entry: { re
   const job: Job = {
     path: entry.path,
     statements: parsed.statements,
-    input: { start: module.span.start + runOffset, mode: 'arm', resolve: resolveIn(model, index, m), incbin: romIncbin(rom), memo: index.memo, include: chunkBytes(files) },
+    input: {
+      start: module.span.start + runOffset,
+      mode: 'arm',
+      resolve: resolveIn(model, index, m),
+      incbin: romIncbin(rom),
+      memo: index.memo,
+      include: chunkBytes(files),
+    },
     range: module.span,
     runOffset,
   };
@@ -504,10 +659,22 @@ interface EntryCheck {
 
 function checkOne(rom: Rom, model: Model, index: IndexData, entry: FileEntry): EntryCheck {
   // Of the scaffold, only the c-stub writer's src/<module>.c is a unit's source; a reconciled file (D75 b) is the user's C, which make builds, not this check.
-  if (entry.ownership === 'reconciled' || (entry.ownership === 'scaffold' && entry.writer !== 'c-stub')) return { diagnostics: [] };
+  if (entry.ownership === 'reconciled' || (entry.ownership === 'scaffold' && entry.writer !== 'c-stub'))
+    return { diagnostics: [] };
   const target = index.targets.get(entry.path);
   if (target === undefined) {
-    return { diagnostics: CHECKED_WRITERS.has(entry.writer) ? [textError(entry.path, 1, ROM_BASE, `the ${entry.writer} writer emits a file no chunk or module of the model has`)] : [] };
+    return {
+      diagnostics: CHECKED_WRITERS.has(entry.writer)
+        ? [
+            textError(
+              entry.path,
+              1,
+              ROM_BASE,
+              `the ${entry.writer} writer emits a file no chunk or module of the model has`,
+            ),
+          ]
+        : [],
+    };
   }
   let file: FileCheck;
   switch (target.kind) {
@@ -522,13 +689,18 @@ function checkOne(rom: Rom, model: Model, index: IndexData, entry: FileEntry): E
       break;
     case 'expected':
       // Not a build unit's file: its alignment is no unit's.
-      return { diagnostics: checkExpectedFile(rom, model, index, entry, target.module).diagnostics.slice(0, MAX_PER_ENTRY) };
+      return {
+        diagnostics: checkExpectedFile(rom, model, index, entry, target.module).diagnostics.slice(0, MAX_PER_ENTRY),
+      };
     case 'ldscript':
       return { diagnostics: checkLdscript(model, entry.path, entry.text).slice(0, MAX_PER_ENTRY) };
     case 'symbols':
       return { diagnostics: checkSymbolsFile(model, entry.path, entry.text).slice(0, MAX_PER_ENTRY) };
   }
-  return { diagnostics: file.diagnostics.slice(0, MAX_PER_ENTRY), unit: { module: target.module, sectionAlign: file.sectionAlign } };
+  return {
+    diagnostics: file.diagnostics.slice(0, MAX_PER_ENTRY),
+    unit: { module: target.module, sectionAlign: file.sectionAlign },
+  };
 }
 
 /**
@@ -545,10 +717,24 @@ function unitAlignment(model: Model, aligns: ReadonlyMap<number, number>): Diagn
     const source = moduleSource(model, module);
     const length = module.span.end - module.span.start;
     if ((module.span.start - ROM_BASE) % unit !== 0) {
-      out.push(textError(source, 1, module.span.start, `the object's section is aligned to ${unit} bytes, so ld places it past ${hexAddr(module.span.start)}, the module's start`));
+      out.push(
+        textError(
+          source,
+          1,
+          module.span.start,
+          `the object's section is aligned to ${unit} bytes, so ld places it past ${hexAddr(module.span.start)}, the module's start`,
+        ),
+      );
     } else if (length % unit !== 0) {
       const pad = unit - (length % unit);
-      out.push(textError(source, 1, module.span.end, `GNU as pads the object's section to a multiple of ${unit} bytes, ${pad} past the module's end ${hexAddr(module.span.end)}, so the image is longer than the ROM range`));
+      out.push(
+        textError(
+          source,
+          1,
+          module.span.end,
+          `GNU as pads the object's section to a multiple of ${unit} bytes, ${pad} past the module's end ${hexAddr(module.span.end)}, so the image is longer than the ROM range`,
+        ),
+      );
     }
   });
   return out;
@@ -557,7 +743,12 @@ function unitAlignment(model: Model, aligns: ReadonlyMap<number, number>): Diagn
 /** The 'text-layout' CheckResult of the diagnostics of `files` checked entries. */
 export function textLayoutResult(diagnostics: readonly Diagnostic[], files: number): CheckResult {
   const first = diagnostics[0]?.message;
-  const detail = first === undefined ? `${files} files lay out to their ROM ranges` : diagnostics.length > 1 ? `${first} (${diagnostics.length} problems in all)` : first;
+  const detail =
+    first === undefined
+      ? `${files} files lay out to their ROM ranges`
+      : diagnostics.length > 1
+        ? `${first} (${diagnostics.length} problems in all)`
+        : first;
   return checkResult('text-layout', diagnostics, detail);
 }
 
@@ -574,11 +765,13 @@ export function checkEntries(rom: Rom, model: Model, entries: Iterable<FileEntry
     paths.push(entry.path);
     const found = checkOne(rom, model, index, entry);
     pushAll(diagnostics, found.diagnostics);
-    if (found.unit !== undefined) aligns.set(found.unit.module, Math.max(aligns.get(found.unit.module) ?? 0, found.unit.sectionAlign));
+    if (found.unit !== undefined)
+      aligns.set(found.unit.module, Math.max(aligns.get(found.unit.module) ?? 0, found.unit.sectionAlign));
   }
   const emitted = new Set(paths);
   for (const { path, addr } of index.expected) {
-    if (!emitted.has(path)) diagnostics.push(textError(path, 1, addr, 'the stream emits no such file, which the model needs'));
+    if (!emitted.has(path))
+      diagnostics.push(textError(path, 1, addr, 'the stream emits no such file, which the model needs'));
   }
   pushAll(diagnostics, unitAlignment(model, aligns));
   const checks = [textLayoutResult(diagnostics, paths.length), pathsCheck(paths)];

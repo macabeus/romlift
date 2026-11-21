@@ -27,10 +27,12 @@ function messages(m: Model, text: string): string[] {
 }
 
 const DATA_MAIN = '    .c_data_main (NOLOAD) : { *src/main.o(.rodata* .data* .bss* COMMON) }\n';
-const ASSERT_MAIN = '    ASSERT(SIZEOF(.c_data_main) == 0, "src/main.c defines data; see AGENTS.md (only read-only data is placed, in a data range: data_start)")\n';
+const ASSERT_MAIN =
+  '    ASSERT(SIZEOF(.c_data_main) == 0, "src/main.c defines data; see AGENTS.md (only read-only data is placed, in a data range: data_start)")\n';
 
-test('the writer\'s script passes, with and without C units', () => {
-  for (const m of [model('asm', 'asm'), model('c', 'asm'), model('c', 'c')]) assert.deepEqual(messages(m, ldscriptText(m)), []);
+test("the writer's script passes, with and without C units", () => {
+  for (const m of [model('asm', 'asm'), model('c', 'asm'), model('c', 'c')])
+    assert.deepEqual(messages(m, ldscriptText(m)), []);
 });
 
 test('a missing ASSERT, a missing check section, or both for a C unit fail at the end of the script', () => {
@@ -39,7 +41,10 @@ test('a missing ASSERT, a missing check section, or both for a C unit fail at th
   assert.deepEqual(messages(m, text.replace(ASSERT_MAIN, '')), [
     'E_SELF_CHECK_TEXT ldscript.txt line 12: lacks `ASSERT(SIZEOF(.c_data_main) == 0, "src/main.c defines data; see AGENTS.md (only read-only data is placed, in a data range: data_start)")`, which C unit main needs (at 0x080000C0)',
   ]);
-  assert.match(messages(m, text.replace(DATA_MAIN, '').replace(ASSERT_MAIN, ''))[0] ?? '', /lacks `\.c_data_main \(NOLOAD\)/);
+  assert.match(
+    messages(m, text.replace(DATA_MAIN, '').replace(ASSERT_MAIN, ''))[0] ?? '',
+    /lacks `\.c_data_main \(NOLOAD\)/,
+  );
 });
 
 test('a changed message, input pattern or order, or a check of an asm unit, fails at its line', () => {
@@ -47,7 +52,12 @@ test('a changed message, input pattern or order, or a check of an asm unit, fail
   const text = ldscriptText(m);
   const lineOf = (t: string, needle: string): number => t.split('\n').findIndex((l) => l.includes(needle)) + 1;
   const message = text.replace('see AGENTS.md', 'see README.md');
-  assert.match(messages(m, message)[0] ?? '', new RegExp(`line ${lineOf(message, 'README')}: holds \`ASSERT\\(SIZEOF\\(\\.c_data_main\\) == 0, "src/main\\.c defines data; see README\\.md`));
+  assert.match(
+    messages(m, message)[0] ?? '',
+    new RegExp(
+      `line ${lineOf(message, 'README')}: holds \`ASSERT\\(SIZEOF\\(\\.c_data_main\\) == 0, "src/main\\.c defines data; see README\\.md`,
+    ),
+  );
   const pattern = text.replace('*src/main.o(', 'build/src/main.o(');
   assert.match(messages(m, pattern)[0] ?? '', /holds `\.c_data_main \(NOLOAD\) : \{ build\/src\/main\.o\(/);
   // main's pair after other's: the first C-data line is other's where main's comes first in ROM order.
@@ -56,5 +66,8 @@ test('a changed message, input pattern or order, or a check of an asm unit, fail
   const asm = model('asm', 'c');
   assert.match(messages(asm, ldscriptText(model('c', 'c')))[0] ?? '', /build\/src\/main\.o|C unit other needs/);
   const extra = ldscriptText(asm).replace(/\}\n$/, `${DATA_MAIN}}\n`);
-  assert.match(messages(asm, extra)[0] ?? '', /holds `\.c_data_main \(NOLOAD\).*`, which no C unit of the model needs there/);
+  assert.match(
+    messages(asm, extra)[0] ?? '',
+    /holds `\.c_data_main \(NOLOAD\).*`, which no C unit of the model needs there/,
+  );
 });

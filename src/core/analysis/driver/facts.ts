@@ -2,8 +2,8 @@
 // entry inside a runs_at range, §6.7), the extent end of a reading (cut at the next listed entry in confirm mode,
 // §4.2) and the innermost accepted extent covering an address (§9.3).
 import type { Addr, Span } from '../../../foundation/rom/span.ts';
-import { compareNumbers } from '../../../foundation/util/sorted.ts';
 import { innermost, intervalIndex } from '../../../foundation/util/interval-index.ts';
+import { compareNumbers } from '../../../foundation/util/sorted.ts';
 import { runsElsewhere, toRun } from '../address-map.ts';
 import { Claim } from '../types.ts';
 import type { FunctionFact, InsnSpan, Reading } from '../types.ts';
@@ -19,7 +19,9 @@ export function factOf(s: DriverState, entry: Addr): FunctionFact | undefined {
 /** The FunctionFact of a block absorbed into the accepted function `into`, as the block reads alone (the queue slot's input). */
 export function factOfBlock(s: DriverState, into: Addr, block: Reading): FunctionFact | undefined {
   const f = s.funcs.get(into);
-  return f === undefined ? undefined : factFrom(s, block, { origin: f.origin, accepted: f.accepted, also: f.also, absorbed: [] });
+  return f === undefined
+    ? undefined
+    : factFrom(s, block, { origin: f.origin, accepted: f.accepted, also: f.also, absorbed: [] });
 }
 
 /** The runs of `dead` claims inside `extent`, in address order (a native scan of the claim bytes, not one claimAt per byte). */
@@ -40,7 +42,11 @@ function deadRuns(s: DriverState, extent: Span): Span[] {
 }
 
 /** The FunctionFact of reading `r` with the acceptance record `f`, under the current claims. */
-function factFrom(s: DriverState, r: Reading, f: Pick<Accepted, 'origin' | 'accepted' | 'also' | 'absorbed'>): FunctionFact {
+function factFrom(
+  s: DriverState,
+  r: Reading,
+  f: Pick<Accepted, 'origin' | 'accepted' | 'also' | 'absorbed'>,
+): FunctionFact {
   const extent = { start: r.entry, end: extentEndOf(s, r) };
   // The instructions' spans merged where they touch, one object per merged run (final-review gates-r1-1: not one per
   // instruction).
@@ -125,11 +131,12 @@ function listedExtentEnd(s: DriverState, r: Reading): Addr {
 /** The innermost accepted extent covering `a` (rebuilt after each acceptance or absorption). */
 export function ownerOf(s: DriverState, a: Addr): Addr | undefined {
   if (s.ownerIndex === undefined) {
-    s.ownerIndex = intervalIndex(s.order.map((e) => {
-      const r = s.funcs.get(e)?.reading;
-      return { start: e, end: r === undefined ? e : extentEndOf(s, r), value: e };
-    }));
+    s.ownerIndex = intervalIndex(
+      s.order.map((e) => {
+        const r = s.funcs.get(e)?.reading;
+        return { start: e, end: r === undefined ? e : extentEndOf(s, r), value: e };
+      }),
+    );
   }
   return innermost(s.ownerIndex, a)?.value;
 }
-

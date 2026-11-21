@@ -5,7 +5,6 @@
 import { Session } from 'node:inspector/promises';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-
 import { compareCodeUnits } from 'romlift';
 
 import type { BenchContext } from './context.ts';
@@ -56,16 +55,30 @@ export function topSelfTime(profile: CpuProfile, limit = 25, root?: string): Sel
     const where = prefix !== undefined && url.startsWith(prefix) ? url.slice(prefix.length) : url;
     const key = `${name}\0${where}\0${lineNumber}`;
     const have = byFunction.get(key);
-    byFunction.set(key, { functionName: name, url: where, line: lineNumber + 1, selfMs: (have?.selfMs ?? 0) + us / 1000 });
+    byFunction.set(key, {
+      functionName: name,
+      url: where,
+      line: lineNumber + 1,
+      selfMs: (have?.selfMs ?? 0) + us / 1000,
+    });
   }
   return [...byFunction.values()]
-    .sort((a, b) => b.selfMs - a.selfMs || compareCodeUnits(a.functionName, b.functionName) || compareCodeUnits(a.url, b.url) || a.line - b.line)
+    .sort(
+      (a, b) =>
+        b.selfMs - a.selfMs ||
+        compareCodeUnits(a.functionName, b.functionName) ||
+        compareCodeUnits(a.url, b.url) ||
+        a.line - b.line,
+    )
     .slice(0, limit)
     .map((t) => ({ ...t, selfMs: Math.round(t.selfMs * 10) / 10 }));
 }
 
 /** Runs `fn` under the sampling profiler of this process. */
-export async function profiled<T>(fn: () => T, intervalMicros = 200): Promise<{ readonly value: T; readonly profile: CpuProfile }> {
+export async function profiled<T>(
+  fn: () => T,
+  intervalMicros = 200,
+): Promise<{ readonly value: T; readonly profile: CpuProfile }> {
   const session = new Session();
   session.connect();
   try {
@@ -80,12 +93,16 @@ export async function profiled<T>(fn: () => T, intervalMicros = 200): Promise<{ 
   }
 }
 
-export const cpuProfPath = (cx: BenchContext, rom: string): string => join(cx.repoRoot, 'bench', '.local', 'cpu-prof', `${rom}.json`);
+export const cpuProfPath = (cx: BenchContext, rom: string): string =>
+  join(cx.repoRoot, 'bench', '.local', 'cpu-prof', `${rom}.json`);
 
 /** Writes the top self-time functions of one ROM's analysis; returns the path. */
 export async function writeTopSelfTime(cx: BenchContext, rom: string, profile: CpuProfile): Promise<string> {
   const path = cpuProfPath(cx, rom);
   const total = profile.endTime - profile.startTime;
-  await writeText(path, prettyJson({ rom, profiledMs: Math.round(total / 100) / 10, top: topSelfTime(profile, 25, cx.repoRoot) }));
+  await writeText(
+    path,
+    prettyJson({ rom, profiledMs: Math.round(total / 100) / 10, top: topSelfTime(profile, 25, cx.repoRoot) }),
+  );
   return path;
 }

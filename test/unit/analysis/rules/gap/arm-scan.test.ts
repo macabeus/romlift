@@ -14,14 +14,31 @@ import { gapCursor } from './cursor.ts';
 
 const P = 0x0800_0200;
 const END = 0x0800_0300;
-const at = (offset: number, text: string): Placed => ({ at: P + offset, bytes: assembleSnippet('arm', text, P + offset) });
-const scan = (parts: readonly Placed[], opts: { end?: number; dummy?: boolean; claims?: Parameters<typeof viewWith>[0]['claims'] } = {}) =>
-  rule.propose(gapCursor(P, END, P, { end: opts.end ?? END }), viewWith({ rom: romWith(parts), ...(opts.dummy === true ? { profile: DUMMY_PROFILE } : {}), ...(opts.claims === undefined ? {} : { claims: opts.claims }) }));
+const at = (offset: number, text: string): Placed => ({
+  at: P + offset,
+  bytes: assembleSnippet('arm', text, P + offset),
+});
+const scan = (
+  parts: readonly Placed[],
+  opts: { end?: number; dummy?: boolean; claims?: Parameters<typeof viewWith>[0]['claims'] } = {},
+) =>
+  rule.propose(
+    gapCursor(P, END, P, { end: opts.end ?? END }),
+    viewWith({
+      rom: romWith(parts),
+      ...(opts.dummy === true ? { profile: DUMMY_PROFILE } : {}),
+      ...(opts.claims === undefined ? {} : { claims: opts.claims }),
+    }),
+  );
 
 test('an ARM function at the cursor is proposed, with the arm-unreached reason on the rule', () => {
   assert.deepEqual(scan([at(0, 'mov r0, #1; mov r1, #2; bx lr')]), { entry: P, mode: 'arm', cites: [P, P] });
   assert.equal(rule.reason, 'arm-unreached');
-  assert.equal(scan([at(0, 'bl _08000280; mov r1, #2; bx lr'), at(0x80, 'bx lr')])?.entry, P, 'a bl is not a branch here');
+  assert.equal(
+    scan([at(0, 'bl _08000280; mov r1, #2; bx lr'), at(0x80, 'bx lr')])?.entry,
+    P,
+    'a bl is not a branch here',
+  );
 });
 
 test('declined: it opens with a branch, a condition, or an undefined word', () => {
@@ -39,10 +56,18 @@ test('at least gapScan.minInsns instructions (profile boundary)', () => {
 });
 
 test('declined: no return, an error, code past the end, or claimed code', () => {
-  assert.equal(scan([at(0, 'mov r0, #1; mov r1, #2; mov r2, #3'), { at: P + 12, bytes: words(0xffff_ffff) }]), undefined);
+  assert.equal(
+    scan([at(0, 'mov r0, #1; mov r1, #2; mov r2, #3'), { at: P + 12, bytes: words(0xffff_ffff) }]),
+    undefined,
+  );
   assert.equal(scan([at(0, 'mov r0, #1; mov r1, #2; bx lr')], { end: P + 8 }), undefined);
   assert.equal(scan([at(0, 'mov r0, #1; mov r1, #2; bx lr')], { end: P + 12 })?.entry, P, 'ending exactly at the end');
-  assert.equal(scan([at(0, 'mov r0, #1; mov r1, #2; bx lr')], { claims: [{ span: { start: P + 4, end: P + 8 }, kind: Claim.dead }] }), undefined);
+  assert.equal(
+    scan([at(0, 'mov r0, #1; mov r1, #2; bx lr')], {
+      claims: [{ span: { start: P + 4, end: P + 8 }, kind: Claim.dead }],
+    }),
+    undefined,
+  );
 });
 
 test('a pool claimed as code declines it; a pool claimed as a pool does not', () => {
@@ -52,14 +77,21 @@ test('a pool claimed as code declines it; a pool claimed as a pool does not', ()
 });
 
 test('not dense: proposed only when it fills the gap within fillSlack', () => {
-  const holey = [at(0, 'mov r0, #0; b _08000220'), { at: P + 8, bytes: words(0xffff_ffff, 0xffff_ffff, 0xffff_ffff, 0xffff_ffff, 0xffff_ffff, 0xffff_ffff) }, at(0x20, 'mov r1, #1; bx lr')];
+  const holey = [
+    at(0, 'mov r0, #0; b _08000220'),
+    { at: P + 8, bytes: words(0xffff_ffff, 0xffff_ffff, 0xffff_ffff, 0xffff_ffff, 0xffff_ffff, 0xffff_ffff) },
+    at(0x20, 'mov r1, #1; bx lr'),
+  ];
   assert.equal(scan(holey, { end: P + 0x28 })?.entry, P, 'fills exactly');
   assert.equal(scan(holey, { end: P + 0x2b })?.entry, P, 'agbcc: 3 bytes of slack');
   assert.equal(scan(holey, { end: P + 0x2c }), undefined, 'agbcc: 4 bytes short and not dense');
 });
 
 test('a function ahead of pool words it loads is proposed at its entry, up to armFrontPoolWords words ahead (profile boundary)', () => {
-  const front = (n: number): Placed[] => [{ at: P, bytes: words(...Array.from({ length: n }, (_, i) => 0x0800_0000 + 4 * i)) }, { at: P + 4 * n, bytes: armAt(P + 4 * n)`ldr r0, _08000200; mov r1, #2; mov r2, #3; bx lr` }];
+  const front = (n: number): Placed[] => [
+    { at: P, bytes: words(...Array.from({ length: n }, (_, i) => 0x0800_0000 + 4 * i)) },
+    { at: P + 4 * n, bytes: armAt(P + 4 * n)`ldr r0, _08000200; mov r1, #2; mov r2, #3; bx lr` },
+  ];
   assert.equal(scan(front(1))?.entry, P + 4);
   assert.equal(scan(front(3))?.entry, P + 12, 'agbcc: 3 ≤ 16 words');
   assert.equal(scan(front(2), { dummy: true })?.entry, P + 8, 'dummy: 2 ≤ 2 words');
@@ -67,7 +99,11 @@ test('a function ahead of pool words it loads is proposed at its entry, up to ar
 });
 
 test('a pool value that refers back into the skipped words counts as a front reference', () => {
-  const parts = [{ at: P, bytes: words(0) }, at(4, 'ldr r0, _08000220; mov r1, #2; bx lr'), { at: P + 0x20, bytes: words(P) }];
+  const parts = [
+    { at: P, bytes: words(0) },
+    at(4, 'ldr r0, _08000220; mov r1, #2; bx lr'),
+    { at: P + 0x20, bytes: words(P) },
+  ];
   assert.equal(scan(parts)?.entry, P + 4);
 });
 

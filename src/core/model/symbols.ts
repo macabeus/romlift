@@ -13,7 +13,9 @@ import type { Model, ModelSymbol, Module } from './types.ts';
 
 /** Every symbol of the config, sorted by address (one per address: the config keys them by address). */
 export function modelSymbols(config: Pick<RomliftConfig, 'symbols'>): readonly ModelSymbol[] {
-  return sortedEntries(config.symbols).map(([addr, s]) => (s.size === undefined ? { addr, name: s.name } : { addr, name: s.name, size: s.size }));
+  return sortedEntries(config.symbols).map(([addr, s]) =>
+    s.size === undefined ? { addr, name: s.name } : { addr, name: s.name, size: s.size },
+  );
 }
 
 /** Whether `addr` lies outside the ROM [ROM_BASE, end): a RAM, I/O or absolute address, which symbols.ld defines. */
@@ -32,7 +34,9 @@ export function romSymbols(symbols: readonly ModelSymbol[], rom: { readonly end:
  * names through them.
  */
 export function externalSymbols(model: Pick<Model, 'symbols' | 'rom'>): readonly ModelSymbol[] {
-  return model.symbols.filter((s) => isOutsideRom(s.addr, model.rom)).sort((a, b) => compareNumbers(a.addr, b.addr) || compareCodeUnits(a.name, b.name));
+  return model.symbols
+    .filter((s) => isOutsideRom(s.addr, model.rom))
+    .sort((a, b) => compareNumbers(a.addr, b.addr) || compareCodeUnits(a.name, b.name));
 }
 
 /**
@@ -44,9 +48,16 @@ export function externalSymbols(model: Pick<Model, 'symbols' | 'rom'>): readonly
  * modules (labels.ts); RAM has no module, so its default names are symbols, which symbols.ld defines. A default entry
  * is no knowledge: it bounds no inferred extent (extents.ts reads the config's symbols only).
  */
-export function withDefaultRamSymbols(words: readonly number[], symbols: readonly ModelSymbol[], entries: SizedEntries, relocated: readonly Module[]): readonly ModelSymbol[] {
+export function withDefaultRamSymbols(
+  words: readonly number[],
+  symbols: readonly ModelSymbol[],
+  entries: SizedEntries,
+  relocated: readonly Module[],
+): readonly ModelSymbol[] {
   const named = new Set(symbols.map((s) => s.addr));
-  const runs = relocated.flatMap((m) => (m.runAt === undefined ? [] : [{ start: m.runAt, end: m.runAt + (m.span.end - m.span.start) }]));
+  const runs = relocated.flatMap((m) =>
+    m.runAt === undefined ? [] : [{ start: m.runAt, end: m.runAt + (m.span.end - m.span.start) }],
+  );
   const fresh = new Set<number>();
   for (const w of words) {
     if (!isRamAddress(w) || isBiosIwram(w) || named.has(w) || sizedEntryAt(entries, w) !== undefined) continue;

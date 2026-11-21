@@ -35,7 +35,9 @@ after(async () => {
 });
 
 /** The failing checks of a report, for the assertion message. */
-function failures(report: { readonly checks: readonly { readonly id: string; readonly ok: boolean; readonly detail: string }[] }): string {
+function failures(report: {
+  readonly checks: readonly { readonly id: string; readonly ok: boolean; readonly detail: string }[];
+}): string {
   return report.checks
     .filter((c) => !c.ok)
     .map((c) => `${c.id}: ${c.detail}`)
@@ -76,7 +78,12 @@ for (const fixture of listSyntheticFixtures()) {
     });
 
     test(`${fixture.name} (${printer}): the tree links to the fixture's SHA-1`, { skip }, async () => {
-      const result = await linkCheck({ dir: await writeTree(entries), rom, units: buildUnits(model), ...('code' in tools ? {} : { tools }) });
+      const result = await linkCheck({
+        dir: await writeTree(entries),
+        rom,
+        units: buildUnits(model),
+        ...('code' in tools ? {} : { tools }),
+      });
       assert.ok(result.ok, `${result.detail} ${result.diagnostics.map((d) => d.message).join('; ')}`);
       assert.equal(result.sha1, rom.sha1);
     });
@@ -94,18 +101,31 @@ for (const lastKind of ['data', 'asm'] as const) {
   });
   if (fixture === undefined) continue;
   for (const cut of [0, 1, 2, 3]) {
-    test(`${fixture.name} cut by ${cut} byte(s) (last module ${lastKind}): the text-layout check agrees with the link`, { skip }, async () => {
-      const whole = readFixtureRom(fixture);
-      const bytes = whole.bytes.slice(0, whole.bytes.length - cut);
-      const rom = romFromBytes(bytes, createHash('sha1').update(bytes).digest('hex'));
-      const analysis = discover(rom, { profile });
-      const model = buildModel(rom, analysis, configFromDiscover(rom, analysis));
-      const entries = [...emitTree(rom, model, { decomp: { defined: [] }, printer: 'readable' })];
-      const report = checkEntries(rom, model, entries);
-      const linked = await linkCheck({ dir: await writeTree(entries), rom, units: buildUnits(model), ...('code' in tools ? {} : { tools }) });
-      assert.equal(report.ok, linked.ok, `check: ${failures(report) || 'ok'}; link: ${linked.detail}`);
-      assert.equal(report.ok, lastKind === 'data' ? cut % 2 === 0 : cut === 0, 'exactly the cuts the alignment of the last unit does not divide fail');
-      if (!report.ok) assert.match(failures(report), /GNU as pads the object's section to a multiple of [24] bytes/);
-    });
+    test(
+      `${fixture.name} cut by ${cut} byte(s) (last module ${lastKind}): the text-layout check agrees with the link`,
+      { skip },
+      async () => {
+        const whole = readFixtureRom(fixture);
+        const bytes = whole.bytes.slice(0, whole.bytes.length - cut);
+        const rom = romFromBytes(bytes, createHash('sha1').update(bytes).digest('hex'));
+        const analysis = discover(rom, { profile });
+        const model = buildModel(rom, analysis, configFromDiscover(rom, analysis));
+        const entries = [...emitTree(rom, model, { decomp: { defined: [] }, printer: 'readable' })];
+        const report = checkEntries(rom, model, entries);
+        const linked = await linkCheck({
+          dir: await writeTree(entries),
+          rom,
+          units: buildUnits(model),
+          ...('code' in tools ? {} : { tools }),
+        });
+        assert.equal(report.ok, linked.ok, `check: ${failures(report) || 'ok'}; link: ${linked.detail}`);
+        assert.equal(
+          report.ok,
+          lastKind === 'data' ? cut % 2 === 0 : cut === 0,
+          'exactly the cuts the alignment of the last unit does not divide fail',
+        );
+        if (!report.ok) assert.match(failures(report), /GNU as pads the object's section to a multiple of [24] bytes/);
+      },
+    );
   }
 }

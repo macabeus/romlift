@@ -29,7 +29,8 @@ test('nine gap rules, each under its meta id, with complete metadata, its kind a
     assert.equal(rule.kind, kind, id);
     assert.equal(rule.meta.origin, origin, id);
     assert.ok(isOrigin(rule.meta.origin ?? ''), id);
-    for (const field of [rule.meta.summary, rule.meta.restsOn, rule.meta.recovers]) assert.ok(field.trim().length > 0, id);
+    for (const field of [rule.meta.summary, rule.meta.restsOn, rule.meta.recovers])
+      assert.ok(field.trim().length > 0, id);
     assert.ok(rule.meta.reads.length > 0, id);
     assert.equal(RULES[id as keyof typeof RULES], rule, `${id} is registered in RULES`);
   }
@@ -43,6 +44,7 @@ test('each gap rule fills the slot both profiles name it in', () => {
     assert.equal(GAP_RULES[g.head as keyof typeof GAP_RULES]?.kind, 'gap-head');
     assert.equal(GAP_RULES[g.prefer as keyof typeof GAP_RULES]?.kind, 'gap-prefer');
     assert.equal(GAP_RULES[g.skip as keyof typeof GAP_RULES]?.kind, 'gap-skip');
-    for (const id of [g.forward.thumb, g.forward.arm, ...g.forward.after, g.endAnchor, g.backward]) assert.equal(GAP_RULES[id as keyof typeof GAP_RULES]?.kind, 'gap', id);
+    for (const id of [g.forward.thumb, g.forward.arm, ...g.forward.after, g.endAnchor, g.backward])
+      assert.equal(GAP_RULES[id as keyof typeof GAP_RULES]?.kind, 'gap', id);
   }
 });

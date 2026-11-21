@@ -1,7 +1,7 @@
 // Every gate file under test/gates matches architecture §13: its file name is its id, and its phase, tier
 // and historicalAfter are the ones the gate index gives. A phase with any gate file has all of its gates.
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -25,7 +25,11 @@ function gateIndex(): readonly IndexRow[] {
     const [, id = '', phase = '', tierText = ''] = match;
     const tier = tierText.startsWith('ci and real') ? 'both' : tierText.startsWith('real') ? 'real' : 'ci';
     const historical = /historical after phase (\d)/.exec(tierText)?.[1];
-    rows.push(historical === undefined ? { id, phase: Number(phase), tier } : { id, phase: Number(phase), tier, historicalAfter: Number(historical) });
+    rows.push(
+      historical === undefined
+        ? { id, phase: Number(phase), tier }
+        : { id, phase: Number(phase), tier, historicalAfter: Number(historical) },
+    );
   }
   return rows;
 }

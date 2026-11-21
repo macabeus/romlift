@@ -1,5 +1,5 @@
 // arm`stmdb sp!, {r4, lr}`: the ARM twin of thumb`` (test/helpers/thumb.ts), same grammar and labels.
-import { assembleSnippet, DEFAULT_ORIGIN, joinTemplate } from './thumb.ts';
+import { DEFAULT_ORIGIN, assembleSnippet, joinTemplate } from './thumb.ts';
 import type { ByteBuilder } from './thumb.ts';
 
 /** An ARM byte builder whose code starts at `origin`. */

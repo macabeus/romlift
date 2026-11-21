@@ -2,15 +2,38 @@
 // register shifted by an immediate, register shifted by a register). Writes to pc get rows of their
 // own so the flow class is a table fact: `add pc, ...` is add-pc and every other data-processing
 // write to pc is mov-pc. `add`/`sub` from pc with a rotated immediate print as `adr`.
+import {
+  constField,
+  constOperands,
+  decodeArmImmediate,
+  encodeArmImmediate,
+  isCanonicalArmImmediate,
+} from './arm-immediate.ts';
+import { shiftFields, shiftOperands } from './arm-shift.ts';
 import { fieldValue as v, wrap32 } from './bits.ts';
 import { pcOf } from './pc-relative.ts';
-import { constField, constOperands, decodeArmImmediate, encodeArmImmediate, isCanonicalArmImmediate } from './arm-immediate.ts';
-import { shiftFields, shiftOperands } from './arm-shift.ts';
 import { cond, flag, imm, reg, rotImm, row, shiftType } from './row.ts';
 import type { FromOperands, Row, RowOptions, ToOperands } from './row.ts';
 import type { Fields, FlowKind, RawReason } from './types.ts';
 
-const OPCODES: readonly string[] = ['and', 'eor', 'sub', 'rsb', 'add', 'adc', 'sbc', 'rsc', 'tst', 'teq', 'cmp', 'cmn', 'orr', 'mov', 'bic', 'mvn'];
+const OPCODES: readonly string[] = [
+  'and',
+  'eor',
+  'sub',
+  'rsb',
+  'add',
+  'adc',
+  'sbc',
+  'rsc',
+  'tst',
+  'teq',
+  'cmp',
+  'cmn',
+  'orr',
+  'mov',
+  'bic',
+  'mvn',
+];
 
 type Form = 'imm' | 'ims' | 'rs';
 
@@ -19,7 +42,15 @@ const FORM_MATCH: Readonly<Record<Form, number>> = { imm: 0x0200_0000, ims: 0, r
 
 /** The second-operand text, fields and codec of each form. */
 const OPERAND2: Readonly<
-  Record<Form, { readonly text: string; readonly fields: RowOptions['fields']; to: (f: Fields) => Fields; from: (o: Fields) => Fields | undefined }>
+  Record<
+    Form,
+    {
+      readonly text: string;
+      readonly fields: RowOptions['fields'];
+      to: (f: Fields) => Fields;
+      from: (o: Fields) => Fields | undefined;
+    }
+  >
 > = {
   imm: {
     text: '{const}',
@@ -62,7 +93,13 @@ function dpRow(op: number, form: Form, pcDest: boolean): Row {
   const operand2 = OPERAND2[form];
   const head = test ? `${name}{c}` : `${name}{s}{c}`;
   const first = test ? '{rn}' : move ? '{rd}' : '{rd}, {rn}';
-  const fields = [cond(), ...(test ? [] : [flag('s', 20)]), reg('rn', 16, 4), reg('rd', 12, 4), ...(operand2.fields ?? [])];
+  const fields = [
+    cond(),
+    ...(test ? [] : [flag('s', 20)]),
+    reg('rn', 16, 4),
+    reg('rd', 12, 4),
+    ...(operand2.fields ?? []),
+  ];
 
   const toOps: ToOperands = (f) => ({
     cond: v(f, 'cond'),
@@ -77,7 +114,13 @@ function dpRow(op: number, form: Form, pcDest: boolean): Row {
     if (pcRelative && v(o, 'imm') >= 2 ** 31) return undefined;
     const second = operand2.from(o);
     if (second === undefined) return undefined;
-    return { cond: v(o, 'cond'), ...(test ? {} : { s: v(o, 's') }), rd: test ? 0 : v(o, 'rd'), rn: move ? 0 : v(o, 'rn'), ...second };
+    return {
+      cond: v(o, 'cond'),
+      ...(test ? {} : { s: v(o, 's') }),
+      rd: test ? 0 : v(o, 'rd'),
+      rn: move ? 0 : v(o, 'rn'),
+      ...second,
+    };
   };
 
   const raw = (f: Fields): RawReason | null => {
@@ -129,7 +172,11 @@ function adrRow(subtract: boolean): Row {
       // sub #-off (taken modulo 2^32); an offset beyond 32 signed bits is an error.
       const offset = v(o, 'target') - pcOf(a, 'arm');
       if (offset >= 2 ** 31 || offset < -(2 ** 31)) return undefined;
-      const field = subtract ? encodeArmImmediate(wrap32(-offset)) : offset >= 0 ? encodeArmImmediate(offset) : undefined;
+      const field = subtract
+        ? encodeArmImmediate(wrap32(-offset))
+        : offset >= 0
+          ? encodeArmImmediate(offset)
+          : undefined;
       return field === undefined ? undefined : { cond: v(o, 'cond'), rd: v(o, 'rd'), imm12: field };
     },
     raw: (f) => {

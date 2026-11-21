@@ -29,7 +29,12 @@ import type { DriverState } from './state.ts';
 import { firstInvalid } from './validity.ts';
 
 /** The inner labels of [entry, end) whose mode is not `mode`, ascending. */
-export function otherModeLabels(s: Pick<DriverState, 'listed' | 'listedOrder'>, entry: Addr, mode: Mode, end: Addr): readonly Seed[] {
+export function otherModeLabels(
+  s: Pick<DriverState, 'listed' | 'listedOrder'>,
+  entry: Addr,
+  mode: Mode,
+  end: Addr,
+): readonly Seed[] {
   const out: Seed[] = [];
   const order = s.listedOrder;
   for (let i = lowerBound(order, entry + 1, (x) => x); i < order.length; i++) {
@@ -82,7 +87,13 @@ function extentReading(s: DriverState, r: Reading, others: readonly Reading[], e
       pools: [...r.pools, ...others.flatMap((o) => o.pools)],
       tables: [...r.tables, ...others.flatMap((o) => o.tables)],
       // A fall-through is the path's exit into the next function, as a tail branch to it would be.
-      ...(falls === undefined ? {} : { returns: r.returns + 1, tailExits: r.tailExits + 1, exits: [...r.exits, { at: falls, kind: 'tail', rule: 'seed.listed' }] }),
+      ...(falls === undefined
+        ? {}
+        : {
+            returns: r.returns + 1,
+            tailExits: r.tailExits + 1,
+            exits: [...r.exits, { at: falls, kind: 'tail', rule: 'seed.listed' }],
+          }),
     },
     s.rom,
   );
@@ -101,7 +112,16 @@ export function whyListedInvalid(s: DriverState, entry: Addr): ValidityFailure |
     const r = read(s, entry, 'thumb');
     const end = extentEndOf(s, r);
     const labels = otherModeLabels(s, entry, 'thumb', end);
-    extent = { end, labels, reading: extentReading(s, r, labels.map((l) => read(s, l.entry, l.mode)), end) };
+    extent = {
+      end,
+      labels,
+      reading: extentReading(
+        s,
+        r,
+        labels.map((l) => read(s, l.entry, l.mode)),
+        end,
+      ),
+    };
     return extent;
   };
   const head = firstInvalid(s, entry, 'thumb', () => extentOf().reading);
@@ -109,8 +129,11 @@ export function whyListedInvalid(s: DriverState, entry: Addr): ValidityFailure |
   const { end, labels } = extentOf();
   for (const label of labels) {
     if (s.funcs.has(label.entry)) continue;
-    const failure = firstInvalid(s, label.entry, label.mode, () => extentReading(s, read(s, label.entry, label.mode), [], end));
-    if (failure !== undefined) return { ...failure, detail: `its ${label.mode} label ${hexAddr(label.entry)}: ${failure.detail}` };
+    const failure = firstInvalid(s, label.entry, label.mode, () =>
+      extentReading(s, read(s, label.entry, label.mode), [], end),
+    );
+    if (failure !== undefined)
+      return { ...failure, detail: `its ${label.mode} label ${hexAddr(label.entry)}: ${failure.detail}` };
   }
   return undefined;
 }

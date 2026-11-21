@@ -2,22 +2,21 @@
 // the build.mk toolchain record, commit spellings, the compared symbol list and the per-fixture verdict.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-
 import type { ElfFile, ElfSymbol } from 'romlift';
 
 import {
+  FIXTURES_SCHEMA,
+  type FixtureBuild,
+  type SymbolRow,
+  type ToolchainRecord,
   bytesDifference,
   compareFixture,
-  FIXTURES_SCHEMA,
   parseToolchainRecord,
   sameCommit,
   summaryLine,
   symbolDifferences,
   symbolRows,
   withToolchainRecord,
-  type FixtureBuild,
-  type SymbolRow,
-  type ToolchainRecord,
 } from '../../../bench/tools/fixtures.ts';
 
 const COMMIT = 'da598c1d918402c42c0c0d7128ba14567f3175e9';
@@ -28,7 +27,16 @@ const MK = ['# about the fixture', 'NAME := demo', 'SRCS := a.s b.c', 'include .
 
 function symbol(name: string, value: number, size: number, type: ElfSymbol['type']): ElfSymbol {
   const func = type === 'func';
-  return { name, value, addr: func ? value & ~1 : value, size, type, bind: 'global', thumb: func && (value & 1) === 1, sectionIndex: 1 };
+  return {
+    name,
+    value,
+    addr: func ? value & ~1 : value,
+    size,
+    type,
+    bind: 'global',
+    thumb: func && (value & 1) === 1,
+    sectionIndex: 1,
+  };
 }
 
 function elf(symbols: readonly ElfSymbol[]): ElfFile {
@@ -54,12 +62,24 @@ test('the record is written before the include line and replaced in place on a r
   const include = lines.indexOf('include ../common/rules.mk');
   assert.equal(lines[include - 1], `AS_VERSION := ${AS}`);
   assert.equal(lines[include - 2], `AGBCC_COMMIT := ${COMMIT}`);
-  assert.ok(lines.slice(0, 3).join('\n') === MK.split('\n').slice(0, 3).join('\n'), 'the lines before the record are kept');
-  const twice = withToolchainRecord(once, { agbccCommit: '0123456789abcdef0123456789abcdef01234567', asVersion: 'GNU assembler 2.45' });
+  assert.ok(
+    lines.slice(0, 3).join('\n') === MK.split('\n').slice(0, 3).join('\n'),
+    'the lines before the record are kept',
+  );
+  const twice = withToolchainRecord(once, {
+    agbccCommit: '0123456789abcdef0123456789abcdef01234567',
+    asVersion: 'GNU assembler 2.45',
+  });
   assert.equal(twice.split('\n').length, once.split('\n').length);
-  assert.deepEqual(parseToolchainRecord(twice), { agbccCommit: '0123456789abcdef0123456789abcdef01234567', asVersion: 'GNU assembler 2.45' });
+  assert.deepEqual(parseToolchainRecord(twice), {
+    agbccCommit: '0123456789abcdef0123456789abcdef01234567',
+    asVersion: 'GNU assembler 2.45',
+  });
   assert.equal(withToolchainRecord(once, RECORD), once, 'rewriting the same record changes nothing');
-  assert.ok(withToolchainRecord('NAME := x', RECORD).endsWith(`AS_VERSION := ${AS}`), 'appended when there is no include');
+  assert.ok(
+    withToolchainRecord('NAME := x', RECORD).endsWith(`AS_VERSION := ${AS}`),
+    'appended when there is no include',
+  );
 });
 
 test('commits are the same when equal or when one is an abbreviation of at least 7 digits', () => {
@@ -90,13 +110,20 @@ test('the compared symbol list is every symbol, sorted by name, value, size, typ
     { name: 'gTable', value: 0x08000110, size: 8, type: 'object' },
     { name: 'main', value: 0x080000f5, size: 16, type: 'func' },
   ]);
-  assert.equal(symbolRows(elf([symbol('main', 0x080000f5, 16, 'func')]))[0]?.value, 0x080000f5, 'the raw value keeps the Thumb bit');
+  assert.equal(
+    symbolRows(elf([symbol('main', 0x080000f5, 16, 'func')]))[0]?.value,
+    0x080000f5,
+    'the raw value keeps the Thumb bit',
+  );
 });
 
 test('byte differences name the first differing offset or the lengths', () => {
   assert.equal(bytesDifference(new Uint8Array([1, 2]), new Uint8Array([1, 2])), undefined);
   assert.match(bytesDifference(new Uint8Array([1, 2]), new Uint8Array([1, 3])) ?? '', /offset 0x00000001/);
-  assert.match(bytesDifference(new Uint8Array([1, 2]), new Uint8Array([1, 2, 0])) ?? '', /2 bytes committed and 3 rebuilt/);
+  assert.match(
+    bytesDifference(new Uint8Array([1, 2]), new Uint8Array([1, 2, 0])) ?? '',
+    /2 bytes committed and 3 rebuilt/,
+  );
 });
 
 test('symbol differences list both sides and are capped', () => {
@@ -115,7 +142,10 @@ test('symbol differences list both sides and are capped', () => {
 test('a fixture agrees when bytes, symbols and the agbcc commit agree; a different as is a note', () => {
   const same = compareFixture('demo', BUILD, RECORD, BUILD, { agbccCommit: COMMIT, asVersion: AS });
   assert.deepEqual(same, { name: 'demo', ok: true, problems: [], notes: [] });
-  const otherAs = compareFixture('demo', BUILD, RECORD, BUILD, { agbccCommit: 'da598c1', asVersion: 'GNU assembler 2.45' });
+  const otherAs = compareFixture('demo', BUILD, RECORD, BUILD, {
+    agbccCommit: 'da598c1',
+    asVersion: 'GNU assembler 2.45',
+  });
   assert.equal(otherAs.ok, true);
   assert.equal(otherAs.notes.length, 1);
   assert.match(otherAs.notes[0] ?? '', /as is 'GNU assembler 2\.45'/);
@@ -125,11 +155,26 @@ test('another agbcc commit, other bytes, other symbols or a missing record fail 
   const otherCommit = compareFixture('demo', BUILD, RECORD, BUILD, { agbccCommit: '84d56fc', asVersion: AS });
   assert.equal(otherCommit.ok, false);
   assert.match(otherCommit.problems[0] ?? '', /agbcc commit 84d56fc differs from the recorded/);
-  const otherBytes = compareFixture('demo', BUILD, RECORD, { ...BUILD, gba: new Uint8Array([1, 2, 3, 5]) }, { agbccCommit: COMMIT, asVersion: AS });
+  const otherBytes = compareFixture(
+    'demo',
+    BUILD,
+    RECORD,
+    { ...BUILD, gba: new Uint8Array([1, 2, 3, 5]) },
+    { agbccCommit: COMMIT, asVersion: AS },
+  );
   assert.equal(otherBytes.ok, false);
-  const otherSymbols = compareFixture('demo', BUILD, RECORD, { ...BUILD, symbols: ROWS.slice(1) }, { agbccCommit: COMMIT, asVersion: AS });
+  const otherSymbols = compareFixture(
+    'demo',
+    BUILD,
+    RECORD,
+    { ...BUILD, symbols: ROWS.slice(1) },
+    { agbccCommit: COMMIT, asVersion: AS },
+  );
   assert.deepEqual(otherSymbols.problems, ['symbol only in the committed ELF: main 0x080000F5 16 func']);
-  const noRecord = compareFixture('demo', BUILD, { missing: ['AGBCC_COMMIT'] }, BUILD, { agbccCommit: COMMIT, asVersion: AS });
+  const noRecord = compareFixture('demo', BUILD, { missing: ['AGBCC_COMMIT'] }, BUILD, {
+    agbccCommit: COMMIT,
+    asVersion: AS,
+  });
   assert.deepEqual(noRecord.problems, ['build.mk has no toolchain record (AGBCC_COMMIT)']);
 });
 
@@ -137,19 +182,37 @@ test('an unknown agbcc commit is a note, and the rebuilt bytes decide', () => {
   const unknown = compareFixture('demo', BUILD, RECORD, BUILD, { agbccCommit: undefined, asVersion: AS });
   assert.equal(unknown.ok, true);
   assert.match(unknown.notes[0] ?? '', /agbcc commit in use is unknown/);
-  const unknownAndDifferent = compareFixture('demo', BUILD, RECORD, { ...BUILD, gba: new Uint8Array([9]) }, { agbccCommit: undefined, asVersion: AS });
+  const unknownAndDifferent = compareFixture(
+    'demo',
+    BUILD,
+    RECORD,
+    { ...BUILD, gba: new Uint8Array([9]) },
+    { agbccCommit: undefined, asVersion: AS },
+  );
   assert.equal(unknownAndDifferent.ok, false);
 });
 
 test('the --json summary line names the failed fixtures and the toolchain', () => {
   const good = compareFixture('a', BUILD, RECORD, BUILD, { agbccCommit: COMMIT, asVersion: AS });
-  const bad = compareFixture('b', BUILD, RECORD, { ...BUILD, gba: new Uint8Array() }, { agbccCommit: COMMIT, asVersion: AS });
-  const summary = JSON.parse(summaryLine('check', [good, bad], { agbccCommit: undefined, asVersion: AS })) as Record<string, unknown>;
+  const bad = compareFixture(
+    'b',
+    BUILD,
+    RECORD,
+    { ...BUILD, gba: new Uint8Array() },
+    { agbccCommit: COMMIT, asVersion: AS },
+  );
+  const summary = JSON.parse(summaryLine('check', [good, bad], { agbccCommit: undefined, asVersion: AS })) as Record<
+    string,
+    unknown
+  >;
   assert.equal(summary['schema'], FIXTURES_SCHEMA);
   assert.equal(summary['command'], 'check');
   assert.equal(summary['ok'], false);
   assert.equal(summary['fixtures'], 2);
   assert.deepEqual(summary['failed'], ['b']);
   assert.deepEqual(summary['toolchain'], { agbccCommit: null, as: AS });
-  assert.equal((JSON.parse(summaryLine('rebuild', [good], { agbccCommit: COMMIT, asVersion: AS })) as { ok: boolean }).ok, true);
+  assert.equal(
+    (JSON.parse(summaryLine('rebuild', [good], { agbccCommit: COMMIT, asVersion: AS })) as { ok: boolean }).ok,
+    true,
+  );
 });

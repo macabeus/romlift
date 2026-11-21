@@ -5,7 +5,12 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { freeModuleName } from '../../../src/core/layout/infer-modules.ts';
-import { moduleHolding, planRunsAtBorders, regionsWithoutModule, resumedModule } from '../../../src/core/layout/module-proposals.ts';
+import {
+  moduleHolding,
+  planRunsAtBorders,
+  regionsWithoutModule,
+  resumedModule,
+} from '../../../src/core/layout/module-proposals.ts';
 import type { ModuleAt } from '../../../src/core/layout/module-proposals.ts';
 
 const ROM = { base: 0x0800_0000, end: 0x0800_4000 } as const;
@@ -43,14 +48,20 @@ test('planRunsAtBorders: the borders a range lacks, and the reasons it refuses o
     { start: 0x0800_2f00, size: 0x200, runsAt: 0x0300_1000 },
     { start: 0x0800_3f00, size: 0x200, runsAt: 0x0300_2000 },
   ]);
-  assert.deepEqual(plan.proposals.map((p) => [p.name, p.start, p.moduleKind, p.library?.name]), [
-    ['ram_03000388', 0x0800_1318, 'asm', undefined],
-    ['m4a_080016BC', 0x0800_16bc, 'asm', 'm4a'],
-  ]);
-  assert.deepEqual(plan.refused.map((r) => [r.span.start, r.why.kind]), [
-    [0x0800_2f00, 'c-module-inside'],
-    [0x0800_3f00, 'outside-rom'],
-  ]);
+  assert.deepEqual(
+    plan.proposals.map((p) => [p.name, p.start, p.moduleKind, p.library?.name]),
+    [
+      ['ram_03000388', 0x0800_1318, 'asm', undefined],
+      ['m4a_080016BC', 0x0800_16bc, 'asm', 'm4a'],
+    ],
+  );
+  assert.deepEqual(
+    plan.refused.map((r) => [r.span.start, r.why.kind]),
+    [
+      [0x0800_2f00, 'c-module-inside'],
+      [0x0800_3f00, 'outside-rom'],
+    ],
+  );
 });
 
 test('regionsWithoutModule: a code region no module of its library meets, not a table past the data start', () => {
@@ -60,5 +71,8 @@ test('regionsWithoutModule: a code region no module of its library meets, not a 
     { span: { start: 0x0800_3100, end: 0x0800_3200 }, library: 'libgcc', version: 'agbcc' },
     { span: { start: 0x0800_3900, end: 0x0800_3910 }, library: 'm4a', version: '2001' },
   ];
-  assert.deepEqual(regionsWithoutModule(modules, regions).map((r) => r.library), ['libgcc']);
+  assert.deepEqual(
+    regionsWithoutModule(modules, regions).map((r) => r.library),
+    ['libgcc'],
+  );
 });

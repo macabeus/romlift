@@ -35,14 +35,24 @@ import type { ConfigCode } from './codes.ts';
 import { addressDefinitions, addressKey, addressKeyUses, outlineToml } from './keys.ts';
 import type { AddressDefinition, AddressKeyUse, AddressTable, TomlKeyValue, TomlOutline } from './keys.ts';
 import { parseConfig } from './parse.ts';
-import type { EntryPointConfig, FunctionConfig, ModuleConfig, OverrideConfig, RomliftConfig, SymbolConfig } from './schema.ts';
+import type {
+  EntryPointConfig,
+  FunctionConfig,
+  ModuleConfig,
+  OverrideConfig,
+  RomliftConfig,
+  SymbolConfig,
+} from './schema.ts';
 import { entryPointLine, functionLine, moduleLines, overrideLines, serializeConfig, symbolLine } from './serialize.ts';
 
 export type ConfigPatchResult =
   | { readonly ok: true; readonly text: string; readonly diagnostics: readonly Diagnostic<ConfigCode>[] }
   | { readonly ok: false; readonly diagnostics: readonly Diagnostic<ConfigCode>[] };
 
-function proposedFunction(existing: FunctionConfig | undefined, p: Extract<Proposal, { kind: 'function' }>): FunctionConfig {
+function proposedFunction(
+  existing: FunctionConfig | undefined,
+  p: Extract<Proposal, { kind: 'function' }>,
+): FunctionConfig {
   const size = p.size ?? existing?.size;
   const from = sourceKey(p.source) ?? existing?.from;
   return {
@@ -54,7 +64,10 @@ function proposedFunction(existing: FunctionConfig | undefined, p: Extract<Propo
   };
 }
 
-function proposedEntryPoint(existing: FunctionConfig | EntryPointConfig | undefined, p: Extract<Proposal, { kind: 'function' }>): EntryPointConfig {
+function proposedEntryPoint(
+  existing: FunctionConfig | EntryPointConfig | undefined,
+  p: Extract<Proposal, { kind: 'function' }>,
+): EntryPointConfig {
   const size = p.size ?? existing?.size;
   const from = sourceKey(p.source) ?? existing?.from;
   return {
@@ -131,14 +144,20 @@ export function applyProposals(config: RomliftConfig, proposals: readonly Propos
         const at = modules.findIndex((m) => m.start === p.start);
         const module = proposedModule(modules[at], p);
         if (at >= 0) modules[at] = module;
-        else modules = [...modules.filter((m) => m.start < p.start), module, ...modules.filter((m) => m.start > p.start)];
+        else
+          modules = [...modules.filter((m) => m.start < p.start), module, ...modules.filter((m) => m.start > p.start)];
         break;
       }
       case 'override': {
         const override = proposedOverride(p);
         const at = overrides.findIndex((o) => o.start === override.start && o.size === override.size);
         if (at >= 0) overrides[at] = override;
-        else overrides = [...overrides.filter((o) => o.start <= override.start), override, ...overrides.filter((o) => o.start > override.start)];
+        else
+          overrides = [
+            ...overrides.filter((o) => o.start <= override.start),
+            override,
+            ...overrides.filter((o) => o.start > override.start),
+          ];
         break;
       }
     }
@@ -178,7 +197,12 @@ function refused(message: string, addr?: Addr): Diagnostic<ConfigCode> {
   return diagnostic(ConfigCodes, 'E_TOML_PATCH_REFUSED', message, addr === undefined ? {} : { addr });
 }
 
-function changedEntries<V>(table: AddressTable, before: ReadonlyMap<Addr, V>, after: ReadonlyMap<Addr, V>, line: (addr: Addr, v: V) => string): ChangedEntry[] {
+function changedEntries<V>(
+  table: AddressTable,
+  before: ReadonlyMap<Addr, V>,
+  after: ReadonlyMap<Addr, V>,
+  line: (addr: Addr, v: V) => string,
+): ChangedEntry[] {
   const out: ChangedEntry[] = [];
   for (const addr of sortedKeys(after)) {
     const now = after.get(addr);
@@ -191,7 +215,10 @@ function changedEntries<V>(table: AddressTable, before: ReadonlyMap<Addr, V>, af
 }
 
 /** The statements of a table's own lines: `0x… = value` directly under `[<table>]`. */
-function ownLines(uses: readonly AddressKeyUse[], table: AddressTable): { readonly addr: Addr; readonly statement: TomlKeyValue }[] {
+function ownLines(
+  uses: readonly AddressKeyUse[],
+  table: AddressTable,
+): { readonly addr: Addr; readonly statement: TomlKeyValue }[] {
   const out: { addr: Addr; statement: TomlKeyValue }[] = [];
   for (const use of uses) {
     const s = use.statement;
@@ -255,12 +282,22 @@ function tableEdits(
     }
     if (header === undefined) {
       if (table === 'entry_points') continue;
-      refusals.push(refused(`romlift.toml has no [${table}] table to add ${key} to; add the table with this line: ${change.line}`, change.addr));
+      refusals.push(
+        refused(
+          `romlift.toml has no [${table}] table to add ${key} to; add the table with this line: ${change.line}`,
+          change.addr,
+        ),
+      );
       continue;
     }
     const before = ownSorted[lowerBound(ownSorted, change.addr, (o) => o.addr) - 1];
     const at = before === undefined ? header.lineEnd : before.statement.lineEnd;
-    const indent = before === undefined ? (own[0] === undefined ? '' : indentOf(text, own[0].statement)) : indentOf(text, before.statement);
+    const indent =
+      before === undefined
+        ? own[0] === undefined
+          ? ''
+          : indentOf(text, own[0].statement)
+        : indentOf(text, before.statement);
     const slot = inserts.get(at);
     if (slot === undefined) inserts.set(at, { indent, lines: [change.line] });
     else slot.lines.push(change.line);
@@ -286,7 +323,12 @@ function newEntryPointsTable(text: string, outline: TomlOutline, changes: readon
 }
 
 /** The deletions of `table`'s lines at `addrs` (moved to another table), or the refusal of one that is not its own line. */
-function tableRemovals(text: string, uses: readonly AddressKeyUse[], table: AddressTable, addrs: readonly Addr[]): { readonly edits: LineEdit[]; readonly refusals: Diagnostic<ConfigCode>[] } {
+function tableRemovals(
+  text: string,
+  uses: readonly AddressKeyUse[],
+  table: AddressTable,
+  addrs: readonly Addr[],
+): { readonly edits: LineEdit[]; readonly refusals: Diagnostic<ConfigCode>[] } {
   const edits: LineEdit[] = [];
   const refusals: Diagnostic<ConfigCode>[] = [];
   const own = new Map(ownLines(uses, table).map((o) => [o.addr, o] as const));
@@ -294,11 +336,20 @@ function tableRemovals(text: string, uses: readonly AddressKeyUse[], table: Addr
     const line = own.get(addr);
     const places = addressDefinitions(uses).filter((d) => d.table === table && d.addr === addr);
     if (line === undefined || places.length !== 1 || line.statement.endLine !== line.statement.line) {
-      refusals.push(refused(`${addressKey(addr)} in [${table}] is not one single-line entry, so the planner does not move it to [entry_points]; delete it from [${table}] by hand`, addr));
+      refusals.push(
+        refused(
+          `${addressKey(addr)} in [${table}] is not one single-line entry, so the planner does not move it to [entry_points]; delete it from [${table}] by hand`,
+          addr,
+        ),
+      );
       continue;
     }
     const end = line.statement.lineEnd;
-    edits.push({ start: line.statement.lineStart, end: text.startsWith('\r\n', end) ? end + 2 : text.startsWith('\n', end) ? end + 1 : end, text: '' });
+    edits.push({
+      start: line.statement.lineStart,
+      end: text.startsWith('\r\n', end) ? end + 2 : text.startsWith('\n', end) ? end + 1 : end,
+      text: '',
+    });
   }
   return { edits, refusals };
 }
@@ -354,7 +405,12 @@ function lineOffset(text: string, line: number): number {
  * changed, moved or dropped) or the text's [[modules]] headers are not one per module of `config`: blockRefusals then
  * refuses it.
  */
-function moduleInsertions(text: string, outline: TomlOutline, config: RomliftConfig, intended: RomliftConfig): LineEdit[] | undefined {
+function moduleInsertions(
+  text: string,
+  outline: TomlOutline,
+  config: RomliftConfig,
+  intended: RomliftConfig,
+): LineEdit[] | undefined {
   const listed = new Set(config.modules.map((m) => m.start));
   const kept = intended.modules.filter((m) => listed.has(m.start));
   const same = (m: ModuleConfig, i: number): boolean => {
@@ -386,15 +442,27 @@ function moduleInsertions(text: string, outline: TomlOutline, config: RomliftCon
   return edits;
 }
 
-function blockRefusals(config: RomliftConfig, intended: RomliftConfig, moduleEdits: readonly LineEdit[] | undefined): Diagnostic<ConfigCode>[] {
+function blockRefusals(
+  config: RomliftConfig,
+  intended: RomliftConfig,
+  moduleEdits: readonly LineEdit[] | undefined,
+): Diagnostic<ConfigCode>[] {
   const out: Diagnostic<ConfigCode>[] = [];
   const modules = (c: RomliftConfig): string => c.modules.map(moduleText).join('\n\n');
   const overrides = (c: RomliftConfig): string => c.overrides.map((o) => overrideLines(o).join('\n')).join('\n\n');
   if (moduleEdits === undefined && modules(intended) !== modules(config)) {
-    out.push(refused(`[[modules]] are blocks, which the planner edits only to insert a new module; make the [[modules]] read, in link order:\n${modules(intended)}`));
+    out.push(
+      refused(
+        `[[modules]] are blocks, which the planner edits only to insert a new module; make the [[modules]] read, in link order:\n${modules(intended)}`,
+      ),
+    );
   }
   if (overrides(intended) !== overrides(config)) {
-    out.push(refused(`[[overrides]] are blocks, which the planner does not edit; make the [[overrides]] read:\n${overrides(intended)}`));
+    out.push(
+      refused(
+        `[[overrides]] are blocks, which the planner does not edit; make the [[overrides]] read:\n${overrides(intended)}`,
+      ),
+    );
   }
   return out;
 }
@@ -411,9 +479,28 @@ export function planLineEdits(text: string, config: RomliftConfig, proposals: re
   const uses = addressKeyUses(outline);
   const moved = sortedKeys(config.functions).filter((addr) => !intended.functions.has(addr));
   const removals = tableRemovals(text, uses, 'functions', moved);
-  const functions = tableEdits(text, outline, uses, 'functions', changedEntries('functions', config.functions, intended.functions, functionLine), new Set(moved));
-  const entryPoints = tableEdits(text, outline, uses, 'entry_points', changedEntries('entry_points', config.entryPoints, intended.entryPoints, entryPointLine));
-  const symbols = tableEdits(text, outline, uses, 'symbols', changedEntries('symbols', config.symbols, intended.symbols, symbolLine));
+  const functions = tableEdits(
+    text,
+    outline,
+    uses,
+    'functions',
+    changedEntries('functions', config.functions, intended.functions, functionLine),
+    new Set(moved),
+  );
+  const entryPoints = tableEdits(
+    text,
+    outline,
+    uses,
+    'entry_points',
+    changedEntries('entry_points', config.entryPoints, intended.entryPoints, entryPointLine),
+  );
+  const symbols = tableEdits(
+    text,
+    outline,
+    uses,
+    'symbols',
+    changedEntries('symbols', config.symbols, intended.symbols, symbolLine),
+  );
   refusals.push(...removals.refusals, ...functions.refusals, ...entryPoints.refusals, ...symbols.refusals);
   if (refusals.length > 0) return { ok: false, diagnostics: refusals };
   const edits = [...(modules ?? []), ...removals.edits, ...functions.edits, ...entryPoints.edits, ...symbols.edits];
@@ -424,7 +511,8 @@ function firstDifference(a: string, b: string): string {
   const x = a.split('\n');
   const y = b.split('\n');
   for (let i = 0; i < Math.max(x.length, y.length); i++) {
-    if (x[i] !== y[i]) return `the patched file reads ${JSON.stringify(x[i] ?? '(nothing)')} where the intended config reads ${JSON.stringify(y[i] ?? '(nothing)')}`;
+    if (x[i] !== y[i])
+      return `the patched file reads ${JSON.stringify(x[i] ?? '(nothing)')} where the intended config reads ${JSON.stringify(y[i] ?? '(nothing)')}`;
   }
   return 'no canonical line differs';
 }
@@ -432,8 +520,12 @@ function firstDifference(a: string, b: string): string {
 /** The entries to paste when a patched text does not mean the intended config: every changed line. */
 function pasteText(config: RomliftConfig, intended: RomliftConfig): string {
   const lines = [
-    ...changedEntries('functions', config.functions, intended.functions, functionLine).map((c) => `[functions] ${c.line}`),
-    ...changedEntries('entry_points', config.entryPoints, intended.entryPoints, entryPointLine).map((c) => `[entry_points] ${c.line}`),
+    ...changedEntries('functions', config.functions, intended.functions, functionLine).map(
+      (c) => `[functions] ${c.line}`,
+    ),
+    ...changedEntries('entry_points', config.entryPoints, intended.entryPoints, entryPointLine).map(
+      (c) => `[entry_points] ${c.line}`,
+    ),
     ...changedEntries('symbols', config.symbols, intended.symbols, symbolLine).map((c) => `[symbols] ${c.line}`),
   ];
   return lines.length === 0 ? '' : `; paste these entries by hand:\n${lines.join('\n')}`;
@@ -443,7 +535,11 @@ function pasteText(config: RomliftConfig, intended: RomliftConfig): string {
  * Re-parses a patched text and compares it with the intended config: undefined when they agree, else the
  * E_TOML_PATCH_REFUSED that says where they part.
  */
-export function verifyPatched(patched: string, config: RomliftConfig, intended: RomliftConfig): Diagnostic<ConfigCode> | undefined {
+export function verifyPatched(
+  patched: string,
+  config: RomliftConfig,
+  intended: RomliftConfig,
+): Diagnostic<ConfigCode> | undefined {
   const reparsed = parseConfig(patched);
   if (!reparsed.ok) {
     const codes = reparsed.diagnostics.map((d) => `${d.code} ${d.message}`).join('; ');
@@ -452,7 +548,9 @@ export function verifyPatched(patched: string, config: RomliftConfig, intended: 
   const got = serializeConfig(reparsed.value);
   const want = serializeConfig(intended);
   if (got === want) return undefined;
-  return refused(`the patched text does not mean the intended config: ${firstDifference(got, want)}${pasteText(config, intended)}`);
+  return refused(
+    `the patched text does not mean the intended config: ${firstDifference(got, want)}${pasteText(config, intended)}`,
+  );
 }
 
 /**

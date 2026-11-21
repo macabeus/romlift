@@ -70,7 +70,14 @@ const CEILING_FILE = join('bench', 'baseline', 'objdiff-ceiling.json');
  * The owner's ceilings (D102, measured at phase-6 fix round 4, step 4, on 644af21): the most a committed ceiling may be.
  * Lowering one in bench/baseline/objdiff-ceiling.json needs no change here; raising one, or adding a ROM, is the owner's.
  */
-const OWNER_CEILINGS: Readonly<Record<string, number>> = { fe7j: 7, klonoa: 1, pokeemerald: 12, sa2: 1, sa3: 4, tmc: 25 };
+const OWNER_CEILINGS: Readonly<Record<string, number>> = {
+  fe7j: 7,
+  klonoa: 1,
+  pokeemerald: 12,
+  sa2: 1,
+  sa3: 4,
+  tmc: 25,
+};
 const CEILING_SCHEMA = 'romlift-bench/objdiff-ceiling@1';
 
 function tail(run: ExecResult, lines = 30): string {
@@ -79,14 +86,23 @@ function tail(run: ExecResult, lines = 30): string {
 
 /** The committed ceilings: per tuning ROM a non-negative integer, at most the owner's (OWNER_CEILINGS). */
 async function readCeilings(repoRoot: string): Promise<ReadonlyMap<string, number>> {
-  const value = JSON.parse(await readFile(join(repoRoot, CEILING_FILE), 'utf8')) as { readonly schema?: unknown; readonly roms?: unknown };
-  if (value.schema !== CEILING_SCHEMA || typeof value.roms !== 'object' || value.roms === null) throw new Error(`${CEILING_FILE}: not a ${CEILING_SCHEMA} file`);
+  const value = JSON.parse(await readFile(join(repoRoot, CEILING_FILE), 'utf8')) as {
+    readonly schema?: unknown;
+    readonly roms?: unknown;
+  };
+  if (value.schema !== CEILING_SCHEMA || typeof value.roms !== 'object' || value.roms === null)
+    throw new Error(`${CEILING_FILE}: not a ${CEILING_SCHEMA} file`);
   const out = new Map<string, number>();
   for (const [name, n] of Object.entries(value.roms)) {
-    if (typeof n !== 'number' || !Number.isInteger(n) || n < 0) throw new Error(`${CEILING_FILE}: roms.${name} is not a non-negative integer`);
+    if (typeof n !== 'number' || !Number.isInteger(n) || n < 0)
+      throw new Error(`${CEILING_FILE}: roms.${name} is not a non-negative integer`);
     const owner = OWNER_CEILINGS[name];
-    if (owner === undefined) throw new Error(`${CEILING_FILE}: roms.${name} has no ceiling the owner set (D102); adding one is the owner's`);
-    if (n > owner) throw new Error(`${CEILING_FILE}: roms.${name} is ${n}, above the owner's ceiling ${owner} (D102); raising it is the owner's`);
+    if (owner === undefined)
+      throw new Error(`${CEILING_FILE}: roms.${name} has no ceiling the owner set (D102); adding one is the owner's`);
+    if (n > owner)
+      throw new Error(
+        `${CEILING_FILE}: roms.${name} is ${n}, above the owner's ceiling ${owner} (D102); raising it is the owner's`,
+      );
     out.set(name, n);
   }
   return out;
@@ -127,12 +143,21 @@ gate({
         problems.push(`${rom.name}: no ceiling in ${CEILING_FILE}`);
         continue;
       }
-      const counts = Object.entries(classes.counts).map(([c, n]) => `${n} ${c}`).join(', ');
+      const counts = Object.entries(classes.counts)
+        .map(([c, n]) => `${n} ${c}`)
+        .join(', ');
       if (classes.gated > ceiling) {
-        const examples = classes.gatedExamples.slice(0, 5).map((e) => `${e.function} ${e.kind} ${e.detail}`).join(' | ');
-        problems.push(`${rom.name}: ${classes.gated} gated differences above its ceiling ${ceiling} (classes: ${counts}); ${examples}`);
+        const examples = classes.gatedExamples
+          .slice(0, 5)
+          .map((e) => `${e.function} ${e.kind} ${e.detail}`)
+          .join(' | ');
+        problems.push(
+          `${rom.name}: ${classes.gated} gated differences above its ceiling ${ceiling} (classes: ${counts}); ${examples}`,
+        );
       }
-      notes.push(`${rom.name} ${rom.objdiff.scored} functions, gated ${classes.gated} of ceiling ${ceiling}, ${classes.uncompared} uncompared (classes: ${counts || 'none'})`);
+      notes.push(
+        `${rom.name} ${rom.objdiff.scored} functions, gated ${classes.gated} of ceiling ${ceiling}, ${classes.uncompared} uncompared (classes: ${counts || 'none'})`,
+      );
     }
     // Each tuning ROM whose readable build does not link fails above, under the owner's per-ROM ceiling rule (D104 b).
     if (cx.datasets.length === 0) problems.push('no tuning ROM dataset to judge');

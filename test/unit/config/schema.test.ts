@@ -60,11 +60,17 @@ test('an unknown compiler carries its code from the refinement, not from the mes
   const unknown = validateConfig({ ...EXAMPLE, build: { name: 'x', compiler: 'gcc' } });
   assert.ok(!unknown.ok);
   if (unknown.ok) return;
-  assert.deepEqual(unknown.issues.map((i) => [i.path, i.code]), [['build.compiler', 'E_UNKNOWN_COMPILER']]);
+  assert.deepEqual(
+    unknown.issues.map((i) => [i.path, i.code]),
+    [['build.compiler', 'E_UNKNOWN_COMPILER']],
+  );
   const wrongType = validateConfig({ ...EXAMPLE, build: { name: 'x', compiler: 7 } });
   assert.ok(!wrongType.ok);
   if (wrongType.ok) return;
-  assert.deepEqual(wrongType.issues.map((i) => [i.path, i.code]), [['build.compiler', undefined]]);
+  assert.deepEqual(
+    wrongType.issues.map((i) => [i.path, i.code]),
+    [['build.compiler', undefined]],
+  );
 });
 
 test('shapes the schema refuses, all reported at once', () => {
@@ -82,8 +88,12 @@ test('shapes the schema refuses, all reported at once', () => {
   assert.equal(result.ok, false);
   if (result.ok) return;
   const paths = result.issues.map((i) => i.path).sort();
-  for (const expected of ['schema', 'rom.sha1', 'modules[0].name', 'modules[1]', 'overrides[0].size']) assert.ok(paths.includes(expected), `${expected} in ${paths.join(', ')}`);
-  assert.ok(paths.some((p) => p.startsWith('functions')), paths.join(', '));
+  for (const expected of ['schema', 'rom.sha1', 'modules[0].name', 'modules[1]', 'overrides[0].size'])
+    assert.ok(paths.includes(expected), `${expected} in ${paths.join(', ')}`);
+  assert.ok(
+    paths.some((p) => p.startsWith('functions')),
+    paths.join(', '),
+  );
 });
 
 test('not an object at all is an issue, never a throw', () => {
@@ -91,15 +101,19 @@ test('not an object at all is an issue, never a throw', () => {
 });
 
 test('a name GNU as reads as a mapping symbol, a section or a local label is refused; register and macro names pass (correctness-5)', () => {
-  const named = (name: string): boolean => validateConfig({ ...EXAMPLE, functions: new Map([[0x0800_0470, { name, mode: 'thumb', aliases: [] }]]) }).ok;
-  for (const bad of ['$d', '$t', '$a', '.text', '.data', '.Lfoo', '1bad', 'a-b', '']) assert.equal(named(bad), false, bad);
-  for (const good of ['r0', 'pc', 'sp', 'lr', 'ip', 'fp', 'a1', 'mov', 'thumb_func_start', '_08000100', 'a$d', 'a.b']) assert.equal(named(good), true, good);
+  const named = (name: string): boolean =>
+    validateConfig({ ...EXAMPLE, functions: new Map([[0x0800_0470, { name, mode: 'thumb', aliases: [] }]]) }).ok;
+  for (const bad of ['$d', '$t', '$a', '.text', '.data', '.Lfoo', '1bad', 'a-b', ''])
+    assert.equal(named(bad), false, bad);
+  for (const good of ['r0', 'pc', 'sp', 'lr', 'ip', 'fp', 'a1', 'mov', 'thumb_func_start', '_08000100', 'a$d', 'a.b'])
+    assert.equal(named(good), true, good);
   const symbol = validateConfig({ ...EXAMPLE, symbols: new Map([[0x0300_0000, { name: 'gOk', aliases: ['$d'] }]]) });
   assert.equal(symbol.ok, false);
 });
 
 test('a symbol or module name longer than 200 characters is refused, so no file name passes the checks and fails the write (correctness-r1-2)', () => {
-  const named = (name: string): boolean => validateConfig({ ...EXAMPLE, functions: new Map([[0x0800_0470, { name, mode: 'thumb', aliases: [] }]]) }).ok;
+  const named = (name: string): boolean =>
+    validateConfig({ ...EXAMPLE, functions: new Map([[0x0800_0470, { name, mode: 'thumb', aliases: [] }]]) }).ok;
   assert.equal(named(`F${'x'.repeat(199)}`), true);
   assert.equal(named(`F${'x'.repeat(200)}`), false);
   const modules = EXAMPLE.modules.map((m, i) => (i === 0 ? { ...m, name: `m${'x'.repeat(200)}` } : m));

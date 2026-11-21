@@ -13,19 +13,23 @@ export const AnalysisCodes = defineCodes({
   },
   W_WALK_LIMIT: {
     severity: 'warning',
-    meaning: 'a walk recorded more instructions than the walk limit; it stops with a decode error, so its entry is not a function',
+    meaning:
+      'a walk recorded more instructions than the walk limit; it stops with a decode error, so its entry is not a function',
   },
   W_CANDIDATE_BUDGET: {
     severity: 'warning',
-    meaning: 'the run judged as many distinct grow candidates as the candidate budget allows; fresh candidates after that were not judged',
+    meaning:
+      'the run judged as many distinct grow candidates as the candidate budget allows; fresh candidates after that were not judged',
   },
   W_READING_BUDGET: {
     severity: 'warning',
-    meaning: 'the candidate readings held in one epoch passed the reading budget; they were dropped and are walked again when asked for',
+    meaning:
+      'the candidate readings held in one epoch passed the reading budget; they were dropped and are walked again when asked for',
   },
   W_SEED_MALFORMED: {
     severity: 'warning',
-    meaning: "a seed's entry is not an address, its mode is unknown or its size does not fit the ROM; the seed is left out",
+    meaning:
+      "a seed's entry is not an address, its mode is unknown or its size does not fit the ROM; the seed is left out",
   },
   W_LISTED_INVALID: {
     severity: 'warning',

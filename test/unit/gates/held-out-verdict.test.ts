@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { FAMILY_WAIVER, heldOutVerdict, waiverMismatch, type SealedBinding } from '../../gates/held-out-verdict.ts';
+import { FAMILY_WAIVER, type SealedBinding, heldOutVerdict, waiverMismatch } from '../../gates/held-out-verdict.ts';
 
 const TUNING = ['fe-gba', 'kleod', 'pret-gen3', 'sat-r'];
 const AT_D60 = [...TUNING, 'zeldaret-tmc'];
@@ -33,10 +33,16 @@ test('heldOutVerdict: pret-gen3 and zeldaret-tmc passing pass the gate', () => {
     ],
     TUNING,
   );
-  assert.deepEqual(v, { pass: true, passing: ['pokefirered', 'tmc'], families: ['pret-gen3', 'zeldaret-tmc'], freshFamilies: ['zeldaret-tmc'], problems: [] });
+  assert.deepEqual(v, {
+    pass: true,
+    passing: ['pokefirered', 'tmc'],
+    families: ['pret-gen3', 'zeldaret-tmc'],
+    freshFamilies: ['zeldaret-tmc'],
+    problems: [],
+  });
 });
 
-test('heldOutVerdict with the D60 and D61 waiver: both family conditions are waived, with the owner\'s words; the count and the per-ROM verdicts still decide', () => {
+test("heldOutVerdict with the D60 and D61 waiver: both family conditions are waived, with the owner's words; the count and the per-ROM verdicts still decide", () => {
   const sealed = [
     { name: 'pokefirered', family: 'pret-gen3', pass: true },
     { name: 'pokeruby', family: 'pret-gen3', pass: true },
@@ -46,12 +52,21 @@ test('heldOutVerdict with the D60 and D61 waiver: both family conditions are wai
   assert.equal(v.waiverRefused, undefined);
   assert.deepEqual(v.problems, []);
   assert.equal(v.waived?.length, 2);
-  assert.match(v.waived?.[0] ?? '', /^the passing ROMs span 1 codebase families, at least two must: waived by the owner, Bruno Macabeus \(architecture section 12 item 4\) on 2026-10-18 \(D61 b; the owner's answer to Q4 of phase-2.md, the option chosen: "Waive both"\)$/);
-  assert.match(v.waived?.[1] ?? '', /^no passing ROM is from a family absent from the tuning set: waived by the owner, Bruno Macabeus \(architecture section 12 item 4\) on 2026-10-17 \(D60; the owner's words/);
+  assert.match(
+    v.waived?.[0] ?? '',
+    /^the passing ROMs span 1 codebase families, at least two must: waived by the owner, Bruno Macabeus \(architecture section 12 item 4\) on 2026-10-18 \(D61 b; the owner's answer to Q4 of phase-2.md, the option chosen: "Waive both"\)$/,
+  );
+  assert.match(
+    v.waived?.[1] ?? '',
+    /^no passing ROM is from a family absent from the tuning set: waived by the owner, Bruno Macabeus \(architecture section 12 item 4\) on 2026-10-17 \(D60; the owner's words/,
+  );
   // A condition without grounds is not waived: it fails as without a waiver (the shape before Q4's answer).
   const fresh = FAMILY_WAIVER.grounds.freshFamily;
   assert.ok(fresh !== undefined);
-  const freshOnly = heldOutVerdict(sealed, AT_D60, { waiver: { ...FAMILY_WAIVER, grounds: { freshFamily: fresh } }, sealed: SEALED });
+  const freshOnly = heldOutVerdict(sealed, AT_D60, {
+    waiver: { ...FAMILY_WAIVER, grounds: { freshFamily: fresh } },
+    sealed: SEALED,
+  });
   assert.equal(freshOnly.pass, false);
   assert.deepEqual(freshOnly.problems, ['the passing ROMs span 1 codebase families, at least two must']);
   // With two families passing, only the fresh-family condition needs the waiver.
@@ -63,7 +78,14 @@ test('heldOutVerdict with the D60 and D61 waiver: both family conditions are wai
   const one = heldOutVerdict([sealed[0]!, { ...sealed[1]!, pass: false }], AT_D60, WAIVER);
   assert.equal(one.pass, false);
   assert.ok(one.problems.includes('1 of 2 sealed ROMs pass, at least two must'));
-  const none = heldOutVerdict([{ ...sealed[0]!, pass: false }, { ...sealed[1]!, pass: false }], AT_D60, WAIVER);
+  const none = heldOutVerdict(
+    [
+      { ...sealed[0]!, pass: false },
+      { ...sealed[1]!, pass: false },
+    ],
+    AT_D60,
+    WAIVER,
+  );
   assert.equal(none.pass, false);
 });
 
@@ -105,7 +127,9 @@ test('heldOutVerdict: one pass, or two families both in the tuning set, fail', (
 test('FAMILY_WAIVER is bound to the committed sealed datasets', async () => {
   const { readFile } = await import('node:fs/promises');
   for (const b of SEALED) {
-    const d = JSON.parse(await readFile(new URL(`../../../bench/dataset/real/${b.name}.json`, import.meta.url), 'utf8')) as Record<string, unknown>;
+    const d = JSON.parse(
+      await readFile(new URL(`../../../bench/dataset/real/${b.name}.json`, import.meta.url), 'utf8'),
+    ) as Record<string, unknown>;
     assert.equal(d['sha1'], b.sha1);
     assert.equal(d['elfSha256'], b.elfSha256);
     assert.deepEqual(d['revealed'], []);

@@ -2,7 +2,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { BIOS_COPY_ARGS, BIOS_CPU_FAST_SET, BIOS_CPU_SET, biosCopyBytes, isBiosCopy } from '../../../src/foundation/rom/bios.ts';
+import {
+  BIOS_COPY_ARGS,
+  BIOS_CPU_FAST_SET,
+  BIOS_CPU_SET,
+  biosCopyBytes,
+  isBiosCopy,
+} from '../../../src/foundation/rom/bios.ts';
 
 test('CpuSet copies halfwords, or words with bit 26', () => {
   assert.equal(biosCopyBytes(BIOS_CPU_SET, 8), 16);

@@ -14,13 +14,20 @@ test('the ARM b at 0x08000000 proposes the cartridge start, then its target, bot
 
 test('a conditional b counts, as the PoC decodes any condition but 0xF as b', () => {
   const v = viewWith({ rom: romWith([{ at: BASE, bytes: words(0x0a00_002e) }]) });
-  assert.deepEqual(romEntry.seeds(v).map((c) => c.entry), [BASE, 0x0800_00c0]);
+  assert.deepEqual(
+    romEntry.seeds(v).map((c) => c.entry),
+    [BASE, 0x0800_00c0],
+  );
 });
 
 test('a ROM that does not start with b proposes nothing', () => {
   assert.deepEqual(romEntry.seeds(viewWith({ rom: romWith([]) })), [], 'a zero word');
   assert.deepEqual(romEntry.seeds(viewWith({ rom: romWith([{ at: BASE, bytes: words(0xeb00_002e) }]) })), [], 'bl');
-  assert.deepEqual(romEntry.seeds(viewWith({ rom: romWith([{ at: BASE, bytes: words(0xfa00_002e) }]) })), [], 'condition 0xF');
+  assert.deepEqual(
+    romEntry.seeds(viewWith({ rom: romWith([{ at: BASE, bytes: words(0xfa00_002e) }]) })),
+    [],
+    'condition 0xF',
+  );
 });
 
 test('its metadata names the rom-entry origin', () => {
@@ -32,5 +39,9 @@ test('a truncated image whose startup word is not wholly in the ROM proposes onl
   const half = viewWith({ rom: romWith([], { entry: 0x0800_00c0, size: 0xc2 }) });
   assert.deepEqual(romEntry.seeds(half), [{ entry: BASE, mode: 'arm', cites: [BASE] }], 'the header plus one halfword');
   const whole = viewWith({ rom: romWith([], { entry: 0x0800_00c0, size: 0xc4 }) });
-  assert.deepEqual(romEntry.seeds(whole).map((c) => c.entry), [BASE, 0x0800_00c0], 'the header plus one word');
+  assert.deepEqual(
+    romEntry.seeds(whole).map((c) => c.entry),
+    [BASE, 0x0800_00c0],
+    'the header plus one word',
+  );
 });

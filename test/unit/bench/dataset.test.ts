@@ -4,7 +4,14 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { contextFromEnv } from '../../../bench/src/context.ts';
-import { isSealed, loadDatasets, parseDataset, pocDatasets, tuningDatasets, type DatasetProblemId } from '../../../bench/src/dataset.ts';
+import {
+  type DatasetProblemId,
+  isSealed,
+  loadDatasets,
+  parseDataset,
+  pocDatasets,
+  tuningDatasets,
+} from '../../../bench/src/dataset.ts';
 import { dataset, withTempDir } from './fixtures.ts';
 
 const TUNING = {
@@ -63,7 +70,10 @@ function problemsOf(value: unknown): DatasetProblemId[] {
 const row = { addr: '0x08000100', name: 'sub_08000100', category: 'loop-label', note: 'n' };
 
 test('a well-formed dataset parses with no problem', () => {
-  const parsed = parseDataset({ ...dataset(), labels: [row], untyped: [{ addr: '0x08000200', category: 'veneer', note: 'n' }] }, 'x.json');
+  const parsed = parseDataset(
+    { ...dataset(), labels: [row], untyped: [{ addr: '0x08000200', category: 'veneer', note: 'n' }] },
+    'x.json',
+  );
   assert.deepEqual(parsed.problems, []);
   assert.equal(parsed.dataset?.labels.length, 1);
   assert.equal(parsed.dataset?.untyped[0]?.name, undefined);
@@ -74,7 +84,9 @@ test('structural problems are each reported with their id', () => {
   assert.deepEqual(problemsOf({ ...dataset(), labels: [{ ...row, addr: '0x0800010a' }] }), ['malformed-address']);
   assert.deepEqual(problemsOf({ ...dataset(), labels: [row, row] }), ['duplicate-address']);
   assert.deepEqual(problemsOf({ ...dataset(), untyped: [{ ...row, category: 'glued' }] }), ['unknown-category']);
-  assert.deepEqual(problemsOf({ ...dataset(), labels: [{ addr: '0x08000100', category: 'loop-label', note: 'n' }] }), ['missing-field']);
+  assert.deepEqual(problemsOf({ ...dataset(), labels: [{ addr: '0x08000100', category: 'loop-label', note: 'n' }] }), [
+    'missing-field',
+  ]);
   assert.deepEqual(problemsOf({ ...dataset(), heldout: 'no' }), ['missing-field']);
   assert.deepEqual(problemsOf({ ...dataset(), revealed: {} }), ['missing-field']);
   const { elfSha256: _, ...noDigest } = dataset();
@@ -91,7 +103,10 @@ test('a dataset is sealed while held out and never revealed', () => {
   assert.ok(!isSealed(dataset()));
   assert.ok(isSealed(dataset({ heldout: true })));
   assert.ok(!isSealed(dataset({ heldout: true, revealed: [{ at: '2026-10-17', commit: 'abc', reason: 'r' }] })));
-  assert.deepEqual(tuningDatasets([dataset({ name: 'a' }), dataset({ name: 'b', heldout: true })]).map((d) => d.name), ['a']);
+  assert.deepEqual(
+    tuningDatasets([dataset({ name: 'a' }), dataset({ name: 'b', heldout: true })]).map((d) => d.name),
+    ['a'],
+  );
 });
 
 test('the loader reads only real/*.json, in code-unit order', async () => {
@@ -105,8 +120,14 @@ test('the loader reads only real/*.json, in code-unit order', async () => {
     await writeFile(join(repo, 'bench', 'dataset', 'synthetic', 'd.json'), JSON.stringify(dataset({ name: 'd' })));
     await writeFile(join(dir, 'broken.json'), '{');
     const { datasets, problems } = await loadDatasets({ repoRoot: repo, benchRoot: repo, pocRoot: repo });
-    assert.deepEqual(datasets.map((d) => d.name), ['C', 'a', 'b']);
-    assert.deepEqual(problems.map((p) => [p.dataset, p.problem]), [['broken', 'unreadable']]);
+    assert.deepEqual(
+      datasets.map((d) => d.name),
+      ['C', 'a', 'b'],
+    );
+    assert.deepEqual(
+      problems.map((p) => [p.dataset, p.problem]),
+      [['broken', 'unreadable']],
+    );
   });
 });
 
@@ -114,6 +135,9 @@ test('a retired category is an unknown category, except when reading an older co
   const old = { ...dataset(), labels: [{ ...row, category: 'continuation-after-noreturn-call' }] };
   assert.deepEqual(problemsOf(old), ['unknown-category']);
   assert.deepEqual(parseDataset(old, 'x.json', { retired: true }).problems, []);
-  assert.deepEqual(problemsOf({ ...dataset(), labels: [{ ...row, category: 'unreviewed' }] }), [], 'the adopt placeholder parses; g2.no-unreviewed refuses it');
+  assert.deepEqual(
+    problemsOf({ ...dataset(), labels: [{ ...row, category: 'unreviewed' }] }),
+    [],
+    'the adopt placeholder parses; g2.no-unreviewed refuses it',
+  );
 });
-

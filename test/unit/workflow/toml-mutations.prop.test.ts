@@ -22,7 +22,6 @@ import { serializeConfig } from '../../../src/core/config/serialize.ts';
 import { emitTree } from '../../../src/core/emit/emit-tree.ts';
 import { codeLayout, isLegalStart, legalStartsBetween } from '../../../src/core/layout/borders.ts';
 import type { BorderRule } from '../../../src/core/layout/borders.ts';
-import { defaultFunctionName } from '../../../src/foundation/util/project-files.ts';
 import { combineReports } from '../../../src/core/verify/report.ts';
 import { checkEntries } from '../../../src/core/verify/text-layout.ts';
 import { verifyModel } from '../../../src/core/verify/tiling.ts';
@@ -31,6 +30,7 @@ import { discover } from '../../../src/core/workflow/discover.ts';
 import { confirmModel } from '../../../src/core/workflow/generate.ts';
 import type { Rom } from '../../../src/foundation/rom/rom.ts';
 import type { Addr } from '../../../src/foundation/rom/span.ts';
+import { defaultFunctionName } from '../../../src/foundation/util/project-files.ts';
 import { listSyntheticFixtures, readFixtureRom } from '../../helpers/fixtures.ts';
 import { xorshift32 } from '../../helpers/prng.ts';
 
@@ -104,14 +104,20 @@ function legalEdits(kind: LegalKind, facts: Facts, draw: Draw): readonly Edit[] 
   const cModules = modules.flatMap((m, i) => (m.kind === 'c' && i > 0 ? [{ m, i }] : []));
   switch (kind) {
     case 'move-start': {
-      const options = cModules.flatMap(({ m, i }) => legalStartsBetween(rule, modules[i - 1]?.start ?? facts.rom.base, nextStart(i)).filter((b) => b !== m.start).map((b) => ({ m, i, b })));
+      const options = cModules.flatMap(({ m, i }) =>
+        legalStartsBetween(rule, modules[i - 1]?.start ?? facts.rom.base, nextStart(i))
+          .filter((b) => b !== m.start)
+          .map((b) => ({ m, i, b })),
+      );
       return drawSome(draw, options, EDITS_PER_KIND).map(({ m, i, b }) => ({
         what: `move ${m.name} from 0x${hex(m.start)} to 0x${hex(b)}`,
         config: { ...config, modules: modules.map((x, j) => (j === i ? { ...x, start: b } : x)) },
       }));
     }
     case 'rename': {
-      const entries = [...config.functions.keys()].sort(byNumber).filter((a) => config.functions.get(a)?.name === defaultFunctionName(a));
+      const entries = [...config.functions.keys()]
+        .sort(byNumber)
+        .filter((a) => config.functions.get(a)?.name === defaultFunctionName(a));
       return drawSome(draw, entries, EDITS_PER_KIND).flatMap((addr) => {
         const fn = config.functions.get(addr);
         if (fn === undefined) return [];
@@ -136,10 +142,17 @@ function legalEdits(kind: LegalKind, facts: Facts, draw: Draw): readonly Edit[] 
     }
     case 'add-override': {
       const free = facts.discovered.functions.filter(
-        (f) => config.functions.has(f.entry) && !config.overrides.some((o) => o.start < f.extent.end && f.extent.start < o.start + o.size),
+        (f) =>
+          config.functions.has(f.entry) &&
+          !config.overrides.some((o) => o.start < f.extent.end && f.extent.start < o.start + o.size),
       );
       return drawSome(draw, free, EDITS_PER_KIND).map((f) => {
-        const override: OverrideConfig = { start: f.extent.start, size: f.extent.end - f.extent.start, kind: 'code', mode: f.mode };
+        const override: OverrideConfig = {
+          start: f.extent.start,
+          size: f.extent.end - f.extent.start,
+          kind: 'code',
+          mode: f.mode,
+        };
         return {
           what: `a code override over 0x${hex(f.extent.start)}..0x${hex(f.extent.end)} (${f.mode})`,
           config: { ...config, overrides: [...config.overrides, override].sort((a, b) => a.start - b.start) },
@@ -147,10 +160,17 @@ function legalEdits(kind: LegalKind, facts: Facts, draw: Draw): readonly Edit[] 
       });
     }
     case 'split-module': {
-      const options = cModules.flatMap(({ m, i }) => legalStartsBetween(rule, m.start, nextStart(i)).filter((b) => !starts.has(b)).map((b) => ({ m, i, b })));
+      const options = cModules.flatMap(({ m, i }) =>
+        legalStartsBetween(rule, m.start, nextStart(i))
+          .filter((b) => !starts.has(b))
+          .map((b) => ({ m, i, b })),
+      );
       return drawSome(draw, options, EDITS_PER_KIND).map(({ m, i, b }) => {
         const added: ModuleConfig = { ...m, name: `${m.name}_split_${hex(b)}`, start: b };
-        return { what: `split ${m.name} at 0x${hex(b)}`, config: { ...config, modules: [...modules.slice(0, i + 1), added, ...modules.slice(i + 1)] } };
+        return {
+          what: `split ${m.name} at 0x${hex(b)}`,
+          config: { ...config, modules: [...modules.slice(0, i + 1), added, ...modules.slice(i + 1)] },
+        };
       });
     }
   }
@@ -159,15 +179,23 @@ function legalEdits(kind: LegalKind, facts: Facts, draw: Draw): readonly Edit[] 
 /** The text through the TOML: serialised, then parsed back; a parse failure is a failed assertion. */
 function throughToml(config: RomliftConfig, what: string): RomliftConfig {
   const parsed = parseConfig(serializeConfig(config));
-  if (!parsed.ok) assert.fail(`${what}: the serialised config does not parse: ${parsed.diagnostics.map((d) => `${d.code} ${d.message}`).join('; ')}`);
+  if (!parsed.ok)
+    assert.fail(
+      `${what}: the serialised config does not parse: ${parsed.diagnostics.map((d) => `${d.code} ${d.message}`).join('; ')}`,
+    );
   return parsed.value;
 }
 
 /** What the pure generate path finds wrong with `config`: the error diagnostics and the failed checks. */
 function generateProblems(rom: Rom, config: RomliftConfig): readonly string[] {
   const { analysis, model } = confirmModel({ rom, config });
-  const report = combineReports(verifyModel(rom, model), checkEntries(rom, model, emitTree(rom, model, { decomp: { defined: [] }, printer: 'readable' })));
-  const errors = [...analysis.diagnostics, ...model.diagnostics].filter((d) => d.severity === 'error').map((d) => `${d.code}: ${d.message}`);
+  const report = combineReports(
+    verifyModel(rom, model),
+    checkEntries(rom, model, emitTree(rom, model, { decomp: { defined: [] }, printer: 'readable' })),
+  );
+  const errors = [...analysis.diagnostics, ...model.diagnostics]
+    .filter((d) => d.severity === 'error')
+    .map((d) => `${d.code}: ${d.message}`);
   const failed = report.checks.filter((c) => !c.ok).map((c) => `check ${c.id}: ${c.detail}`);
   return [...errors, ...failed];
 }
@@ -208,12 +236,20 @@ for (const fixture of fixtures) {
     }
 
     // A `c` module's start moved by 2 bytes is never a legal border (borders rest on the ARM word, D63).
-    const moved = facts.config.modules.findIndex((m, i) => i > 0 && m.kind === 'c' && !isLegalStart(facts.rule, m.start + 2));
+    const moved = facts.config.modules.findIndex(
+      (m, i) => i > 0 && m.kind === 'c' && !isLegalStart(facts.rule, m.start + 2),
+    );
     const module = facts.config.modules[moved];
     if (module !== undefined) {
-      const illegal = { ...facts.config, modules: facts.config.modules.map((m, i) => (i === moved ? { ...m, start: m.start + 2 } : m)) };
+      const illegal = {
+        ...facts.config,
+        modules: facts.config.modules.map((m, i) => (i === moved ? { ...m, start: m.start + 2 } : m)),
+      };
       const codes = modelErrorCodes(rom, throughToml(illegal, `${module.name} start + 2`));
-      assert.ok(codes.includes('E_MODULE_BORDER'), `${module.name} at 0x${hex(module.start + 2)} gave [${codes.join(', ')}], expected E_MODULE_BORDER`);
+      assert.ok(
+        codes.includes('E_MODULE_BORDER'),
+        `${module.name} at 0x${hex(module.start + 2)} gave [${codes.join(', ')}], expected E_MODULE_BORDER`,
+      );
     }
 
     const lines = text.split('\n');
@@ -223,10 +259,18 @@ for (const fixture of fixtures) {
     assert.ok(header >= 0 && line !== undefined, 'the canonical TOML has a [functions] entry');
     const repeated = parseConfig([...lines.slice(0, at + 1), line, ...lines.slice(at + 1)].join('\n'));
     assert.equal(repeated.ok, false, 'a repeated [functions] line is refused');
-    assert.ok(repeated.diagnostics.some((d) => d.code === 'E_DUPLICATE_ADDRESS'), `a repeated line gave [${repeated.diagnostics.map((d) => d.code).join(', ')}]`);
-    const sevenDigits = parseConfig([...lines.slice(0, at), line.replace(FUNCTION_LINE, '0x$1$2'), ...lines.slice(at + 1)].join('\n'));
+    assert.ok(
+      repeated.diagnostics.some((d) => d.code === 'E_DUPLICATE_ADDRESS'),
+      `a repeated line gave [${repeated.diagnostics.map((d) => d.code).join(', ')}]`,
+    );
+    const sevenDigits = parseConfig(
+      [...lines.slice(0, at), line.replace(FUNCTION_LINE, '0x$1$2'), ...lines.slice(at + 1)].join('\n'),
+    );
     assert.equal(sevenDigits.ok, false, 'a seven-digit key is refused');
-    assert.ok(sevenDigits.diagnostics.some((d) => d.code === 'E_TOML_KEY_SPELLING'), `a seven-digit key gave [${sevenDigits.diagnostics.map((d) => d.code).join(', ')}]`);
+    assert.ok(
+      sevenDigits.diagnostics.some((d) => d.code === 'E_TOML_KEY_SPELLING'),
+      `a seven-digit key gave [${sevenDigits.diagnostics.map((d) => d.code).join(', ')}]`,
+    );
   });
 }
 

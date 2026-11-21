@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { RomliftInvariantError } from '../../../src/foundation/diagnostics/diagnostic.ts';
 import { canonicalJson } from '../../../src/foundation/formats/canonical-json.ts';
 import type { JsonValue } from '../../../src/foundation/formats/types.ts';
-import { RomliftInvariantError } from '../../../src/foundation/diagnostics/diagnostic.ts';
 
 function text(value: JsonValue, chunkSize?: number): string {
   return [...canonicalJson(value, chunkSize)].join('');
@@ -72,7 +72,7 @@ test('deep nesting and 10,000-element arrays need no recursion', () => {
   let deep: JsonValue = 0;
   for (let i = 0; i < 100_000; i++) deep = i % 2 === 0 ? [deep] : { k: deep };
   const out = text(deep);
-  assert.equal(out.length, 100_000 / 2 * ('[]'.length + '{"k":}'.length) + 1);
+  assert.equal(out.length, (100_000 / 2) * ('[]'.length + '{"k":}'.length) + 1);
   const wide: JsonValue = Array.from({ length: 10_000 }, (_, i) => Array.from({ length: 3 }, () => i));
   assert.equal(text(wide), JSON.stringify(wide));
 });

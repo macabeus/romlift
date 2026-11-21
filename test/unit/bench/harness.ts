@@ -4,22 +4,26 @@
 // that serves it (TINY_DEPS). The bench commands run against it exactly as against the real tier.
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-
-import { sha1Of, sha256Of } from 'romlift/node';
-
 import type { AnalysisResult, MissReason, PrintStats } from 'romlift';
+import { sha1Of, sha256Of } from 'romlift/node';
 
 import { resultDigest } from '../../../bench/src/analysis-run.ts';
 import { stripSeconds } from '../../../bench/src/baseline.ts';
-import { resultParityDigest } from '../../../bench/src/parity.ts';
 import type { BenchDeps } from '../../../bench/src/cli.ts';
-import type { ObjdiffSummary } from '../../../bench/src/objdiff.ts';
-import type { MemoryFamilyRun, RunOptions } from '../../../bench/src/run.ts';
-import type { EmissionFamilies, InitBuild, InitBuildInput, LinkOutcome, ScaffoldInput } from '../../../bench/src/scaffold.ts';
 import type { BenchContext } from '../../../bench/src/context.ts';
+import type { ObjdiffSummary } from '../../../bench/src/objdiff.ts';
+import { resultParityDigest } from '../../../bench/src/parity.ts';
 import { pocSourceDigest } from '../../../bench/src/poc-source.ts';
+import type { MemoryFamilyRun, RunOptions } from '../../../bench/src/run.ts';
+import type {
+  EmissionFamilies,
+  InitBuild,
+  InitBuildInput,
+  LinkOutcome,
+  ScaffoldInput,
+} from '../../../bench/src/scaffold.ts';
 import type { ScoredRun } from '../../../bench/src/scored-run.ts';
-import { analysisResult, dataset, dump, fact, fixedRunner, fn, type FixedRunnerOptions } from './fixtures.ts';
+import { type FixedRunnerOptions, analysisResult, dataset, dump, fact, fixedRunner, fn } from './fixtures.ts';
 
 export const TINY_ELF = new URL('../../fixtures/formats/tiny.elf', import.meta.url);
 export const ROM_BYTES = Uint8Array.from({ length: 0x30 }, (_, i) => (i * 7) & 0xff);
@@ -38,7 +42,9 @@ export const EXPECTED_ROW = {
   precision: 2 / 3,
   recall: 2 / 3,
   misses: [{ addr: '0x0800000E', name: 'thumb_two', size: 10, reason: 'unanchored', listed: false }],
-  falseEntries: [{ addr: '0x08000010', origin: 'gap-scan', size: 4, owner: 'thumb_two', listed: true, category: 'unreviewed' }],
+  falseEntries: [
+    { addr: '0x08000010', origin: 'gap-scan', size: 4, owner: 'thumb_two', listed: true, category: 'unreviewed' },
+  ],
   extents: { sized: 2, agree: 2, mismatches: [] },
   codeEnd: { found: '0x0800001C', elf: '0x0800001C', delta: 0 },
   deterministic: true,
@@ -50,7 +56,12 @@ const { scaffold: _pocScaffold, ...ROW_WITHOUT_SCAFFOLD } = EXPECTED_ROW;
 
 /** romlift's analysis of the synthetic ROM: the functions of tinyDump, minus `drop`. */
 export function tinyResult(drop: readonly number[] = []): AnalysisResult {
-  const functions = [fact(0x0800_0000, 0x0800_0008, 'rom-entry', 'arm'), fact(0x0800_0008, 0x0800_000e), fact(0x0800_0010, 0x0800_0014, 'gap-scan'), fact(0x0800_0018, 0x0800_001c)];
+  const functions = [
+    fact(0x0800_0000, 0x0800_0008, 'rom-entry', 'arm'),
+    fact(0x0800_0008, 0x0800_000e),
+    fact(0x0800_0010, 0x0800_0014, 'gap-scan'),
+    fact(0x0800_0018, 0x0800_001c),
+  ];
   return analysisResult(
     functions.filter((f) => !drop.includes(f.entry)),
     { end: 0x0800_0008, entries: [0x0800_0000] },
@@ -62,7 +73,15 @@ export function tinyResult(drop: readonly number[] = []): AnalysisResult {
 export const TINY_REASONS: ReadonlyMap<number, MissReason> = new Map([[0x0800_000e, 'unanchored']]);
 
 /** The readable printer's statistics the fake emission reports for every ROM. */
-export const TINY_STATS: PrintStats = { insns: 10, rawInsns: 1, branches: 4, symbolicBranches: 4, poolLoads: 2, symbolicPoolLoads: 1, rawReasons: { 'no-roundtrip': 1 } };
+export const TINY_STATS: PrintStats = {
+  insns: 10,
+  rawInsns: 1,
+  branches: 4,
+  symbolicBranches: 4,
+  poolLoads: 2,
+  symbolicPoolLoads: 1,
+  rawReasons: { 'no-roundtrip': 1 },
+};
 export const TINY_TREE_DIGEST = 'a'.repeat(64);
 /** The shares of TINY_STATS. */
 export const TINY_SHARES = { mnemonicShare: 0.9, symbolicBranchShare: 1, symbolicPoolShare: 0.5 } as const;
@@ -71,7 +90,9 @@ export const TINY_OBJDIFF: ObjdiffSummary = {
   linked: true,
   scored: 2,
   differences: { 'unnamed-target': 1 },
-  examples: [{ function: 'thumb_one', kind: 'unnamed-target', detail: '+0x4 R_ARM_ABS32: section .rodata | gUnk_08000020' }],
+  examples: [
+    { function: 'thumb_one', kind: 'unnamed-target', detail: '+0x4 R_ARM_ABS32: section .rodata | gUnk_08000020' },
+  ],
 };
 
 export interface FakeEmissionOptions {
@@ -86,11 +107,23 @@ export interface FakeEmissionOptions {
 }
 
 /** The fake init build: init, setup.sh and make exit 0 and the built ROM has the SHA-1. */
-export const TINY_INIT_BUILD: InitBuild = { initExit: 0, setupExit: 0, makeExit: 0, sha1Match: true, seconds: 1.5, detail: 'SHA-1 match' };
+export const TINY_INIT_BUILD: InitBuild = {
+  initExit: 0,
+  setupExit: 0,
+  makeExit: 0,
+  sha1Match: true,
+  seconds: 1.5,
+  detail: 'SHA-1 match',
+};
 /** Its verdict, as a row keeps it. */
 export const TINY_INIT_VERDICT = { initExit: 0, setupExit: 0, makeExit: 0, sha1Match: true } as const;
 
-const link = (ok: boolean): LinkOutcome => ({ ok, sha1: ok ? sha1Of(ROM_BYTES) : null, detail: ok ? 'linked' : 'ld exited with 1', treeDigest: TINY_TREE_DIGEST });
+const link = (ok: boolean): LinkOutcome => ({
+  ok,
+  sha1: ok ? sha1Of(ROM_BYTES) : null,
+  detail: ok ? 'linked' : 'ld exited with 1',
+  treeDigest: TINY_TREE_DIGEST,
+});
 
 /** An emission that prints and links nothing: fixed statistics, digests and links. */
 export function fakeEmission(options: FakeEmissionOptions = {}): EmissionFamilies {
@@ -115,11 +148,27 @@ export function fakeEmission(options: FakeEmissionOptions = {}): EmissionFamilie
 
 /** The memory family's fake report: the large-ROM script's member and its volatile times. */
 export const TINY_MEMORY: MemoryFamilyRun = {
-  member: { romBytes: 32 * 1024 * 1024, sha1: 'b846b9453414ce93afc5e8fd559eaac582dc570e', runs: [{ command: 'init', exitCode: 0, maxRssMiB: 300.5 }, { command: 'generate', exitCode: 0, maxRssMiB: 280.25, treeDigest: 'c'.repeat(64) }] },
-  timings: { runs: [{ command: 'init', wallMs: 1000 }, { command: 'generate', wallMs: 900 }] },
+  member: {
+    romBytes: 32 * 1024 * 1024,
+    sha1: 'b846b9453414ce93afc5e8fd559eaac582dc570e',
+    runs: [
+      { command: 'init', exitCode: 0, maxRssMiB: 300.5 },
+      { command: 'generate', exitCode: 0, maxRssMiB: 280.25, treeDigest: 'c'.repeat(64) },
+    ],
+  },
+  timings: {
+    runs: [
+      { command: 'init', wallMs: 1000 },
+      { command: 'generate', wallMs: 900 },
+    ],
+  },
 };
 
-export function tinyDeps(result: AnalysisResult = tinyResult(), options: FixedRunnerOptions = {}, emission: FakeEmissionOptions = {}): BenchDeps {
+export function tinyDeps(
+  result: AnalysisResult = tinyResult(),
+  options: FixedRunnerOptions = {},
+  emission: FakeEmissionOptions = {},
+): BenchDeps {
   return {
     runner: fixedRunner(result, { reasons: TINY_REASONS, ...options }),
     now: () => '2026-10-17T00:00:00.000Z',
@@ -133,7 +182,9 @@ export function tinyDeps(result: AnalysisResult = tinyResult(), options: FixedRu
 export const TINY_DEPS: BenchDeps = tinyDeps();
 
 /** benchRun's options from a BenchDeps: its runner and the phase-3 fakes. */
-export function runWith(deps: BenchDeps = TINY_DEPS): Pick<RunOptions, 'runner' | 'emission' | 'largeRom' | 'objdiffTool'> {
+export function runWith(
+  deps: BenchDeps = TINY_DEPS,
+): Pick<RunOptions, 'runner' | 'emission' | 'largeRom' | 'objdiffTool'> {
   return {
     runner: deps.runner,
     ...(deps.emission === undefined ? {} : { emission: deps.emission }),
@@ -157,9 +208,19 @@ export const EXPECTED_ROMLIFT_ROW = {
 } as const;
 
 /** The row of `bench run --scaffold`: romlift's raw link as the scaffold verdict with the init build, and the objdiff family. */
-export const EXPECTED_SCAFFOLD_ROW = { ...EXPECTED_ROMLIFT_ROW, scaffold: { ok: true, init: TINY_INIT_VERDICT }, objdiff: TINY_OBJDIFF } as const;
+export const EXPECTED_SCAFFOLD_ROW = {
+  ...EXPECTED_ROMLIFT_ROW,
+  scaffold: { ok: true, init: TINY_INIT_VERDICT },
+  objdiff: TINY_OBJDIFF,
+} as const;
 
-const POC_ROW = { ...EXPECTED_ROW, seconds: 0.1, scaffold: { ok: true, seconds: 0.2, summary: 'built' }, signatures: { functions: 0, seconds: 0 }, datasetProblems: [] };
+const POC_ROW = {
+  ...EXPECTED_ROW,
+  seconds: 0.1,
+  scaffold: { ok: true, seconds: 0.2, summary: 'built' },
+  signatures: { functions: 0, seconds: 0 },
+  datasetProblems: [],
+};
 
 export function tinyDump(overrides: Partial<ScoredRun> = {}): ScoredRun {
   return dump({
@@ -188,7 +249,10 @@ async function put(path: string, text: string): Promise<void> {
 }
 
 /** Lays out the synthetic real tier under `root`; returns its context. */
-export async function syntheticTier(root: string, options: { readonly dump?: ScoredRun; readonly datasetOverrides?: Record<string, unknown> } = {}): Promise<BenchContext> {
+export async function syntheticTier(
+  root: string,
+  options: { readonly dump?: ScoredRun; readonly datasetOverrides?: Record<string, unknown> } = {},
+): Promise<BenchContext> {
   const repoRoot = join(root, 'repo');
   const benchRoot = join(root, 'bench');
   const pocRoot = join(root, 'poc');
@@ -199,14 +263,27 @@ export async function syntheticTier(root: string, options: { readonly dump?: Sco
   await writeFile(join(benchRoot, 'tiny', 'tiny.map'), '');
   const elfSha256 = sha256Of(new Uint8Array(await readFile(TINY_ELF)));
   const d = {
-    ...dataset({ sha1: sha1Of(ROM_BYTES), elfSha256, untyped: [{ addr: '0x08000010', category: 'unreviewed', note: 'inside thumb_two' }] }),
+    ...dataset({
+      sha1: sha1Of(ROM_BYTES),
+      elfSha256,
+      untyped: [{ addr: '0x08000010', category: 'unreviewed', note: 'inside thumb_two' }],
+    }),
     ...options.datasetOverrides,
   };
   await put(join(repoRoot, 'package.json'), JSON.stringify({ name: 'romlift', version: '1.2.3' }));
   await put(join(repoRoot, 'bench', 'dataset', 'real', 'tiny.json'), JSON.stringify(d));
-  await put(join(repoRoot, 'bench', 'baseline', 'poc-source.json'), JSON.stringify({ files: {}, digest: pocSourceDigest({}) }));
-  await put(join(repoRoot, 'bench', 'baseline', 'poc-2026-10-16.json'), JSON.stringify({ meta: {}, roms: [stripSeconds(POC_ROW)] }));
-  await put(join(repoRoot, 'bench', '.local', 'poc', 'tiny', 'scored.json'), JSON.stringify(options.dump ?? tinyDump()));
+  await put(
+    join(repoRoot, 'bench', 'baseline', 'poc-source.json'),
+    JSON.stringify({ files: {}, digest: pocSourceDigest({}) }),
+  );
+  await put(
+    join(repoRoot, 'bench', 'baseline', 'poc-2026-10-16.json'),
+    JSON.stringify({ meta: {}, roms: [stripSeconds(POC_ROW)] }),
+  );
+  await put(
+    join(repoRoot, 'bench', '.local', 'poc', 'tiny', 'scored.json'),
+    JSON.stringify(options.dump ?? tinyDump()),
+  );
   await put(join(repoRoot, 'test', 'gates', 'phase.json'), '{ "landed": 0 }');
   await put(join(repoRoot, 'src', 'index.ts'), 'export {};\n');
   return { repoRoot, benchRoot, pocRoot };

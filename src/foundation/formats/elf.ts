@@ -42,7 +42,14 @@ export const R_ARM = {
 } as const;
 
 /** The R_ARM_* types whose field is a branch offset: the target is the symbol plus the addend, from the place. */
-export const R_ARM_BRANCHES: ReadonlySet<number> = new Set([R_ARM.PC24, R_ARM.THM_CALL, R_ARM.CALL, R_ARM.JUMP24, R_ARM.THM_JUMP11, R_ARM.THM_JUMP8]);
+export const R_ARM_BRANCHES: ReadonlySet<number> = new Set([
+  R_ARM.PC24,
+  R_ARM.THM_CALL,
+  R_ARM.CALL,
+  R_ARM.JUMP24,
+  R_ARM.THM_JUMP11,
+  R_ARM.THM_JUMP8,
+]);
 
 const REL_SIZE = 8;
 const RELA_SIZE = 12;
@@ -50,7 +57,13 @@ const SHN_UNDEF = 0;
 const SHN_LORESERVE = 0xff00;
 const SHN_XINDEX = 0xffff;
 
-const SYMBOL_TYPES: Readonly<Record<number, ElfSymbolType>> = { 0: 'notype', 1: 'object', 2: 'func', 3: 'section', 4: 'file' };
+const SYMBOL_TYPES: Readonly<Record<number, ElfSymbolType>> = {
+  0: 'notype',
+  1: 'object',
+  2: 'func',
+  3: 'section',
+  4: 'file',
+};
 const SYMBOL_BINDS: Readonly<Record<number, ElfSymbolBind>> = { 0: 'local', 1: 'global', 2: 'weak' };
 
 const utf8 = new TextDecoder('utf-8');
@@ -69,7 +82,9 @@ class Reader {
 
   need(offset: number, length: number, what: string): void {
     if (!(offset >= 0 && length >= 0 && offset + length <= this.bytes.length)) {
-      throw new Malformed(`${what} (${hexSize(offset)}+${hexSize(length)}) lies outside the ${this.bytes.length}-byte file`);
+      throw new Malformed(
+        `${what} (${hexSize(offset)}+${hexSize(length)}) lies outside the ${this.bytes.length}-byte file`,
+      );
     }
   }
 
@@ -91,7 +106,8 @@ class Reader {
   /** The NUL-terminated string at `offset` inside the table [tableStart, tableEnd). */
   cString(tableStart: number, tableEnd: number, offset: number, what: string): string {
     const start = tableStart + offset;
-    if (offset >= tableEnd - tableStart) throw new Malformed(`${what}: name offset ${hexSize(offset)} is outside its string table`);
+    if (offset >= tableEnd - tableStart)
+      throw new Malformed(`${what}: name offset ${hexSize(offset)} is outside its string table`);
     const end = this.bytes.subarray(start, tableEnd).indexOf(0);
     if (end < 0) throw new Malformed(`${what}: name at ${hexSize(start)} is not NUL-terminated`);
     return utf8.decode(this.bytes.subarray(start, start + end));
@@ -112,7 +128,8 @@ interface RawSection {
 
 function readHeaderIdent(r: Reader): void {
   if (r.bytes.length < 16) throw new Malformed('shorter than the ELF identification');
-  if (r.u8(0) !== 0x7f || r.u8(1) !== 0x45 || r.u8(2) !== 0x4c || r.u8(3) !== 0x46) throw new Malformed('not an ELF file');
+  if (r.u8(0) !== 0x7f || r.u8(1) !== 0x45 || r.u8(2) !== 0x4c || r.u8(3) !== 0x46)
+    throw new Malformed('not an ELF file');
   if (r.u8(4) !== 1) throw new Malformed('not an ELF32 file');
   if (r.u8(5) !== 1) throw new Malformed('not a little-endian ELF file');
   if (r.bytes.length < ELF_HEADER_SIZE) throw new Malformed('shorter than the ELF32 header');
@@ -123,7 +140,8 @@ function readRawSections(r: Reader): RawSection[] {
   const shentsize = r.u16(0x2e);
   let shnum = r.u16(0x30);
   if (shoff === 0) return [];
-  if (shentsize < SECTION_HEADER_SIZE) throw new Malformed(`section header size ${shentsize} is below ${SECTION_HEADER_SIZE}`);
+  if (shentsize < SECTION_HEADER_SIZE)
+    throw new Malformed(`section header size ${shentsize} is below ${SECTION_HEADER_SIZE}`);
   if (shnum === 0) shnum = r.u32(shoff + 0x14); // extended numbering: the count is section 0's sh_size
   r.need(shoff, shnum * shentsize, 'the section header table');
   const sections: RawSection[] = [];
@@ -149,11 +167,15 @@ function sectionNames(r: Reader, raw: readonly RawSection[]): ElfSection[] {
   let shstrndx = r.u16(0x32);
   if (shstrndx === SHN_XINDEX) shstrndx = raw[0]?.link ?? SHN_UNDEF;
   const strtab = shstrndx === SHN_UNDEF ? undefined : raw[shstrndx];
-  if (shstrndx !== SHN_UNDEF && strtab === undefined) throw new Malformed(`section name table index ${shstrndx} is out of range`);
+  if (shstrndx !== SHN_UNDEF && strtab === undefined)
+    throw new Malformed(`section name table index ${shstrndx} is out of range`);
   if (strtab !== undefined) r.need(strtab.offset, strtab.size, 'the section name table');
   return raw.map((s, index) => ({
     index,
-    name: strtab === undefined ? '' : r.cString(strtab.offset, strtab.offset + strtab.size, s.nameOffset, `section ${index}`),
+    name:
+      strtab === undefined
+        ? ''
+        : r.cString(strtab.offset, strtab.offset + strtab.size, s.nameOffset, `section ${index}`),
     type: s.type,
     flags: s.flags,
     addr: s.addr,
@@ -170,10 +192,12 @@ function readSymbols(r: Reader, sections: readonly ElfSection[]): ElfSymbol[] {
   for (const table of sections) {
     if (table.type !== SHT.SYMTAB) continue;
     const entsize = table.entsize === 0 ? SYMBOL_SIZE : table.entsize;
-    if (entsize < SYMBOL_SIZE) throw new Malformed(`symbol table ${table.name}: entry size ${entsize} is below ${SYMBOL_SIZE}`);
+    if (entsize < SYMBOL_SIZE)
+      throw new Malformed(`symbol table ${table.name}: entry size ${entsize} is below ${SYMBOL_SIZE}`);
     r.need(table.offset, table.size, `symbol table ${table.name}`);
     const strtab = sections[table.link];
-    if (strtab === undefined) throw new Malformed(`symbol table ${table.name}: string table index ${table.link} is out of range`);
+    if (strtab === undefined)
+      throw new Malformed(`symbol table ${table.name}: string table index ${table.link} is out of range`);
     r.need(strtab.offset, strtab.size, `string table ${strtab.name}`);
     const strEnd = strtab.offset + strtab.size;
     for (let o = table.offset; o + SYMBOL_SIZE <= table.offset + table.size; o += entsize) {
@@ -301,7 +325,11 @@ export function implicitAddend(type: number, view: DataView, at: number): number
  * (implicitAddend; absent for a type it does not decode, a NOBITS section or a field outside the section's bytes).
  * ok:false when a relocation section lies outside the file or its entry size is below its entry's 8 or 12 bytes.
  */
-export function relocationsOf(bytes: Uint8Array, elf: ElfFile, section: ElfSection): ParseResult<readonly ElfRelocation[]> {
+export function relocationsOf(
+  bytes: Uint8Array,
+  elf: ElfFile,
+  section: ElfSection,
+): ParseResult<readonly ElfRelocation[]> {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const inFile = section.type !== SHT.NOBITS && section.offset + section.size <= bytes.length;
   const fieldView = inFile ? new DataView(bytes.buffer, bytes.byteOffset + section.offset, section.size) : undefined;
@@ -310,13 +338,25 @@ export function relocationsOf(bytes: Uint8Array, elf: ElfFile, section: ElfSecti
     if ((rel.type !== SHT.REL && rel.type !== SHT.RELA) || rel.info !== section.index) continue;
     const min = rel.type === SHT.RELA ? RELA_SIZE : REL_SIZE;
     const size = rel.entsize === 0 ? min : rel.entsize;
-    if (size < min || rel.offset + rel.size > bytes.length) return { ok: false, error: `ELF: relocation section ${rel.name} is malformed` };
+    if (size < min || rel.offset + rel.size > bytes.length)
+      return { ok: false, error: `ELF: relocation section ${rel.name} is malformed` };
     for (let at = rel.offset; at + min <= rel.offset + rel.size; at += size) {
       const offset = view.getUint32(at, true);
       const info = view.getUint32(at + 4, true);
       const type = info & 0xff;
-      const addend = rel.type === SHT.RELA ? view.getInt32(at + 8, true) : fieldView === undefined ? undefined : implicitAddend(type, fieldView, offset);
-      out.push({ offset, type, symbol: info >>> 8, width: relocationWidth(type), ...(addend === undefined ? {} : { addend }) });
+      const addend =
+        rel.type === SHT.RELA
+          ? view.getInt32(at + 8, true)
+          : fieldView === undefined
+            ? undefined
+            : implicitAddend(type, fieldView, offset);
+      out.push({
+        offset,
+        type,
+        symbol: info >>> 8,
+        width: relocationWidth(type),
+        ...(addend === undefined ? {} : { addend }),
+      });
     }
   }
   return { ok: true, value: out };

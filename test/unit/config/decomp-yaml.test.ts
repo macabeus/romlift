@@ -3,17 +3,21 @@
 // the region comes from the game code; the asmlift compiler line uses the build compiler's flags; and
 // readDecompYaml refuses, with E_DECOMP_YAML_INVALID, a file that fails the spec, lacks the block, has an unknown
 // key in it or points the config outside the project.
+import { parseDecompYaml } from '@match-kit/decomp-yaml';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { parseDecompYaml } from '@match-kit/decomp-yaml';
-
 import { BUILD_COMPILERS } from '../../../src/core/config/compilers.ts';
 import { readDecompYaml, regionOf, renderDecompYaml } from '../../../src/core/config/decomp-yaml.ts';
-import { ROMLIFT_CONFIG_FILE } from '../../../src/foundation/util/project-files.ts';
 import { RomliftInvariantError } from '../../../src/foundation/diagnostics/diagnostic.ts';
+import { ROMLIFT_CONFIG_FILE } from '../../../src/foundation/util/project-files.ts';
 
-const VARS = { name: 'akle', title: 'KLONOA', gameCode: 'AKLE', sha1: '1e10000000000000000000000000000000000000' } as const;
+const VARS = {
+  name: 'akle',
+  title: 'KLONOA',
+  gameCode: 'AKLE',
+  sha1: '1e10000000000000000000000000000000000000',
+} as const;
 
 function invalid(text: string): string[] {
   const read = readDecompYaml(text);
@@ -37,7 +41,10 @@ test('the rendered decomp.yaml meets the spec and reads back', () => {
   });
   assert.deepEqual(spec.tools?.['romlift'], { config: ROMLIFT_CONFIG_FILE });
   const read = readDecompYaml(text);
-  assert.deepEqual(read, { ok: true, value: { config: 'romlift.toml', version: 'us', target: 'baserom.gba', sha1: VARS.sha1, buildName: 'akle' } });
+  assert.deepEqual(read, {
+    ok: true,
+    value: { config: 'romlift.toml', version: 'us', target: 'baserom.gba', sha1: VARS.sha1, buildName: 'akle' },
+  });
   assert.equal(typeof spec.versions[0]?.sha1, 'string', 'a SHA-1 that looks like a number stays a string');
 });
 
@@ -69,16 +76,19 @@ test('the region and the names follow the header; odd values are quoted', () => 
 
 test('readDecompYaml refuses what the spec or the block refuses, with E_DECOMP_YAML_INVALID', () => {
   const text = renderDecompYaml(VARS);
-  assert.deepEqual(invalid(text.replace('    config: "romlift.toml"\n', '    config: "romlift.toml"\n    version: "us"\n')), [
-    'E_DECOMP_YAML_INVALID decomp.yaml: tools.romlift: Unrecognized key: "version"',
-  ]);
+  assert.deepEqual(
+    invalid(text.replace('    config: "romlift.toml"\n', '    config: "romlift.toml"\n    version: "us"\n')),
+    ['E_DECOMP_YAML_INVALID decomp.yaml: tools.romlift: Unrecognized key: "version"'],
+  );
   assert.deepEqual(invalid(text.replace('  romlift:\n    config: "romlift.toml"\n', '')), [
     'E_DECOMP_YAML_INVALID decomp.yaml: has no tools.romlift block (add one with `config: romlift.toml`)',
   ]);
   assert.deepEqual(invalid(text.replace('config: "romlift.toml"', 'config: "../other/romlift.toml"')), [
     'E_DECOMP_YAML_INVALID decomp.yaml: tools.romlift.config: "../other/romlift.toml" is not "romlift.toml": a project\'s config is always romlift.toml beside decomp.yaml, the file the Makefile and setup.sh check against modules.mk (D83 b); move it back and name it romlift.toml',
   ]);
-  assert.deepEqual(invalid(text.replace('config: "romlift.toml"', 'config: ""')), ['E_DECOMP_YAML_INVALID decomp.yaml: tools.romlift.config: Too small: expected string to have >=1 characters']);
+  assert.deepEqual(invalid(text.replace('config: "romlift.toml"', 'config: ""')), [
+    'E_DECOMP_YAML_INVALID decomp.yaml: tools.romlift.config: Too small: expected string to have >=1 characters',
+  ]);
   assert.deepEqual(invalid('name: x\n'), [
     'E_DECOMP_YAML_INVALID decomp.yaml: platform: Invalid input: expected string, received undefined',
     'E_DECOMP_YAML_INVALID decomp.yaml: versions: Invalid input: expected array, received undefined',
@@ -91,10 +101,18 @@ test('readDecompYaml refuses what the spec or the block refuses, with E_DECOMP_Y
 });
 
 test('a hand-written decomp.yaml with no sha1 reads; one naming another config path is refused, since the Makefile and setup.sh hash romlift.toml (fix round 7, architecture-b2-1)', () => {
-  const text = 'name: game\nplatform: gba\nversions:\n  - name: us\n    fullname: USA\n    paths:\n      target: roms/base.gba\n      build_dir: out\n      map: out/game.map\n      compiled_target: out/game.gba\ntools:\n  romlift:\n    config: romlift.toml\n';
-  assert.deepEqual(readDecompYaml(text), { ok: true, value: { config: 'romlift.toml', version: 'us', target: 'roms/base.gba', buildName: 'game' } });
+  const text =
+    'name: game\nplatform: gba\nversions:\n  - name: us\n    fullname: USA\n    paths:\n      target: roms/base.gba\n      build_dir: out\n      map: out/game.map\n      compiled_target: out/game.gba\ntools:\n  romlift:\n    config: romlift.toml\n';
+  assert.deepEqual(readDecompYaml(text), {
+    ok: true,
+    value: { config: 'romlift.toml', version: 'us', target: 'roms/base.gba', buildName: 'game' },
+  });
   for (const other of ['config/project.toml', 'cfg/romlift.toml', './romlift.toml']) {
     const read = readDecompYaml(text.replace('config: romlift.toml', `config: ${other}`));
-    assert.deepEqual(read.ok ? [] : read.diagnostics.map((d) => [d.code, d.path]), [['E_DECOMP_YAML_INVALID', 'decomp.yaml']], other);
+    assert.deepEqual(
+      read.ok ? [] : read.diagnostics.map((d) => [d.code, d.path]),
+      [['E_DECOMP_YAML_INVALID', 'decomp.yaml']],
+      other,
+    );
   }
 });

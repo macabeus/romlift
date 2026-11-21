@@ -10,9 +10,9 @@ import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { foldPath } from '../../foundation/util/fold.ts';
 import { isProjectPath } from '../../foundation/util/project-path.ts';
+import { VerifyCodes } from './codes.ts';
 import { checkResult } from './report.ts';
 import type { CheckResult } from './report.ts';
-import { VerifyCodes } from './codes.ts';
 
 export { foldPath } from '../../foundation/util/fold.ts';
 
@@ -37,11 +37,25 @@ function scan(paths: Iterable<string>): { readonly diagnostics: readonly Diagnos
   for (const path of paths) {
     count++;
     if (!isProjectPath(path)) {
-      diagnostics.push(diagnostic(VerifyCodes, 'E_PATH_INVALID', `${JSON.stringify(path)} is not a project path (relative, with no empty, . or .. component)`, { path }));
+      diagnostics.push(
+        diagnostic(
+          VerifyCodes,
+          'E_PATH_INVALID',
+          `${JSON.stringify(path)} is not a project path (relative, with no empty, . or .. component)`,
+          { path },
+        ),
+      );
     }
     const long = overlongComponent(path);
     if (long !== undefined) {
-      diagnostics.push(diagnostic(VerifyCodes, 'E_PATH_TOO_LONG', `${path}: the name ${long.name.slice(0, 32)}… is ${long.bytes} bytes, more than the ${MAX_NAME_BYTES} a file system stores`, { path }));
+      diagnostics.push(
+        diagnostic(
+          VerifyCodes,
+          'E_PATH_TOO_LONG',
+          `${path}: the name ${long.name.slice(0, 32)}… is ${long.bytes} bytes, more than the ${MAX_NAME_BYTES} a file system stores`,
+          { path },
+        ),
+      );
     }
     const key = foldPath(path);
     const first = seen.get(key);
@@ -50,7 +64,9 @@ function scan(paths: Iterable<string>): { readonly diagnostics: readonly Diagnos
       continue;
     }
     const message =
-      first === path ? `the stream emits ${path} twice` : `${first} and ${path} are one file on a case-insensitive file system`;
+      first === path
+        ? `the stream emits ${path} twice`
+        : `${first} and ${path} are one file on a case-insensitive file system`;
     diagnostics.push(diagnostic(VerifyCodes, 'E_PATH_CASE_COLLISION', message, { path }));
   }
   return { diagnostics, count };
@@ -65,5 +81,9 @@ export function checkPaths(paths: Iterable<string>): readonly Diagnostic[] {
 export function pathsCheck(paths: Iterable<string>): CheckResult {
   const { diagnostics, count } = scan(paths);
   const detail = diagnostics[0]?.message ?? `${count} paths, no two of them one file`;
-  return checkResult('paths', diagnostics, diagnostics.length > 1 ? `${detail} (${diagnostics.length} problems in all)` : detail);
+  return checkResult(
+    'paths',
+    diagnostics,
+    diagnostics.length > 1 ? `${detail} (${diagnostics.length} problems in all)` : detail,
+  );
 }

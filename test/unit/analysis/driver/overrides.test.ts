@@ -32,17 +32,21 @@ const ROM = romWith(
 );
 
 /** Confirm mode lists what discover finds without overrides. */
-const LISTED: readonly Seed[] = [BASE, INIT, CALLED, LONG].map((entry): Seed => ({ entry, mode: 'arm', rule: 'seed.listed' }));
+const LISTED: readonly Seed[] = [BASE, INIT, CALLED, LONG].map(
+  (entry): Seed => ({ entry, mode: 'arm', rule: 'seed.listed' }),
+);
 
 function run(overrides: readonly OverrideFact[], mode: AnalysisOptions['mode'] = 'discover'): AnalysisResult {
   return analyze(ROM, AGBCC, { mode, seeds: mode === 'confirm' ? LISTED : [], overrides, trail: 'off' });
 }
 
 /** What the run decided of each function: entry, mode, extent, origin and accepting rule. */
-const decided = (r: AnalysisResult): readonly unknown[] => r.functions.map((f) => [f.entry, f.mode, f.extent, f.origin, f.accepted.rule]);
+const decided = (r: AnalysisResult): readonly unknown[] =>
+  r.functions.map((f) => [f.entry, f.mode, f.extent, f.origin, f.accepted.rule]);
 
 const entries = (r: AnalysisResult): readonly number[] => r.functions.map((f) => f.entry);
-const claimAt = (r: AnalysisResult, a: number): number | undefined => r.claims.find((c) => c.span.start <= a && a < c.span.end)?.kind;
+const claimAt = (r: AnalysisResult, a: number): number | undefined =>
+  r.claims.find((c) => c.span.start <= a && a < c.span.end)?.kind;
 
 test('without overrides the run finds the entry, INIT and its two callees, and not the lonely Thumb code', () => {
   const r = run([]);
@@ -70,22 +74,36 @@ test('a data override inside a function cuts it there: its code and extent end a
 test('a code override adds the function nothing else finds, at its start in its mode, with origin override', () => {
   const r = run([{ span: { start: LONELY, end: LONELY + 10 }, kind: 'code', mode: 'thumb' }]);
   const f = r.functions.find((x) => x.entry === LONELY);
-  assert.ok(f !== undefined, `found ${entries(r).map((e) => e.toString(16)).join(', ')}`);
+  assert.ok(
+    f !== undefined,
+    `found ${entries(r)
+      .map((e) => e.toString(16))
+      .join(', ')}`,
+  );
   assert.equal(f.mode, 'thumb');
   assert.equal(f.origin, 'override');
   assert.equal(f.accepted.rule, 'seed.override');
   assert.equal(f.extent.end, LONELY + 10);
   // A Thumb override names no mode: Thumb is the default.
-  assert.equal(run([{ span: { start: LONELY, end: LONELY + 10 }, kind: 'code' }]).functions.find((x) => x.entry === LONELY)?.mode, 'thumb');
+  assert.equal(
+    run([{ span: { start: LONELY, end: LONELY + 10 }, kind: 'code' }]).functions.find((x) => x.entry === LONELY)?.mode,
+    'thumb',
+  );
 });
 
-test('a code override over a function already found changes nothing; one off its mode\'s instruction grid builds no seed', () => {
+test("a code override over a function already found changes nothing; one off its mode's instruction grid builds no seed", () => {
   const plain = run([]);
   const over = run([{ span: { start: CALLED, end: CALLED + 4 }, kind: 'code', mode: 'arm' }]);
   assert.deepEqual(decided(over), decided(plain));
   assert.equal(over.functions.find((f) => f.entry === CALLED)?.origin, 'call');
   assert.deepEqual(over.claims, plain.claims);
-  assert.deepEqual(overrideSeeds(ROM, [{ span: { start: LONELY + 1, end: LONELY + 9 }, kind: 'code' }, { span: { start: LONELY + 2, end: LONELY + 10 }, kind: 'code', mode: 'arm' }]), []);
+  assert.deepEqual(
+    overrideSeeds(ROM, [
+      { span: { start: LONELY + 1, end: LONELY + 9 }, kind: 'code' },
+      { span: { start: LONELY + 2, end: LONELY + 10 }, kind: 'code', mode: 'arm' },
+    ]),
+    [],
+  );
   assert.deepEqual(decided(run([{ span: { start: LONELY + 1, end: LONELY + 9 }, kind: 'code' }])), decided(plain));
 });
 
@@ -93,7 +111,10 @@ test('in confirm mode a code override at an unlisted start is reported unlisted 
   const r = run([{ span: { start: LONELY, end: LONELY + 10 }, kind: 'code', mode: 'thumb' }], 'confirm');
   assert.equal(r.mode, 'confirm');
   assert.ok(!entries(r).includes(LONELY));
-  assert.deepEqual(r.mode === 'confirm' ? r.unlisted.filter((u) => u.entry === LONELY).map((u) => [u.origin, u.provenance.rule]) : [], [['override', 'seed.override']]);
+  assert.deepEqual(
+    r.mode === 'confirm' ? r.unlisted.filter((u) => u.entry === LONELY).map((u) => [u.origin, u.provenance.rule]) : [],
+    [['override', 'seed.override']],
+  );
   assert.ok(r.diagnostics.some((d) => d.code === 'W_UNLISTED_FUNCTION' && d.addr === LONELY));
 });
 

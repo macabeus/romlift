@@ -18,7 +18,15 @@ export async function withTempDir<T>(prefix: string, fn: (dir: string) => Promis
     dir = await mkdtemp(join(tmpdir(), prefix));
   } catch (error) {
     const reason = errorReason(error);
-    return { ok: false, diagnostic: diagnostic(ShellCodes, 'E_IO_WRITE', `cannot create a temporary directory under ${tmpdir()}: ${reason}`, { path: tmpdir() }) };
+    return {
+      ok: false,
+      diagnostic: diagnostic(
+        ShellCodes,
+        'E_IO_WRITE',
+        `cannot create a temporary directory under ${tmpdir()}: ${reason}`,
+        { path: tmpdir() },
+      ),
+    };
   }
   try {
     return { ok: true, value: await fn(dir) };

@@ -2,7 +2,7 @@
 // temporary file stays and an existing config is replaced whole; a config path from decomp.yaml; a path outside
 // the project or a directory that cannot take the file is E_IO_WRITE, and nothing is written.
 import assert from 'node:assert/strict';
-import { mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
@@ -37,7 +37,10 @@ test('saveConfig writes the text as given and leaves no temporary file', async (
 
 test('a saved config loads back to the same text, at the path decomp.yaml names (always romlift.toml since fix round 7, D83 b)', async () => {
   const dir = await tempDir();
-  await writeFile(join(dir, 'decomp.yaml'), renderDecompYaml({ name: 'akle', title: 'KLONOA', gameCode: 'AKLE', sha1: SHA1 }));
+  await writeFile(
+    join(dir, 'decomp.yaml'),
+    renderDecompYaml({ name: 'akle', title: 'KLONOA', gameCode: 'AKLE', sha1: SHA1 }),
+  );
   assert.equal((await saveConfig(dir, TEXT, 'romlift.toml')).ok, true);
   const loaded = await loadConfig(dir);
   assert.ok(loaded.ok, loaded.ok ? '' : JSON.stringify(loaded.diagnostics));
@@ -49,7 +52,10 @@ test('a path outside the project, or a directory that cannot take the file, is E
   const dir = await tempDir();
   for (const path of ['../romlift.toml', '/tmp/romlift.toml', 'a/../romlift.toml', '']) {
     const saved = await saveConfig(dir, TEXT, path);
-    assert.deepEqual(saved.ok ? '' : [saved.diagnostic.code, saved.diagnostic.message], ['E_IO_WRITE', `cannot write ${path}: not a path inside the project`]);
+    assert.deepEqual(saved.ok ? '' : [saved.diagnostic.code, saved.diagnostic.message], [
+      'E_IO_WRITE',
+      `cannot write ${path}: not a path inside the project`,
+    ]);
   }
   const absent = await saveConfig(dir, TEXT, 'missing/romlift.toml');
   assert.equal(absent.ok ? '' : absent.diagnostic.code, 'E_IO_WRITE');

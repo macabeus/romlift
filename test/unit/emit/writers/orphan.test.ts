@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { orphanWriter } from '../../../../src/core/emit/writers/orphan.ts';
 import { buildModel } from '../../../../src/core/model/model.ts';
 import { thumbAt } from '../../../helpers/thumb.ts';
-import { analysisOf, BASE, configOf, fact, HEADER_END, romWith } from '../../layout/hand-made.ts';
+import { BASE, HEADER_END, analysisOf, configOf, fact, romWith } from '../../layout/hand-made.ts';
 import { sampleModel, sampleRom } from '../print/fixture.ts';
 
 const rom = sampleRom();
@@ -21,12 +21,20 @@ test('one file per orphan chunk with the comment, the global label and the bytes
   assert.ok(entry.ownership === 'generated');
   assert.equal(entry.path, 'asm/nonmatchings/main/unk_08000160.s');
   assert.equal(entry.writer, 'orphan');
-  assert.ok(entry.text.startsWith('.thumb\n@ bytes between functions: 32 bytes\n.global unk_08000160\nunk_08000160: @ 08000160\n'), entry.text);
+  assert.ok(
+    entry.text.startsWith(
+      '.thumb\n@ bytes between functions: 32 bytes\n.global unk_08000160\nunk_08000160: @ 08000160\n',
+    ),
+    entry.text,
+  );
   assert.ok(entry.text.endsWith('\n'));
 });
 
-test('an orphan of the startup module has its file too; function chunks are not the orphan writer\'s', () => {
-  assert.deepEqual([...orphanWriter.emit(rom, model, cx, 1)].map((e) => e.path), ['asm/nonmatchings/crt0/unk_080000D0.s']);
+test("an orphan of the startup module has its file too; function chunks are not the orphan writer's", () => {
+  assert.deepEqual(
+    [...orphanWriter.emit(rom, model, cx, 1)].map((e) => e.path),
+    ['asm/nonmatchings/crt0/unk_080000D0.s'],
+  );
   assert.deepEqual([...orphanWriter.emit(rom, model, cx, 3)], []);
   assert.deepEqual([...orphanWriter.emit(rom, model, cx, null)], []);
 });
@@ -59,13 +67,28 @@ function foldedPad() {
     ],
     { size: 0x200 },
   );
-  const analysis = analysisOf(r, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x10a }), fact({ entry: BASE + 0x10c, end: BASE + 0x110 })] });
-  const config = configOf({ modules: [['rom_header', BASE], ['main', HEADER_END], { name: 'data', start: BASE + 0x110, kind: 'data', generated: true }], functions: [[BASE + 0x100, 'A'], [BASE + 0x10c, 'B']] });
+  const analysis = analysisOf(r, {
+    functions: [fact({ entry: BASE + 0x100, end: BASE + 0x10a }), fact({ entry: BASE + 0x10c, end: BASE + 0x110 })],
+  });
+  const config = configOf({
+    modules: [
+      ['rom_header', BASE],
+      ['main', HEADER_END],
+      { name: 'data', start: BASE + 0x110, kind: 'data', generated: true },
+    ],
+    functions: [
+      [BASE + 0x100, 'A'],
+      [BASE + 0x10c, 'B'],
+    ],
+  });
   return { rom: r, model: buildModel(r, analysis, config) };
 }
 
 test('a padding-only orphan has no file: the function after it holds the pad', () => {
   const { rom: r, model: m } = foldedPad();
   const main = m.modules.findIndex((x) => x.name === 'main');
-  assert.deepEqual([...orphanWriter.emit(r, m, cx, main)].map((e) => e.path), ['asm/nonmatchings/main/unk_080000C0.s']);
+  assert.deepEqual(
+    [...orphanWriter.emit(r, m, cx, main)].map((e) => e.path),
+    ['asm/nonmatchings/main/unk_080000C0.s'],
+  );
 });

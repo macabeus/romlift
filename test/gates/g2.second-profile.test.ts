@@ -8,7 +8,8 @@
 // romFromBytes, sha1Of, analyze(rom, profile, {mode: 'discover', seeds: [], overrides: [], trail: 'off'}).
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { gate, type ExecResult } from './gate.ts';
+
+import { type ExecResult, gate } from './gate.ts';
 
 interface ProfileLike {
   readonly id: string;
@@ -31,7 +32,16 @@ interface Rom {
 type RomFromBytes = (bytes: Uint8Array, sha1: string) => Rom;
 type Sha1Of = (data: Uint8Array) => string;
 type ProfileById = (id: string) => ProfileLike | undefined;
-type Analyze = (rom: Rom, profile: ProfileLike, options: { readonly mode: 'discover'; readonly seeds: readonly never[]; readonly overrides: readonly never[]; readonly trail: 'off' }) => AnalysisResult;
+type Analyze = (
+  rom: Rom,
+  profile: ProfileLike,
+  options: {
+    readonly mode: 'discover';
+    readonly seeds: readonly never[];
+    readonly overrides: readonly never[];
+    readonly trail: 'off';
+  },
+) => AnalysisResult;
 
 function tail(run: ExecResult, lines = 30): string {
   return `${run.stdout}${run.stderr}`.trimEnd().split('\n').slice(-lines).join('\n');
@@ -81,17 +91,25 @@ gate({
       const bytes = new Uint8Array(await readFile(fixture.rom));
       let result: AnalysisResult;
       try {
-        result = analyze(romFromBytes(bytes, sha1Of(bytes)), dummy, { mode: 'discover', seeds: [], overrides: [], trail: 'off' });
+        result = analyze(romFromBytes(bytes, sha1Of(bytes)), dummy, {
+          mode: 'discover',
+          seeds: [],
+          overrides: [],
+          trail: 'off',
+        });
       } catch (error) {
         problems.push(`${fixture.name}: ${error instanceof Error ? error.message : String(error)}`);
         continue;
       }
       if (result.schema !== 'romlift/analysis@1') problems.push(`${fixture.name}: schema '${result.schema}'`);
       if (result.profile !== 'dummy') problems.push(`${fixture.name}: the result records profile '${result.profile}'`);
-      if (result.functions.some((f, i) => i > 0 && (result.functions[i - 1]?.entry ?? -1) >= f.entry)) problems.push(`${fixture.name}: functions not in entry order`);
+      if (result.functions.some((f, i) => i > 0 && (result.functions[i - 1]?.entry ?? -1) >= f.entry))
+        problems.push(`${fixture.name}: functions not in entry order`);
       functions += result.functions.length;
     }
     if (problems.length > 0) throw new Error(`the second profile fails: ${problems.join('; ')}`);
-    cx.note(`dummy profile ran on ${cx.fixtures.length} fixtures (${functions} functions); test/helpers/dummy-profile.ts typechecks`);
+    cx.note(
+      `dummy profile ran on ${cx.fixtures.length} fixtures (${functions} functions); test/helpers/dummy-profile.ts typechecks`,
+    );
   },
 });

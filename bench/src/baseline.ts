@@ -1,10 +1,9 @@
 // The PoC's results frozen as bench/baseline/poc-2026-10-16.json (D11) and the field-by-field
 // comparison poc-check makes against it.
 import { join } from 'node:path';
+import { type JsonValue, canonicalJson, compareCodeUnits } from 'romlift';
 
-import { canonicalJson, compareCodeUnits, type JsonValue } from 'romlift';
-
-import { baselineDir, type BenchContext } from './context.ts';
+import { type BenchContext, baselineDir } from './context.ts';
 import { BenchError, isRecord, readJson } from './files.ts';
 
 export const BASELINE_FILE = 'poc-2026-10-16.json';
@@ -63,7 +62,8 @@ export function withoutPaths(value: JsonRecord, excluded: readonly string[]): Js
   return out;
 }
 
-const text = (value: unknown): string => (value === undefined ? 'absent' : Array.from(canonicalJson(value as JsonValue)).join(''));
+const text = (value: unknown): string =>
+  value === undefined ? 'absent' : Array.from(canonicalJson(value as JsonValue)).join('');
 
 /** Field-by-field differences of two JSON values, as `path: expected X, got Y`; at most `limit`. */
 export function jsonDiffs(expected: unknown, actual: unknown, path = '', limit = 20): string[] {

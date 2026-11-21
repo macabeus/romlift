@@ -61,7 +61,9 @@ export function diffResults(fresh: Results, base: Results): RomDiff[] {
       newFalse: r.falseEntries.filter((f) => !bf.has(f.addr)).map((f) => `${f.addr} via ${f.origin}`),
       resolvedMisses: b.misses.filter((m) => !rm.has(m.addr)).map((m) => `${m.addr} ${m.name}`),
       resolvedFalse: b.falseEntries.filter((f) => !rf.has(f.addr)).map((f) => `${f.addr} via ${f.origin}`),
-      newMismatches: r.extents.mismatches.filter((m) => !bx.has(m.addr)).map((m) => `${m.addr} ${m.name}: ELF ${m.elf}, found ${m.found}`),
+      newMismatches: r.extents.mismatches
+        .filter((m) => !bx.has(m.addr))
+        .map((m) => `${m.addr} ${m.name}: ELF ${m.elf}, found ${m.found}`),
       resolvedMismatches: b.extents.mismatches.filter((m) => !rx.has(m.addr)).map((m) => `${m.addr} ${m.name}`),
       tp: [b.tp, r.tp],
       precision: [b.precision, r.precision],
@@ -74,7 +76,9 @@ export function diffResults(fresh: Results, base: Results): RomDiff[] {
 }
 
 export function moved(d: RomDiff): boolean {
-  return [d.newMisses, d.newFalse, d.resolvedMisses, d.resolvedFalse, d.newMismatches, d.resolvedMismatches].some((rows) => rows.length > 0);
+  return [d.newMisses, d.newFalse, d.resolvedMisses, d.resolvedFalse, d.newMismatches, d.resolvedMismatches].some(
+    (rows) => rows.length > 0,
+  );
 }
 
 export function formatDiff(d: RomDiff): string {
@@ -90,7 +94,8 @@ export function formatDiff(d: RomDiff): string {
     ['resolved false entries', d.resolvedFalse],
     ['resolved extent mismatches', d.resolvedMismatches],
   ];
-  for (const [label, rows] of groups) if (rows.length > 0) lines.push(`  ${label}: ${rows.length}`, ...rows.map((x) => `    ${x}`));
+  for (const [label, rows] of groups)
+    if (rows.length > 0) lines.push(`  ${label}: ${rows.length}`, ...rows.map((x) => `    ${x}`));
   return lines.join('\n');
 }
 

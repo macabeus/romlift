@@ -14,7 +14,7 @@ import { THUMB_BL } from './thumb-table.ts';
 import type { Fields, Insn } from './types.ts';
 
 function matches(row: Row, word: number): boolean {
-  return ((word & row.spec.mask) >>> 0) === row.spec.match;
+  return (word & row.spec.mask) >>> 0 === row.spec.match;
 }
 
 const THUMB16: readonly Row[] = ROWS.thumb.filter((r) => r.spec.size === 2);
@@ -40,7 +40,7 @@ const THUMB_INDEX: Uint16Array = (() => {
   const index = new Uint16Array(0x10000);
   for (let hw = 0; hw < 0x10000; hw++) {
     let at = 0;
-    while (at < n && ((hw & (masks[at] as number)) >>> 0) !== values[at]) at++;
+    while (at < n && (hw & (masks[at] as number)) >>> 0 !== values[at]) at++;
     index[hw] = at < n ? at : n - 1;
   }
   return index;
@@ -57,7 +57,8 @@ const ARM_BUCKETS: readonly (readonly Row[])[] = (() => {
   const buckets: Row[][] = [];
   for (let key = 0; key < 0x1000; key++) {
     const bucket: Row[] = [];
-    for (let i = 0; i < ROWS.arm.length; i++) if (((key ^ (keys[i] as number)) & (keyMasks[i] as number)) === 0) bucket.push(ROWS.arm[i] as Row);
+    for (let i = 0; i < ROWS.arm.length; i++)
+      if (((key ^ (keys[i] as number)) & (keyMasks[i] as number)) === 0) bucket.push(ROWS.arm[i] as Row);
     buckets.push(bucket);
   }
   return buckets;

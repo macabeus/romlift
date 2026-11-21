@@ -9,7 +9,8 @@ export default defineRule({
   meta: {
     id: 'walk.bx-pc-veneer',
     summary: 'Thumb `bx pc` ends the path and names the ARM veneer at the next word',
-    restsOn: 'interworking stubs switch from Thumb to ARM with `bx pc` (often after `nop`), continuing in ARM at the next word boundary',
+    restsOn:
+      'interworking stubs switch from Thumb to ARM with `bx pc` (often after `nop`), continuing in ARM at the next word boundary',
     recovers: 'ARM veneers and the ARM code behind them, reachable only through the mode switch',
     reads: ['rom'],
     adds: ['readings', 'exits'],

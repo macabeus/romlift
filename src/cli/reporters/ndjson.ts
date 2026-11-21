@@ -3,7 +3,7 @@
 // `{"type":"proposal",...}`) and, last, one summary object.
 import { canonicalJson } from '../../api/formats.ts';
 import type { JsonValue } from '../../api/formats.ts';
-import { hexAddr, RomliftInvariantError } from '../../api/rom.ts';
+import { RomliftInvariantError, hexAddr } from '../../api/rom.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { RunSummary } from '../exit-codes.ts';
 

@@ -11,31 +11,38 @@ import { defineCodes } from '../../foundation/diagnostics/diagnostic.ts';
 export const WorkflowCodes = defineCodes({
   E_DIR_NOT_EMPTY: {
     severity: 'error',
-    meaning: 'init was given a directory that holds other files than the ROM, .git and dot-files and is not a romlift project, or a project whose romlift.toml, decomp.yaml or baserom.gba init would replace',
+    meaning:
+      'init was given a directory that holds other files than the ROM, .git and dot-files and is not a romlift project, or a project whose romlift.toml, decomp.yaml or baserom.gba init would replace',
   },
   E_C_DEFINITION_MOVED: {
     severity: 'error',
-    meaning: "a src/<module>.c defines a function romlift.toml now puts in another module (a move or split of decompiled code), whose INCLUDE_ASM or chunk there would define it twice (c-stubs.ts)",
+    meaning:
+      'a src/<module>.c defines a function romlift.toml now puts in another module (a move or split of decompiled code), whose INCLUDE_ASM or chunk there would define it twice (c-stubs.ts)',
   },
   W_C_FILE_UNUSED: {
     severity: 'warning',
-    meaning: 'a src/*.c file is the source of no module of romlift.toml (a renamed c module), so make no longer builds it (c-stubs.ts)',
+    meaning:
+      'a src/*.c file is the source of no module of romlift.toml (a renamed c module), so make no longer builds it (c-stubs.ts)',
   },
   E_STALE_CONFIG: {
     severity: 'error',
-    meaning: 'romlift.toml changed on disk while update or rename ran, so its patch, made from the text it read, is not saved',
+    meaning:
+      'romlift.toml changed on disk while update or rename ran, so its patch, made from the text it read, is not saved',
   },
   E_RENAME_UNKNOWN: {
     severity: 'error',
-    meaning: 'rename was given an old name that is no [functions] or [symbols] entry of romlift.toml nor an alias of one; nothing is changed (rename.ts)',
+    meaning:
+      'rename was given an old name that is no [functions] or [symbols] entry of romlift.toml nor an alias of one; nothing is changed (rename.ts)',
   },
   E_RENAME_EXISTS: {
     severity: 'error',
-    meaning: 'rename was given a new name that romlift.toml already has: a function, a symbol, an alias or a module; nothing is changed (rename.ts)',
+    meaning:
+      'rename was given a new name that romlift.toml already has: a function, a symbol, an alias or a module; nothing is changed (rename.ts)',
   },
   E_RENAME_INVALID: {
     severity: 'error',
-    meaning: 'rename was given a new name that is not a C identifier (a letter or _, then letters, digits and _, not a C keyword) or not an assembler symbol name; nothing is changed (rename.ts)',
+    meaning:
+      'rename was given a new name that is not a C identifier (a letter or _, then letters, digits and _, not a C keyword) or not an assembler symbol name; nothing is changed (rename.ts)',
   },
   W_EVIDENCE_CONFLICT: {
     severity: 'warning',
@@ -44,19 +51,23 @@ export const WorkflowCodes = defineCodes({
   },
   W_LIBRARY_MODULE_DROPPED: {
     severity: 'warning',
-    meaning: 'a library region the signatures placed in the code could take no module of its own: no legal border inside it, or a module of the config starts inside it; its functions keep their names, and no library module is proposed for it (signature-layer.ts)',
+    meaning:
+      'a library region the signatures placed in the code could take no module of its own: no legal border inside it, or a module of the config starts inside it; its functions keep their names, and no library module is proposed for it (signature-layer.ts)',
   },
   E_RENAME_SKIPPED_FILE: {
     severity: 'error',
-    meaning: "a file under src/ or include/ that rename does not edit (a symbolic link, a file that is not UTF-8 text or holds a NUL) names the old name as an identifier's bytes, so the rename would leave it behind; nothing is changed (rename.ts, D95 c)",
+    meaning:
+      "a file under src/ or include/ that rename does not edit (a symbolic link, a file that is not UTF-8 text or holds a NUL) names the old name as an identifier's bytes, so the rename would leave it behind; nothing is changed (rename.ts, D95 c)",
   },
   W_RENAME_SKIPPED: {
     severity: 'warning',
-    meaning: 'a file under src/ or include/ that rename does not edit (a symbolic link, a file that is not UTF-8 text or holds a NUL), which does not name the old name, or a link to nothing or to a directory through which no file is read that rename does not edit by its own path (each file behind a link to a directory is read since correctness-r2-3; rename.ts, D95 c)',
+    meaning:
+      'a file under src/ or include/ that rename does not edit (a symbolic link, a file that is not UTF-8 text or holds a NUL), which does not name the old name, or a link to nothing or to a directory through which no file is read that rename does not edit by its own path (each file behind a link to a directory is read since correctness-r2-3; rename.ts, D95 c)',
   },
   E_RENAME_INTERRUPTED: {
     severity: 'error',
-    meaning: "the project holds the journal of an interrupted write (.romlift/journal.json), which the next generate finishes; rename changes nothing until it has (rename.ts)",
+    meaning:
+      'the project holds the journal of an interrupted write (.romlift/journal.json), which the next generate finishes; rename changes nothing until it has (rename.ts)',
   },
 });
 

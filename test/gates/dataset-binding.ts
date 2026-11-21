@@ -27,7 +27,12 @@ export const TMC_AT_D61: DatasetBinding = {
  * Why the scoping `decision` of `name`, bound to `bound`, does not hold for `dataset`, or undefined when it
  * does. A dataset without an ELF digest never matches.
  */
-export function bindingMismatch(name: string, decision: string, bound: DatasetBinding, dataset: DatasetIdentity): string | undefined {
+export function bindingMismatch(
+  name: string,
+  decision: string,
+  bound: DatasetBinding,
+  dataset: DatasetIdentity,
+): string | undefined {
   if (dataset.sha1 === bound.sha1 && dataset.elfSha256 === bound.elfSha256) return undefined;
   return (
     `${name}: the ${decision} scoping was decided on ROM SHA-1 ${bound.sha1} and ELF SHA-256 ${bound.elfSha256}, ` +

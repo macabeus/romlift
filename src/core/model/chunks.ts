@@ -28,11 +28,11 @@
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Mode, Span } from '../../foundation/rom/span.ts';
 import { lowerBound, pushAll } from '../../foundation/util/arrays.ts';
+import { dataName, orphanName } from '../../foundation/util/project-files.ts';
 import { compareNumbers, sortedKeys } from '../../foundation/util/sorted.ts';
 import type { FunctionConfig } from '../config/schema.ts';
-import { tileCode, WORD } from '../layout/borders.ts';
+import { WORD, tileCode } from '../layout/borders.ts';
 import type { PlacedEntry } from '../layout/borders.ts';
-import { dataName, orphanName } from '../../foundation/util/project-files.ts';
 import { HEADER_NAME } from './names.ts';
 import type { Chunk, ChunkKind, ModelSymbol, Module } from './types.ts';
 
@@ -72,7 +72,13 @@ export interface ChunkInputs {
 function dataChunks(start: Addr, end: Addr, module: number, symbols: readonly ModelSymbol[]): ChunkPlan[] {
   const names = new Map(symbols.map((s) => [s.addr, s.name] as const));
   const starts = [start, ...symbols.map((s) => s.addr).filter((a) => a > start && a < end)];
-  return starts.map((s, i) => ({ span: { start: s, end: starts[i + 1] ?? end }, kind: 'data', name: names.get(s) ?? dataName(s), mode: null, module }));
+  return starts.map((s, i) => ({
+    span: { start: s, end: starts[i + 1] ?? end },
+    kind: 'data',
+    name: names.get(s) ?? dataName(s),
+    mode: null,
+    module,
+  }));
 }
 
 /** Whether some address of `sorted` (ascending) lies in [start, end). */
@@ -95,7 +101,13 @@ function isPad(inputs: ChunkInputs, named: readonly Addr[], pad: ChunkPlan): boo
 
 /** Whether pad `pad` is the alignment the start macro of the function chunk `next` emits: `next` starts at its end, at a word-aligned entry of the same module. */
 function foldsForward(pad: ChunkPlan, next: ChunkPlan | undefined): next is ChunkPlan {
-  return next !== undefined && next.kind === 'function' && next.module === pad.module && next.entry === pad.span.end && next.span.start === pad.span.end;
+  return (
+    next !== undefined &&
+    next.kind === 'function' &&
+    next.module === pad.module &&
+    next.entry === pad.span.end &&
+    next.span.start === pad.span.end
+  );
 }
 
 /**
@@ -103,7 +115,12 @@ function foldsForward(pad: ChunkPlan, next: ChunkPlan | undefined): next is Chun
  * stays assembly, can take it: a function or orphan of an `asm` module, an orphan of a `c` module (never a function of
  * a `c` module, whose decompiled C object gas would end with a nop instead).
  */
-function foldsBackward(inputs: ChunkInputs, pad: ChunkPlan, previous: ChunkPlan | undefined, next: ChunkPlan | undefined): previous is ChunkPlan {
+function foldsBackward(
+  inputs: ChunkInputs,
+  pad: ChunkPlan,
+  previous: ChunkPlan | undefined,
+  next: ChunkPlan | undefined,
+): previous is ChunkPlan {
   if (next !== undefined && next.module === pad.module) return false;
   if (previous === undefined || previous.module !== pad.module || previous.span.end !== pad.span.start) return false;
   if (previous.kind === 'orphan') return true;
@@ -124,7 +141,11 @@ function foldPads(inputs: ChunkInputs, named: readonly Addr[], chunks: readonly 
       out.push({ ...next, span: { start: c.span.start, end: next.span.end } });
       i++;
     } else if (foldsBackward(inputs, c, previous, next)) {
-      out[out.length - 1] = { ...previous, span: { start: previous.span.start, end: c.span.end }, tailPad: c.span.start };
+      out[out.length - 1] = {
+        ...previous,
+        span: { start: previous.span.start, end: c.span.end },
+        tailPad: c.span.start,
+      };
     } else {
       out.push(c);
     }
@@ -136,9 +157,23 @@ function foldPads(inputs: ChunkInputs, named: readonly Addr[], chunks: readonly 
 function codeChunks(inputs: ChunkInputs, named: readonly Addr[], start: Addr, end: Addr, module: number): ChunkPlan[] {
   const tiled = tileCode(inputs.entries, start, end, [inputs.startupEnd]).map((t): ChunkPlan => {
     const startup = t.span.start < inputs.startupEnd;
-    if (t.entry === undefined) return { span: t.span, kind: startup ? 'startup' : 'orphan', name: orphanName(t.span.start), mode: 'thumb', module };
+    if (t.entry === undefined)
+      return {
+        span: t.span,
+        kind: startup ? 'startup' : 'orphan',
+        name: orphanName(t.span.start),
+        mode: 'thumb',
+        module,
+      };
     const f = inputs.functions.get(t.entry);
-    return { span: t.span, kind: startup ? 'startup' : 'function', name: f?.name ?? orphanName(t.entry), mode: f?.mode ?? 'thumb', module, entry: t.entry };
+    return {
+      span: t.span,
+      kind: startup ? 'startup' : 'function',
+      name: f?.name ?? orphanName(t.entry),
+      mode: f?.mode ?? 'thumb',
+      module,
+      entry: t.entry,
+    };
   });
   return foldPads(inputs, named, tiled);
 }
@@ -150,10 +185,14 @@ export function planChunks(inputs: ChunkInputs): ChunkPlan[] {
   inputs.modules.forEach((m, module) => {
     const { start, end } = m.span;
     const headerEnd = Math.min(end, inputs.headerEnd);
-    if (start < headerEnd) out.push({ span: { start, end: headerEnd }, kind: 'header', name: HEADER_NAME, mode: null, module });
+    if (start < headerEnd)
+      out.push({ span: { start, end: headerEnd }, kind: 'header', name: HEADER_NAME, mode: null, module });
     const from = Math.max(start, inputs.headerEnd);
     if (from >= end) return;
-    pushAll(out, m.kind === 'data' ? dataChunks(from, end, module, inputs.symbols) : codeChunks(inputs, named, from, end, module));
+    pushAll(
+      out,
+      m.kind === 'data' ? dataChunks(from, end, module, inputs.symbols) : codeChunks(inputs, named, from, end, module),
+    );
   });
   return out;
 }

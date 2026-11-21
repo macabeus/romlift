@@ -4,11 +4,16 @@
 
 /** What GCProfiler.stop() returns, as far as peakLiveHeapOf reads it. */
 export interface GcProfile {
-  readonly statistics: readonly { readonly gcType: string; readonly afterGC: { readonly heapStatistics: { readonly usedHeapSize: number } } }[];
+  readonly statistics: readonly {
+    readonly gcType: string;
+    readonly afterGC: { readonly heapStatistics: { readonly usedHeapSize: number } };
+  }[];
 }
 
 /** The largest used heap after a full mark-compact, in MiB to a hundredth, or null when none ran. */
 export function peakLiveHeapOf(profile: GcProfile | undefined): number | null {
-  const sizes = (profile?.statistics ?? []).filter((s) => s.gcType === 'MarkSweepCompact').map((s) => s.afterGC.heapStatistics.usedHeapSize);
+  const sizes = (profile?.statistics ?? [])
+    .filter((s) => s.gcType === 'MarkSweepCompact')
+    .map((s) => s.afterGC.heapStatistics.usedHeapSize);
   return sizes.length === 0 ? null : Math.round((Math.max(...sizes) / 1024 / 1024) * 100) / 100;
 }

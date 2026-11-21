@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { ModelCodes } from '../../../src/core/model/codes.ts';
 import { buildModel } from '../../../src/core/model/model.ts';
 import type { Diagnostic } from '../../../src/foundation/diagnostics/diagnostic.ts';
-import { analysisOf, BASE, configOf, fact, HEADER_END, romWith, thumbAt } from '../layout/hand-made.ts';
+import { BASE, HEADER_END, analysisOf, configOf, fact, romWith, thumbAt } from '../layout/hand-made.ts';
 
 function raised(): Diagnostic[] {
   const code = thumbAt(BASE + 0x100)`
@@ -19,20 +19,108 @@ function raised(): Diagnostic[] {
     bx r0
   `;
   const rom = romWith([{ at: BASE + 0x100, bytes: code }], { size: 0x200 });
-  const analysis = analysisOf(rom, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x108 }), fact({ entry: BASE + 0x108, end: BASE + 0x10e })] });
+  const analysis = analysisOf(rom, {
+    functions: [fact({ entry: BASE + 0x100, end: BASE + 0x108 }), fact({ entry: BASE + 0x108, end: BASE + 0x10e })],
+  });
   const out: Diagnostic[] = [];
   // A border moved across the short branch: E_MODULE_BORDER and W_CROSS_MODULE_SHORT_BRANCH.
-  out.push(...buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END], ['moved', BASE + 0x108]], functions: [[BASE + 0x100, 'A'], [BASE + 0x108, 'B']] })).diagnostics);
+  out.push(
+    ...buildModel(
+      rom,
+      analysis,
+      configOf({
+        modules: [
+          ['rom_header', BASE],
+          ['main', HEADER_END],
+          ['moved', BASE + 0x108],
+        ],
+        functions: [
+          [BASE + 0x100, 'A'],
+          [BASE + 0x108, 'B'],
+        ],
+      }),
+    ).diagnostics,
+  );
   // Starts that do not increase.
-  out.push(...buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], ['main', BASE + 0x100], ['back', HEADER_END]] })).diagnostics);
+  out.push(
+    ...buildModel(
+      rom,
+      analysis,
+      configOf({
+        modules: [
+          ['rom_header', BASE],
+          ['main', BASE + 0x100],
+          ['back', HEADER_END],
+        ],
+      }),
+    ).diagnostics,
+  );
   // One name twice in a module.
-  out.push(...buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'Same'], [BASE + 0x108, 'Same']] })).diagnostics);
+  out.push(
+    ...buildModel(
+      rom,
+      analysis,
+      configOf({
+        modules: [
+          ['rom_header', BASE],
+          ['main', HEADER_END],
+        ],
+        functions: [
+          [BASE + 0x100, 'Same'],
+          [BASE + 0x108, 'Same'],
+        ],
+      }),
+    ).diagnostics,
+  );
   // A runs_at range off the module borders.
-  out.push(...buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], overrides: [{ start: BASE + 0x100, size: 8, kind: 'code', runsAt: 0x0300_0000 }] })).diagnostics);
+  out.push(
+    ...buildModel(
+      rom,
+      analysis,
+      configOf({
+        modules: [
+          ['rom_header', BASE],
+          ['main', HEADER_END],
+        ],
+        overrides: [{ start: BASE + 0x100, size: 8, kind: 'code', runsAt: 0x0300_0000 }],
+      }),
+    ).diagnostics,
+  );
   // A function named like a mapping symbol and an alias named like a section.
-  out.push(...buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, '$d'], [BASE + 0x108, { name: 'B', aliases: ['.text'] }]] })).diagnostics);
+  out.push(
+    ...buildModel(
+      rom,
+      analysis,
+      configOf({
+        modules: [
+          ['rom_header', BASE],
+          ['main', HEADER_END],
+        ],
+        functions: [
+          [BASE + 0x100, '$d'],
+          [BASE + 0x108, { name: 'B', aliases: ['.text'] }],
+        ],
+      }),
+    ).diagnostics,
+  );
   // Two modules of one name: E_MODULE_NAME_DUPLICATE.
-  out.push(...buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END], ['main', BASE + 0x108]], functions: [[BASE + 0x100, 'A'], [BASE + 0x108, 'B']] })).diagnostics);
+  out.push(
+    ...buildModel(
+      rom,
+      analysis,
+      configOf({
+        modules: [
+          ['rom_header', BASE],
+          ['main', HEADER_END],
+          ['main', BASE + 0x108],
+        ],
+        functions: [
+          [BASE + 0x100, 'A'],
+          [BASE + 0x108, 'B'],
+        ],
+      }),
+    ).diagnostics,
+  );
   // B listed `arm` while A calls it with a Thumb bl: W_INTERWORKING_BRANCH.
   const bl = thumbAt(BASE + 0x100)`
     push {lr}
@@ -41,27 +129,86 @@ function raised(): Diagnostic[] {
     bx r0
   `;
   const blRom = romWith([{ at: BASE + 0x100, bytes: bl }], { size: 0x200 });
-  const blAnalysis = analysisOf(blRom, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x108 }), fact({ entry: BASE + 0x108, end: BASE + 0x108, mode: 'arm', code: [] })] });
-  out.push(...buildModel(blRom, blAnalysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A'], [BASE + 0x108, { name: 'B', mode: 'arm' }]] })).diagnostics);
+  const blAnalysis = analysisOf(blRom, {
+    functions: [
+      fact({ entry: BASE + 0x100, end: BASE + 0x108 }),
+      fact({ entry: BASE + 0x108, end: BASE + 0x108, mode: 'arm', code: [] }),
+    ],
+  });
+  out.push(
+    ...buildModel(
+      blRom,
+      blAnalysis,
+      configOf({
+        modules: [
+          ['rom_header', BASE],
+          ['main', HEADER_END],
+        ],
+        functions: [
+          [BASE + 0x100, 'A'],
+          [BASE + 0x108, { name: 'B', mode: 'arm' }],
+        ],
+      }),
+    ).diagnostics,
+  );
   // A function outside the ROM, an override reaching past its end, and a symbol inside A's first instruction.
   out.push(
     ...buildModel(
       rom,
       analysis,
       configOf({
-        modules: [['rom_header', BASE], ['main', HEADER_END]],
-        functions: [[BASE + 0x100, 'A'], [0x0900_0000, 'Outside']],
+        modules: [
+          ['rom_header', BASE],
+          ['main', HEADER_END],
+        ],
+        functions: [
+          [BASE + 0x100, 'A'],
+          [0x0900_0000, 'Outside'],
+        ],
         symbols: [[BASE + 0x101, { name: 'gOdd', aliases: [] }]],
         overrides: [{ start: BASE + 0x1f0, size: 0x20, kind: 'data' }],
       }),
     ).diagnostics,
   );
   // A data_start on an asm module (phase 6, D92).
-  out.push(...buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], { name: 'main', start: HEADER_END, kind: 'asm', generated: true, dataStart: BASE + 0x180 }] })).diagnostics);
+  out.push(
+    ...buildModel(
+      rom,
+      analysis,
+      configOf({
+        modules: [
+          ['rom_header', BASE],
+          { name: 'main', start: HEADER_END, kind: 'asm', generated: true, dataStart: BASE + 0x180 },
+        ],
+      }),
+    ).diagnostics,
+  );
   // A data range nothing ends, which runs to the ROM end (D112): W_DATA_RANGE_TO_ROM_END.
-  out.push(...buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], { name: 'main', start: HEADER_END, kind: 'c', generated: true, dataStart: BASE + 0x180 }] })).diagnostics);
+  out.push(
+    ...buildModel(
+      rom,
+      analysis,
+      configOf({
+        modules: [
+          ['rom_header', BASE],
+          { name: 'main', start: HEADER_END, kind: 'c', generated: true, dataStart: BASE + 0x180 },
+        ],
+      }),
+    ).diagnostics,
+  );
   // A hand-written source on a C module (D109).
-  out.push(...buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], { name: 'main', start: HEADER_END, kind: 'c', generated: true, source: 'src/asm/main.s' }] })).diagnostics);
+  out.push(
+    ...buildModel(
+      rom,
+      analysis,
+      configOf({
+        modules: [
+          ['rom_header', BASE],
+          { name: 'main', start: HEADER_END, kind: 'c', generated: true, source: 'src/asm/main.s' },
+        ],
+      }),
+    ).diagnostics,
+  );
   // A function loading an unsized RAM symbol and a word past what its accesses prove (D110): W_POOL_WORD_PAST_SYMBOL.
   const ram = thumbAt(BASE + 0x100)`
     ldr r1, _08000110
@@ -69,13 +216,64 @@ function raised(): Diagnostic[] {
     ldr r2, _08000114
     bx lr
   `;
-  const ramRom = romWith([{ at: BASE + 0x100, bytes: ram }, { at: BASE + 0x110, bytes: Uint8Array.from([0x00, 0x01, 0x00, 0x03, 0x80, 0x01, 0x00, 0x03]) }], { size: 0x200 });
-  const ramAnalysis = analysisOf(ramRom, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x118, pools: [BASE + 0x110, BASE + 0x114] })] });
-  out.push(...buildModel(ramRom, ramAnalysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A']], symbols: [[0x0300_0100, { name: 'gRam', aliases: [] }]] })).diagnostics);
+  const ramRom = romWith(
+    [
+      { at: BASE + 0x100, bytes: ram },
+      { at: BASE + 0x110, bytes: Uint8Array.from([0x00, 0x01, 0x00, 0x03, 0x80, 0x01, 0x00, 0x03]) },
+    ],
+    { size: 0x200 },
+  );
+  const ramAnalysis = analysisOf(ramRom, {
+    functions: [fact({ entry: BASE + 0x100, end: BASE + 0x118, pools: [BASE + 0x110, BASE + 0x114] })],
+  });
+  out.push(
+    ...buildModel(
+      ramRom,
+      ramAnalysis,
+      configOf({
+        modules: [
+          ['rom_header', BASE],
+          ['main', HEADER_END],
+        ],
+        functions: [[BASE + 0x100, 'A']],
+        symbols: [[0x0300_0100, { name: 'gRam', aliases: [] }]],
+      }),
+    ).diagnostics,
+  );
   // B listed in [entry_points] although A's extent ends where B starts (D116): E_ENTRY_POINT_OUTSIDE.
-  out.push(...buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A'], [BASE + 0x108, { name: 'B', entryPoint: true }]] })).diagnostics);
+  out.push(
+    ...buildModel(
+      rom,
+      analysis,
+      configOf({
+        modules: [
+          ['rom_header', BASE],
+          ['main', HEADER_END],
+        ],
+        functions: [
+          [BASE + 0x100, 'A'],
+          [BASE + 0x108, { name: 'B', entryPoint: true }],
+        ],
+      }),
+    ).diagnostics,
+  );
   // A Thumb pointer value pasted as a [functions] key (fix round 5).
-  out.push(...buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A'], [BASE + 0x103, 'Odd']] })).diagnostics);
+  out.push(
+    ...buildModel(
+      rom,
+      analysis,
+      configOf({
+        modules: [
+          ['rom_header', BASE],
+          ['main', HEADER_END],
+        ],
+        functions: [
+          [BASE + 0x100, 'A'],
+          [BASE + 0x103, 'Odd'],
+        ],
+      }),
+    ).diagnostics,
+  );
   return out;
 }
 

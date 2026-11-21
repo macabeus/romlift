@@ -1,7 +1,8 @@
 // g2.no-unreviewed (architecture §8.3, §13, D26): no row of any dataset in bench/dataset/real carries the
 // category `unreviewed`; milestone M5 classifies the six such rows, each confirmed with `bench explain`.
-import { readdir, readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
+
 import { byCodeUnit, gate } from './gate.ts';
 
 interface DatasetRow {
@@ -14,7 +15,6 @@ interface DatasetLists {
   readonly labels?: readonly DatasetRow[];
   readonly untyped?: readonly DatasetRow[];
 }
-
 
 gate({
   id: 'g2.no-unreviewed',

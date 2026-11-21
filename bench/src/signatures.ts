@@ -37,30 +37,38 @@
 // moves a placement (phase 6's closing run, docs/phase-6.md). The command exits 0 whenever the run completes; the
 // gates (g6.signatures-judged, -heldout, -loo) judge the counts.
 import { join } from 'node:path';
-
 import {
-  compareCodeUnits,
-  hexAddr,
-  parseElf,
-  ROM_BASE,
-  signatureFileText,
-  signaturesOver,
   type AnalysisResult,
   type ElfSymbol,
   type MemberId,
   type Proposal,
+  ROM_BASE,
   type Rom,
   type RomSignatures,
   type SignatureFile,
   type SignaturePlacement,
   type SignatureSpec,
+  compareCodeUnits,
+  hexAddr,
+  parseElf,
+  signatureFileText,
+  signaturesOver,
 } from 'romlift';
 import { buildSignatures, locateSignatures, readSignatureSpec, sha256Of } from 'romlift/node';
 
-import { analysisTuning, benchProfile, discoverOptions, DEFAULT_RUN_TUNING, readRealInputs, sealedInput, type AnalysisRunner, type RealInputs } from './analysis-run.ts';
+import {
+  type AnalysisRunner,
+  DEFAULT_RUN_TUNING,
+  type RealInputs,
+  analysisTuning,
+  benchProfile,
+  discoverOptions,
+  readRealInputs,
+  sealedInput,
+} from './analysis-run.ts';
 import { classifier, classifyFalseEntry } from './classify.ts';
 import type { BenchContext } from './context.ts';
-import { isSealed, loadDatasets, rowAddr, type Dataset } from './dataset.ts';
+import { type Dataset, isSealed, loadDatasets, rowAddr } from './dataset.ts';
 import { BenchError, isDirectory, listFiles, readFileBytes } from './files.ts';
 import { assertCountsOnly } from './seal.ts';
 
@@ -85,10 +93,31 @@ export interface LibraryPlacements {
 export interface SignaturesMember {
   /** Per library version with at least one placement, sorted by library, then version (code units). */
   readonly libraries: readonly LibraryPlacements[];
-  readonly placements: { readonly total: number; readonly atElfFunc: number; readonly atUntyped: number; readonly wrong: number };
-  readonly tables: { readonly total: number; readonly objectOfSize: number; readonly label: number; readonly wrong: number };
-  readonly sizes: { readonly proposed: number; readonly equal: number; readonly differ: number; readonly unjudged: number };
-  readonly names: { readonly reference: boolean; readonly total: number; readonly equal: number; readonly differ: number; readonly reviewed: number };
+  readonly placements: {
+    readonly total: number;
+    readonly atElfFunc: number;
+    readonly atUntyped: number;
+    readonly wrong: number;
+  };
+  readonly tables: {
+    readonly total: number;
+    readonly objectOfSize: number;
+    readonly label: number;
+    readonly wrong: number;
+  };
+  readonly sizes: {
+    readonly proposed: number;
+    readonly equal: number;
+    readonly differ: number;
+    readonly unjudged: number;
+  };
+  readonly names: {
+    readonly reference: boolean;
+    readonly total: number;
+    readonly equal: number;
+    readonly differ: number;
+    readonly reviewed: number;
+  };
 }
 
 /** One tuning ROM's judged signatures (`roms[]` of romlift/bench-signatures@1). */
@@ -97,7 +126,12 @@ export type JudgedRom = { readonly name: string } & SignaturesMember;
 /** One sealed ROM's counts (`sealed[]` of romlift/bench-signatures@1): never an address or a name (D25). */
 export interface SealedSignatures {
   readonly name: string;
-  readonly placements: { readonly total: number; readonly atElfFunc: number; readonly untyped: number; readonly wrong: number };
+  readonly placements: {
+    readonly total: number;
+    readonly atElfFunc: number;
+    readonly untyped: number;
+    readonly wrong: number;
+  };
   readonly tables: { readonly total: number; readonly object: number; readonly label: number; readonly wrong: number };
 }
 
@@ -184,13 +218,17 @@ export function libraryPlacements(placements: readonly SignaturePlacement[]): Li
     else c.objects++;
     counts.set(key, c);
   }
-  return [...counts.values()].sort((x, y) => compareCodeUnits(x.library, y.library) || compareCodeUnits(x.version, y.version));
+  return [...counts.values()].sort(
+    (x, y) => compareCodeUnits(x.library, y.library) || compareCodeUnits(x.version, y.version),
+  );
 }
 
 /** The library versions `dataset` is a reference of, as `library@version`. */
 export function referenceVersions(files: readonly SignatureFile[], dataset: string): ReadonlySet<string> {
   const out = new Set<string>();
-  for (const f of files) for (const v of f.versions) if (v.references.some((r) => r.dataset === dataset)) out.add(versionKey(f.library, v.id));
+  for (const f of files)
+    for (const v of f.versions)
+      if (v.references.some((r) => r.dataset === dataset)) out.add(versionKey(f.library, v.id));
   return out;
 }
 
@@ -209,7 +247,10 @@ export interface JudgeInput {
 }
 
 /** The judged counts of one tuning ROM, and one line per placement, table, size or name the counts hold against it. */
-export function judgeSignatures(input: JudgeInput): { readonly member: SignaturesMember; readonly problems: readonly string[] } {
+export function judgeSignatures(input: JudgeInput): {
+  readonly member: SignaturesMember;
+  readonly problems: readonly string[];
+} {
   const { elf } = input;
   const problems: string[] = [];
   const placements = { total: 0, atElfFunc: 0, atUntyped: 0, wrong: 0 };
@@ -234,7 +275,9 @@ export function judgeSignatures(input: JudgeInput): { readonly member: Signature
       else {
         tables.wrong++;
         const sizes = elf.objectSizes.get(p.addr);
-        problems.push(`table ${where} size ${p.size}: ${sizes === undefined ? 'no symbol there' : `the ELF OBJECT there is of size ${sizes.join(', ')}`}`);
+        problems.push(
+          `table ${where} size ${p.size}: ${sizes === undefined ? 'no symbol there' : `the ELF OBJECT there is of size ${sizes.join(', ')}`}`,
+        );
       }
     }
     const symbol = memberSymbol(p.member);
@@ -246,7 +289,9 @@ export function judgeSignatures(input: JudgeInput): { readonly member: Signature
     else {
       names.differ++;
       const there = [...(elf.names.get(p.addr) ?? [])].sort(compareCodeUnits);
-      problems.push(`name ${where}: this reference's symbol there is ${there.length === 0 ? 'none' : there.join(', ')}, not ${symbol}`);
+      problems.push(
+        `name ${where}: this reference's symbol there is ${there.length === 0 ? 'none' : there.join(', ')}, not ${symbol}`,
+      );
     }
   }
   const sizes = { proposed: 0, equal: 0, differ: 0, unjudged: 0 };
@@ -314,7 +359,8 @@ export interface LooRun {
 export function sharedMembers(version: SignatureFile['versions'][number], reference: string): ReadonlySet<MemberId> {
   const own = new Set<MemberId>();
   const others = new Set<MemberId>();
-  for (const order of version.linkOrder) for (const m of order.members) (order.reference === reference ? own : others).add(m.id);
+  for (const order of version.linkOrder)
+    for (const m of order.members) (order.reference === reference ? own : others).add(m.id);
   return new Set([...own].filter((id) => others.has(id)));
 }
 
@@ -322,7 +368,10 @@ export function sharedMembers(version: SignatureFile['versions'][number], refere
  * The full build's id of each member of the version rebuilt without R: the member another reference links at the same
  * address in both builds (the rebuilt version names it by the first remaining reference that links it).
  */
-export function counterparts(full: SignatureFile['versions'][number], rebuilt: SignatureFile['versions'][number]): ReadonlyMap<MemberId, MemberId> {
+export function counterparts(
+  full: SignatureFile['versions'][number],
+  rebuilt: SignatureFile['versions'][number],
+): ReadonlyMap<MemberId, MemberId> {
   const fullAt = new Map<string, MemberId>();
   for (const order of full.linkOrder) for (const m of order.members) fullAt.set(`${order.reference}:${m.addr}`, m.id);
   const out = new Map<MemberId, MemberId>();
@@ -363,12 +412,19 @@ export function looCounts(
 
 /** The spec with `dataset` left out of version `version`'s references. */
 export function withoutReference(spec: SignatureSpec, version: string, dataset: string): SignatureSpec {
-  return { ...spec, versions: spec.versions.map((v) => (v.id === version ? { ...v, references: v.references.filter((r) => r.dataset !== dataset) } : v)) };
+  return {
+    ...spec,
+    versions: spec.versions.map((v) =>
+      v.id === version ? { ...v, references: v.references.filter((r) => r.dataset !== dataset) } : v,
+    ),
+  };
 }
 
 /** The (version, reference) pairs of a spec that leave-one-out runs: every reference of every version with two or more. */
 export function looPairs(spec: SignatureSpec): readonly { readonly version: string; readonly reference: string }[] {
-  return spec.versions.filter((v) => v.references.length >= 2).flatMap((v) => v.references.map((r) => ({ version: v.id, reference: r.dataset })));
+  return spec.versions
+    .filter((v) => v.references.length >= 2)
+    .flatMap((v) => v.references.map((r) => ({ version: v.id, reference: r.dataset })));
 }
 
 /** `files` with the file of `replacement`'s library replaced by it. */
@@ -376,8 +432,11 @@ export function replaceLibrary(files: readonly SignatureFile[], replacement: Sig
   return files.map((f) => (f.library === replacement.library ? replacement : f));
 }
 
-const ofVersion = (placements: readonly SignaturePlacement[], library: string, version: string): readonly SignaturePlacement[] =>
-  placements.filter((p) => p.library === library && p.version === version);
+const ofVersion = (
+  placements: readonly SignaturePlacement[],
+  library: string,
+  version: string,
+): readonly SignaturePlacement[] => placements.filter((p) => p.library === library && p.version === version);
 
 // ---------------------------------------------------------------------------------------------------
 // Running the matcher on a scored run.
@@ -391,12 +450,20 @@ const ofVersion = (placements: readonly SignaturePlacement[], library: string, v
 export function romSignatures(rom: Rom, analysis: AnalysisResult, files: readonly SignatureFile[]): RomSignatures {
   const found = signaturesOver(rom, analysis, files);
   const errors = [...analysis.diagnostics, ...found.diagnostics].filter((d) => d.severity === 'error');
-  if (errors.length > 0) throw new BenchError(`signatures: the run cannot be judged: ${errors.map((d) => `${d.code} ${d.message}`).join('; ')}`);
+  if (errors.length > 0)
+    throw new BenchError(
+      `signatures: the run cannot be judged: ${errors.map((d) => `${d.code} ${d.message}`).join('; ')}`,
+    );
   return found;
 }
 
 /** The judged member of one tuning ROM from its scored run (bench run's family and `bench signatures`). */
-export function tuningSignatures(inputs: Pick<RealInputs, 'dataset' | 'rom' | 'romSize'>, analysis: AnalysisResult, symbols: readonly ElfSymbol[], files: readonly SignatureFile[]): { readonly member: SignaturesMember; readonly problems: readonly string[] } {
+export function tuningSignatures(
+  inputs: Pick<RealInputs, 'dataset' | 'rom' | 'romSize'>,
+  analysis: AnalysisResult,
+  symbols: readonly ElfSymbol[],
+  files: readonly SignatureFile[],
+): { readonly member: SignaturesMember; readonly problems: readonly string[] } {
   const found = romSignatures(inputs.rom, analysis, files);
   return judgeSignatures({
     dataset: inputs.dataset.name,
@@ -414,20 +481,29 @@ export function tuningSignatures(inputs: Pick<RealInputs, 'dataset' | 'rom' | 'r
 /** The built signature files of `<repo>/signatures/`, or undefined when there are none. A file the locator skips is refused. */
 export async function locateBuiltSignatures(cx: BenchContext): Promise<readonly SignatureFile[] | undefined> {
   const located = await locateSignatures({ packageRoot: cx.repoRoot, env: {} });
-  if (located.diagnostics.length > 0) throw new BenchError(`signatures: ${located.diagnostics.map((d) => d.message).join('; ')}`);
+  if (located.diagnostics.length > 0)
+    throw new BenchError(`signatures: ${located.diagnostics.map((d) => d.message).join('; ')}`);
   return located.files.length === 0 ? undefined : located.files;
 }
 
 /** The built signature files; refused, naming the build loop, when there are none. */
 export async function readBuiltSignatures(cx: BenchContext): Promise<readonly SignatureFile[]> {
   const files = await locateBuiltSignatures(cx);
-  if (files === undefined) throw new BenchError(`no built signature file in ${join(cx.repoRoot, 'signatures')}: build them first with\n  ${SIGNATURES_BUILD_LOOP}`);
+  if (files === undefined)
+    throw new BenchError(
+      `no built signature file in ${join(cx.repoRoot, 'signatures')}: build them first with\n  ${SIGNATURES_BUILD_LOOP}`,
+    );
   return files;
 }
 
 /** One digest over the built files' canonical texts, in library order: what the artifact records of them. */
 export function signaturesDigest(files: readonly SignatureFile[]): string {
-  return sha256Of([...files].sort((a, b) => compareCodeUnits(a.library, b.library)).map(signatureFileText).join('\n'));
+  return sha256Of(
+    [...files]
+      .sort((a, b) => compareCodeUnits(a.library, b.library))
+      .map(signatureFileText)
+      .join('\n'),
+  );
 }
 
 /** The reference ELF's symbols (readRealInputs checked its digest). */
@@ -471,7 +547,8 @@ async function chosenDatasets(cx: BenchContext, only: string | undefined): Promi
 
 /** One line per tuning ROM: the counts per library and the judged totals. */
 export function judgedText(rom: JudgedRom): string {
-  const libs = rom.libraries.map((l) => `${l.library}@${l.version} ${l.functions}/${l.objects}`).join(', ') || 'nothing placed';
+  const libs =
+    rom.libraries.map((l) => `${l.library}@${l.version} ${l.functions}/${l.objects}`).join(', ') || 'nothing placed';
   const p = rom.placements;
   const t = rom.tables;
   const s = rom.sizes;
@@ -516,11 +593,20 @@ export async function benchSignatures(cx: BenchContext, options: SignaturesOptio
     log(judgedText(rom));
     for (const problem of judged.problems) log(`  ${problem}`);
   }
-  return { schema: BENCH_SIGNATURES_SCHEMA, roms: roms.sort((a, b) => compareCodeUnits(a.name, b.name)), sealed: sealed.sort((a, b) => compareCodeUnits(a.name, b.name)) };
+  return {
+    schema: BENCH_SIGNATURES_SCHEMA,
+    roms: roms.sort((a, b) => compareCodeUnits(a.name, b.name)),
+    sealed: sealed.sort((a, b) => compareCodeUnits(a.name, b.name)),
+  };
 }
 
 /** One sealed ROM: its discover run, the placements, the classifiers of §8.4; counts only. */
-function sealedRun(inputs: RealInputs, symbols: readonly ElfSymbol[], files: readonly SignatureFile[], runner: AnalysisRunner): SealedSignatures {
+function sealedRun(
+  inputs: RealInputs,
+  symbols: readonly ElfSymbol[],
+  files: readonly SignatureFile[],
+  runner: AnalysisRunner,
+): SealedSignatures {
   const analysis = discoverRun(inputs, runner);
   const found = romSignatures(inputs.rom, analysis, files);
   const cx = classifier(sealedInput(inputs.dataset.name, inputs, analysis, benchProfile()));
@@ -534,11 +620,15 @@ function sealedRun(inputs: RealInputs, symbols: readonly ElfSymbol[], files: rea
 }
 
 /** The committed specs, signatures/specs/*.json, in file-name order, with their paths. */
-async function readSpecs(cx: BenchContext): Promise<readonly { readonly path: string; readonly spec: SignatureSpec }[]> {
+async function readSpecs(
+  cx: BenchContext,
+): Promise<readonly { readonly path: string; readonly spec: SignatureSpec }[]> {
   const dir = join(cx.repoRoot, 'signatures', 'specs');
   if (!(await isDirectory(dir))) throw new BenchError(`no ${dir}`);
   const out: { path: string; spec: SignatureSpec }[] = [];
-  for (const name of (await listFiles(dir)).filter((n) => !n.includes('/') && n.endsWith('.json')).sort(compareCodeUnits)) {
+  for (const name of (await listFiles(dir))
+    .filter((n) => !n.includes('/') && n.endsWith('.json'))
+    .sort(compareCodeUnits)) {
     const path = join(dir, name);
     const read = await readSignatureSpec(path);
     if (!read.ok) throw new BenchError(read.diagnostic.message);
@@ -548,20 +638,30 @@ async function readSpecs(cx: BenchContext): Promise<readonly { readonly path: st
 }
 
 /** Leave one reference out over every multi-reference version of the specs. */
-export async function benchSignaturesLoo(cx: BenchContext, options: SignaturesOptions): Promise<BenchSignaturesLooReport> {
+export async function benchSignaturesLoo(
+  cx: BenchContext,
+  options: SignaturesOptions,
+): Promise<BenchSignaturesLooReport> {
   const log = options.log ?? (() => {});
   const files = await readBuiltSignatures(cx);
   const { datasets, problems } = await loadDatasets(cx);
   if (problems.length > 0) throw new BenchError(`malformed datasets: ${problems.map((p) => p.detail).join('; ')}`);
   const runs: LooRun[] = [];
-  const onRom = new Map<string, { readonly inputs: RealInputs; readonly analysis: AnalysisResult; readonly full: readonly SignaturePlacement[] }>();
+  const onRom = new Map<
+    string,
+    { readonly inputs: RealInputs; readonly analysis: AnalysisResult; readonly full: readonly SignaturePlacement[] }
+  >();
   for (const { path, spec } of await readSpecs(cx)) {
     const full = files.find((f) => f.library === spec.library);
-    if (full === undefined) throw new BenchError(`no built signature file of ${spec.library}: build them first with\n  ${SIGNATURES_BUILD_LOOP}`);
+    if (full === undefined)
+      throw new BenchError(
+        `no built signature file of ${spec.library}: build them first with\n  ${SIGNATURES_BUILD_LOOP}`,
+      );
     for (const { version, reference } of looPairs(spec)) {
       if (options.only !== undefined && options.only !== reference) continue;
       const d = datasets.find((x) => x.name === reference);
-      if (d === undefined) throw new BenchError(`${spec.library}@${version}: the reference ${reference} is no bench dataset`);
+      if (d === undefined)
+        throw new BenchError(`${spec.library}@${version}: the reference ${reference} is no bench dataset`);
       if (isSealed(d)) throw new BenchError(`${spec.library}@${version}: the reference ${reference} is sealed (D32)`);
       let rom = onRom.get(reference);
       if (rom === undefined) {
@@ -570,17 +670,32 @@ export async function benchSignaturesLoo(cx: BenchContext, options: SignaturesOp
         rom = { inputs, analysis, full: romSignatures(inputs.rom, analysis, files).placements };
         onRom.set(reference, rom);
       }
-      const rebuilt = await buildSignatures({ spec: withoutReference(spec, version, reference), specPath: path }, { benchRoot: cx.benchRoot, builtWith: full.builtWith });
-      if (!rebuilt.ok) throw new BenchError(`${spec.library}@${version} without ${reference}: ${rebuilt.diagnostic.message}`);
+      const rebuilt = await buildSignatures(
+        { spec: withoutReference(spec, version, reference), specPath: path },
+        { benchRoot: cx.benchRoot, builtWith: full.builtWith },
+      );
+      if (!rebuilt.ok)
+        throw new BenchError(`${spec.library}@${version} without ${reference}: ${rebuilt.diagnostic.message}`);
       const fullVersion = full.versions.find((v) => v.id === version);
-      if (fullVersion === undefined) throw new BenchError(`the built ${spec.library}.json has no version ${version}: rebuild it with\n  ${SIGNATURES_BUILD_LOOP}`);
+      if (fullVersion === undefined)
+        throw new BenchError(
+          `the built ${spec.library}.json has no version ${version}: rebuild it with\n  ${SIGNATURES_BUILD_LOOP}`,
+        );
       const loo = romSignatures(rom.inputs.rom, rom.analysis, replaceLibrary(files, rebuilt.value)).placements;
       const rebuiltVersion = rebuilt.value.versions.find((v) => v.id === version);
-      const renamed = rebuiltVersion === undefined ? new Map<MemberId, MemberId>() : counterparts(fullVersion, rebuiltVersion);
-      const counts = looCounts(ofVersion(rom.full, spec.library, version), ofVersion(loo, spec.library, version), sharedMembers(fullVersion, reference), renamed);
+      const renamed =
+        rebuiltVersion === undefined ? new Map<MemberId, MemberId>() : counterparts(fullVersion, rebuiltVersion);
+      const counts = looCounts(
+        ofVersion(rom.full, spec.library, version),
+        ofVersion(loo, spec.library, version),
+        sharedMembers(fullVersion, reference),
+        renamed,
+      );
       const run: LooRun = { library: spec.library, version, reference, ...counts };
       runs.push(run);
-      log(`${spec.library}@${version} without ${reference}: ${run.added} added, ${run.moved} moved, ${run.missingShared} shared members not placed`);
+      log(
+        `${spec.library}@${version} without ${reference}: ${run.added} added, ${run.moved} moved, ${run.missingShared} shared members not placed`,
+      );
     }
   }
   return { schema: BENCH_SIGNATURES_LOO_SCHEMA, runs };

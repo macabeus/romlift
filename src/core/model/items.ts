@@ -22,7 +22,7 @@
 // b or bl that would name a function label of the other state (a [functions] entry listed `arm` that Thumb code
 // calls, or the reverse) is raw with 'interworking-branch' and W_INTERWORKING_BRANCH: GNU ld would put an
 // interworking veneer in the image for it, which no text-layout check sees and which moves every later byte.
-import { diagnostic, RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
+import { RomliftInvariantError, diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { decode } from '../../foundation/isa/decode.ts';
 import { specOf } from '../../foundation/isa/rows.ts';
@@ -33,14 +33,14 @@ import type { Addr, Mode } from '../../foundation/rom/span.ts';
 import { lowerBound } from '../../foundation/util/arrays.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
 import type { ChunkPlan } from './chunks.ts';
-import type { CodeRef } from './labels.ts';
 import { ModelCodes } from './codes.ts';
 import { itemTableBuilder } from './item-table.ts';
-import { printingCache } from './printing-cache.ts';
+import type { CodeRef } from './labels.ts';
 import { moduleIndexAt, relocatedModules } from './modules.ts';
+import { printingCache } from './printing-cache.ts';
 import { adrResolverFor, resolverFor } from './resolver.ts';
-import type { DataNote, ItemRawReason, ItemTable, Label, Module } from './types.ts';
 import type { Segment, Segments } from './segments.ts';
+import type { DataNote, ItemRawReason, ItemTable, Label, Module } from './types.ts';
 
 // ---------------------------------------------------------------------------------------------------
 // Items per chunk.
@@ -85,7 +85,10 @@ function firstAbove(sorted: readonly Addr[], a: Addr): number {
 export function buildItems(inputs: ItemsInputs): ItemsResult {
   const { rom, segments, labelStarts } = inputs;
   // Room for every item up front: one per code halfword at most, one per other segment, two per chunk for data.
-  const capacity = segments.concrete.reduce((n, s) => n + (s.kind === 'code' ? (s.end - s.start) >>> 1 : 1), 2 * inputs.chunks.length);
+  const capacity = segments.concrete.reduce(
+    (n, s) => n + (s.kind === 'code' ? (s.end - s.start) >>> 1 : 1),
+    2 * inputs.chunks.length,
+  );
   const table = itemTableBuilder(Math.max(1024, capacity));
   const diagnostics: Diagnostic[] = [];
   const ranges: { first: number; count: number }[] = [];
@@ -93,7 +96,9 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
   const relocated = relocatedModules(inputs.modules);
   const resolvers = inputs.modules.map((m) => resolverFor({ labels: inputs.labels, modules: inputs.modules }, m.name));
   // An adr names only a label that links to its target itself (resolver.ts adrResolverFor).
-  const adrResolvers = inputs.modules.map((m) => adrResolverFor({ labels: inputs.labels, modules: inputs.modules }, m.name));
+  const adrResolvers = inputs.modules.map((m) =>
+    adrResolverFor({ labels: inputs.labels, modules: inputs.modules }, m.name),
+  );
   const functionLabels = new Map<Addr, Label[]>();
   for (const l of inputs.labels) {
     if (l.kind !== 'func') continue;
@@ -134,7 +139,11 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
           }
         }
       }
-      table.append(note === undefined ? { kind: 'data', start: at, length: stop - at } : { kind: 'data', start: at, length: stop - at, note });
+      table.append(
+        note === undefined
+          ? { kind: 'data', start: at, length: stop - at }
+          : { kind: 'data', start: at, length: stop - at, note },
+      );
       at = stop;
       while ((labelStarts[label] ?? Infinity) <= at) label++;
     }
@@ -144,7 +153,8 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
   const fillCode = (a: Addr, b: Addr, mode: Mode, c: ChunkPlan, offset: number): void => {
     const resolver = resolvers[c.module];
     const adrResolver = adrResolvers[c.module];
-    if (resolver === undefined || adrResolver === undefined) throw new RomliftInvariantError(`model: chunk ${c.name} names module ${c.module} of ${inputs.modules.length}`);
+    if (resolver === undefined || adrResolver === undefined)
+      throw new RomliftInvariantError(`model: chunk ${c.name} names module ${c.module} of ${inputs.modules.length}`);
     let at = a;
     while (at < b) {
       const room = b - at;
@@ -164,7 +174,13 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
       const run = at + offset;
       while (refAt < inputs.refs.length && (inputs.refs[refAt]?.site ?? Infinity) < at) refAt++;
       const ref = inputs.refs[refAt];
-      if (ref !== undefined && ref.site === at && ref.run === run && ref.size <= room && specOf(ref.specId).raw === undefined) {
+      if (
+        ref !== undefined &&
+        ref.site === at &&
+        ref.run === run &&
+        ref.size <= room &&
+        specOf(ref.specId).raw === undefined
+      ) {
         const reason = refReason(ref, mode, c, ref.kind === 'adr' ? adrResolver : resolver);
         if (reason === null) table.append({ kind: 'insn', start: at, length: ref.size, specId: ref.specId });
         else table.append({ kind: 'raw-insn', start: at, length: ref.size, specId: ref.specId, reason });
@@ -186,10 +202,15 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
     const module = moduleIndexAt(inputs.modules, target, relocated);
     if (module < 0 || module === c.module) return false;
     diagnostics.push(
-      diagnostic(ModelCodes, 'W_CROSS_MODULE_SHORT_BRANCH', `the branch at ${hexAddr(site)} reaches ${hexAddr(target)} in module ${inputs.modules[module]?.name ?? ''} from module ${inputs.modules[c.module]?.name ?? ''}; it prints raw`, {
-        addr: site,
-        cites: [target],
-      }),
+      diagnostic(
+        ModelCodes,
+        'W_CROSS_MODULE_SHORT_BRANCH',
+        `the branch at ${hexAddr(site)} reaches ${hexAddr(target)} in module ${inputs.modules[module]?.name ?? ''} from module ${inputs.modules[c.module]?.name ?? ''}; it prints raw`,
+        {
+          addr: site,
+          cites: [target],
+        },
+      ),
     );
     return true;
   };
@@ -207,10 +228,15 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
     const from = mode === 'thumb' ? 'Thumb' : 'ARM';
     const to = label.thumb ? 'a Thumb' : 'an ARM';
     diagnostics.push(
-      diagnostic(ModelCodes, 'W_INTERWORKING_BRANCH', `the ${from} branch at ${hexAddr(site)} reaches ${label.name} at ${hexAddr(target)}, ${to} function; GNU ld would insert an interworking veneer, so it prints raw`, {
-        addr: site,
-        cites: [target],
-      }),
+      diagnostic(
+        ModelCodes,
+        'W_INTERWORKING_BRANCH',
+        `the ${from} branch at ${hexAddr(site)} reaches ${label.name} at ${hexAddr(target)}, ${to} function; GNU ld would insert an interworking veneer, so it prints raw`,
+        {
+          addr: site,
+          cites: [target],
+        },
+      ),
     );
     return true;
   };
@@ -218,16 +244,32 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
   const itemReason = (insn: Insn, c: ChunkPlan, resolver: SymbolResolver): ItemRawReason | null => {
     const encoding = specOf(insn.specId).raw?.(insn.fields) ?? null;
     if (encoding !== null) return encoding;
-    if (insn.mode === 'thumb' && insn.size === 2 && insn.flow.kind === 'branch' && crossesModule(insn.addr, insn.flow.target, c)) return 'cross-module-short-branch';
-    if ((insn.flow.kind === 'branch' || insn.flow.kind === 'bl') && interworks(insn.addr, insn.mode, insn.flow.target, resolver)) return 'interworking-branch';
+    if (
+      insn.mode === 'thumb' &&
+      insn.size === 2 &&
+      insn.flow.kind === 'branch' &&
+      crossesModule(insn.addr, insn.flow.target, c)
+    )
+      return 'cross-module-short-branch';
+    if (
+      (insn.flow.kind === 'branch' || insn.flow.kind === 'bl') &&
+      interworks(insn.addr, insn.mode, insn.flow.target, resolver)
+    )
+      return 'interworking-branch';
     return cache.reasonOf(insn, resolver);
   };
 
   /** itemReason for an instruction codeRefs decoded already (its row has no encoding reason). */
   const refReason = (ref: CodeRef, mode: Mode, c: ChunkPlan, resolver: SymbolResolver): ItemRawReason | null => {
     if (ref.kind === 'short-branch' && crossesModule(ref.run, ref.target, c)) return 'cross-module-short-branch';
-    if ((ref.kind === 'short-branch' || ref.kind === 'branch' || ref.kind === 'bl') && interworks(ref.run, mode, ref.target, resolver)) return 'interworking-branch';
-    return cache.reasonOfNaming(mode, ref.specId, ref.word, ref.run, ref.target, resolver, () => decode(mode, ref.word, ref.run));
+    if (
+      (ref.kind === 'short-branch' || ref.kind === 'branch' || ref.kind === 'bl') &&
+      interworks(ref.run, mode, ref.target, resolver)
+    )
+      return 'interworking-branch';
+    return cache.reasonOfNaming(mode, ref.specId, ref.word, ref.run, ref.target, resolver, () =>
+      decode(mode, ref.word, ref.run),
+    );
   };
 
   /**
@@ -299,7 +341,8 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
       if (at < bodyEnd) fillData(at, bodyEnd, noted);
       if (bodyEnd < end) {
         const label = labelStarts[lowerBound(labelStarts, bodyEnd, (x) => x)];
-        if (label === undefined || label >= end) table.append({ kind: 'padding', start: bodyEnd, length: end - bodyEnd });
+        if (label === undefined || label >= end)
+          table.append({ kind: 'padding', start: bodyEnd, length: end - bodyEnd });
         else fillData(bodyEnd, end, false);
       }
     }

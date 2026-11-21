@@ -10,6 +10,7 @@
 import type { Rom } from '../../foundation/rom/rom.ts';
 import { compareCodeUnits } from '../../foundation/util/sorted.ts';
 import type { Model } from '../model/types.ts';
+import type { TextEdit } from '../reconcile/text-edit.ts';
 
 export type WriterId =
   | 'header'
@@ -45,13 +46,23 @@ export const WRITER_IDS: readonly WriterId[] = [
 
 /** One edit of a reconciled file, in UTF-16 offsets of its base text: core/reconcile's (the one definition). */
 export type { TextEdit } from '../reconcile/text-edit.ts';
-import type { TextEdit } from '../reconcile/text-edit.ts';
 
 /** One file of the tree; `path` is relative to the project root, with '/' separators. */
 export type FileEntry =
   | { readonly ownership: 'generated'; readonly path: string; readonly text: string; readonly writer: WriterId }
-  | { readonly ownership: 'scaffold'; readonly path: string; readonly text: string; readonly writer: 'scaffold' | 'c-stub'; readonly executable?: true }
-  | { readonly ownership: 'reconciled'; readonly path: string; readonly baseSha1: string; readonly edits: readonly TextEdit[] };
+  | {
+      readonly ownership: 'scaffold';
+      readonly path: string;
+      readonly text: string;
+      readonly writer: 'scaffold' | 'c-stub';
+      readonly executable?: true;
+    }
+  | {
+      readonly ownership: 'reconciled';
+      readonly path: string;
+      readonly baseSha1: string;
+      readonly edits: readonly TextEdit[];
+    };
 
 /**
  * Names defined in src/*.c, derived by the workflow with the reconciler's tokenizer (phase 6 decides matchings, D76 g).
@@ -103,7 +114,15 @@ export interface PrintedChunk {
 
 /** The statistics of nothing printed. */
 export function emptyPrintStats(): PrintStats {
-  return { insns: 0, rawInsns: 0, branches: 0, symbolicBranches: 0, poolLoads: 0, symbolicPoolLoads: 0, rawReasons: {} };
+  return {
+    insns: 0,
+    rawInsns: 0,
+    branches: 0,
+    symbolicBranches: 0,
+    poolLoads: 0,
+    symbolicPoolLoads: 0,
+    rawReasons: {},
+  };
 }
 
 /** The sum of two statistics; rawReasons keys in code-unit order. */

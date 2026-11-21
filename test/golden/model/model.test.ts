@@ -3,7 +3,7 @@
 // buildModel; one test/golden/model/<fixture>.ndjson each. A change to the model, the analysis or the printing
 // rule shows up here as a diff. UPDATE_GOLDEN=1 rewrites them and removes a file no fixture produces.
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';

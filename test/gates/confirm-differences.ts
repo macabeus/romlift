@@ -4,7 +4,6 @@
 // function set, so the gate holds on every tuning ROM with no recorded exception: any difference fails, on any ROM.
 // (D61 e and g had accepted eight tmc functions and four claim runs as a known limitation; D114 removed them.)
 
-
 export interface ViewFunction {
   readonly entry: number;
   readonly mode: string;
@@ -114,5 +113,7 @@ export function summarize(d: ViewDifferences, first = FIRST): string {
 
 /** The verdict on one ROM: no problem when the views agree, else one naming the counts and the first differences. */
 export function judgeDifferences(name: string, d: ViewDifferences): { readonly problems: readonly string[] } {
-  return d.functions.length === 0 && d.claims.length === 0 ? { problems: [] } : { problems: [`${name}: ${summarize(d)}`] };
+  return d.functions.length === 0 && d.claims.length === 0
+    ? { problems: [] }
+    : { problems: [`${name}: ${summarize(d)}`] };
 }

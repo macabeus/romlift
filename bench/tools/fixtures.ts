@@ -25,11 +25,10 @@ import { copyFile, mkdir, mkdtemp, readdir, realpath, rm } from 'node:fs/promise
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { type ElfFile, type ElfSymbolType, compareCodeUnits, parseElf, parseGnuMap } from 'romlift';
+import { type Binutils, binutilsVersions, findBinutils } from 'romlift/node';
 
-import { compareCodeUnits, parseElf, parseGnuMap, type ElfFile, type ElfSymbolType } from 'romlift';
-import { binutilsVersions, findBinutils, type Binutils } from 'romlift/node';
-
-import { parseArgs, UsageError } from '../src/args.ts';
+import { UsageError, parseArgs } from '../src/args.ts';
 import { contextFromEnv } from '../src/context.ts';
 import { BenchError, exists, readFileBytes, readText, writeText } from '../src/files.ts';
 
@@ -100,8 +99,19 @@ export function parseToolchainRecord(buildMk: string): ToolchainRecord | { reado
 
 /** build.mk with its toolchain record set to `record`: the record lines replaced, or inserted before `include`. */
 export function withToolchainRecord(buildMk: string, record: ToolchainRecord): string {
-  const lines = buildMk.split('\n').filter((l) => l !== RECORD_HEADER && !l.startsWith(`${RECORD_KEYS.agbccCommit} := `) && !l.startsWith(`${RECORD_KEYS.asVersion} := `));
-  const block = [RECORD_HEADER, `${RECORD_KEYS.agbccCommit} := ${record.agbccCommit}`, `${RECORD_KEYS.asVersion} := ${record.asVersion}`];
+  const lines = buildMk
+    .split('\n')
+    .filter(
+      (l) =>
+        l !== RECORD_HEADER &&
+        !l.startsWith(`${RECORD_KEYS.agbccCommit} := `) &&
+        !l.startsWith(`${RECORD_KEYS.asVersion} := `),
+    );
+  const block = [
+    RECORD_HEADER,
+    `${RECORD_KEYS.agbccCommit} := ${record.agbccCommit}`,
+    `${RECORD_KEYS.asVersion} := ${record.asVersion}`,
+  ];
   const at = lines.findIndex((l) => l.startsWith('include '));
   const index = at === -1 ? lines.length : at;
   return [...lines.slice(0, index), ...block, ...lines.slice(index)].join('\n');
@@ -126,7 +136,10 @@ export function mapRows(text: string): readonly string[] {
   const map = parseGnuMap(text);
   if (!map.ok) return [`unparsable map: ${map.error}`];
   return map.value.sections.flatMap((section) =>
-    section.inputs.map((i) => `${section.name} ${i.section} ${hex(i.address)} ${hex(i.size)} ${i.member === undefined ? i.file : `${i.file}(${i.member})`}`),
+    section.inputs.map(
+      (i) =>
+        `${section.name} ${i.section} ${hex(i.address)} ${hex(i.size)} ${i.member === undefined ? i.file : `${i.file}(${i.member})`}`,
+    ),
   );
 }
 
@@ -134,7 +147,10 @@ export function mapRows(text: string): readonly string[] {
 export function mapDifferences(committed: readonly string[], rebuilt: readonly string[], limit = 8): readonly string[] {
   const left = new Set(committed);
   const right = new Set(rebuilt);
-  const out = [...committed.filter((r) => !right.has(r)).map((r) => `map placement only in the committed map: ${r}`), ...rebuilt.filter((r) => !left.has(r)).map((r) => `map placement only in the rebuilt map: ${r}`)];
+  const out = [
+    ...committed.filter((r) => !right.has(r)).map((r) => `map placement only in the committed map: ${r}`),
+    ...rebuilt.filter((r) => !left.has(r)).map((r) => `map placement only in the rebuilt map: ${r}`),
+  ];
   return out.length > limit ? [...out.slice(0, limit), `${out.length - limit} more map differences`] : out;
 }
 
@@ -149,12 +165,20 @@ export function oldAgbccBeside(agbcc: string): string {
 }
 
 /** The make arguments of one fixture build into `out` (OLD_AGBCC only when the toolchain has it). */
-export function makeArgs(out: string, toolchain: Pick<ToolchainInUse, 'agbcc' | 'oldAgbcc' | 'binutils'>): readonly string[] {
+export function makeArgs(
+  out: string,
+  toolchain: Pick<ToolchainInUse, 'agbcc' | 'oldAgbcc' | 'binutils'>,
+): readonly string[] {
   return [
-    '-f', 'build.mk', '--no-print-directory',
-    `BUILD=${out}`, `AGBCC=${toolchain.agbcc}`,
+    '-f',
+    'build.mk',
+    '--no-print-directory',
+    `BUILD=${out}`,
+    `AGBCC=${toolchain.agbcc}`,
     ...(toolchain.oldAgbcc === undefined ? [] : [`OLD_AGBCC=${toolchain.oldAgbcc}`]),
-    `ARM_AS=${toolchain.binutils.as}`, `ARM_LD=${toolchain.binutils.ld}`, `ARM_OBJCOPY=${toolchain.binutils.objcopy}`,
+    `ARM_AS=${toolchain.binutils.as}`,
+    `ARM_LD=${toolchain.binutils.ld}`,
+    `ARM_OBJCOPY=${toolchain.binutils.objcopy}`,
   ];
 }
 
@@ -175,7 +199,10 @@ export function sameCommit(a: string, b: string): boolean {
 export function symbolRows(elf: ElfFile): readonly SymbolRow[] {
   return elf.symbols
     .map((s) => ({ name: s.name, value: s.value, size: s.size, type: s.type }))
-    .sort((a, b) => compareCodeUnits(a.name, b.name) || a.value - b.value || a.size - b.size || compareCodeUnits(a.type, b.type));
+    .sort(
+      (a, b) =>
+        compareCodeUnits(a.name, b.name) || a.value - b.value || a.size - b.size || compareCodeUnits(a.type, b.type),
+    );
 }
 
 function hex(n: number): string {
@@ -190,13 +217,20 @@ function rowText(r: SymbolRow): string {
 export function bytesDifference(committed: Uint8Array, rebuilt: Uint8Array): string | undefined {
   const n = Math.min(committed.length, rebuilt.length);
   for (let i = 0; i < n; i++) {
-    if (committed[i] !== rebuilt[i]) return `the .gba differs first at offset ${hex(i)} (committed 0x${(committed[i] ?? 0).toString(16)}, rebuilt 0x${(rebuilt[i] ?? 0).toString(16)})`;
+    if (committed[i] !== rebuilt[i])
+      return `the .gba differs first at offset ${hex(i)} (committed 0x${(committed[i] ?? 0).toString(16)}, rebuilt 0x${(rebuilt[i] ?? 0).toString(16)})`;
   }
-  return committed.length === rebuilt.length ? undefined : `the .gba is ${committed.length} bytes committed and ${rebuilt.length} rebuilt`;
+  return committed.length === rebuilt.length
+    ? undefined
+    : `the .gba is ${committed.length} bytes committed and ${rebuilt.length} rebuilt`;
 }
 
 /** The differences of two symbol lists, at most `limit` of them. */
-export function symbolDifferences(committed: readonly SymbolRow[], rebuilt: readonly SymbolRow[], limit = 8): readonly string[] {
+export function symbolDifferences(
+  committed: readonly SymbolRow[],
+  rebuilt: readonly SymbolRow[],
+  limit = 8,
+): readonly string[] {
   const left = new Set(committed.map(rowText));
   const right = new Set(rebuilt.map(rowText));
   const out = [
@@ -219,22 +253,30 @@ export function compareFixture(
   const bytes = bytesDifference(committed.gba, rebuilt.gba);
   if (bytes !== undefined) problems.push(bytes);
   problems.push(...symbolDifferences(committed.symbols, rebuilt.symbols));
-  if (committed.map !== undefined || rebuilt.map !== undefined) problems.push(...mapDifferences(committed.map ?? [], rebuilt.map ?? []));
+  if (committed.map !== undefined || rebuilt.map !== undefined)
+    problems.push(...mapDifferences(committed.map ?? [], rebuilt.map ?? []));
   if ('missing' in record) {
     problems.push(`build.mk has no toolchain record (${record.missing.join(', ')})`);
   } else {
     if (toolchain.agbccCommit === undefined) {
-      notes.push(`the agbcc commit in use is unknown (set ROMLIFT_AGBCC_COMMIT); the record names ${record.agbccCommit} and the rebuilt bytes decide`);
+      notes.push(
+        `the agbcc commit in use is unknown (set ROMLIFT_AGBCC_COMMIT); the record names ${record.agbccCommit} and the rebuilt bytes decide`,
+      );
     } else if (!sameCommit(record.agbccCommit, toolchain.agbccCommit)) {
       problems.push(`agbcc commit ${toolchain.agbccCommit} differs from the recorded ${record.agbccCommit}`);
     }
-    if (record.asVersion !== toolchain.asVersion) notes.push(`as is '${toolchain.asVersion}', the record names '${record.asVersion}'`);
+    if (record.asVersion !== toolchain.asVersion)
+      notes.push(`as is '${toolchain.asVersion}', the record names '${record.asVersion}'`);
   }
   return { name, ok: problems.length === 0, problems, notes };
 }
 
 /** The final --json line. */
-export function summaryLine(command: 'rebuild' | 'check', verdicts: readonly FixtureVerdict[], toolchain: Pick<ToolchainInUse, 'agbccCommit' | 'asVersion'>): string {
+export function summaryLine(
+  command: 'rebuild' | 'check',
+  verdicts: readonly FixtureVerdict[],
+  toolchain: Pick<ToolchainInUse, 'agbccCommit' | 'asVersion'>,
+): string {
   const failed = verdicts.filter((v) => !v.ok).map((v) => v.name);
   return JSON.stringify({
     schema: FIXTURES_SCHEMA,
@@ -275,7 +317,10 @@ async function fixtureNames(root: string): Promise<readonly string[]> {
   return names.sort(compareCodeUnits);
 }
 
-async function agbccCommit(dir: string, env: Readonly<Record<string, string | undefined>>): Promise<string | undefined> {
+async function agbccCommit(
+  dir: string,
+  env: Readonly<Record<string, string | undefined>>,
+): Promise<string | undefined> {
   const named = env['ROMLIFT_AGBCC_COMMIT'];
   if (named !== undefined && named !== '') return named.trim();
   const top = await run('git', ['-C', dir, 'rev-parse', '--show-toplevel']);
@@ -287,27 +332,48 @@ async function agbccCommit(dir: string, env: Readonly<Record<string, string | un
 
 async function toolchainFromEnv(env: Readonly<Record<string, string | undefined>>): Promise<ToolchainInUse> {
   const named = env['ROMLIFT_AGBCC'];
-  const dir = named !== undefined && named !== '' ? named : join(contextFromEnv(env).benchRoot, 'pokeemerald', 'tools', 'agbcc');
+  const dir =
+    named !== undefined && named !== '' ? named : join(contextFromEnv(env).benchRoot, 'pokeemerald', 'tools', 'agbcc');
   const agbcc = join(dir, 'bin', 'agbcc');
-  if (!(await exists(agbcc))) throw new BenchError(`no agbcc at ${agbcc}: set ROMLIFT_AGBCC to a directory holding bin/agbcc`);
+  if (!(await exists(agbcc)))
+    throw new BenchError(`no agbcc at ${agbcc}: set ROMLIFT_AGBCC to a directory holding bin/agbcc`);
   const oldAgbcc = oldAgbccBeside(agbcc);
   const binutils = findBinutils(env);
   if ('code' in binutils) throw new BenchError(binutils.message);
   const versions = await binutilsVersions(binutils);
   if (versions.as === '') throw new BenchError(`${binutils.as} --version printed nothing`);
-  return { agbcc, oldAgbcc: (await exists(oldAgbcc)) ? oldAgbcc : undefined, agbccCommit: await agbccCommit(dir, env), binutils, asVersion: versions.as };
+  return {
+    agbcc,
+    oldAgbcc: (await exists(oldAgbcc)) ? oldAgbcc : undefined,
+    agbccCommit: await agbccCommit(dir, env),
+    binutils,
+    asVersion: versions.as,
+  };
 }
 
 function buildOf(gba: Uint8Array, elfBytes: Uint8Array, mapText: string | undefined, what: string): FixtureBuild {
   const elf = parseElf(elfBytes);
   if (!elf.ok) throw new BenchError(`${what}: ${elf.error}`);
-  return mapText === undefined ? { gba, symbols: symbolRows(elf.value) } : { gba, symbols: symbolRows(elf.value), map: mapRows(mapText) };
+  return mapText === undefined
+    ? { gba, symbols: symbolRows(elf.value) }
+    : { gba, symbols: symbolRows(elf.value), map: mapRows(mapText) };
 }
 
 /** A build in `dir`; with `mapFrom`, its map too, read with the temporary paths of `mapFrom.out` spelt as committed. */
-async function readBuild(dir: string, name: string, what: string, mapFrom?: { readonly out: string }): Promise<FixtureBuild> {
-  const mapText = mapFrom === undefined ? undefined : committedMapText(await readText(join(dir, `${name}.map`)), mapFrom.out);
-  return buildOf(await readFileBytes(join(dir, `${name}.gba`)), await readFileBytes(join(dir, `${name}.elf`)), mapText, what);
+async function readBuild(
+  dir: string,
+  name: string,
+  what: string,
+  mapFrom?: { readonly out: string },
+): Promise<FixtureBuild> {
+  const mapText =
+    mapFrom === undefined ? undefined : committedMapText(await readText(join(dir, `${name}.map`)), mapFrom.out);
+  return buildOf(
+    await readFileBytes(join(dir, `${name}.gba`)),
+    await readFileBytes(join(dir, `${name}.elf`)),
+    mapText,
+    what,
+  );
 }
 
 /** Builds fixture `name` into `out` with make; throws with make's output when it fails, or when it needs a missing old_agbcc. */
@@ -315,7 +381,9 @@ async function make(name: string, out: string, toolchain: ToolchainInUse): Promi
   const dir = join(SYNTHETIC_DIR, name);
   const old = oldAgbccSources(await readText(join(dir, 'build.mk')));
   if (old.length > 0 && toolchain.oldAgbcc === undefined) {
-    throw new BenchError(`${name}: compiles ${old.join(', ')} with old_agbcc, and there is no ${oldAgbccBeside(toolchain.agbcc)}`);
+    throw new BenchError(
+      `${name}: compiles ${old.join(', ')} with old_agbcc, and there is no ${oldAgbccBeside(toolchain.agbcc)}`,
+    );
   }
   const made = await run('make', makeArgs(out, toolchain), dir);
   if (made.code !== 0) throw new BenchError(`${name}: make exited ${made.code}:\n${made.stdout}${made.stderr}`);
@@ -331,7 +399,8 @@ async function withTemp<T>(body: (dir: string) => Promise<T>): Promise<T> {
 }
 
 async function rebuildOne(name: string, toolchain: ToolchainInUse): Promise<FixtureVerdict> {
-  if (toolchain.agbccCommit === undefined) throw new BenchError('the agbcc commit is unknown: set ROMLIFT_AGBCC_COMMIT before rebuilding');
+  if (toolchain.agbccCommit === undefined)
+    throw new BenchError('the agbcc commit is unknown: set ROMLIFT_AGBCC_COMMIT before rebuilding');
   const record: ToolchainRecord = { agbccCommit: toolchain.agbccCommit, asVersion: toolchain.asVersion };
   const dir = join(SYNTHETIC_DIR, name);
   const withMap = wantsMap(await readText(join(dir, 'build.mk')));
@@ -339,7 +408,11 @@ async function rebuildOne(name: string, toolchain: ToolchainInUse): Promise<Fixt
     await make(name, out, toolchain);
     await mkdir(join(dir, 'build'), { recursive: true });
     for (const ext of ['gba', 'elf']) await copyFile(join(out, `${name}.${ext}`), join(dir, 'build', `${name}.${ext}`));
-    if (withMap) await writeText(join(dir, 'build', `${name}.map`), committedMapText(await readText(join(out, `${name}.map`)), out));
+    if (withMap)
+      await writeText(
+        join(dir, 'build', `${name}.map`),
+        committedMapText(await readText(join(out, `${name}.map`)), out),
+      );
   });
   const buildMk = join(dir, 'build.mk');
   await writeText(buildMk, withToolchainRecord(await readText(buildMk), record));
@@ -352,9 +425,15 @@ async function checkOne(name: string, toolchain: ToolchainInUse): Promise<Fixtur
   const buildMk = await readText(join(dir, 'build.mk'));
   const withMap = wantsMap(buildMk);
   const missing = [];
-  for (const ext of withMap ? ['gba', 'elf', 'map'] : ['gba', 'elf']) if (!(await exists(join(committedDir, `${name}.${ext}`)))) missing.push(`build/${name}.${ext}`);
+  for (const ext of withMap ? ['gba', 'elf', 'map'] : ['gba', 'elf'])
+    if (!(await exists(join(committedDir, `${name}.${ext}`)))) missing.push(`build/${name}.${ext}`);
   if (missing.length > 0) return { name, ok: false, problems: [`not committed: ${missing.join(', ')}`], notes: [] };
-  const committed = await readBuild(committedDir, name, `${name} (committed)`, withMap ? { out: committedDir } : undefined);
+  const committed = await readBuild(
+    committedDir,
+    name,
+    `${name} (committed)`,
+    withMap ? { out: committedDir } : undefined,
+  );
   const record = parseToolchainRecord(buildMk);
   return withTemp(async (out) => {
     try {
@@ -362,7 +441,13 @@ async function checkOne(name: string, toolchain: ToolchainInUse): Promise<Fixtur
     } catch (error) {
       return { name, ok: false, problems: [error instanceof Error ? error.message : String(error)], notes: [] };
     }
-    return compareFixture(name, committed, record, await readBuild(out, name, `${name} (rebuilt)`, withMap ? { out } : undefined), toolchain);
+    return compareFixture(
+      name,
+      committed,
+      record,
+      await readBuild(out, name, `${name} (rebuilt)`, withMap ? { out } : undefined),
+      toolchain,
+    );
   });
 }
 
@@ -374,7 +459,8 @@ async function main(argv: readonly string[]): Promise<number> {
   const all = await fixtureNames(SYNTHETIC_DIR);
   const only = args.options['only'];
   const names = only === undefined ? all : all.filter((n) => n === only);
-  if (names.length === 0) throw new BenchError(only === undefined ? `no fixture under ${SYNTHETIC_DIR}` : `no fixture named ${only}`);
+  if (names.length === 0)
+    throw new BenchError(only === undefined ? `no fixture under ${SYNTHETIC_DIR}` : `no fixture named ${only}`);
   const toolchain = await toolchainFromEnv(process.env);
   const verdicts: FixtureVerdict[] = [];
   for (const name of names) {
@@ -385,7 +471,9 @@ async function main(argv: readonly string[]): Promise<number> {
     for (const n of verdict.notes) process.stdout.write(`       note: ${n}\n`);
   }
   const failed = verdicts.filter((v) => !v.ok).length;
-  process.stdout.write(`${command}: ${verdicts.length - failed} of ${verdicts.length} fixtures agree (agbcc ${toolchain.agbccCommit ?? 'commit unknown'}, ${toolchain.asVersion})\n`);
+  process.stdout.write(
+    `${command}: ${verdicts.length - failed} of ${verdicts.length} fixtures agree (agbcc ${toolchain.agbccCommit ?? 'commit unknown'}, ${toolchain.asVersion})\n`,
+  );
   if (args.flags.has('json')) process.stdout.write(`${summaryLine(command, verdicts, toolchain)}\n`);
   return failed === 0 ? 0 : 1;
 }

@@ -13,18 +13,30 @@ import { test } from 'node:test';
 import { BUILD_COMPILERS } from '../../../src/core/config/compilers.ts';
 import type { FileEntry } from '../../../src/core/emit/tree.ts';
 import { CONFIG_SHA1_VARIABLE, modulesMkText } from '../../../src/core/emit/writers/modules-mk.ts';
-import { gitmodulesText, npmPackageName, packageJsonText, renderScaffold, sha1FileText } from '../../../src/core/scaffold/render.ts';
+import {
+  gitmodulesText,
+  npmPackageName,
+  packageJsonText,
+  renderScaffold,
+  sha1FileText,
+} from '../../../src/core/scaffold/render.ts';
 import type { ScaffoldFileEntry } from '../../../src/core/scaffold/render.ts';
-import { decodeScaffoldManifest, ROMLIFT_RENDERED_TARGETS, scaffoldVars } from '../../../src/core/scaffold/vars.ts';
+import { ROMLIFT_RENDERED_TARGETS, decodeScaffoldManifest, scaffoldVars } from '../../../src/core/scaffold/vars.ts';
 import type { ScaffoldManifest, ScaffoldTemplates, ScaffoldVars } from '../../../src/core/scaffold/vars.ts';
 import { GENERATED_ROOTS, ROMLIFT_DIR } from '../../../src/core/write-plan/types.ts';
 import { DIALECT, INCLUDE_ASM_HEADER } from '../../../src/foundation/asm/dialect.ts';
-import { INCLUDE_ASM_HEADER_PATH } from '../../../src/foundation/util/project-files.ts';
 import { RomliftInvariantError } from '../../../src/foundation/diagnostics/diagnostic.ts';
+import { INCLUDE_ASM_HEADER_PATH } from '../../../src/foundation/util/project-files.ts';
 
 const TEMPLATES_URL = new URL('../../../templates/', import.meta.url);
 const PIN = { url: 'https://github.com/pret/agbcc', commit: 'da598c1d918402c42c0c0d7128ba14567f3175e9' } as const;
-const VARS: ScaffoldVars = scaffoldVars({ name: 'klonoa-eod', sha1: 'a0a298d9dba1ba15d04a42fc2eb35893d1a9569b', romliftVersion: '0.4.0', agbcc: PIN, title: 'KLONOA' });
+const VARS: ScaffoldVars = scaffoldVars({
+  name: 'klonoa-eod',
+  sha1: 'a0a298d9dba1ba15d04a42fc2eb35893d1a9569b',
+  romliftVersion: '0.4.0',
+  agbcc: PIN,
+  title: 'KLONOA',
+});
 
 function decoded(json: string): ScaffoldManifest {
   const manifest = decodeScaffoldManifest(json);
@@ -36,15 +48,22 @@ function decoded(json: string): ScaffoldManifest {
 function committed(): ScaffoldTemplates {
   const manifest = decoded(readFileSync(new URL('MANIFEST.json', TEMPLATES_URL), 'utf8'));
   const texts = new Map<string, string>();
-  for (const file of manifest.files) if (file.source !== null) texts.set(file.source, readFileSync(new URL(file.source, TEMPLATES_URL), 'utf8'));
+  for (const file of manifest.files)
+    if (file.source !== null) texts.set(file.source, readFileSync(new URL(file.source, TEMPLATES_URL), 'utf8'));
   return { manifest, texts };
 }
 
 const RENDERED = ROMLIFT_RENDERED_TARGETS.map((target) => ({ target, source: null, executable: false }));
 
 /** A manifest of the five rendered targets plus `extra`, with the template texts given. */
-function templates(extra: readonly { readonly target: string; readonly source: string; readonly executable?: boolean }[], texts: Readonly<Record<string, string>>): ScaffoldTemplates {
-  const files = [...RENDERED, ...extra.map((e) => ({ target: e.target, source: e.source, executable: e.executable ?? false }))];
+function templates(
+  extra: readonly { readonly target: string; readonly source: string; readonly executable?: boolean }[],
+  texts: Readonly<Record<string, string>>,
+): ScaffoldTemplates {
+  const files = [
+    ...RENDERED,
+    ...extra.map((e) => ({ target: e.target, source: e.source, executable: e.executable ?? false })),
+  ];
   return { manifest: { schema: 1, files }, texts: new Map(Object.entries(texts)) };
 }
 
@@ -60,7 +79,10 @@ test('every manifest file is rendered once, sorted by path, as a scaffold entry 
   const asTree: readonly FileEntry[] = SCAFFOLD;
   assert.equal(asTree.length, committed().manifest.files.length);
   const paths = SCAFFOLD.map((e) => e.path);
-  assert.deepEqual(paths, [...paths].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)));
+  assert.deepEqual(
+    paths,
+    [...paths].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
+  );
   assert.equal(new Set(paths).size, paths.length);
   for (const e of SCAFFOLD) {
     assert.equal(e.ownership, 'scaffold');
@@ -78,14 +100,21 @@ test('every manifest file is rendered once, sorted by path, as a scaffold entry 
 test('the files romlift renders itself: <name>.sha1, package.json, .gitmodules and the two headers', () => {
   assert.equal(textOf(SCAFFOLD, 'klonoa-eod.sha1'), 'a0a298d9dba1ba15d04a42fc2eb35893d1a9569b  klonoa-eod.gba\n');
   assert.match(sha1FileText(VARS), /^[0-9a-f]{40} {2}klonoa-eod\.gba\n$/, 'sha1sum format, the ROM make builds');
-  const pkg = JSON.parse(textOf(SCAFFOLD, 'package.json')) as { name: string; private: boolean; devDependencies: Record<string, string> };
+  const pkg = JSON.parse(textOf(SCAFFOLD, 'package.json')) as {
+    name: string;
+    private: boolean;
+    devDependencies: Record<string, string>;
+  };
   assert.equal(pkg.name, 'klonoa-eod');
   assert.equal(pkg.private, true);
   assert.deepEqual(pkg.devDependencies, { romlift: '0.4.0' }, 'the exact version, no range');
   assert.equal(textOf(SCAFFOLD, 'package.json'), packageJsonText(VARS));
   const gitmodules = textOf(SCAFFOLD, '.gitmodules');
   assert.equal(gitmodules, gitmodulesText(VARS));
-  assert.match(gitmodules, /^\[submodule "tools\/agbcc"\]\n\tpath = tools\/agbcc\n\turl = https:\/\/github\.com\/pret\/agbcc\n/m);
+  assert.match(
+    gitmodules,
+    /^\[submodule "tools\/agbcc"\]\n\tpath = tools\/agbcc\n\turl = https:\/\/github\.com\/pret\/agbcc\n/m,
+  );
   assert.equal(textOf(SCAFFOLD, DIALECT.macrosPath), DIALECT.macrosInc);
   assert.equal(textOf(SCAFFOLD, INCLUDE_ASM_HEADER_PATH), INCLUDE_ASM_HEADER);
 });
@@ -101,23 +130,49 @@ test('npmPackageName turns any build name into a name npm accepts', () => {
 
 test('a placeholder is replaced in one pass: a value that spells a placeholder stays as it is', () => {
   const vars = scaffoldVars({ ...VARS, title: '@@name@@', agbcc: PIN });
-  const out = renderScaffold(vars, templates([{ target: 'T.md', source: 't.md' }], { 't.md': '@@title@@ / @@name@@\n' }));
+  const out = renderScaffold(
+    vars,
+    templates([{ target: 'T.md', source: 't.md' }], { 't.md': '@@title@@ / @@name@@\n' }),
+  );
   assert.equal(textOf(out, 'T.md'), '@@name@@ / klonoa-eod\n');
 });
 
 test('an unknown placeholder, a lone @@ or a missing template text is a bug: RomliftInvariantError', () => {
-  const render = (text: string): unknown => renderScaffold(VARS, templates([{ target: 'T.md', source: 't.md' }], { 't.md': text }));
-  assert.throws(() => render('@@nmae@@\n'), (e: unknown) => e instanceof RomliftInvariantError && /templates\/t\.md: unknown placeholder @@nmae@@/.test(e.message));
+  const render = (text: string): unknown =>
+    renderScaffold(VARS, templates([{ target: 'T.md', source: 't.md' }], { 't.md': text }));
+  assert.throws(
+    () => render('@@nmae@@\n'),
+    (e: unknown) =>
+      e instanceof RomliftInvariantError && /templates\/t\.md: unknown placeholder @@nmae@@/.test(e.message),
+  );
   assert.throws(() => render('@@@@\n'), RomliftInvariantError, 'an empty placeholder');
-  assert.throws(() => render('mail@@example\n'), (e: unknown) => e instanceof RomliftInvariantError && /lone @@/.test(e.message));
-  assert.throws(() => renderScaffold(VARS, templates([{ target: 'T.md', source: 't.md' }], {})), (e: unknown) => e instanceof RomliftInvariantError && /no text for the template t\.md/.test(e.message));
-  const badTarget: ScaffoldTemplates = { manifest: { schema: 1, files: [...RENDERED, { target: '@@base@@.txt', source: 't.md', executable: false }] }, texts: new Map([['t.md', 'x\n']]) };
-  assert.throws(() => renderScaffold(VARS, badTarget), (e: unknown) => e instanceof RomliftInvariantError && /target @@base@@\.txt: unknown placeholder/.test(e.message));
-  const noRenderer: ScaffoldTemplates = { manifest: { schema: 1, files: [{ target: 'other.txt', source: null, executable: false }] }, texts: new Map() };
-  assert.throws(() => renderScaffold(VARS, noRenderer), (e: unknown) => e instanceof RomliftInvariantError && /no renderer for other\.txt/.test(e.message));
+  assert.throws(
+    () => render('mail@@example\n'),
+    (e: unknown) => e instanceof RomliftInvariantError && /lone @@/.test(e.message),
+  );
+  assert.throws(
+    () => renderScaffold(VARS, templates([{ target: 'T.md', source: 't.md' }], {})),
+    (e: unknown) => e instanceof RomliftInvariantError && /no text for the template t\.md/.test(e.message),
+  );
+  const badTarget: ScaffoldTemplates = {
+    manifest: { schema: 1, files: [...RENDERED, { target: '@@base@@.txt', source: 't.md', executable: false }] },
+    texts: new Map([['t.md', 'x\n']]),
+  };
+  assert.throws(
+    () => renderScaffold(VARS, badTarget),
+    (e: unknown) => e instanceof RomliftInvariantError && /target @@base@@\.txt: unknown placeholder/.test(e.message),
+  );
+  const noRenderer: ScaffoldTemplates = {
+    manifest: { schema: 1, files: [{ target: 'other.txt', source: null, executable: false }] },
+    texts: new Map(),
+  };
+  assert.throws(
+    () => renderScaffold(VARS, noRenderer),
+    (e: unknown) => e instanceof RomliftInvariantError && /no renderer for other\.txt/.test(e.message),
+  );
 });
 
-test('the Makefile assembles with the dialect\'s arguments, includes modules.mk and every mk/<id>.mk, and checks <name>.sha1', () => {
+test("the Makefile assembles with the dialect's arguments, includes modules.mk and every mk/<id>.mk, and checks <name>.sha1", () => {
   const makefile = textOf(SCAFFOLD, 'Makefile');
   assert.match(makefile, new RegExp(`^ASFLAGS  := ${DIALECT.asArgs.join(' ')} -I \\.$`, 'm'));
   assert.match(makefile, /^include modules\.mk$/m);
@@ -129,7 +184,8 @@ test('the Makefile assembles with the dialect\'s arguments, includes modules.mk 
   assert.match(makefile, /^\t\$\(LD\) -T ldscript\.txt -Map \$\(MAP\) -o \$@ \$\(OBJS\)$/m);
   assert.match(makefile, /^CPPFLAGS := -E -x c -nostdinc -undef -I include$/m, 'the host preprocessor of D74 f');
   assert.match(makefile, /^build\/src\/%\.o: src\/%\.c$/m);
-  for (const recipe of makefile.split('\n').filter((line) => line.startsWith('\t'))) assert.doesNotMatch(recipe, /^\t {2}/, 'recipes start with a tab');
+  for (const recipe of makefile.split('\n').filter((line) => line.startsWith('\t')))
+    assert.doesNotMatch(recipe, /^\t {2}/, 'recipes start with a tab');
 });
 
 test('each build compiler has its fragment at mk/<id>.mk, defining the recipe its CC1 file name selects', () => {
@@ -143,24 +199,39 @@ test('each build compiler has its fragment at mk/<id>.mk, defining the recipe it
   }
 });
 
-test('.gitignore ignores the ROMs, the build, romlift\'s state and every generated root (R4, the owner\'s answer to Q9)', () => {
+test(".gitignore ignores the ROMs, the build, romlift's state and every generated root (R4, the owner's answer to Q9)", () => {
   const lines = textOf(SCAFFOLD, '.gitignore')
     .split('\n')
     .filter((line) => line !== '' && !line.startsWith('#'));
-  for (const ignored of ['baserom.gba', 'klonoa-eod.gba', 'build/', `${ROMLIFT_DIR}/`, 'node_modules/', '*.o']) assert.ok(lines.includes(ignored), ignored);
-  for (const root of GENERATED_ROOTS) assert.ok(lines.includes(`/${root}`), `${root} must be ignored, anchored at the project root`);
-  assert.ok(!lines.some((line) => line.startsWith('/src') || line.startsWith('src') || line === 'romlift.toml'), 'the user\'s files are never ignored');
+  for (const ignored of ['baserom.gba', 'klonoa-eod.gba', 'build/', `${ROMLIFT_DIR}/`, 'node_modules/', '*.o'])
+    assert.ok(lines.includes(ignored), ignored);
+  for (const root of GENERATED_ROOTS)
+    assert.ok(lines.includes(`/${root}`), `${root} must be ignored, anchored at the project root`);
+  assert.ok(
+    !lines.some((line) => line.startsWith('/src') || line.startsWith('src') || line === 'romlift.toml'),
+    "the user's files are never ignored",
+  );
 });
 
-test('AGENTS.md cites the C-data ASSERT\'s message, and setup.sh runs its five duties in order', () => {
-  assert.match(textOf(SCAFFOLD, 'AGENTS.md'), /src\/<module>\.c defines data; see AGENTS\.md \(only read-only data is placed, in a data range: data_start\)/);
+test("AGENTS.md cites the C-data ASSERT's message, and setup.sh runs its five duties in order", () => {
+  assert.match(
+    textOf(SCAFFOLD, 'AGENTS.md'),
+    /src\/<module>\.c defines data; see AGENTS\.md \(only read-only data is placed, in a data range: data_start\)/,
+  );
   const setup = textOf(SCAFFOLD, 'setup.sh');
   assert.ok(setup.startsWith('#!/bin/sh\n'));
   assert.match(setup, /^set -eu$/m);
-  assert.match(setup, /^main\(\) \{\n {2}check_toolchain\n {2}setup_agbcc\n {2}copy_baserom\n {2}install_romlift\n {2}generate_tree\n/m);
+  assert.match(
+    setup,
+    /^main\(\) \{\n {2}check_toolchain\n {2}setup_agbcc\n {2}copy_baserom\n {2}install_romlift\n {2}generate_tree\n/m,
+  );
   assert.match(setup, /^AGBCC_COMMIT='da598c1d918402c42c0c0d7128ba14567f3175e9'$/m);
   assert.doesNotMatch(setup, /romlift\.toml[^\n]*>/, 'it never writes romlift.toml');
-  assert.match(textOf(SCAFFOLD, '.github/workflows/build.yml'), /\$\{\{ secrets\.BASEROM_URL \}\}/, 'GitHub expressions survive the @@ spelling');
+  assert.match(
+    textOf(SCAFFOLD, '.github/workflows/build.yml'),
+    /\$\{\{ secrets\.BASEROM_URL \}\}/,
+    'GitHub expressions survive the @@ spelling',
+  );
 });
 
 /** The function `name` of a shell script, from `name() {` to its `}` line. */
@@ -174,57 +245,89 @@ function shellFunction(script: string, name: string): string {
 
 const HAS_MAKE = spawnSync('make', ['--version'], { encoding: 'utf8' }).status === 0;
 
-test('make stops while romlift.toml is not the one modules.mk records; setup.sh\'s duty 5 then runs generate (fix round 6, correctness-b1-1)', { skip: HAS_MAKE ? false : 'no make on PATH' }, () => {
-  const makefile = textOf(SCAFFOLD, 'Makefile');
-  // The variable's spelling is the writer's (architecture-b2-3): the templates must read the name modulesMkText writes.
-  assert.match(makefile, new RegExp(`^ifneq \\(\\$\\(${CONFIG_SHA1_VARIABLE}\\),\\$\\(shell \\$\\(SHA1SUM\\) romlift\\.toml`, 'm'));
-  assert.ok(makefile.includes(`grep -v '^${CONFIG_SHA1_VARIABLE}' modules.mk`), 'OBJ_SUM leaves the stamp out');
-  assert.ok(textOf(SCAFFOLD, 'setup.sh').includes(`sed -n 's/^${CONFIG_SHA1_VARIABLE} := //p' modules.mk`), 'duty 5 reads the writer\'s `NAME := value` line');
-  const dir = mkdtempSync(join(tmpdir(), 'romlift-makefile-'));
-  try {
-    const toml = 'schema = 1\n';
-    const sha1 = createHash('sha1').update(toml).digest('hex');
-    for (const [file, text] of [['Makefile', makefile], ['romlift.toml', toml], ['ldscript.txt', ''], ['symbols.ld', '']] as const) writeFileSync(join(dir, file), text);
-    // The tree .incbins the ROM, so make stops with a message while it is missing (final-review end-to-end-user-6).
-    writeFileSync(join(dir, 'modules.mk'), modulesMkText({ modules: [], chunks: [] }, sha1));
-    const noRom = spawnSync('make', ['-n', 'rom'], { cwd: dir, encoding: 'utf8' });
-    assert.notEqual(noRom.status, 0);
-    assert.match(noRom.stderr, /baserom\.gba is missing: put your own copy of the ROM there/);
-    writeFileSync(join(dir, 'baserom.gba'), '');
-    // modules.mk as the writer spells it, with no unit, with and without the stamp.
-    const modulesMk = (recorded: string | undefined): void => writeFileSync(join(dir, 'modules.mk'), modulesMkText({ modules: [], chunks: [] }, recorded));
-    const make = (goal: string): { readonly status: number | null; readonly stderr: string } => spawnSync('make', ['-n', goal], { cwd: dir, encoding: 'utf8' });
-    for (const recorded of ['0'.repeat(40), undefined]) {
-      modulesMk(recorded);
-      const stale = make('rom');
-      assert.notEqual(stale.status, 0, String(recorded));
-      assert.match(stale.stderr, /romlift\.toml changed since romlift generate last ran \(a pull, a checkout or an edit\): run npx romlift generate \(or \.\/setup\.sh\), then make/);
-      assert.equal(make('clean').status, 0, 'make clean needs no current tree');
-    }
-    modulesMk(sha1);
-    assert.equal(make('rom').status, 0, make('rom').stderr);
-    // setup.sh's duty 5: nothing while modules.mk records the TOML's SHA-1; generate when it does not, or when asm/ is absent.
-    const setup = textOf(SCAFFOLD, 'setup.sh');
-    const script = ['set -eu', shellFunction(setup, 'have'), shellFunction(setup, 'say'), shellFunction(setup, 'sha1_of'), shellFunction(setup, 'generate_tree'), 'generate_tree'].join('\n');
-    writeFileSync(join(dir, 'fake-romlift'), '#!/bin/sh\necho "$@" >> generated.log\n', { mode: 0o755 });
-    const duty5 = (): string => {
-      rmSync(join(dir, 'generated.log'), { force: true });
-      const ran = spawnSync('sh', ['-c', script], { cwd: dir, encoding: 'utf8', env: { ...process.env, ROMLIFT_CLI: join(dir, 'fake-romlift') } });
-      assert.equal(ran.status, 0, ran.stderr);
-      try {
-        return readFileSync(join(dir, 'generated.log'), 'utf8');
-      } catch {
-        return '';
+test(
+  "make stops while romlift.toml is not the one modules.mk records; setup.sh's duty 5 then runs generate (fix round 6, correctness-b1-1)",
+  { skip: HAS_MAKE ? false : 'no make on PATH' },
+  () => {
+    const makefile = textOf(SCAFFOLD, 'Makefile');
+    // The variable's spelling is the writer's (architecture-b2-3): the templates must read the name modulesMkText writes.
+    assert.match(
+      makefile,
+      new RegExp(`^ifneq \\(\\$\\(${CONFIG_SHA1_VARIABLE}\\),\\$\\(shell \\$\\(SHA1SUM\\) romlift\\.toml`, 'm'),
+    );
+    assert.ok(makefile.includes(`grep -v '^${CONFIG_SHA1_VARIABLE}' modules.mk`), 'OBJ_SUM leaves the stamp out');
+    assert.ok(
+      textOf(SCAFFOLD, 'setup.sh').includes(`sed -n 's/^${CONFIG_SHA1_VARIABLE} := //p' modules.mk`),
+      "duty 5 reads the writer's `NAME := value` line",
+    );
+    const dir = mkdtempSync(join(tmpdir(), 'romlift-makefile-'));
+    try {
+      const toml = 'schema = 1\n';
+      const sha1 = createHash('sha1').update(toml).digest('hex');
+      for (const [file, text] of [
+        ['Makefile', makefile],
+        ['romlift.toml', toml],
+        ['ldscript.txt', ''],
+        ['symbols.ld', ''],
+      ] as const)
+        writeFileSync(join(dir, file), text);
+      // The tree .incbins the ROM, so make stops with a message while it is missing (final-review end-to-end-user-6).
+      writeFileSync(join(dir, 'modules.mk'), modulesMkText({ modules: [], chunks: [] }, sha1));
+      const noRom = spawnSync('make', ['-n', 'rom'], { cwd: dir, encoding: 'utf8' });
+      assert.notEqual(noRom.status, 0);
+      assert.match(noRom.stderr, /baserom\.gba is missing: put your own copy of the ROM there/);
+      writeFileSync(join(dir, 'baserom.gba'), '');
+      // modules.mk as the writer spells it, with no unit, with and without the stamp.
+      const modulesMk = (recorded: string | undefined): void =>
+        writeFileSync(join(dir, 'modules.mk'), modulesMkText({ modules: [], chunks: [] }, recorded));
+      const make = (goal: string): { readonly status: number | null; readonly stderr: string } =>
+        spawnSync('make', ['-n', goal], { cwd: dir, encoding: 'utf8' });
+      for (const recorded of ['0'.repeat(40), undefined]) {
+        modulesMk(recorded);
+        const stale = make('rom');
+        assert.notEqual(stale.status, 0, String(recorded));
+        assert.match(
+          stale.stderr,
+          /romlift\.toml changed since romlift generate last ran \(a pull, a checkout or an edit\): run npx romlift generate \(or \.\/setup\.sh\), then make/,
+        );
+        assert.equal(make('clean').status, 0, 'make clean needs no current tree');
       }
-    };
-    assert.equal(duty5(), 'generate\n', 'asm/ absent');
-    spawnSync('mkdir', ['asm'], { cwd: dir });
-    assert.equal(duty5(), '', 'asm/ present and modules.mk current');
-    modulesMk('0'.repeat(40));
-    assert.equal(duty5(), 'generate\n', 'romlift.toml changed since');
-    modulesMk(undefined);
-    assert.equal(duty5(), 'generate\n', 'a modules.mk that records no SHA-1');
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
+      modulesMk(sha1);
+      assert.equal(make('rom').status, 0, make('rom').stderr);
+      // setup.sh's duty 5: nothing while modules.mk records the TOML's SHA-1; generate when it does not, or when asm/ is absent.
+      const setup = textOf(SCAFFOLD, 'setup.sh');
+      const script = [
+        'set -eu',
+        shellFunction(setup, 'have'),
+        shellFunction(setup, 'say'),
+        shellFunction(setup, 'sha1_of'),
+        shellFunction(setup, 'generate_tree'),
+        'generate_tree',
+      ].join('\n');
+      writeFileSync(join(dir, 'fake-romlift'), '#!/bin/sh\necho "$@" >> generated.log\n', { mode: 0o755 });
+      const duty5 = (): string => {
+        rmSync(join(dir, 'generated.log'), { force: true });
+        const ran = spawnSync('sh', ['-c', script], {
+          cwd: dir,
+          encoding: 'utf8',
+          env: { ...process.env, ROMLIFT_CLI: join(dir, 'fake-romlift') },
+        });
+        assert.equal(ran.status, 0, ran.stderr);
+        try {
+          return readFileSync(join(dir, 'generated.log'), 'utf8');
+        } catch {
+          return '';
+        }
+      };
+      assert.equal(duty5(), 'generate\n', 'asm/ absent');
+      spawnSync('mkdir', ['asm'], { cwd: dir });
+      assert.equal(duty5(), '', 'asm/ present and modules.mk current');
+      modulesMk('0'.repeat(40));
+      assert.equal(duty5(), 'generate\n', 'romlift.toml changed since');
+      modulesMk(undefined);
+      assert.equal(duty5(), 'generate\n', 'a modules.mk that records no SHA-1');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);

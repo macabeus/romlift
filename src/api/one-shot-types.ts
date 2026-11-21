@@ -7,7 +7,15 @@ export type {
   InitPlan,
   ProjectInputs,
 } from '../core/workflow/types.ts';
-export type { AgbccPin, Decoded, ScaffoldManifest, ScaffoldPlaceholder, ScaffoldTemplate, ScaffoldTemplates, ScaffoldVars } from '../core/scaffold/vars.ts';
+export type {
+  AgbccPin,
+  Decoded,
+  ScaffoldManifest,
+  ScaffoldPlaceholder,
+  ScaffoldTemplate,
+  ScaffoldTemplates,
+  ScaffoldVars,
+} from '../core/scaffold/vars.ts';
 export {
   decodeAgbccPin,
   decodeScaffoldManifest,

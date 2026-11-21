@@ -38,10 +38,13 @@ export function flowOf(kind: FlowKind, mode: Mode, ops: Fields, addr: Addr): Flo
     }
     case 'pop-pc': {
       const rn = ops['rn'];
-      return rn === undefined || rn === 13 ? { kind: 'return', via: 'pop-pc' } : { kind: 'indirect', reg: rn, via: 'load-pc' };
+      return rn === undefined || rn === 13
+        ? { kind: 'return', via: 'pop-pc' }
+        : { kind: 'indirect', reg: rn, via: 'load-pc' };
     }
     case 'mov-pc': {
-      const plain = ops['rn'] === undefined && ops['rs'] === undefined && op(ops, 'shift') === 0 && op(ops, 'amount') === 0;
+      const plain =
+        ops['rn'] === undefined && ops['rs'] === undefined && op(ops, 'shift') === 0 && op(ops, 'amount') === 0;
       if (plain && ops['rm'] === 14) return { kind: 'return', via: 'mov-pc-lr' };
       return { kind: 'indirect', reg: indirectReg(ops), via: 'mov-pc' };
     }

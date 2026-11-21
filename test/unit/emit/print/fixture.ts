@@ -4,6 +4,9 @@
 // a cross-module short branch printed raw, a module-scoped name repeated in two modules, and an inner label.
 // `layoutUnit` lays a unit file and its includes out with foundation/asm, the assembler model the corpus
 // proves against GNU as, so a test can require the text to reproduce the ROM bytes.
+import type { FileEntry } from '../../../../src/core/emit/tree.ts';
+import { resolverFor, symbolValueOf } from '../../../../src/core/model/resolver.ts';
+import type { Label, Model } from '../../../../src/core/model/types.ts';
 import { DIALECT } from '../../../../src/foundation/asm/dialect.ts';
 import { layoutStatements } from '../../../../src/foundation/asm/layout.ts';
 import type { Layout } from '../../../../src/foundation/asm/layout.ts';
@@ -11,13 +14,10 @@ import { parseStatements } from '../../../../src/foundation/asm/statements.ts';
 import type { Statement } from '../../../../src/foundation/asm/statements.ts';
 import type { Rom } from '../../../../src/foundation/rom/rom.ts';
 import type { Addr } from '../../../../src/foundation/rom/span.ts';
-import { resolverFor, symbolValueOf } from '../../../../src/core/model/resolver.ts';
-import type { Label, Model } from '../../../../src/core/model/types.ts';
-import type { FileEntry } from '../../../../src/core/emit/tree.ts';
 import { armAt } from '../../../helpers/arm.ts';
-import { thumbAt } from '../../../helpers/thumb.ts';
 import { codeItems, dataItem, label, modelOf, poolItem, romWith, words } from '../../../helpers/model.ts';
 import type { ItemInput } from '../../../helpers/model.ts';
+import { thumbAt } from '../../../helpers/thumb.ts';
 
 export const MAIN = 0x0800_0100;
 export const HELPER = 0x0800_0126;
@@ -86,7 +86,9 @@ export function sampleLabels(): readonly Label[] {
     label('unk_080000D0', 0x0800_00d0, { kind: 'data', thumb: false }),
     label('Main', MAIN, g),
     label('_08000110', 0x0800_0110, { kind: 'local' }),
-    ...[0x114, 0x118, 0x11c, 0x120].map((o) => label(`_08000${o.toString(16).toUpperCase()}`, 0x0800_0000 + o, { kind: 'pool', thumb: false })),
+    ...[0x114, 0x118, 0x11c, 0x120].map((o) =>
+      label(`_08000${o.toString(16).toUpperCase()}`, 0x0800_0000 + o, { kind: 'pool', thumb: false }),
+    ),
     label('Helper', HELPER),
     label('Switch', SWITCH),
     label('_08000138', 0x0800_0138, { kind: 'pool', thumb: false }),
@@ -117,7 +119,12 @@ export function sampleModel(rom: Rom = sampleRom()): Model {
       {
         name: 'crt0',
         chunks: [
-          { kind: 'startup', name: 'Start', mode: 'arm', items: [...codeItems(rom, 0x0800_00c0, 0x0800_00cc, 'arm'), poolItem(rom, 0x0800_00cc)] },
+          {
+            kind: 'startup',
+            name: 'Start',
+            mode: 'arm',
+            items: [...codeItems(rom, 0x0800_00c0, 0x0800_00cc, 'arm'), poolItem(rom, 0x0800_00cc)],
+          },
           { kind: 'orphan', name: 'unk_080000D0', mode: null, items: [dataItem(0x0800_00d0, 0x30)] },
         ],
       },
@@ -126,9 +133,19 @@ export function sampleModel(rom: Rom = sampleRom()): Model {
         chunks: [
           {
             name: 'Main',
-            items: [...codeItems(rom, MAIN, 0x0800_0114, 'thumb'), ...[0x114, 0x118, 0x11c, 0x120].map((o) => poolItem(rom, 0x0800_0000 + o)), dataItem(0x0800_0124, 2, 'dead')],
+            items: [
+              ...codeItems(rom, MAIN, 0x0800_0114, 'thumb'),
+              ...[0x114, 0x118, 0x11c, 0x120].map((o) => poolItem(rom, 0x0800_0000 + o)),
+              dataItem(0x0800_0124, 2, 'dead'),
+            ],
           },
-          { name: 'Helper', items: [...codeItems(rom, HELPER, 0x0800_012a, 'thumb'), { kind: 'padding', start: 0x0800_012a, length: 2 }] },
+          {
+            name: 'Helper',
+            items: [
+              ...codeItems(rom, HELPER, 0x0800_012a, 'thumb'),
+              { kind: 'padding', start: 0x0800_012a, length: 2 },
+            ],
+          },
           {
             name: 'Switch',
             items: [
@@ -140,15 +157,28 @@ export function sampleModel(rom: Rom = sampleRom()): Model {
               ...codeItems(rom, 0x0800_0144, 0x0800_0148, 'thumb'),
             ],
           },
-          { name: 'ThumbToArm', items: [...codeItems(rom, TO_ARM, TO_ARM + 4, 'thumb'), ...codeItems(rom, TO_ARM + 4, TO_ARM + 12, 'arm')] },
+          {
+            name: 'ThumbToArm',
+            items: [...codeItems(rom, TO_ARM, TO_ARM + 4, 'thumb'), ...codeItems(rom, TO_ARM + 4, TO_ARM + 12, 'arm')],
+          },
           {
             name: 'ThumbToArmPadded',
-            items: [...codeItems(rom, TO_ARM_PAD, TO_ARM_PAD + 2, 'thumb'), { kind: 'padding', start: TO_ARM_PAD + 2, length: 2 }, ...codeItems(rom, TO_ARM_PAD + 4, TO_ARM_PAD + 8, 'arm')],
+            items: [
+              ...codeItems(rom, TO_ARM_PAD, TO_ARM_PAD + 2, 'thumb'),
+              { kind: 'padding', start: TO_ARM_PAD + 2, length: 2 },
+              ...codeItems(rom, TO_ARM_PAD + 4, TO_ARM_PAD + 8, 'arm'),
+            ],
           },
           {
             name: 'Tail',
             items: [
-              ...replace(codeItems(rom, TAIL, TAIL + 2, 'thumb'), TAIL, { kind: 'raw-insn', start: TAIL, length: 2, specId: 'thumb.b', reason: 'cross-module-short-branch' }),
+              ...replace(codeItems(rom, TAIL, TAIL + 2, 'thumb'), TAIL, {
+                kind: 'raw-insn',
+                start: TAIL,
+                length: 2,
+                specId: 'thumb.b',
+                reason: 'cross-module-short-branch',
+              }),
               { kind: 'padding', start: TAIL + 2, length: 2 },
             ],
           },
@@ -158,8 +188,20 @@ export function sampleModel(rom: Rom = sampleRom()): Model {
       {
         name: 'other',
         chunks: [
-          { name: 'ArmFunc', mode: 'arm', items: [...codeItems(rom, ARM_FUNC, ARM_FUNC + 8, 'arm'), poolItem(rom, ARM_FUNC + 8), dataItem(ARM_FUNC + 12, 4, 'mixer-hole')] },
-          { name: 'Helper', items: codeItems(rom, HELPER_2, HELPER_2 + 4, 'thumb'), innerLabels: [label('HelperTail', HELPER_2 + 2, g)] },
+          {
+            name: 'ArmFunc',
+            mode: 'arm',
+            items: [
+              ...codeItems(rom, ARM_FUNC, ARM_FUNC + 8, 'arm'),
+              poolItem(rom, ARM_FUNC + 8),
+              dataItem(ARM_FUNC + 12, 4, 'mixer-hole'),
+            ],
+          },
+          {
+            name: 'Helper',
+            items: codeItems(rom, HELPER_2, HELPER_2 + 4, 'thumb'),
+            innerLabels: [label('HelperTail', HELPER_2 + 2, g)],
+          },
         ],
       },
     ],
@@ -180,7 +222,12 @@ function statementsOf(text: string, errors: string[], where: string): readonly S
 }
 
 /** A unit file of `entries` laid out at its module's start, with every include resolved from `entries`. */
-export function layoutUnit(model: Model, entries: readonly FileEntry[], path: string, moduleName: string): { readonly layout: Layout; readonly errors: readonly string[] } {
+export function layoutUnit(
+  model: Model,
+  entries: readonly FileEntry[],
+  path: string,
+  moduleName: string,
+): { readonly layout: Layout; readonly errors: readonly string[] } {
   const texts = new Map(entries.flatMap((e) => (e.ownership === 'generated' ? [[e.path, e.text] as const] : [])));
   const module = model.modules.find((m) => m.name === moduleName);
   const unit = texts.get(path);

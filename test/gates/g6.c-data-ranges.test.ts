@@ -14,9 +14,10 @@
 //   the build leaves one linked *.elf in the project root or in build/; setup.sh honours $ROMLIFT_CLI and
 //   <name>.sha1 is in sha1sum format (as in g4.e2e-fixtures)
 import { createHash } from 'node:crypto';
-import { copyFile, cp, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { copyFile, cp, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { gate, type ExecResult, type GateContext } from './gate.ts';
+
+import { type ExecResult, type GateContext, gate } from './gate.ts';
 
 interface Ranges {
   readonly module: string;
@@ -54,7 +55,14 @@ async function sourceCli(cx: GateContext): Promise<string> {
   return shim;
 }
 
-async function step(cx: GateContext, what: string, command: string, args: readonly string[], cwd: string, env: Readonly<Record<string, string>>): Promise<ExecResult> {
+async function step(
+  cx: GateContext,
+  what: string,
+  command: string,
+  args: readonly string[],
+  cwd: string,
+  env: Readonly<Record<string, string>>,
+): Promise<ExecResult> {
   const run = await cx.exec(command, args, { cwd, env });
   if (run.code !== 0) throw new Error(`${what} exited ${run.code}:\n${tail(run)}`);
   return run;
@@ -75,21 +83,34 @@ function addToModule(text: string, module: string, extra: readonly string[]): st
 }
 
 /** `name -> {value, size, type}` from `nm -S --defined-only`. */
-async function symbols(cx: GateContext, file: string, cwd: string): Promise<ReadonlyMap<string, { readonly value: number; readonly size: number; readonly type: string }>> {
+async function symbols(
+  cx: GateContext,
+  file: string,
+  cwd: string,
+): Promise<ReadonlyMap<string, { readonly value: number; readonly size: number; readonly type: string }>> {
   const nm = await step(cx, `nm ${file}`, 'arm-none-eabi-nm', ['-S', '--defined-only', file], cwd, {});
   const out = new Map<string, { value: number; size: number; type: string }>();
   for (const line of nm.stdout.split('\n')) {
     const parts = line.trim().split(/\s+/);
-    if (parts.length === 4 && parts[3] !== undefined) out.set(parts[3], { value: Number.parseInt(parts[0] ?? '', 16), size: Number.parseInt(parts[1] ?? '', 16), type: parts[2] ?? '' });
-    else if (parts.length === 3 && parts[2] !== undefined) out.set(parts[2], { value: Number.parseInt(parts[0] ?? '', 16), size: 0, type: parts[1] ?? '' });
+    if (parts.length === 4 && parts[3] !== undefined)
+      out.set(parts[3], {
+        value: Number.parseInt(parts[0] ?? '', 16),
+        size: Number.parseInt(parts[1] ?? '', 16),
+        type: parts[2] ?? '',
+      });
+    else if (parts.length === 3 && parts[2] !== undefined)
+      out.set(parts[2], { value: Number.parseInt(parts[0] ?? '', 16), size: 0, type: parts[1] ?? '' });
   }
   return out;
 }
 
 async function linkedElf(dir: string): Promise<string> {
   const found: string[] = [];
-  for (const sub of ['', 'build']) for (const n of await readdir(path.join(dir, sub)).catch(() => [] as string[])) if (n.endsWith('.elf')) found.push(path.join(sub, n));
-  if (found.length !== 1 || found[0] === undefined) throw new Error(`the build left ${found.length} .elf files in the project root and build/, expected one`);
+  for (const sub of ['', 'build'])
+    for (const n of await readdir(path.join(dir, sub)).catch(() => [] as string[]))
+      if (n.endsWith('.elf')) found.push(path.join(sub, n));
+  if (found.length !== 1 || found[0] === undefined)
+    throw new Error(`the build left ${found.length} .elf files in the project root and build/, expected one`);
   return found[0];
 }
 
@@ -110,7 +131,10 @@ gate({
     await copyFile(fixture.rom, path.join(dir, 'baserom.gba'));
     await step(cx, 'init', cli, ['init', 'baserom.gba', '--json'], dir, env);
     const tomlPath = path.join(dir, 'romlift.toml');
-    await writeFile(tomlPath, addToModule(await readFile(tomlPath, 'utf8'), ranges.module, [`data_start = ${ranges.dataStart}`]));
+    await writeFile(
+      tomlPath,
+      addToModule(await readFile(tomlPath, 'utf8'), ranges.module, [`data_start = ${ranges.dataStart}`]),
+    );
     await cp(path.join(fixture.dir, 'overlay'), dir, { recursive: true });
     await step(cx, 'generate', cli, ['generate', '--json'], dir, env);
     await step(cx, './setup.sh', './setup.sh', [], dir, env);
@@ -118,17 +142,27 @@ gate({
 
     const expected = sha1(await readFile(fixture.rom));
     const sha1Name = (await readdir(dir)).find((n) => n.endsWith('.sha1'));
-    const match = sha1Name === undefined ? null : /^([0-9a-f]{40})\s+\*?(\S+)\s*$/m.exec(await readFile(path.join(dir, sha1Name), 'utf8'));
+    const match =
+      sha1Name === undefined
+        ? null
+        : /^([0-9a-f]{40})\s+\*?(\S+)\s*$/m.exec(await readFile(path.join(dir, sha1Name), 'utf8'));
     const built = match?.[2] === undefined ? undefined : path.join(dir, match[2]);
     const actual = built !== undefined && (await exists(built)) ? sha1(await readFile(built)) : 'nothing';
     if (actual !== expected) throw new Error(`with a data range, make built ${actual}, expected ${expected}`);
 
     const object = path.join('build', 'src', `${ranges.module}.o`);
     const defined = (await symbols(cx, object, dir)).get(ranges.symbol);
-    if (defined === undefined || !DATA_TYPES.has(defined.type)) throw new Error(`${object} does not define ${ranges.symbol} as data (${defined?.type ?? 'absent'})`);
-    if (defined.size !== ranges.size) throw new Error(`${object} defines ${ranges.symbol} with ${defined.size} bytes, expected ${ranges.size}`);
+    if (defined === undefined || !DATA_TYPES.has(defined.type))
+      throw new Error(`${object} does not define ${ranges.symbol} as data (${defined?.type ?? 'absent'})`);
+    if (defined.size !== ranges.size)
+      throw new Error(`${object} defines ${ranges.symbol} with ${defined.size} bytes, expected ${ranges.size}`);
     const linked = (await symbols(cx, await linkedElf(dir), dir)).get(ranges.symbol);
-    if (linked?.value !== Number.parseInt(ranges.addr, 16)) throw new Error(`the linked ${ranges.symbol} is at ${linked === undefined ? 'nowhere' : `0x${linked.value.toString(16)}`}, expected ${ranges.addr}`);
-    cx.note(`${ranges.symbol} (${ranges.size} bytes) from src/${ranges.module}.c replaces its ROM slice at ${ranges.addr}; the build reaches ${expected}`);
+    if (linked?.value !== Number.parseInt(ranges.addr, 16))
+      throw new Error(
+        `the linked ${ranges.symbol} is at ${linked === undefined ? 'nowhere' : `0x${linked.value.toString(16)}`}, expected ${ranges.addr}`,
+      );
+    cx.note(
+      `${ranges.symbol} (${ranges.size} bytes) from src/${ranges.module}.c replaces its ROM slice at ${ranges.addr}; the build reaches ${expected}`,
+    );
   },
 });

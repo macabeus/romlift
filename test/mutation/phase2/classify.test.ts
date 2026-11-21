@@ -8,14 +8,27 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-
-import { parseElf, profileById, romFromBytes, type AnalysisResult, type CompilerProfile, type Rom, type RuleId } from 'romlift';
-import { analyzeTuned, DEFAULT_TUNING } from 'romlift/internal';
+import {
+  type AnalysisResult,
+  type CompilerProfile,
+  type Rom,
+  type RuleId,
+  parseElf,
+  profileById,
+  romFromBytes,
+} from 'romlift';
+import { DEFAULT_TUNING, analyzeTuned } from 'romlift/internal';
 
 import { discoverOptions, sealedInput } from '../../../bench/src/analysis-run.ts';
-import { classifier, classifyMiss, labelClause, type ClassifyInput, type FoundFunction } from '../../../bench/src/classify.ts';
+import {
+  type ClassifyInput,
+  type FoundFunction,
+  classifier,
+  classifyMiss,
+  labelClause,
+} from '../../../bench/src/classify.ts';
 import { sealedCounts, sealedPasses } from '../../../bench/src/seal.ts';
-import { elfTruth, type Truth } from '../../../bench/src/truth.ts';
+import { type Truth, elfTruth } from '../../../bench/src/truth.ts';
 import { listSyntheticFixtures } from '../../helpers/fixtures.ts';
 
 const FIXTURE = 'unreferenced-leaf';
@@ -58,7 +71,11 @@ test('unmutated, the fixture finds Leaf, so the classifier has no miss to judge'
 test('with the splitting rule disabled, the missed Leaf classifies as glued and fails the sealed ROM', () => {
   const inputs = fixtureInputs();
   const result = run(inputs, [SPLITTING_RULE]);
-  assert.equal(result.functions.some((f) => f.entry === LEAF), false, `${SPLITTING_RULE} disabled must lose Leaf`);
+  assert.equal(
+    result.functions.some((f) => f.entry === LEAF),
+    false,
+    `${SPLITTING_RULE} disabled must lose Leaf`,
+  );
   const input = sealedInput(FIXTURE, inputs, result, inputs.profile);
   const cx = classifier(input);
   assert.equal(labelClause(cx, LEAF), undefined);
@@ -77,7 +94,17 @@ const F = 0x0800_0200;
 const M = 0x0800_0240;
 
 function parent(overrides: Partial<FoundFunction> = {}): FoundFunction {
-  return { entry: F, mode: 'thumb', extent: { start: F, end: 0x0800_0300 }, holes: [], branchTargets: [], noReturnSites: [], callTargets: [], origin: 'call', ...overrides };
+  return {
+    entry: F,
+    mode: 'thumb',
+    extent: { start: F, end: 0x0800_0300 },
+    holes: [],
+    branchTargets: [],
+    noReturnSites: [],
+    callTargets: [],
+    origin: 'call',
+    ...overrides,
+  };
 }
 
 function handBuilt(f: FoundFunction): ClassifyInput {

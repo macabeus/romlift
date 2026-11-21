@@ -29,7 +29,10 @@ test('pushAll appends in order, also more elements than a call can take as argum
 test('lowerBound is the first index whose key is not below the key', () => {
   const keys = [1, 3, 3, 5, 9];
   const id = (n: number): number => n;
-  assert.deepEqual([0, 1, 2, 3, 4, 5, 9, 10].map((k) => lowerBound(keys, k, id)), [0, 0, 1, 1, 3, 3, 4, 5]);
+  assert.deepEqual(
+    [0, 1, 2, 3, 4, 5, 9, 10].map((k) => lowerBound(keys, k, id)),
+    [0, 0, 1, 1, 3, 3, 4, 5],
+  );
   assert.equal(lowerBound([], 4, id), 0);
   const next = prng(7);
   for (let round = 0; round < 200; round++) {
@@ -46,8 +49,14 @@ test('spanIndexAt finds the containing span, -1 in a gap or outside', () => {
     { start: 4, end: 6 },
     { start: 10, end: 12 },
   ];
-  const same = (s: { readonly start: number; readonly end: number }): { readonly start: number; readonly end: number } => s;
-  assert.deepEqual([-1, 0, 3, 4, 5, 6, 9, 10, 11, 12].map((a) => spanIndexAt(spans, a, same)), [-1, 0, 0, 1, 1, -1, -1, 2, 2, -1]);
+  const same = (s: {
+    readonly start: number;
+    readonly end: number;
+  }): { readonly start: number; readonly end: number } => s;
+  assert.deepEqual(
+    [-1, 0, 3, 4, 5, 6, 9, 10, 11, 12].map((a) => spanIndexAt(spans, a, same)),
+    [-1, 0, 0, 1, 1, -1, -1, 2, 2, -1],
+  );
   assert.equal(spanIndexAt([], 0, same), -1);
   const next = prng(11);
   for (let round = 0; round < 200; round++) {
@@ -60,6 +69,9 @@ test('spanIndexAt finds the containing span, -1 in a gap or outside', () => {
       at = end;
     }
     const a = Math.floor(next() * (at + 4)) - 2;
-    assert.equal(spanIndexAt(list, a, same), list.findIndex((s) => a >= s.start && a < s.end));
+    assert.equal(
+      spanIndexAt(list, a, same),
+      list.findIndex((s) => a >= s.start && a < s.end),
+    );
   }
 });

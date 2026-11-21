@@ -3,8 +3,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { createDriver } from '../../../../src/core/analysis/driver/state.ts';
 import { settle } from '../../../../src/core/analysis/driver/settle.ts';
+import { createDriver } from '../../../../src/core/analysis/driver/state.ts';
 import type { BlVerdict, RegisteredRule } from '../../../../src/core/analysis/types.ts';
 import { fakeRule, registry, romWith, testProfile, tuningFor } from '../../../helpers/analysis.ts';
 import { thumbAt } from '../../../helpers/thumb.ts';
@@ -15,9 +15,19 @@ const G = 0x0800_0240;
 
 function driver(bl: readonly RegisteredRule[], code: readonly { at: number; bytes: Uint8Array }[]) {
   const rom = romWith(code);
-  const profile = testProfile({ bl: bl.map((r) => r.meta.id), claim: ['claim.adjacent-pools'], walk: walk.map((w) => w.meta.id) });
+  const profile = testProfile({
+    bl: bl.map((r) => r.meta.id),
+    claim: ['claim.adjacent-pools'],
+    walk: walk.map((w) => w.meta.id),
+  });
   const reg = registry(...bl, extent, ...walk);
-  return createDriver(rom, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' }, tuningFor(profile, reg), reg);
+  return createDriver(
+    rom,
+    profile,
+    { mode: 'discover', seeds: [], overrides: [], trail: 'off' },
+    tuningFor(profile, reg),
+    reg,
+  );
 }
 
 const mutual = [
@@ -53,10 +63,13 @@ test('a far verdict re-walks the site as a jump: the target joins the reading an
   assert.deepEqual(f.far, [F + 2, G + 2], 'G is walked as part of F, and its bl back is far too');
   assert.deepEqual(f.calls, []);
   assert.equal(f.insnAt.has(G), true);
-  assert.deepEqual(f.blVerdicts.map((v) => [v.site, v.verdict]), [
-    [F + 2, 'far'],
-    [G + 2, 'far'],
-  ]);
+  assert.deepEqual(
+    f.blVerdicts.map((v) => [v.site, v.verdict]),
+    [
+      [F + 2, 'far'],
+      [G + 2, 'far'],
+    ],
+  );
 });
 
 test('the first verdict rule that answers wins, and a call stays a call', () => {
@@ -64,18 +77,34 @@ test('the first verdict rule that answers wins, and a call stays a call', () => 
   const near = fakeRule('bl.near-is-call', { kind: 'bl', decide: () => 'call' });
   const later = fakeRule('bl.target-inside-caller', { kind: 'bl', decide: () => ((asked += 1), 'far') });
   const s = driver([near, later], mutual);
-  assert.deepEqual(settle(s, F).blVerdicts.map((v) => v.rule), ['bl.near-is-call']);
+  assert.deepEqual(
+    settle(s, F).blVerdicts.map((v) => v.rule),
+    ['bl.near-is-call'],
+  );
   assert.equal(asked, 0);
 });
 
 test('a call before non-code is refined to never returning, and the next round stops after it', () => {
   const near = fakeRule('bl.near-is-call', { kind: 'bl', decide: () => 'call' });
-  const dead = fakeRule('bl.noreturn-before-noncode', { kind: 'bl', refines: true, decide: (site, caller) => (caller.deadEnd.includes(site.site) ? 'noreturn' : undefined) });
-  const s = driver([near, dead], [{ at: F, bytes: Uint8Array.from([...thumbAt(F)`push {lr}; bl _08000240`, 0x00, 0xb1]) }, { at: G, bytes: thumbAt(G)`bx lr` }]);
+  const dead = fakeRule('bl.noreturn-before-noncode', {
+    kind: 'bl',
+    refines: true,
+    decide: (site, caller) => (caller.deadEnd.includes(site.site) ? 'noreturn' : undefined),
+  });
+  const s = driver(
+    [near, dead],
+    [
+      { at: F, bytes: Uint8Array.from([...thumbAt(F)`push {lr}; bl _08000240`, 0x00, 0xb1]) },
+      { at: G, bytes: thumbAt(G)`bx lr` },
+    ],
+  );
   const f = settle(s, F);
   assert.deepEqual(f.noret, [F + 2]);
   assert.deepEqual(f.deadEnd, [], 'the second walk ends at the bl');
   assert.deepEqual(f.errors, []);
   assert.deepEqual(f.blVerdicts, [{ site: F + 2, target: G, verdict: 'noreturn', rule: 'bl.noreturn-before-noncode' }]);
-  assert.deepEqual(f.exits.map((e) => [e.kind, e.rule]), [['noreturn-call', 'bl.noreturn-before-noncode']]);
+  assert.deepEqual(
+    f.exits.map((e) => [e.kind, e.rule]),
+    [['noreturn-call', 'bl.noreturn-before-noncode']],
+  );
 });

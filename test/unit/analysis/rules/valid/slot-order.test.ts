@@ -19,7 +19,10 @@ const WHY_INVALID = [
 ] as const;
 
 test('the agbcc validity slot is whyInvalid() in its order', () => {
-  assert.deepEqual(AGBCC.pipeline.validity, WHY_INVALID.map(([id]) => id));
+  assert.deepEqual(
+    AGBCC.pipeline.validity,
+    WHY_INVALID.map(([id]) => id),
+  );
 });
 
 test('every validity rule is registered with its contract reason and intrinsic flag', () => {

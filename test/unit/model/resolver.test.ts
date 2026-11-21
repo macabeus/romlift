@@ -6,10 +6,25 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { moduleIndexAt, relocatedModules } from '../../../src/core/model/modules.ts';
 import { wordScope, wordText } from '../../../src/core/emit/print/pool.ts';
-import { addendTo, adrResolverFor, compareLabels, entryLabelOf, isExactLabel, isNamedEntry, loadWordOperand, moduleAt, resolverFor, linkedWordOf, sizedEntries, sizedEntryAt, wordNameOf, wordValueOf } from '../../../src/core/model/resolver.ts';
+import { moduleIndexAt, relocatedModules } from '../../../src/core/model/modules.ts';
 import { loadSymbolOf } from '../../../src/core/model/modules.ts';
+import {
+  addendTo,
+  adrResolverFor,
+  compareLabels,
+  entryLabelOf,
+  isExactLabel,
+  isNamedEntry,
+  linkedWordOf,
+  loadWordOperand,
+  moduleAt,
+  resolverFor,
+  sizedEntries,
+  sizedEntryAt,
+  wordNameOf,
+  wordValueOf,
+} from '../../../src/core/model/resolver.ts';
 import type { Label } from '../../../src/core/model/types.ts';
 import { dataItem, label, modelOf, romWith } from '../../helpers/model.ts';
 
@@ -21,7 +36,10 @@ function model(labels: readonly Label[]) {
   const rom = romWith([], { size: 0x4000 });
   return modelOf(rom, {
     modules: [
-      { name: 'rom_header', chunks: [{ kind: 'header', name: 'rom_header', items: [dataItem(0x0800_0000, A - 0x0800_0000)] }] },
+      {
+        name: 'rom_header',
+        chunks: [{ kind: 'header', name: 'rom_header', items: [dataItem(0x0800_0000, A - 0x0800_0000)] }],
+      },
       { name: 'alpha', chunks: [{ name: 'Alpha', items: [dataItem(A, 0x1000)] }] },
       { name: 'beta', chunks: [{ name: 'Beta', items: [dataItem(B, 0x1000)] }] },
       { name: 'ram', runAt: RAM, chunks: [{ name: 'RamCode', runAt: RAM, items: [dataItem(0x0800_3000, 0x1000)] }] },
@@ -53,7 +71,13 @@ test('a global label is visible everywhere; the own module wins a name clash', (
 
 test('several labels at one address: func, table, pool, local, data, then name', () => {
   const at = A + 0x80;
-  const labels = [label('z_data', at, { kind: 'data' }), label('_local', at, { kind: 'local' }), label('pool', at, { kind: 'pool' }), label('b_func', at), label('a_func', at)];
+  const labels = [
+    label('z_data', at, { kind: 'data' }),
+    label('_local', at, { kind: 'local' }),
+    label('pool', at, { kind: 'pool' }),
+    label('b_func', at),
+    label('a_func', at),
+  ];
   assert.equal(resolverFor(model(labels), 'alpha').labelFor(at, at), 'a_func');
   assert.equal(resolverFor(model(labels.slice(0, 3)), 'alpha').labelFor(at, at), 'pool');
   assert.equal(resolverFor(model([labels[0] as Label, labels[1] as Label]), 'alpha').labelFor(at, at), '_local');
@@ -81,13 +105,22 @@ test('a runs_at module owns its run range; its labels hold run addresses', () =>
 test('wordValueOf: a Thumb function links to its address plus one, everything else to its address', () => {
   assert.equal(wordValueOf(label('ThumbFunc', A)), A + 1);
   assert.equal(wordValueOf(label('ArmFunc', A, { thumb: false })), A);
-  assert.equal(wordValueOf(label('_08001000', A, { kind: 'local' })), A, 'a Thumb local label (a branch target) is not a function symbol');
+  assert.equal(
+    wordValueOf(label('_08001000', A, { kind: 'local' })),
+    A,
+    'a Thumb local label (a branch target) is not a function symbol',
+  );
   assert.equal(wordValueOf(label('gTable', A, { kind: 'table' })), A);
   assert.equal(wordValueOf({ addr: 0xffff_fffe, kind: 'func', thumb: true }), 0xffff_ffff);
 });
 
 test('adrResolverFor names only a label that links to the address itself: never a Thumb function (D72 c)', () => {
-  const m = model([label('Func', A + 0x10, { kind: 'func', thumb: true }), label('_08001010', A + 0x10, { kind: 'local' }), label('ArmFunc', A + 0x20, { kind: 'func', thumb: false }), label('OnlyThumb', A + 0x30, { kind: 'func', thumb: true })]);
+  const m = model([
+    label('Func', A + 0x10, { kind: 'func', thumb: true }),
+    label('_08001010', A + 0x10, { kind: 'local' }),
+    label('ArmFunc', A + 0x20, { kind: 'func', thumb: false }),
+    label('OnlyThumb', A + 0x30, { kind: 'func', thumb: true }),
+  ]);
   const adr = adrResolverFor(m, 'alpha');
   const all = resolverFor(m, 'alpha');
   assert.equal(all.labelFor(A + 0x10, A), 'Func', 'a branch names the function');
@@ -95,13 +128,24 @@ test('adrResolverFor names only a label that links to the address itself: never 
   assert.equal(adr.labelFor(A + 0x20, A), 'ArmFunc');
   assert.equal(adr.labelFor(A + 0x30, A), undefined, 'no label links to the address itself');
   assert.equal(adr.addressOf('Func'), A + 0x10);
-  assert.deepEqual([isExactLabel({ addr: A, kind: 'func', thumb: true }), isExactLabel({ addr: A, kind: 'func', thumb: false }), isExactLabel({ addr: A, kind: 'local', thumb: false })], [false, true, true]);
+  assert.deepEqual(
+    [
+      isExactLabel({ addr: A, kind: 'func', thumb: true }),
+      isExactLabel({ addr: A, kind: 'func', thumb: false }),
+      isExactLabel({ addr: A, kind: 'local', thumb: false }),
+    ],
+    [false, true, true],
+  );
 });
 
 test('a word holding a load address of a runs_at module: no label names it, loadWordOperand names it through __load_<module>', () => {
   const m = model([{ ...label('RamCode', RAM), kind: 'func', thumb: true }, label('Alpha', A)]);
   assert.equal(loadSymbolOf({ name: 'ram' }), '__load_ram');
-  assert.equal(wordText(wordScope(m, 'alpha'), 0x0800_3001), '__load_ram + 1', 'never RamCode, which links to its run address');
+  assert.equal(
+    wordText(wordScope(m, 'alpha'), 0x0800_3001),
+    '__load_ram + 1',
+    'never RamCode, which links to its run address',
+  );
   assert.equal(wordText(wordScope(m, 'ram'), RAM + 1), 'RamCode', 'the run address prints the label');
   assert.equal(loadWordOperand(m, 0x0800_3000), '__load_ram');
   assert.equal(loadWordOperand(m, 0x0800_3001), '__load_ram + 1');
@@ -124,8 +168,22 @@ test('sizedEntries and sizedEntryAt: the innermost sized entry holding a word; e
     { addr: 0x0300_0200, name: 'gUnsized' },
   ];
   const functions = [
-    { entry: 0x0800_0100, extent: { start: 0x0800_0100, end: 0x0800_0110 }, mode: 'thumb' as const, name: 'Sized', aliases: [], source: { name: { kind: 'default' as const }, extent: 'toml-size' as const } },
-    { entry: 0x0800_0200, extent: { start: 0x0800_0200, end: 0x0800_0210 }, mode: 'thumb' as const, name: 'Found', aliases: [], source: { name: { kind: 'default' as const }, extent: 'analysis' as const } },
+    {
+      entry: 0x0800_0100,
+      extent: { start: 0x0800_0100, end: 0x0800_0110 },
+      mode: 'thumb' as const,
+      name: 'Sized',
+      aliases: [],
+      source: { name: { kind: 'default' as const }, extent: 'toml-size' as const },
+    },
+    {
+      entry: 0x0800_0200,
+      extent: { start: 0x0800_0200, end: 0x0800_0210 },
+      mode: 'thumb' as const,
+      name: 'Found',
+      aliases: [],
+      source: { name: { kind: 'default' as const }, extent: 'analysis' as const },
+    },
   ];
   const entries = sizedEntries({ symbols, functions });
   assert.equal(sizedEntries({ symbols, functions }), entries, 'cached per model');
@@ -146,17 +204,43 @@ test('wordNameOf: a named entry at the word, else the sized entry holding it wit
     { addr: 0x0300_0000, name: 'gOuter', size: 0x100 },
     { addr: 0x0300_0010, name: 'gNamed' },
   ];
-  const functions = [{ entry: 0x0800_0100, extent: { start: 0x0800_0100, end: 0x0800_0110 }, mode: 'thumb' as const, name: 'Sized', aliases: [], source: { name: { kind: 'default' as const }, extent: 'toml-size' as const } }];
+  const functions = [
+    {
+      entry: 0x0800_0100,
+      extent: { start: 0x0800_0100, end: 0x0800_0110 },
+      mode: 'thumb' as const,
+      name: 'Sized',
+      aliases: [],
+      source: { name: { kind: 'default' as const }, extent: 'toml-size' as const },
+    },
+  ];
   const entries = sizedEntries({ symbols, functions });
   const outer = label('gOuter', 0x0300_0000, { kind: 'data', thumb: false });
   const sized = label('Sized', 0x0800_0100);
-  const entryLabel = (e: { readonly name: string }): Label | undefined => (e.name === 'gOuter' ? outer : e.name === 'Sized' ? sized : undefined);
+  const entryLabel = (e: { readonly name: string }): Label | undefined =>
+    e.name === 'gOuter' ? outer : e.name === 'Sized' ? sized : undefined;
   const named = label('gNamed', 0x0300_0010, { kind: 'data', thumb: false });
   const unk = label('gUnk_03000020', 0x0300_0020, { kind: 'data', thumb: false });
-  assert.deepEqual(wordNameOf(entries, 0x0300_0010, [named], entryLabel), { kind: 'label', label: named }, 'a [symbols] entry at the word');
-  assert.deepEqual(wordNameOf(entries, 0x0300_0020, [unk], entryLabel), { kind: 'inside', label: outer, offset: 0x20 }, 'an unnamed label gives way to the entry');
-  assert.deepEqual(wordNameOf(entries, 0x0300_0020, [unk], () => undefined), { kind: 'label', label: unk }, 'no label for the entry: the word keeps its own');
-  assert.deepEqual(wordNameOf(entries, 0x0800_0105, [], entryLabel), { kind: 'inside', label: sized, offset: 4 }, 'from the word a Thumb function links to');
+  assert.deepEqual(
+    wordNameOf(entries, 0x0300_0010, [named], entryLabel),
+    { kind: 'label', label: named },
+    'a [symbols] entry at the word',
+  );
+  assert.deepEqual(
+    wordNameOf(entries, 0x0300_0020, [unk], entryLabel),
+    { kind: 'inside', label: outer, offset: 0x20 },
+    'an unnamed label gives way to the entry',
+  );
+  assert.deepEqual(
+    wordNameOf(entries, 0x0300_0020, [unk], () => undefined),
+    { kind: 'label', label: unk },
+    'no label for the entry: the word keeps its own',
+  );
+  assert.deepEqual(
+    wordNameOf(entries, 0x0800_0105, [], entryLabel),
+    { kind: 'inside', label: sized, offset: 4 },
+    'from the word a Thumb function links to',
+  );
   assert.equal(wordNameOf(entries, 0x0300_0200, [], entryLabel), undefined);
 });
 
@@ -165,10 +249,26 @@ test('linkedWordOf and wordNameOf: a Thumb function plus an addend links with th
   assert.equal(linkedWordOf(fn, 0), 0x0800_0101);
   assert.equal(linkedWordOf(fn, 0x13), 0x0800_0113, '(S + A) | T');
   assert.equal(linkedWordOf(label('gData', 0x0300_0000, { kind: 'data', thumb: false }), 0x13), 0x0300_0013);
-  const functions = [{ entry: 0x0800_0100, extent: { start: 0x0800_0100, end: 0x0800_0110 }, mode: 'thumb' as const, name: 'Sized', aliases: [], source: { name: { kind: 'default' as const }, extent: 'toml-size' as const } }];
+  const functions = [
+    {
+      entry: 0x0800_0100,
+      extent: { start: 0x0800_0100, end: 0x0800_0110 },
+      mode: 'thumb' as const,
+      name: 'Sized',
+      aliases: [],
+      source: { name: { kind: 'default' as const }, extent: 'toml-size' as const },
+    },
+  ];
   const entries = sizedEntries({ symbols: [], functions });
-  assert.deepEqual(wordNameOf(entries, 0x0800_0105, [], () => fn), { kind: 'inside', label: fn, offset: 4 });
-  assert.equal(wordNameOf(entries, 0x0800_0104, [], () => fn), undefined, 'Sized + 3 would link to 0x08000103');
+  assert.deepEqual(
+    wordNameOf(entries, 0x0800_0105, [], () => fn),
+    { kind: 'inside', label: fn, offset: 4 },
+  );
+  assert.equal(
+    wordNameOf(entries, 0x0800_0104, [], () => fn),
+    undefined,
+    'Sized + 3 would link to 0x08000103',
+  );
 });
 
 test('addendTo: the addend from the word a label links to, none when R_ARM_ABS32 cannot give the word (architecture-o1-1)', () => {
@@ -183,17 +283,34 @@ test('addendTo: the addend from the word a label links to, none when R_ARM_ABS32
   assert.equal(addendTo(label('ArmCase', 0x0800_1030, { thumb: false }), 0x0800_1031), 1);
 });
 
-test('entryLabelOf: the sized entry\'s own label, named as the entry at its run address and not local (architecture-o0-5)', () => {
+test("entryLabelOf: the sized entry's own label, named as the entry at its run address and not local (architecture-o0-5)", () => {
   const fn = label('Sized', 0x0300_0100);
   const local = label('Sized', 0x0300_0100, { kind: 'local', thumb: false });
   const other = label('Other', 0x0300_0100, { kind: 'data', thumb: false });
-  const at = (labels: readonly Label[]) => (addr: number): readonly Label[] => labels.filter((l) => l.addr === addr);
+  const at =
+    (labels: readonly Label[]) =>
+    (addr: number): readonly Label[] =>
+      labels.filter((l) => l.addr === addr);
   // A runs_at function's sized entry sits at its run address (sizedEntries reads runAt), where its func label is.
-  const functions = [{ entry: 0x0800_0400, runAt: 0x0300_0100, extent: { start: 0x0800_0400, end: 0x0800_0410 }, mode: 'thumb' as const, name: 'Sized', aliases: [], source: { name: { kind: 'default' as const }, extent: 'toml-size' as const } }];
+  const functions = [
+    {
+      entry: 0x0800_0400,
+      runAt: 0x0300_0100,
+      extent: { start: 0x0800_0400, end: 0x0800_0410 },
+      mode: 'thumb' as const,
+      name: 'Sized',
+      aliases: [],
+      source: { name: { kind: 'default' as const }, extent: 'toml-size' as const },
+    },
+  ];
   const [entry] = sizedEntries({ symbols: [], functions }).sized;
   assert.deepEqual(entry, { addr: 0x0300_0100, name: 'Sized', size: 0x10 });
   if (entry === undefined) return;
   assert.equal(entryLabelOf(entry, at([local, other, fn])), fn, 'never a local label, never another name');
   assert.equal(entryLabelOf(entry, at([local, other])), undefined);
-  assert.equal(entryLabelOf({ ...entry, addr: 0x0800_0400 }, at([fn])), undefined, 'the load address holds none of its labels');
+  assert.equal(
+    entryLabelOf({ ...entry, addr: 0x0800_0400 }, at([fn])),
+    undefined,
+    'the load address holds none of its labels',
+  );
 });

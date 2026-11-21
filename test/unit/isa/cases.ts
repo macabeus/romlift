@@ -38,5 +38,6 @@ export function checkCase(mode: Mode, c: RowCase): void {
   }
   if (c.flow !== undefined) assert.deepEqual(insn.flow, c.flow, `${where}: flow`);
   if (c.stack !== undefined) assert.equal(specOf(insn.specId).stack?.(insn.fields) ?? 0, c.stack, `${where}: stack`);
-  if (c.fields !== undefined) for (const [k, v] of Object.entries(c.fields)) assert.equal(insn.fields[k], v, `${where}: field ${k}`);
+  if (c.fields !== undefined)
+    for (const [k, v] of Object.entries(c.fields)) assert.equal(insn.fields[k], v, `${where}: field ${k}`);
 }

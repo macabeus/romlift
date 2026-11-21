@@ -8,19 +8,19 @@
 // --write saves it (shell/config/save.ts, under the project lock), and nothing else writes the TOML but `init` and
 // `rename`. Exit codes: 0 ok, 1 an error diagnostic (no project, another ROM, E_TOML_PATCH_REFUSED, a write that
 // failed), 2 usage (an argument).
-import type { Diagnostic } from '../../api/rom.ts';
-import { hexAddr } from '../../api/rom.ts';
 import type { Proposal } from '../../api/config-types.ts';
 import { sourceKey } from '../../api/config-types.ts';
-import { staleConfigProblems, updateProject } from '../../core/workflow/update.ts';
+import type { Diagnostic } from '../../api/rom.ts';
+import { hexAddr } from '../../api/rom.ts';
 import { unifiedDiff } from '../../api/workflow-one-shot.ts';
+import { staleConfigProblems, updateProject } from '../../core/workflow/update.ts';
 import { saveConfig } from '../../shell/config/save.ts';
 import { withProjectLock } from '../../shell/project/lock.ts';
 import { readProject, readProjectTexts } from '../../shell/project/read-inputs.ts';
 import { loadSignatureFiles } from '../../shell/signatures/locate.ts';
-import type { CliIo } from '../registry.ts';
 import { ExitCode } from '../exit-codes.ts';
 import type { RunSummary } from '../exit-codes.ts';
+import type { CliIo } from '../registry.ts';
 import type { CommandSpec } from '../registry.ts';
 import { diagnosticLine, recordLine, summaryLine } from '../reporters/ndjson.ts';
 import type { RecordFields } from '../reporters/ndjson.ts';
@@ -43,9 +43,25 @@ export function proposalRecord(p: Proposal): RecordFields {
         from: sourceKey(p.source),
       };
     case 'symbol':
-      return { kind: p.kind, addr: hexAddr(p.addr), name: p.name, size: p.size, symbolType: p.type, source: p.source.kind, rule: 'rule' in p.source ? p.source.rule : undefined, from: sourceKey(p.source) };
+      return {
+        kind: p.kind,
+        addr: hexAddr(p.addr),
+        name: p.name,
+        size: p.size,
+        symbolType: p.type,
+        source: p.source.kind,
+        rule: 'rule' in p.source ? p.source.rule : undefined,
+        from: sourceKey(p.source),
+      };
     case 'module':
-      return { kind: p.kind, addr: hexAddr(p.start), name: p.name, moduleKind: p.moduleKind, library: p.library === undefined ? undefined : `${p.library.name}@${p.library.version}`, source: p.source.kind };
+      return {
+        kind: p.kind,
+        addr: hexAddr(p.start),
+        name: p.name,
+        moduleKind: p.moduleKind,
+        library: p.library === undefined ? undefined : `${p.library.name}@${p.library.version}`,
+        source: p.source.kind,
+      };
     case 'override':
       return { kind: p.kind, addr: hexAddr(p.span.start), end: hexAddr(p.span.end), source: p.source.kind };
   }
@@ -57,7 +73,8 @@ function proposalText(p: Proposal): string {
   const label = record['entryPoint'] === true ? ', entry point' : '';
   const name = typeof record['name'] === 'string' && p.kind !== 'module' ? ` ${record['name']}` : '';
   const from = typeof record['from'] === 'string' ? `, from ${record['from']}` : '';
-  const library = typeof record['library'] === 'string' ? ` ${String(record['name'])}, library ${record['library']}` : '';
+  const library =
+    typeof record['library'] === 'string' ? ` ${String(record['name'])}, library ${record['library']}` : '';
   return `${p.kind} ${String(record['addr'])}${typeof record['mode'] === 'string' ? ` ${record['mode']}` : ''}${name}${library}${label}${from}${rule}\n`;
 }
 
@@ -82,8 +99,12 @@ async function runUpdate(io: CliIo, json: boolean, write: boolean): Promise<Exit
     // Under the lock: the config on disk must still be the text the plan was made from (D75 m).
     const saved = await withProjectLock(project.dir, async () => {
       const now = await readProjectTexts(project.dir, [path]);
-      const problem = now.ok ? staleConfigProblems(path, project.inputs.configText, now.value.get(path) ?? '')[0] : now.diagnostics[0];
-      return problem === undefined ? saveConfig(project.dir, plan.text, path) : ({ ok: false, diagnostic: problem } as const);
+      const problem = now.ok
+        ? staleConfigProblems(path, project.inputs.configText, now.value.get(path) ?? '')[0]
+        : now.diagnostics[0];
+      return problem === undefined
+        ? saveConfig(project.dir, plan.text, path)
+        : ({ ok: false, diagnostic: problem } as const);
     });
     if (!saved.ok) diagnostics = [...diagnostics, ...saved.diagnostics];
     else {
@@ -94,7 +115,11 @@ async function runUpdate(io: CliIo, json: boolean, write: boolean): Promise<Exit
   }
   const exitCode = exitCodeOf(diagnostics);
   const diff = unifiedDiff(project.inputs.configText, plan.text, path);
-  const summary: RunSummary = { ok: exitCode === ExitCode.ok, exitCode, counts: { proposals: plan.proposals.length, written: written ? 1 : 0, diagnostics: diagnostics.length } };
+  const summary: RunSummary = {
+    ok: exitCode === ExitCode.ok,
+    exitCode,
+    counts: { proposals: plan.proposals.length, written: written ? 1 : 0, diagnostics: diagnostics.length },
+  };
   if (json) {
     await writeLines(io, [
       ...plan.proposals.map((p) => recordLine('proposal', proposalRecord(p))),
@@ -105,19 +130,33 @@ async function runUpdate(io: CliIo, json: boolean, write: boolean): Promise<Exit
     return exitCode;
   }
   if (diagnostics.length > 0) io.stderr(diagnostics.map((d) => `${formatDiagnosticText(d)}\n`).join(''));
-  const verdict = !plan.changed ? `${path} is up to date` : written ? `wrote ${path}` : `run \`romlift update --write\` to apply the patch to ${path}`;
-  await writeLines(io, [...plan.proposals.map(proposalText), diff, `${verdict}\n`, `update: ${formatSummaryText(summary)}\n`]);
+  const verdict = !plan.changed
+    ? `${path} is up to date`
+    : written
+      ? `wrote ${path}`
+      : `run \`romlift update --write\` to apply the patch to ${path}`;
+  await writeLines(io, [
+    ...plan.proposals.map(proposalText),
+    diff,
+    `${verdict}\n`,
+    `update: ${formatSummaryText(summary)}\n`,
+  ]);
   return exitCode;
 }
 
 export const updateCommand: CommandSpec = {
   name: 'update',
-  summary: "Inside a project: proposes what the analysis finds that romlift.toml lacks, as a patch that keeps its comments",
+  summary:
+    'Inside a project: proposes what the analysis finds that romlift.toml lacks, as a patch that keeps its comments',
   usage: 'update [--write] [--json]',
   positionals: [],
   options: [
     { name: 'write', kind: 'boolean', summary: 'Saves the patched romlift.toml' },
-    { name: 'json', kind: 'boolean', summary: 'Prints NDJSON: one line per proposal, the patch, the diagnostics, then a summary' },
+    {
+      name: 'json',
+      kind: 'boolean',
+      summary: 'Prints NDJSON: one line per proposal, the patch, the diagnostics, then a summary',
+    },
   ],
   run(args, io) {
     return runUpdate(io, args.flags['json'] === true, args.flags['write'] === true);

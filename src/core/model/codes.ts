@@ -7,16 +7,19 @@ import { defineCodes } from '../../foundation/diagnostics/diagnostic.ts';
 export const ModelCodes = defineCodes({
   E_MODULE_BORDER: {
     severity: 'error',
-    meaning: 'a module starts where no legal border is (core/layout/borders.ts); the message names the nearest legal borders',
+    meaning:
+      'a module starts where no legal border is (core/layout/borders.ts); the message names the nearest legal borders',
   },
   E_MODULE_ORDER: { severity: 'error', meaning: 'the module starts do not increase from the ROM base' },
   E_ENTRY_POINT_OUTSIDE: {
     severity: 'error',
-    meaning: 'an [entry_points] entry lies inside no function: no listed entry below it reads over it (D116); list it in [functions] instead, or move it',
+    meaning:
+      'an [entry_points] entry lies inside no function: no listed entry below it reads over it (D116); list it in [functions] instead, or move it',
   },
   E_NAME_COLLISION: {
     severity: 'error',
-    meaning: 'two labels of one module share a name, or a name repeats in another module while one of them is referenced from outside its module',
+    meaning:
+      'two labels of one module share a name, or a name repeats in another module while one of them is referenced from outside its module',
   },
   E_NAME_INVALID: {
     severity: 'error',
@@ -25,9 +28,13 @@ export const ModelCodes = defineCodes({
   },
   E_MODULE_NAME_DUPLICATE: {
     severity: 'error',
-    meaning: 'two modules share a name, or names one on a case-insensitive file system, whatever their kinds, so both would build one object',
+    meaning:
+      'two modules share a name, or names one on a case-insensitive file system, whatever their kinds, so both would build one object',
   },
-  E_OVERRIDE_INVALID: { severity: 'error', meaning: 'a runs_at override range does not start and end on module borders (§6.7)' },
+  E_OVERRIDE_INVALID: {
+    severity: 'error',
+    meaning: 'a runs_at override range does not start and end on module borders (§6.7)',
+  },
   E_DATA_RANGE_INVALID: {
     severity: 'error',
     meaning:
@@ -45,7 +52,8 @@ export const ModelCodes = defineCodes({
   },
   W_OVERRIDE_IGNORED: {
     severity: 'warning',
-    meaning: 'an [[overrides]] entry without runs_at changes nothing romlift builds: a data override whose bytes the analysis did not claim, or a code override whose seed added no function (one already starts there, or in a confirm run [functions] does not list its start, which the run only reports) and that gives no listed entry its extent (fix round 5, D81 c; applied since phase 6, correctness-b0-3; the unlisted case since phase-6 fix round 5, correctness-o0-2)',
+    meaning:
+      'an [[overrides]] entry without runs_at changes nothing romlift builds: a data override whose bytes the analysis did not claim, or a code override whose seed added no function (one already starts there, or in a confirm run [functions] does not list its start, which the run only reports) and that gives no listed entry its extent (fix round 5, D81 c; applied since phase 6, correctness-b0-3; the unlisted case since phase-6 fix round 5, correctness-o0-2)',
   },
   W_FUNCTION_OUTSIDE_ROM: {
     severity: 'warning',
@@ -53,7 +61,8 @@ export const ModelCodes = defineCodes({
   },
   W_OVERRIDE_OUTSIDE_ROM: {
     severity: 'warning',
-    meaning: 'an [[overrides]] range reaches outside the ROM, where it applies to nothing; the part inside still applies',
+    meaning:
+      'an [[overrides]] range reaches outside the ROM, where it applies to nothing; the part inside still applies',
   },
   W_SYMBOL_UNPLACED: {
     severity: 'warning',
@@ -72,7 +81,7 @@ export const ModelCodes = defineCodes({
   W_INTERWORKING_BRANCH: {
     severity: 'warning',
     meaning:
-      'a b or bl names a function label of the other state (a Thumb branch to an ARM function, or the reverse), for which GNU ld would insert an interworking veneer and move every byte after it, so it prints raw; the function\'s listed mode likely contradicts its callers',
+      "a b or bl names a function label of the other state (a Thumb branch to an ARM function, or the reverse), for which GNU ld would insert an interworking veneer and move every byte after it, so it prints raw; the function's listed mode likely contradicts its callers",
   },
 });
 

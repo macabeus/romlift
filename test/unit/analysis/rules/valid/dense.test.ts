@@ -8,7 +8,11 @@ import { readingOf, romWith, testProfile, viewWith } from '../../../../helpers/a
 const E = 0x0800_0200;
 
 /** An extent of `size` bytes of non-zero filler from E, every halfword covered but `holes` bytes from E + 0x10 (`zeros` of them zero, last first). */
-function check(size: number, holes: number, opts: { zeros?: number; profile?: CompilerProfile } = {}): string | undefined {
+function check(
+  size: number,
+  holes: number,
+  opts: { zeros?: number; profile?: CompilerProfile } = {},
+): string | undefined {
   const bytes = new Uint8Array(size).fill(0xff);
   bytes.fill(0, 0x10 + holes - (opts.zeros ?? 0), 0x10 + holes);
   const rom = romWith([{ at: E, bytes }], { size: 0x800 });
@@ -36,5 +40,8 @@ test('a zero halfword right before a covered byte is padding, not a hole', () =>
 });
 
 test('the profile sets the shift', () => {
-  assert.notEqual(check(0x100, 16, { profile: { ...testProfile(), density: { minHoles: 8, holeShift: 5 } } }), undefined);
+  assert.notEqual(
+    check(0x100, 16, { profile: { ...testProfile(), density: { minHoles: 8, holeShift: 5 } } }),
+    undefined,
+  );
 });
