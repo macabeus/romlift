@@ -180,10 +180,12 @@ test('every fixture has its sources, a build.mk with both toolchain records, an 
   }
 });
 
-test('every fixture records the agbcc commit fixtures.yml builds', () => {
-  const workflow = readFileSync(join(SYNTHETIC_ROOT, '..', '..', '..', '.github', 'workflows', 'fixtures.yml'), 'utf8');
-  const pinned = /^\s*AGBCC_COMMIT: ([0-9a-f]{40})$/m.exec(workflow)?.[1];
-  assert.ok(pinned !== undefined, 'fixtures.yml pins AGBCC_COMMIT');
+test("every fixture records templates/agbcc.json's commit, the tools/agbcc submodule's (D120)", () => {
+  const pin = JSON.parse(readFileSync(join(SYNTHETIC_ROOT, '..', '..', '..', 'templates', 'agbcc.json'), 'utf8')) as {
+    readonly commit?: unknown;
+  };
+  const pinned = typeof pin.commit === 'string' ? pin.commit : undefined;
+  assert.ok(pinned !== undefined && /^[0-9a-f]{40}$/.test(pinned), 'templates/agbcc.json pins a commit');
   for (const f of FIXTURES) {
     const record = parseToolchainRecord(readFileSync(f.buildMk, 'utf8'));
     assert.ok(!('missing' in record) && record.agbccCommit === pinned, `${f.name} records another agbcc commit`);

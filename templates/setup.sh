@@ -2,7 +2,7 @@
 # setup.sh: prepares this checkout of @@name@@ to build @@builtRom@@ (written once by romlift init; yours to edit).
 # Run it after cloning and in every new git worktree; it is safe to run again. Its five duties, in order:
 #   1. check_toolchain   the assembler, linker and objcopy for ARM, make, and a host C compiler
-#   2. setup_agbcc       when tools/agbcc/bin/agbcc is missing: fetch pret/agbcc into tools/agbcc and build it
+#   2. setup_agbcc       when tools/agbcc/bin/agbcc is missing: fetch agbcc into tools/agbcc and build it
 #   3. copy_baserom      in a git worktree without @@romFile@@: copy it from the main worktree; check its SHA-1
 #   4. install_romlift   npm ci (npm install while there is no package-lock.json); skipped when ROMLIFT_CLI is set
 #   5. generate_tree     romlift generate, when asm/ is absent or romlift.toml changed since it last ran
@@ -51,7 +51,7 @@ check_toolchain() {
   fi
 }
 
-# Duty 2: agbcc and old_agbcc in tools/agbcc/bin, built by pret/agbcc's own build.sh and install.sh. In a git
+# Duty 2: agbcc and old_agbcc in tools/agbcc/bin, built by agbcc's own build.sh and install.sh. In a git
 # repository tools/agbcc is a submodule (.gitmodules): checked out when it is registered, else fetched at the pinned
 # commit and registered (commit the result). Outside one it is fetched at the pinned commit.
 setup_agbcc() {

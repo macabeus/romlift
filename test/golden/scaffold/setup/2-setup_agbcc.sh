@@ -1,4 +1,4 @@
-# Duty 2: agbcc and old_agbcc in tools/agbcc/bin, built by pret/agbcc's own build.sh and install.sh. In a git
+# Duty 2: agbcc and old_agbcc in tools/agbcc/bin, built by agbcc's own build.sh and install.sh. In a git
 # repository tools/agbcc is a submodule (.gitmodules): checked out when it is registered, else fetched at the pinned
 # commit and registered (commit the result). Outside one it is fetched at the pinned commit.
 setup_agbcc() {

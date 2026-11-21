@@ -54,8 +54,8 @@
 //      #include names; then include -> ., the headers at the project's top. Each builds, and each time the module
 //      renamed with `git mv` gains no header, `generate` raises no diagnostic and `make` ends at the SHA-1 (phase 4's
 //      code added the header on the first and the last, and raised E_IO_READ on the second).
-// Inputs: klonoa's ROM from its dataset; agbcc from ROMLIFT_AGBCC, else bench/.local/agbcc, else
-// $ROMLIFT_BENCH_ROOT/pokeemerald/tools/agbcc, else setup.sh builds it at the pin (network); binutils. A missing ROM
+// Inputs: klonoa's ROM from its dataset; agbcc from the checkout's tools/agbcc (built by
+// `npm run agbcc`, D120), else setup.sh builds it at the pin (network); binutils. A missing ROM
 // makes the test `unavailable`, or fails it when ROMLIFT_REQUIRE_LOCAL=1. test/local imports only the entry points and
 // node (architecture §2), so the loop is spelled here: the source CLI as ROMLIFT_CLI, setup.sh, make and its SHA-1.
 import assert from 'node:assert/strict';
@@ -90,15 +90,10 @@ function builtRom(dir: string): string {
   return named;
 }
 
-/** The first agbcc build found (a directory holding bin/agbcc), or undefined: setup.sh then builds it. */
+/** The checkout's agbcc (tools/agbcc, built by `npm run agbcc`, D120), or undefined until it is built: setup.sh then builds it. */
 function prebuiltAgbcc(): string | undefined {
-  const env = process.env['ROMLIFT_AGBCC'];
-  const candidates = [
-    ...(env ? [path.resolve(REPO, env)] : []),
-    path.join(REPO, 'bench', '.local', 'agbcc'),
-    path.join(BENCH_ROOT, 'pokeemerald', 'tools', 'agbcc'),
-  ];
-  return candidates.find((dir) => existsSync(path.join(dir, 'bin', 'agbcc')));
+  const dir = path.join(REPO, 'tools', 'agbcc');
+  return existsSync(path.join(dir, 'bin', 'agbcc')) ? dir : undefined;
 }
 
 const TMP = await mkdtemp(path.join(tmpdir(), 'romlift-decompiled-c-'));

@@ -46,7 +46,8 @@ const READDIR = {
 
 export default defineConfig(
   {
-    ignores: ['**/node_modules/**', 'dist/**', 'bench/.local/**', 'signatures/**'],
+    // tools/agbcc is the agbcc submodule (D120): another project's sources, with configs of its own.
+    ignores: ['**/node_modules/**', 'dist/**', 'bench/.local/**', 'signatures/**', 'tools/agbcc/**'],
   },
   {
     files: SCANNED,

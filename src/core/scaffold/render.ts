@@ -79,15 +79,17 @@ export const AGBCC_SUBMODULE_PATH = 'tools/agbcc';
 
 /**
  * .gitmodules: tools/agbcc from the pin's URL. `ignore = dirty` because setup.sh builds and installs agbcc inside
- * the submodule's work tree; the commit is the gitlink's, which setup.sh registers at the pin's commit.
+ * the submodule's work tree; `shallow = true` because a build needs the pinned commit and none of its history; the
+ * commit is the gitlink's, which setup.sh registers at the pin's commit (D120).
  */
 export function gitmodulesText(vars: ScaffoldVars): string {
   return [
-    `# ${AGBCC_SUBMODULE_PATH}: pret/agbcc, registered by setup.sh at ${vars.agbcc.commit} (the commit romlift pins).`,
+    `# ${AGBCC_SUBMODULE_PATH}: agbcc, registered by setup.sh at ${vars.agbcc.commit} (the commit romlift pins).`,
     `[submodule "${AGBCC_SUBMODULE_PATH}"]`,
     `\tpath = ${AGBCC_SUBMODULE_PATH}`,
     `\turl = ${vars.agbcc.url}`,
     '\tignore = dirty',
+    '\tshallow = true',
     '',
   ].join('\n');
 }

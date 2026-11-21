@@ -69,7 +69,7 @@ as their family (Fire Emblem 8, Fire Emblem 6, Sonic Advance).
 
 ## Other local resources
 
-- agbcc builds: `/Users/macabeus/ApenasMeu/decompiler/pokeemerald/tools/agbcc` and `/Users/macabeus/ApenasMeu/decompiler/agbcc`.
+- agbcc: romlift's own `tools/agbcc` submodule (`npm run agbcc`, D120); each tuning checkout also has its own build in `tools/agbcc`.
 - Build notes for the tuning-set checkouts on macOS are at the end of [research-notes.md](research-notes.md) ("What the proof of concept changed").
 
 ### Reference objects (`objectsDir`)

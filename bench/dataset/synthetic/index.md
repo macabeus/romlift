@@ -1,7 +1,7 @@
 # bench/dataset/synthetic
 
 The synthetic tier (architecture §8.1, D28): self-authored fixture ROMs, one phenomenon each, built
-from our own assembly and C with binutils and pret/agbcc. Their builds are committed (a few KiB each;
+from our own assembly and C with binutils and agbcc (the `tools/agbcc` submodule, D120). Their builds are committed (a few KiB each;
 `.gitignore` re-includes `*/build/**`), so unit, golden and gate tests read them with no toolchain;
 `.github/workflows/fixtures.yml` rebuilds them on every pull request to prove they are reproducible.
 
@@ -45,17 +45,16 @@ npm run fixtures -- check [--only <name>] [--json]     # rebuild into a temporar
 
 `check` compares the `.gba` bytes, the sorted `(name, value, size, type)` list of the ELF symbol table
 and the toolchain record: an agbcc commit other than the record fails, a different `as --version` is a
-note, and when nothing names the agbcc commit in use (no `ROMLIFT_AGBCC_COMMIT`, and the agbcc
-directory is not a git checkout's top level) that is a note and the bytes decide. agbcc comes from
-`ROMLIFT_AGBCC` (a directory holding `bin/agbcc`), else `$ROMLIFT_BENCH_ROOT/pokeemerald/tools/agbcc`,
-and old_agbcc from beside it (`bin/old_agbcc`, built from the same recorded commit by pret/agbcc's
-`build.sh`; make gets it as `OLD_AGBCC`, and a fixture whose build.mk lists `OLD_AGBCC_SRCS` fails
-without it); binutils from the PATH. `rebuild` needs the commit named.
+note. agbcc is the checkout's own, `tools/agbcc` (the submodule at `templates/agbcc.json`'s commit, built
+in place by its `build.sh` and `install.sh` when it is not yet built at that pin; `npm run agbcc` builds it
+alone), and old_agbcc is beside it (`bin/old_agbcc`; make gets it as `OLD_AGBCC`, and a fixture whose
+build.mk lists `OLD_AGBCC_SRCS` fails without it); binutils from the PATH. The commit recorded is the pin's.
 
-The committed builds were made with pret/agbcc `da598c1d918402c42c0c0d7128ba14567f3175e9` (master on
-17 October 2026) and `GNU assembler (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126`.
-The same bytes and symbol lists come out of binutils 2.43.1 (devkitARM) and 2.42 (Ubuntu 24.04 apt,
-agbcc built on Linux), and of the agbcc installed in `pokeemerald/tools/agbcc`.
+The committed builds record macabeus/agbcc `a0f70c956e8f982ee2a1f67f9fbead46cbaef339` (D120) and
+`GNU assembler (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126`. They were first made with
+pret/agbcc `da598c1d918402c42c0c0d7128ba14567f3175e9`, of which that commit is a descendant: rebuilt with
+it, every fixture's bytes are the same. The same bytes and symbol lists come out of binutils 2.43.1
+(devkitARM) and 2.42 (Ubuntu 24.04 apt, agbcc built on Linux).
 
 ## The fixtures
 

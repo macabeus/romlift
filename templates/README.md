@@ -55,7 +55,7 @@ that step, or leave `BASEROM_URL` unset.
 | `expected/`, `objdiff.json` | each module's objdiff target source (`make expected` assembles it into `build/expected/`) and objdiff's project file, generated (not in Git) |
 | `include/` | `global.h` with `gba/types.h` and `gba/io_reg.h` (the types and I/O registers decompiled C includes), `include_asm.h` (the `INCLUDE_ASM` macro) and `macros.inc` (the assembler macros) |
 | `Makefile`, `mk/*.mk` | the build, and the recipe of each C compiler |
-| `tools/agbcc` | the compiler, a submodule of [pret/agbcc](@@agbccUrl@@) |
+| `tools/agbcc` | the compiler, a submodule of [agbcc](@@agbccUrl@@) |
 
 Never edit the generated files: change `romlift.toml` and run `npx romlift generate`. Decompiled C goes in
 `src/<module>.c` (or a `src/*.c` file it `#include`s); a `const` array in C needs its module's data range (`data_start`

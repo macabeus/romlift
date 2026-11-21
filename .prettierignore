@@ -3,6 +3,9 @@ dist/
 *.tsbuildinfo
 package-lock.json
 
+# The agbcc submodule (D120): another project's sources, formatted by its own rules.
+tools/agbcc/
+
 # Prose and records: the phase records, decisions and indexes are kept as written.
 *.md
 

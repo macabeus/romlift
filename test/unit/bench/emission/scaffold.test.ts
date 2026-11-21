@@ -5,29 +5,23 @@
 // none of them, so no objdiff-cli runs and each is a missing symbol). Linking skips as unavailable only
 // without binutils. Phase 4's init build with a fake process runner: init, the agbcc copy, setup.sh and make in
 // order, each step only after the one before succeeded, the built ROM's SHA-1, the withheld detail of a sealed ROM;
-// the agbcc cache built once from the pin and reused while current; the CLI script setup.sh runs.
+// the CLI script setup.sh runs. The checkout's agbcc (tools/agbcc, built once per pin) is test/unit/bench/agbcc.test.ts's.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { type Rom, discover, emitTree, parseElf, profileById, romFromBytes } from 'romlift';
-import { findBinutils, readAgbccPin } from 'romlift/node';
+import { findBinutils } from 'romlift/node';
 
-import type { BenchContext } from '../../../../bench/src/context.ts';
 import { CLI_MAIN } from '../../../../bench/src/large-rom-bin.ts';
 import type { ProcessOptions, ProcessResult } from '../../../../bench/src/process.ts';
 import { readableStats, treePass } from '../../../../bench/src/readability.ts';
 import {
-  AGBCC_CACHE_PIN,
   type CommandRunner,
   NOT_RUN,
   ROMLIFT_FAMILIES,
-  agbccCache,
-  agbccCachePath,
-  agbccPinProblem,
-  agbccSource,
   discoverModel,
   initBuild,
   initVerdict,
@@ -148,10 +142,12 @@ function fakeBuild(
   };
 }
 
+/** A built agbcc as install.sh lays it out (bin, include, lib), with the sources of the checkout beside them. */
 async function agbccDir(root: string): Promise<string> {
-  const dir = join(root, 'agbcc-cache');
-  await mkdir(join(dir, 'bin'), { recursive: true });
+  const dir = join(root, 'agbcc');
+  for (const part of ['bin', 'include', 'lib', 'gcc']) await mkdir(join(dir, part), { recursive: true });
   await writeFile(join(dir, 'bin', 'agbcc'), '');
+  await writeFile(join(dir, 'gcc', 'toplev.c'), '');
   return dir;
 }
 
@@ -178,6 +174,8 @@ test('initBuild: the ROM as baserom.gba, init, the agbcc copy, setup.sh and make
       [{ ROMLIFT_CLI: '/bin/romlift' }, { ROMLIFT_CLI: '/bin/romlift' }],
     );
     assert.deepEqual(new Uint8Array(await readFile(join(project, 'baserom.gba'))), rom.bytes);
+    // The checkout's agbcc as installed; its sources (gcc/) stay in the checkout.
+    assert.deepEqual((await readdir(join(project, 'tools', 'agbcc'))).sort(), ['bin', 'include', 'lib']);
   });
 });
 
@@ -238,147 +236,5 @@ test('the CLI script quotes its words and runs the source CLI with the launcher 
     const ran = spawnSync(cli, [], { encoding: 'utf8' });
     assert.equal(ran.status, 0, ran.stderr);
     assert.match(ran.stdout, /^Usage: romlift <command>/);
-  });
-});
-
-// ---------------------------------------------------------------- the agbcc cache
-
-const PIN = { url: 'https://github.com/pret/agbcc', commit: 'da598c1d918402c42c0c0d7128ba14567f3175e9' } as const;
-
-async function cacheTier(root: string): Promise<BenchContext> {
-  const repoRoot = join(root, 'repo');
-  await mkdir(join(repoRoot, 'templates'), { recursive: true });
-  await writeFile(join(repoRoot, 'templates', 'agbcc.json'), `${JSON.stringify(PIN)}\n`);
-  return { repoRoot, benchRoot: join(root, 'bench'), pocRoot: join(root, 'poc') };
-}
-
-/** pret/agbcc's scripts faked: install.sh lays out <root>/tools/agbcc as the real one does; a fetch by commit can fail. */
-function fakeAgbcc(
-  calls: Call[],
-  options: { readonly shallowFails?: boolean; readonly buildFails?: boolean } = {},
-): CommandRunner {
-  return async (command, args, opts) => {
-    calls.push({ command, args, options: opts });
-    if (command === 'git' && args[1] === '-q' && args[2] === '--depth' && options.shallowFails === true)
-      return { code: 128, stdout: '', stderr: 'not our ref' };
-    if (command === './build.sh' && options.buildFails === true) return { code: 2, stdout: '', stderr: 'gcc: error' };
-    if (command === './install.sh') {
-      const dir = join(args[0] ?? '', 'tools', 'agbcc');
-      for (const sub of ['bin', 'include', 'lib']) await mkdir(join(dir, sub), { recursive: true });
-      for (const bin of ['agbcc', 'old_agbcc', 'agbcc_arm']) await writeFile(join(dir, 'bin', bin), bin);
-    }
-    return ok();
-  };
-}
-
-test("agbccCache reads the pin with romlift's readAgbccPin: the repository pins pret/agbcc, and a malformed pin throws", async () => {
-  const pin = await readAgbccPin(join(import.meta.dirname, '..', '..', '..', '..'));
-  assert.ok(pin.ok);
-  assert.equal(pin.value.url, PIN.url);
-  assert.match(pin.value.commit, /^[0-9a-f]{40}$/);
-  await withTempDir('romlift-agbcc-pin-', async (root) => {
-    const cx = await cacheTier(root);
-    await writeFile(join(cx.repoRoot, 'templates', 'agbcc.json'), '{"url":"x"}');
-    await assert.rejects(
-      agbccCache(cx, { run: fakeAgbcc([]), env: {}, log: () => {} }),
-      /agbcc\.json: commit is not forty/,
-    );
-  });
-});
-
-test("agbccPinProblem: the one pin-stamp check, with the caller's policy for a directory without a stamp", async () => {
-  await withTempDir('romlift-agbcc-stamp-', async (dir) => {
-    assert.match(
-      (await agbccPinProblem(dir, PIN, 'refuse')) ?? '',
-      /records no pin \(no romlift-agbcc-pin\.json\)/,
-      'the bench cache rebuilds an unstamped directory',
-    );
-    assert.equal(
-      await agbccPinProblem(dir, PIN, 'accept'),
-      undefined,
-      'a prebuilt directory without a stamp is taken as built at the pin',
-    );
-    await writeFile(join(dir, AGBCC_CACHE_PIN), `${JSON.stringify(PIN)}\n`);
-    for (const policy of ['refuse', 'accept'] as const)
-      assert.equal(await agbccPinProblem(dir, PIN, policy), undefined, policy);
-    const other = { ...PIN, commit: 'a'.repeat(40) };
-    for (const policy of ['refuse', 'accept'] as const) {
-      assert.match(
-        (await agbccPinProblem(dir, other, policy)) ?? '',
-        /was built at .*, not at templates\/agbcc\.json's .*aaaa/,
-        `another pin is refused (${policy})`,
-      );
-    }
-  });
-});
-
-test('agbccCache builds once from the pin, then reuses the cache while its pin is current', async () => {
-  await withTempDir('romlift-agbcc-cache-', async (root) => {
-    const cx = await cacheTier(root);
-    const calls: Call[] = [];
-    const lines: string[] = [];
-    const deps = { run: fakeAgbcc(calls, { shallowFails: true }), env: {}, log: (l: string) => lines.push(l) };
-    const cache = await agbccCache(cx, deps);
-    assert.equal(cache, agbccCachePath(cx));
-    assert.equal(cache, join(cx.repoRoot, 'bench', '.local', 'agbcc'));
-    assert.deepEqual((await readdir(join(cache, 'bin'))).sort(), ['agbcc', 'agbcc_arm', 'old_agbcc']);
-    assert.equal(await readFile(join(cache, AGBCC_CACHE_PIN), 'utf8'), `${JSON.stringify(PIN)}\n`);
-    assert.equal(await agbccPinProblem(cache, PIN, 'refuse'), undefined);
-    assert.deepEqual(
-      calls.map((c) => [c.command, ...c.args.map((a) => (a.startsWith(root) || a.startsWith('/') ? '<path>' : a))]),
-      [
-        ['git', 'init', '-q'],
-        ['git', 'fetch', '-q', '--depth', '1', PIN.url, PIN.commit],
-        ['git', 'fetch', '-q', PIN.url],
-        ['git', 'checkout', '-q', PIN.commit],
-        ['./build.sh'],
-        ['./install.sh', '<path>'],
-      ],
-    );
-    assert.equal(lines.length, 1);
-    // Current: nothing runs.
-    calls.length = 0;
-    assert.equal(await agbccCache(cx, deps), cache);
-    assert.equal(calls.length, 0);
-    // Another pin rebuilds it.
-    await writeFile(join(cx.repoRoot, 'templates', 'agbcc.json'), JSON.stringify({ ...PIN, commit: 'a'.repeat(40) }));
-    assert.notEqual(await agbccPinProblem(cache, { ...PIN, commit: 'a'.repeat(40) }, 'refuse'), undefined);
-    await agbccCache(cx, deps);
-    assert.ok(calls.some((c) => c.command === './build.sh'));
-    assert.equal(await agbccPinProblem(cache, { ...PIN, commit: 'a'.repeat(40) }, 'refuse'), undefined);
-    // A cache without its stamp is not the bench's build: rebuilt (UnstampedAgbcc 'refuse').
-    await rm(join(cache, AGBCC_CACHE_PIN));
-    calls.length = 0;
-    await agbccCache(cx, deps);
-    assert.ok(
-      calls.some((c) => c.command === './build.sh'),
-      'an unstamped cache is rebuilt',
-    );
-    assert.equal(await agbccPinProblem(cache, { ...PIN, commit: 'a'.repeat(40) }, 'refuse'), undefined);
-  });
-});
-
-test('agbccCache: a failing build throws with its output and leaves no cache', async () => {
-  await withTempDir('romlift-agbcc-cache-fail-', async (root) => {
-    const cx = await cacheTier(root);
-    await assert.rejects(
-      agbccCache(cx, { run: fakeAgbcc([], { buildFails: true }), env: {}, log: () => {} }),
-      /agbcc: build\.sh exited 2:\ngcc: error/,
-    );
-    assert.notEqual(await agbccPinProblem(agbccCachePath(cx), PIN, 'refuse'), undefined);
-  });
-});
-
-test("agbccSource: AGBCC_URL, else the benchmark root's agbcc checkout holding the commit, else the pin", async () => {
-  await withTempDir('romlift-agbcc-source-', async (root) => {
-    const cx = await cacheTier(root);
-    const holds =
-      (code: number): CommandRunner =>
-      async () => ({ code, stdout: '', stderr: '' });
-    assert.equal(await agbccSource(cx, PIN, { run: holds(0), env: { AGBCC_URL: '/mirror' } }), '/mirror');
-    assert.equal(await agbccSource(cx, PIN, { run: holds(0), env: {} }), PIN.url, 'no checkout');
-    await mkdir(join(cx.benchRoot, 'agbcc', '.git'), { recursive: true });
-    assert.equal(await agbccSource(cx, PIN, { run: holds(0), env: {} }), join(cx.benchRoot, 'agbcc'));
-    assert.equal(await agbccSource(cx, PIN, { run: holds(1), env: {} }), PIN.url, 'the checkout lacks the commit');
   });
 });

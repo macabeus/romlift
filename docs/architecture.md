@@ -105,9 +105,13 @@ romlift/
   .gitignore                        *.gba *.elf *.map *.o (fixture builds re-included), dist/, bench/.local/,
                                     bench/timings.json, signatures/*.json (built files, D40)
   .github/workflows/                ci.yml, printer.yml, fixtures.yml, provenance.yml, packed.yml
+  tools/agbcc/                      the agbcc submodule (macabeus/agbcc, shallow, ignore = dirty; D120) at
+                                    templates/agbcc.json's commit, built in place by `npm run agbcc`; the fixtures,
+                                    `bench run --scaffold` and test/local build with it
   templates/                        MANIFEST.json (every scaffold file and its project path, D74 d), Makefile, setup.sh,
                                     AGENTS.md, build.yml, gitignore, README.md, compilers/<id>.mk, agbcc.json (the pinned
-                                    agbcc URL and commit), include/global.h and include/gba/{types,io_reg}.h (the
+                                    agbcc URL and commit, equal to tools/agbcc's, D120), include/global.h and
+                                    include/gba/{types,io_reg}.h (the
                                     starter headers, D106 d); include_asm.h and macros.inc are rendered from the
                                     dialect, not templates
   signatures/
@@ -1434,8 +1438,9 @@ only `update --write` and `rename` patch the TOML.
 - `include/global.h`, `include/gba/types.h` and `include/gba/io_reg.h` (templates, written once, the user's): the
   fixed-width types and the I/O registers decompiled C includes (D106 d); `include/include_asm.h` and
   `include/macros.inc` are rendered from the dialect.
-- `tools/agbcc` is a submodule at the commit pinned in `templates/agbcc.json`. `init` writes
-  `.gitmodules`; `setup.sh` registers and checks out the submodule (or clones it outside Git).
+- `tools/agbcc` is a submodule at the commit pinned in `templates/agbcc.json`, the repository and commit of romlift's
+  own `tools/agbcc` (D120). `init` writes `.gitmodules` (`ignore = dirty`, `shallow = true`); `setup.sh` registers
+  and checks out the submodule (or clones it outside Git).
 - `setup.sh` has five duties, each a template with a golden test: (1) check the toolchain
   (`arm-none-eabi-as`, `-ld`, `-objcopy`, `make`, a host C compiler for agbcc); (2) fetch and build agbcc
   and old_agbcc when `tools/agbcc/bin/agbcc` is missing; (3) in a `git worktree` without the ROM, copy

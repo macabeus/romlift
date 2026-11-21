@@ -48,8 +48,8 @@ test("the package's own templates read: the manifest and a text for every source
   const pin = await readAgbccPin(PACKAGE_ROOT);
   assert.ok(pin.ok);
   assert.deepEqual(pin.value, {
-    url: 'https://github.com/pret/agbcc',
-    commit: 'da598c1d918402c42c0c0d7128ba14567f3175e9',
+    url: 'https://github.com/macabeus/agbcc.git',
+    commit: 'a0f70c956e8f982ee2a1f67f9fbead46cbaef339',
   });
 });
 

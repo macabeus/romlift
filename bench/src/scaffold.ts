@@ -7,17 +7,16 @@
 // From phase 4 (roadmap 4.E, architecture §8.4 "Scaffold") `--scaffold` also builds every ROM as a user does: in a
 // fresh temporary directory holding only the ROM as baserom.gba, `romlift init` (the CLI from source, under the bin's
 // heap cap), `./setup.sh` with ROMLIFT_CLI set to that CLI, then `make`, and the built ROM's SHA-1 against the ROM's
-// (initBuild). tools/agbcc is copied into each project from a cache built once from templates/agbcc.json's pin
-// (bench/.local/agbcc, gitignored; agbccCache), so setup.sh never builds the compiler there. A sealed ROM's build
+// (initBuild). Each project gets the checkout's agbcc as installed (tools/agbcc, the submodule, built once per pin;
+// bench/src/agbcc.ts checkoutAgbcc), so setup.sh never builds the compiler there. A sealed ROM's build
 // keeps no output (`withhold`): its verdict holds exit codes and a boolean only.
 // The bench reaches all of it through EmissionFamilies (named apart from emission-run.ts EmissionRunner, the
 // generate and init workflows `bench speed` and `bench large-rom` time), so its tests run `bench run` on hand-built
 // analyses.
-import { cp, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  type AgbccPin,
   type AnalysisResult,
   BASEROM_FILE,
   type ElfSymbol,
@@ -30,10 +29,11 @@ import {
   emitTree,
   discoverModel as modelOfDiscover,
 } from 'romlift';
-import { linkCheck, readAgbccPin, sha1Of, writeFreshTree } from 'romlift/node';
+import { linkCheck, sha1Of, writeFreshTree } from 'romlift/node';
 
+import { AGBCC_INSTALLED, AGBCC_SUBMODULE, checkoutAgbcc } from './agbcc.ts';
 import type { BenchContext } from './context.ts';
-import { BenchError, exists } from './files.ts';
+import { exists } from './files.ts';
 import { CLI_MAIN, launcherOptions } from './large-rom-bin.ts';
 import { type ObjdiffSummary, scoreObjdiff, unlinkedSummary } from './objdiff.ts';
 import { type ProcessOptions, type ProcessResult, runProcess } from './process.ts';
@@ -173,126 +173,8 @@ export type CommandRunner = (
   options: ProcessOptions,
 ) => Promise<ProcessResult>;
 
-/** The agbcc cache of `bench run --scaffold`: tools/agbcc as pret/agbcc's install.sh lays it out (bin, include, lib). */
-export const agbccCachePath = (cx: BenchContext): string => join(cx.repoRoot, 'bench', '.local', 'agbcc');
-/** The pin stamp: the pin an agbcc directory was built from, beside its bin/ (the bench's cache writes it). */
-export const AGBCC_CACHE_PIN = 'romlift-agbcc-pin.json';
-const AGBCC_BINARIES = ['agbcc', 'old_agbcc'] as const;
-
-/** The text of an agbcc directory's pin stamp (AGBCC_CACHE_PIN). */
-export const pinText = (pin: AgbccPin): string => `${JSON.stringify({ url: pin.url, commit: pin.commit })}\n`;
-
-/**
- * How agbccPinProblem takes a directory with no pin stamp. 'refuse' is the bench cache's policy: agbccCache writes the
- * stamp before it moves a finished build into place, so a cache without one is not its build and is rebuilt. 'accept'
- * is the policy for a prebuilt directory the user names (ROMLIFT_AGBCC, the workflows' build at the pinned commit):
- * nothing stamps it, so it is taken as built at the pin, and only a stamp that records another pin refuses it.
- */
-export type UnstampedAgbcc = 'refuse' | 'accept';
-
-/**
- * The one pin-stamp check of an agbcc directory, used by the bench's cache (agbccCache) and test/helpers/e2e.ts's:
- * undefined when the agbcc in `dir` may be used under `pin`, else why not. A stamp equal to pinText(pin) may be used,
- * a stamp of another pin may not, and a directory without a stamp follows `unstamped` (UnstampedAgbcc). Throws when the
- * stamp exists but cannot be read.
- */
-export async function agbccPinProblem(
-  dir: string,
-  pin: AgbccPin,
-  unstamped: UnstampedAgbcc,
-): Promise<string | undefined> {
-  const stamp = join(dir, AGBCC_CACHE_PIN);
-  if (!(await exists(stamp)))
-    return unstamped === 'accept' ? undefined : `the agbcc ${dir} records no pin (no ${AGBCC_CACHE_PIN})`;
-  const recorded = await readFile(stamp, 'utf8');
-  return recorded === pinText(pin)
-    ? undefined
-    : `the agbcc ${dir} was built at ${recorded.trim()}, not at templates/agbcc.json's ${pinText(pin).trim()}`;
-}
-
-/** templates/agbcc.json, the pin `init` writes into every project's setup.sh, read by romlift's reader (romlift/node readAgbccPin). */
-async function templatePin(cx: BenchContext): Promise<AgbccPin> {
-  const pin = await readAgbccPin(cx.repoRoot);
-  if (!pin.ok) throw new BenchError(pin.diagnostic.message);
-  return pin.value;
-}
-
-/** Whether `dir` holds both compilers a project builds with. */
-async function hasCompilers(dir: string): Promise<boolean> {
-  for (const bin of AGBCC_BINARIES) if (!(await exists(join(dir, 'bin', bin)))) return false;
-  return true;
-}
-
 const tail = (run: ProcessResult, lines = 20): string =>
   `${run.stdout}${run.stderr}`.trimEnd().split('\n').slice(-lines).join('\n');
-
-export interface AgbccCacheDeps {
-  readonly run: CommandRunner;
-  readonly env: Readonly<Record<string, string | undefined>>;
-  readonly log: (line: string) => void;
-}
-
-/**
- * Where the pinned agbcc is fetched from: AGBCC_URL when set (setup.sh's mirror variable), else the benchmark root's
- * `agbcc/` checkout when it holds the pinned commit (no network), else the pin's URL.
- */
-export async function agbccSource(
-  cx: BenchContext,
-  pin: AgbccPin,
-  deps: Pick<AgbccCacheDeps, 'run' | 'env'>,
-): Promise<string> {
-  const mirror = deps.env['AGBCC_URL'];
-  if (mirror !== undefined && mirror !== '') return mirror;
-  const local = join(cx.benchRoot, 'agbcc');
-  if (
-    (await exists(join(local, '.git'))) &&
-    (await deps.run('git', ['-C', local, 'cat-file', '-e', `${pin.commit}^{commit}`], {})).code === 0
-  )
-    return local;
-  return pin.url;
-}
-
-/**
- * The agbcc cache, built once: pret/agbcc fetched at templates/agbcc.json's commit into a temporary directory, built by
- * its build.sh and installed by its install.sh (as setup.sh does), then moved to bench/.local/agbcc with the pin beside
- * it. A current cache is reused as it is. Throws a BenchError when a step fails.
- */
-export async function agbccCache(cx: BenchContext, deps: AgbccCacheDeps): Promise<string> {
-  const pin = await templatePin(cx);
-  const cache = agbccCachePath(cx);
-  if ((await hasCompilers(cache)) && (await agbccPinProblem(cache, pin, 'refuse')) === undefined) return cache;
-  const source = await agbccSource(cx, pin, deps);
-  deps.log(`agbcc: building ${pin.commit} from ${source} into ${cache} (once; a few minutes)`);
-  const work = await mkdtemp(join(tmpdir(), 'romlift-agbcc-'));
-  try {
-    const src = join(work, 'agbcc');
-    const root = join(work, 'install');
-    await mkdir(src);
-    await mkdir(root);
-    const step = async (what: string, command: string, args: readonly string[], cwd: string): Promise<void> => {
-      const run = await deps.run(command, args, { cwd });
-      if (run.code !== 0) throw new BenchError(`agbcc: ${what} exited ${run.code}:\n${tail(run)}`);
-    };
-    await step('git init', 'git', ['init', '-q'], src);
-    // A fetch by commit, as setup.sh tries first; a server that refuses one is fetched whole.
-    if ((await deps.run('git', ['fetch', '-q', '--depth', '1', source, pin.commit], { cwd: src })).code !== 0)
-      await step('git fetch', 'git', ['fetch', '-q', source], src);
-    await step('git checkout', 'git', ['checkout', '-q', pin.commit], src);
-    await step('build.sh', './build.sh', [], src);
-    await step('install.sh', './install.sh', [root], src);
-    const built = join(root, 'tools', 'agbcc');
-    for (const bin of AGBCC_BINARIES)
-      if (!(await exists(join(built, 'bin', bin))))
-        throw new BenchError(`agbcc: install.sh wrote no ${join('tools', 'agbcc', 'bin', bin)}`);
-    await writeFile(join(built, AGBCC_CACHE_PIN), pinText(pin));
-    await mkdir(join(cache, '..'), { recursive: true });
-    await rm(cache, { recursive: true, force: true });
-    await rename(built, cache);
-    return cache;
-  } finally {
-    await rm(work, { recursive: true, force: true });
-  }
-}
 
 /** `text` as one single-quoted shell word. */
 export function shellQuote(text: string): string {
@@ -309,7 +191,7 @@ export function sourceCliScript(nodePath: string, nodeOptions: readonly string[]
 
 export interface InitBuildDeps {
   readonly run: CommandRunner;
-  /** tools/agbcc to copy into the project (agbccCache). */
+  /** The built agbcc whose installed directories (AGBCC_INSTALLED) go into the project's tools/agbcc (checkoutAgbcc). */
   readonly agbcc: string;
   /** The `romlift` command: an executable that runs the CLI (sourceCliScript). */
   readonly cli: string;
@@ -325,7 +207,7 @@ async function builtRom(dir: string): Promise<string | undefined> {
 
 /**
  * Builds `rom` in the empty directory `dir` as a user does: the ROM as baserom.gba, `romlift init baserom.gba --json`,
- * tools/agbcc copied from the cache, `./setup.sh` and `make` (both with ROMLIFT_CLI), each step only after the one
+ * the checkout's agbcc copied in as installed, `./setup.sh` and `make` (both with ROMLIFT_CLI), each step only after the one
  * before exited 0; then the built ROM's SHA-1 against the ROM's. Never throws for a failed step.
  */
 export async function initBuild(rom: Rom, dir: string, withhold: boolean, deps: InitBuildDeps): Promise<InitBuild> {
@@ -344,7 +226,8 @@ export async function initBuild(rom: Rom, dir: string, withhold: boolean, deps: 
   const init = await deps.run(deps.cli, ['init', BASEROM_FILE, '--json'], { cwd: dir });
   exits.initExit = init.code;
   if (init.code !== 0) return failed('romlift init', init);
-  await cp(deps.agbcc, join(dir, 'tools', 'agbcc'), { recursive: true });
+  for (const part of AGBCC_INSTALLED)
+    await cp(join(deps.agbcc, part), join(dir, AGBCC_SUBMODULE, part), { recursive: true });
   const setup = await deps.run('./setup.sh', [], { cwd: dir, env });
   exits.setupExit = setup.code;
   if (setup.code !== 0) return failed('./setup.sh', setup);
@@ -377,21 +260,21 @@ export async function sourceCli(dir: string): Promise<string> {
   return file;
 }
 
-/** One cache per repository and process: the first init build of a run builds it, the others reuse the promise. */
-const CACHES = new Map<string, Promise<string>>();
+/** One build per repository and process: the first init build of a run builds the checkout's agbcc if it must. */
+const BUILDS = new Map<string, Promise<string>>();
 
-function cachedAgbcc(cx: BenchContext): Promise<string> {
-  const known = CACHES.get(cx.repoRoot);
+function builtAgbcc(cx: BenchContext): Promise<string> {
+  const known = BUILDS.get(cx.repoRoot);
   if (known !== undefined) return known;
-  const made = agbccCache(cx, { run: runProcess, env: process.env, log: (line) => process.stderr.write(`${line}\n`) });
-  CACHES.set(cx.repoRoot, made);
-  made.catch(() => CACHES.delete(cx.repoRoot));
+  const made = checkoutAgbcc(cx, { run: runProcess, log: (line) => process.stderr.write(`${line}\n`) });
+  BUILDS.set(cx.repoRoot, made);
+  made.catch(() => BUILDS.delete(cx.repoRoot));
   return made;
 }
 
 /** initBuild in a temporary directory removed afterwards, the CLI script beside the project (init wants it empty). */
 export async function initBuildInTemp(input: InitBuildInput, run: CommandRunner = runProcess): Promise<InitBuild> {
-  const agbcc = await cachedAgbcc(input.cx);
+  const agbcc = await builtAgbcc(input.cx);
   const base = await mkdtemp(join(tmpdir(), 'romlift-init-build-'));
   try {
     const project = join(base, 'project');

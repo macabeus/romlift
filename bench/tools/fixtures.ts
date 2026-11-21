@@ -11,26 +11,26 @@
 //            and build.mk's toolchain record. An agbcc commit that differs from the record fails; an
 //            `as --version` line that differs is a note. Exit 0 only when every fixture agrees.
 //
-// The toolchain: agbcc from ROMLIFT_AGBCC (a directory holding bin/agbcc), else
-// $ROMLIFT_BENCH_ROOT/pokeemerald/tools/agbcc, and old_agbcc beside it (bin/old_agbcc, built from the
-// same commit), which make gets as OLD_AGBCC for the sources a build.mk lists in OLD_AGBCC_SRCS; a
-// fixture that lists one fails when bin/old_agbcc is missing. Binutils from the PATH. The agbcc commit is
-// ROMLIFT_AGBCC_COMMIT, else the HEAD of the git checkout whose top level is that directory; when
-// neither names it, `check` notes that the commit is unknown and the rebuilt bytes decide, and
-// `rebuild` refuses to write a record. --json prints a final summary line.
+// The toolchain: the checkout's agbcc (tools/agbcc, the submodule at templates/agbcc.json's commit, built in place
+// when it is not yet built at that pin; bench/src/agbcc.ts, D120) and old_agbcc beside it (bin/old_agbcc), which make
+// gets as OLD_AGBCC for the sources a build.mk lists in OLD_AGBCC_SRCS; a fixture that lists one fails when
+// bin/old_agbcc is missing. Binutils from the PATH. The agbcc commit is the pin's, which the submodule is checked out
+// at. --json prints a final summary line.
 //
 // The comparison logic is pure and exported for test/unit/fixtures; main() is the only I/O.
 import { execFile } from 'node:child_process';
-import { copyFile, mkdir, mkdtemp, readdir, realpath, rm } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { type ElfFile, type ElfSymbolType, compareCodeUnits, parseElf, parseGnuMap } from 'romlift';
 import { type Binutils, binutilsVersions, findBinutils } from 'romlift/node';
 
+import { checkoutAgbcc, templatePin } from '../src/agbcc.ts';
 import { UsageError, parseArgs } from '../src/args.ts';
 import { contextFromEnv } from '../src/context.ts';
 import { BenchError, exists, readFileBytes, readText, writeText } from '../src/files.ts';
+import { runProcess } from '../src/process.ts';
 
 export const FIXTURES_SCHEMA = 'romlift/fixtures@1';
 const USAGE = 'usage: npm run fixtures -- rebuild|check [--only <name>] [--json]';
@@ -43,12 +43,12 @@ export interface ToolchainRecord {
   readonly asVersion: string;
 }
 
-/** The toolchain of this run; `agbccCommit` is undefined when nothing names it. */
+/** The toolchain of this run. */
 export interface ToolchainInUse {
   readonly agbcc: string;
   /** bin/old_agbcc beside agbcc, or undefined when that file does not exist. */
   readonly oldAgbcc: string | undefined;
-  readonly agbccCommit: string | undefined;
+  readonly agbccCommit: string;
   readonly binutils: Binutils;
   readonly asVersion: string;
 }
@@ -258,11 +258,7 @@ export function compareFixture(
   if ('missing' in record) {
     problems.push(`build.mk has no toolchain record (${record.missing.join(', ')})`);
   } else {
-    if (toolchain.agbccCommit === undefined) {
-      notes.push(
-        `the agbcc commit in use is unknown (set ROMLIFT_AGBCC_COMMIT); the record names ${record.agbccCommit} and the rebuilt bytes decide`,
-      );
-    } else if (!sameCommit(record.agbccCommit, toolchain.agbccCommit)) {
+    if (!sameCommit(record.agbccCommit, toolchain.agbccCommit)) {
       problems.push(`agbcc commit ${toolchain.agbccCommit} differs from the recorded ${record.agbccCommit}`);
     }
     if (record.asVersion !== toolchain.asVersion)
@@ -284,7 +280,7 @@ export function summaryLine(
     ok: failed.length === 0,
     fixtures: verdicts.length,
     failed,
-    toolchain: { agbccCommit: toolchain.agbccCommit ?? null, as: toolchain.asVersion },
+    toolchain: { agbccCommit: toolchain.agbccCommit, as: toolchain.asVersion },
     verdicts,
   });
 }
@@ -317,26 +313,10 @@ async function fixtureNames(root: string): Promise<readonly string[]> {
   return names.sort(compareCodeUnits);
 }
 
-async function agbccCommit(
-  dir: string,
-  env: Readonly<Record<string, string | undefined>>,
-): Promise<string | undefined> {
-  const named = env['ROMLIFT_AGBCC_COMMIT'];
-  if (named !== undefined && named !== '') return named.trim();
-  const top = await run('git', ['-C', dir, 'rev-parse', '--show-toplevel']);
-  if (top.code !== 0) return undefined;
-  if ((await realpath(top.stdout.trim())) !== (await realpath(dir))) return undefined;
-  const head = await run('git', ['-C', dir, 'rev-parse', 'HEAD']);
-  return head.code === 0 ? head.stdout.trim() : undefined;
-}
-
 async function toolchainFromEnv(env: Readonly<Record<string, string | undefined>>): Promise<ToolchainInUse> {
-  const named = env['ROMLIFT_AGBCC'];
-  const dir =
-    named !== undefined && named !== '' ? named : join(contextFromEnv(env).benchRoot, 'pokeemerald', 'tools', 'agbcc');
+  const cx = contextFromEnv(env);
+  const dir = await checkoutAgbcc(cx, { run: runProcess, log: (line) => process.stderr.write(`${line}\n`) });
   const agbcc = join(dir, 'bin', 'agbcc');
-  if (!(await exists(agbcc)))
-    throw new BenchError(`no agbcc at ${agbcc}: set ROMLIFT_AGBCC to a directory holding bin/agbcc`);
   const oldAgbcc = oldAgbccBeside(agbcc);
   const binutils = findBinutils(env);
   if ('code' in binutils) throw new BenchError(binutils.message);
@@ -345,7 +325,7 @@ async function toolchainFromEnv(env: Readonly<Record<string, string | undefined>
   return {
     agbcc,
     oldAgbcc: (await exists(oldAgbcc)) ? oldAgbcc : undefined,
-    agbccCommit: await agbccCommit(dir, env),
+    agbccCommit: (await templatePin(cx)).commit,
     binutils,
     asVersion: versions.as,
   };
@@ -399,8 +379,6 @@ async function withTemp<T>(body: (dir: string) => Promise<T>): Promise<T> {
 }
 
 async function rebuildOne(name: string, toolchain: ToolchainInUse): Promise<FixtureVerdict> {
-  if (toolchain.agbccCommit === undefined)
-    throw new BenchError('the agbcc commit is unknown: set ROMLIFT_AGBCC_COMMIT before rebuilding');
   const record: ToolchainRecord = { agbccCommit: toolchain.agbccCommit, asVersion: toolchain.asVersion };
   const dir = join(SYNTHETIC_DIR, name);
   const withMap = wantsMap(await readText(join(dir, 'build.mk')));
@@ -472,7 +450,7 @@ async function main(argv: readonly string[]): Promise<number> {
   }
   const failed = verdicts.filter((v) => !v.ok).length;
   process.stdout.write(
-    `${command}: ${verdicts.length - failed} of ${verdicts.length} fixtures agree (agbcc ${toolchain.agbccCommit ?? 'commit unknown'}, ${toolchain.asVersion})\n`,
+    `${command}: ${verdicts.length - failed} of ${verdicts.length} fixtures agree (agbcc ${toolchain.agbccCommit}, ${toolchain.asVersion})\n`,
   );
   if (args.flags.has('json')) process.stdout.write(`${summaryLine(command, verdicts, toolchain)}\n`);
   return failed === 0 ? 0 : 1;
