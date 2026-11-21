@@ -110,13 +110,13 @@ and the ELF, map and legacy importers, D91, D92, only library signatures' propos
   only SHA-1s, ELF digests, exception lists and the results artifact (docs/benchmark-roms.md).
   `.gitignore` excludes them and `test/repository.test.ts` fails if one is tracked. The only exceptions
   are the self-authored synthetic fixtures under `bench/dataset/synthetic/*/build/` and `test/fixtures/`.
-- **Benchmark checkouts** live under `ROMLIFT_BENCH_ROOT`, default the parent directory of the
-  repository root; on the owner's machine that is `/Users/macabeus/ApenasMeu/decompiler`. Tuning set:
+- **Benchmark checkouts** live under `ROMLIFT_BENCH_ROOT`, by default the directory that holds this
+  repository, so the checkouts sit beside it. Set it when they are elsewhere. Tuning set:
   `kleod/` (klonoa), `sa2/`, `sa3/`, `FireEmblem7J/` (fe7j), `pokeemerald/`, and `tmc/` (revealed by the
   owner's decision of 17 October 2026, D60; the pinned PoC's results never covered it, and `export-poc
   --mode scored` runs the pinned PoC on it), each with its ROM, ELF and map
   (table in docs/benchmark-roms.md). agbcc builds: `pokeemerald/tools/agbcc` and `agbcc/` under the same root.
-- **The proof of concept** is at `ROMLIFT_POC` (`/Users/macabeus/ApenasMeu/decompiler/romlift-poc`). It
+- **The proof of concept** is at `ROMLIFT_POC`, by default `romlift-poc/` under `ROMLIFT_BENCH_ROOT`. It
   is read-only: never modify it. Its numbers are the acceptance bar, pinned by content (D50).
 - **Held-out ROMs** (`pokefirered`, `pokeruby`, and any admitted from the reserve pool; `tmc` until its
   reveal, D60) are never
@@ -141,9 +141,3 @@ and the ELF, map and legacy importers, D91, D92, only library signatures' propos
   passes and the CI workflows (`ci.yml`, `printer.yml`, `provenance.yml`, `fixtures.yml`, `packed.yml`) have run on the
   phase's pull request (a job GitHub refuses to start is not a pass; for phase 6 alone the owner let the checks those jobs run be run locally instead, D103); the merge carries the raised marker. Only the phase lead regenerates `bench/results.json`
   and `bench/baseline/speed.json`.
-- Every commit message ends with exactly this line (from phase 4 on; phases 1 to 3 also carried a `Claude-Session:`
-  line, D75 p):
-
-  ```
-  Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-  ```
