@@ -219,7 +219,9 @@ const MUTANTS: readonly Mutant[] = [
   },
   {
     name: 'a stale lock is taken over without W_STALE_LOCK',
-    mutations: [{ file: LOCK_SOURCE, from: 'notes.push(diagnostic(', to: 'void (diagnostic(' }],
+    // The diagnostic is built and dropped: pushed onto a throwaway array (a call, so the argument list's trailing comma
+    // stays legal).
+    mutations: [{ file: LOCK_SOURCE, from: 'notes.push(', to: 'void [].push(' }],
     caughtBy: [STALE],
   },
 ];

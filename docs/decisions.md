@@ -5601,8 +5601,9 @@ the recommendation, and chose its settings: "Use Prettier, and copy the same set
 - (d) **One commit reformats the code and changes nothing else**, and `.git-blame-ignore-revs` names it, so `git blame`
   (with `blame.ignoreRevsFile`, which GitHub reads on its own) passes over it. Measured on it: each of the 770 files
   parses to the same syntax tree as before, its imports compared as a sorted set, with redundant parentheses, trailing
-  commas, the spelling of a literal and the quotes of a property name set aside; the typechecker, ESLint and the tests
-  pass unchanged; no file's header comment moved (the import sorter carries a comment with its import,
+  commas, the spelling of a literal and the quotes of a property name set aside; the typechecker and ESLint pass
+  unchanged, and so do the tests but one: a mutant of `test/mutation/phase4/lock.test.ts` finds the line it rewrites
+  by its text, `notes.push(diagnostic(`, which the formatter split, so it now rewrites `notes.push(` (its own commit); no file's header comment moved (the import sorter carries a comment with its import,
   and every header stayed above the first one); no import has side effects, so their new order changes no evaluation
   order that matters; `src/cli/main.ts` keeps its launcher line first.
 
