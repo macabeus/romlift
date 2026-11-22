@@ -3,8 +3,10 @@
 // walk rule names goes through the walk slot (first answer wins); without an answer the decoder's Flow
 // decides (types.ts, WalkStep). The bl verdicts come from the settle loop: `far` sites are walked as
 // jumps, `noret` sites end their path.
-import { decode, fieldsOf, rowFor, thumbWordAt } from '../../../foundation/isa/decode.ts';
-import type { Insn } from '../../../foundation/isa/types.ts';
+import { decode, fieldsOf, rowFor } from '@match-kit/isa/armv4t';
+import type { Insn } from '@match-kit/isa/armv4t';
+
+import { thumbWordAt } from '../../../foundation/rom/rom.ts';
 import { contains, u32 } from '../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../foundation/rom/span.ts';
 import { insnAligned } from '../../../foundation/rom/span.ts';

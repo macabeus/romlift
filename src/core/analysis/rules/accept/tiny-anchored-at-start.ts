@@ -2,7 +2,9 @@
 // candidate (the forward chain's) of fewer than tinyFunctionInsns instructions (a stub: `bx lr`, `bx rN`, `movs; bx lr`) is
 // taken only when it is anchored at start and does not open with b, bcc or bl, which a stray halfword
 // pair in data often does.
-import { decode, thumbWordAt } from '../../../../foundation/isa/decode.ts';
+import { decode } from '@match-kit/isa/armv4t';
+
+import { thumbWordAt } from '../../../../foundation/rom/rom.ts';
 import { contains } from '../../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../../foundation/rom/span.ts';
 import type { AnalysisView } from '../../types.ts';

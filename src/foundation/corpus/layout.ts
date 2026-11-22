@@ -2,14 +2,10 @@
 // (the printed mnemonic or its `.inst` fallback), padding, and the `.set` definitions of every label
 // the cases printed. Each case is decoded at the address it occupies, so a PC-relative form prints the
 // label of its own target.
+import { assemble, decode, format, formatRaw, parse, printing, specOf } from '@match-kit/isa/armv4t';
+import type { FlowKind, Insn, SymbolResolver } from '@match-kit/isa/armv4t';
+
 import { DIALECT } from '../asm/dialect.ts';
-import { assemble } from '../isa/assemble.ts';
-import { decode } from '../isa/decode.ts';
-import { format, formatRaw } from '../isa/format.ts';
-import { parse } from '../isa/parse.ts';
-import { printing } from '../isa/roundtrip.ts';
-import { specOf } from '../isa/rows.ts';
-import type { FlowKind, Insn, SymbolResolver } from '../isa/types.ts';
 import type { Mode } from '../rom/span.ts';
 import { hex } from '../util/hex.ts';
 import { compareNumbers } from '../util/sorted.ts';

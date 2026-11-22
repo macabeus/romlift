@@ -1,5 +1,6 @@
 // The corpus core without a toolchain: what it generates, where it puts labels, and how the
 // comparator judges assembled bytes (hand-made here; test/corpus/generate.ts feeds it real `as`).
+import { decode, specOf, specsOf } from '@match-kit/isa/armv4t';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
@@ -16,8 +17,6 @@ import {
 } from '../../../src/foundation/corpus/corpus.ts';
 import type { CorpusFile, CorpusOptions } from '../../../src/foundation/corpus/corpus.ts';
 import { corpusOk } from '../../../src/foundation/corpus/threshold.ts';
-import { decode } from '../../../src/foundation/isa/decode.ts';
-import { specOf, specsOf } from '../../../src/foundation/isa/rows.ts';
 import { perfectAs } from './simulate.ts';
 
 // The bl threshold (65,536 cases) needs the full bl sample; the ARM sample is cut down for speed.

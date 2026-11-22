@@ -20,8 +20,8 @@ async function writeTree(root: string, files: Readonly<Record<string, string>>):
 }
 
 const TREE = {
-  'src/foundation/corpus/corpus.ts': "export * from '../isa/decode.ts';\n",
-  'src/foundation/isa/decode.ts': 'decode',
+  'src/foundation/corpus/corpus.ts': "export * from '@match-kit/isa/armv4t';\n",
+  'node_modules/@match-kit/isa/dist/armv4t.js': 'decode',
   'test/corpus/generate.ts': 'generate',
 };
 
@@ -55,7 +55,7 @@ test('results.json takes the corpus summary only while it parses, matches as and
     await writeSummary(root, { ...summary, options: { ...OPTIONS, armSample: 5 } });
     assert.equal(await currentPrinterSummary(cx, AS), undefined, 'options that are not the digested ones');
     await writeSummary(root, summary);
-    await writeTree(root, { 'src/foundation/isa/decode.ts': 'changed' });
+    await writeTree(root, { 'node_modules/@match-kit/isa/dist/armv4t.js': 'changed' });
     assert.equal(await currentPrinterSummary(cx, AS), undefined, 'a changed corpus input');
   });
 });
@@ -82,7 +82,7 @@ test('a writing run keeps the previous printer member while it is current and ne
     );
     await writeSummary(root, summary);
     assert.deepEqual(await printerMember(cx, AS, summary), { ok: true, summary, from: 'corpus' });
-    await writeTree(root, { 'src/foundation/isa/decode.ts': 'changed' });
+    await writeTree(root, { 'node_modules/@match-kit/isa/dist/armv4t.js': 'changed' });
     const stale = await printerMember(cx, AS, summary);
     assert.equal(stale.ok, false, 'a changed corpus input with no fresh summary refuses');
     assert.match(stale.ok ? '' : stale.reason, /npm run corpus/);

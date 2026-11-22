@@ -1,8 +1,9 @@
 // The references that bound the legal module borders (architecture §6.2, D15, D63): every short Thumb branch
 // (b, bcc), which cannot reach across objects on every binutils version, and every PC-relative load and adr, for
 // which GNU as has no relocation into another object. One scan of the analysis' function spans.
-import { decode, thumbMayName } from '../../foundation/isa/decode.ts';
-import type { Flow } from '../../foundation/isa/types.ts';
+import { decode, thumbMayName } from '@match-kit/isa/armv4t';
+import type { Flow } from '@match-kit/isa/armv4t';
+
 import { peek16, peek32 } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';

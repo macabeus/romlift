@@ -31,7 +31,7 @@ import { hexBytes } from '../../foundation/util/hex.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { canonicalJson } from '../../foundation/formats/canonical-json.ts';
 import type { ElfSymbol, GnuMap, JsonValue } from '../../foundation/formats/types.ts';
-import { isThumbBlPrefix, isThumbBlSuffix } from '../../foundation/isa/decode.ts';
+import { isThumbBlPrefix, isThumbBlSuffix } from '@match-kit/isa/armv4t';
 import { peek16, peek32 } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Mode, Span } from '../../foundation/rom/span.ts';

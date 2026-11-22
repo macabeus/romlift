@@ -39,7 +39,7 @@ import {
   romFromBytes,
   stubUnitAssembly,
 } from 'romlift';
-import { DIALECT } from 'romlift/isa';
+import { DIALECT } from 'romlift';
 import { findBinutils, sha1Of } from 'romlift/node';
 
 const run = promisify(execFile);

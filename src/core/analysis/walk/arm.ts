@@ -7,8 +7,9 @@
 // accepted ARM readings of the six tuning ROMs decoded): one instruction is classed otherwise, an
 // `add pc, pc, #imm` that ends the reading of one listed false entry of tmc, where the PoC's class (adr)
 // would have read on into the next function; no other accepted ARM reading holds such an encoding.
-import { decode, isConditional, rowFor } from '../../../foundation/isa/decode.ts';
-import type { Insn } from '../../../foundation/isa/types.ts';
+import { decode, isConditional, rowFor } from '@match-kit/isa/armv4t';
+import type { Insn } from '@match-kit/isa/armv4t';
+
 import { contains, u32 } from '../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../foundation/rom/span.ts';
 import { insnAligned } from '../../../foundation/rom/span.ts';

@@ -3,10 +3,10 @@
 // stored as their isa row index and re-decoded from the ROM on demand, so the model holds about 17 bytes
 // per item and no object per instruction. The builder checks each item's own shape (a caller bug throws
 // RomliftInvariantError); whether the items tile the ROM is core/verify/tiling.ts's question.
+import { ROWS, decode } from '@match-kit/isa/armv4t';
+import type { Insn, SpecId } from '@match-kit/isa/armv4t';
+
 import { RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
-import { decode } from '../../foundation/isa/decode.ts';
-import { ROWS } from '../../foundation/isa/rows.ts';
-import type { Insn, SpecId } from '../../foundation/isa/types.ts';
 import { contains, u16, u32 } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Mode, Span } from '../../foundation/rom/span.ts';

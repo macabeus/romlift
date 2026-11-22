@@ -1,7 +1,8 @@
 # bench
 
 The benchmark and regression harness (architecture §8). Development only: it is not published and
-imports romlift only through `romlift`, `romlift/node`, `romlift/isa` and `romlift/internal` (D37).
+imports romlift only through `romlift`, `romlift/node` and `romlift/internal` (D37), and the instruction set as
+`@match-kit/isa/armv4t` (D121).
 
 It scores a seedless discover run of every dataset against the `FUNC` symbols of an ELF that rebuilds
 the ROM, judges signatures afterwards, and runs the gates. ROMs, ELFs and maps are read from

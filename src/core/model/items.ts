@@ -22,11 +22,11 @@
 // b or bl that would name a function label of the other state (a [functions] entry listed `arm` that Thumb code
 // calls, or the reverse) is raw with 'interworking-branch' and W_INTERWORKING_BRANCH: GNU ld would put an
 // interworking veneer in the image for it, which no text-layout check sees and which moves every later byte.
+import { decode, specOf } from '@match-kit/isa/armv4t';
+import type { Insn, SymbolResolver } from '@match-kit/isa/armv4t';
+
 import { RomliftInvariantError, diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
-import { decode } from '../../foundation/isa/decode.ts';
-import { specOf } from '../../foundation/isa/rows.ts';
-import type { Insn, SymbolResolver } from '../../foundation/isa/types.ts';
 import { peek16, peek32 } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Mode } from '../../foundation/rom/span.ts';

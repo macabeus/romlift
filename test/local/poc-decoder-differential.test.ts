@@ -6,14 +6,14 @@
 // count; anything else fails. The PoC's
 // decoders run under the PoC's own tsx (test/local/poc/decoder-driver.ts). Without the PoC checkout
 // the test is skipped as `unavailable: poc`, or fails when ROMLIFT_REQUIRE_LOCAL=1.
+import { decode, specOf } from '@match-kit/isa/armv4t';
+import type { Flow, FlowKind, Insn } from '@match-kit/isa/armv4t';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { decode, specOf } from 'romlift/isa';
-import type { Flow, FlowKind, Insn } from 'romlift/isa';
 
 // The roots resolve as in test/gates/gate.ts: relative to the repository, the bench root defaulting
 // to the repository's parent directory.

@@ -1,6 +1,7 @@
 // The corpus threshold (architecture §5, D55): when the counts of a corpus run mean that `assemble` agrees with the
 // user's `as`. runCorpus (shell/toolchain/corpus.ts) judges its run with it; the corpus driver and the g1 gates read it.
-import { specsOf } from '../isa/rows.ts';
+import { specsOf } from '@match-kit/isa/armv4t';
+
 import type { CorpusCounts, CorpusOptions } from './types.ts';
 
 /** The fewest cases the Thumb and bl sections must hold: every Thumb halfword; the bl prefixes and sample. */

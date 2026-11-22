@@ -25,10 +25,6 @@
       "source": "./src/node.ts",
       "default": "./dist/node.js"
     },
-    "./isa": {
-      "source": "./src/isa.ts",
-      "default": "./dist/isa.js"
-    },
     "./internal": {
       "source": "./src/internal.ts",
       "default": "./dist/internal.js"
@@ -55,6 +51,7 @@
   },
   "dependencies": {
     "@match-kit/decomp-yaml": "^0.1.0",
+    "@match-kit/isa": "0.1.0",
     "smol-toml": "^1.9.1",
     "zod": "^4.6.7"
   },

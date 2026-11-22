@@ -10,10 +10,11 @@
 // rawReason). Only an instruction that names no address goes through a cache, addressFreeReasons, whose key is
 // its mode and exact word, so the cache can change no answer. The decode of each item is not cached: the check
 // still compares every item's recorded row with what its bytes decode to.
+import { rawReason } from '@match-kit/isa/armv4t';
+import type { SymbolResolver } from '@match-kit/isa/armv4t';
+
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
-import { rawReason } from '../../foundation/isa/roundtrip.ts';
-import type { SymbolResolver } from '../../foundation/isa/types.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';

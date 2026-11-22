@@ -1,10 +1,10 @@
+import { decode } from '@match-kit/isa/armv4t';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { WalkStep } from '../../../../src/core/analysis/types.ts';
 import type { ResolvedPolicy } from '../../../../src/core/analysis/walk/cursor.ts';
 import type { RuleId } from '../../../../src/core/provenance/rule-id.ts';
-import { decode } from '../../../../src/foundation/isa/decode.ts';
 import type { Addr } from '../../../../src/foundation/rom/span.ts';
 import { romWith, viewWith, walkReading, words } from '../../../helpers/analysis.ts';
 import { armAt } from '../../../helpers/arm.ts';

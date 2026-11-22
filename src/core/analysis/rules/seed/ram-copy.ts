@@ -36,13 +36,12 @@
 // two is accepted. Targets are proposed ascending, and a target inside the code of a lower one is not
 // proposed (the validity a trusted queue skips); a claimed target, an ARM target that does not decode or
 // never returns, and an invalid Thumb target are not proposed either.
-import { popcount } from '../../../../foundation/isa/bits.ts';
-import { decode, isConditional, thumbWordAt } from '../../../../foundation/isa/decode.ts';
-import { pcOf, thumbPoolBase } from '../../../../foundation/isa/pc-relative.ts';
-import { registerEffect } from '../../../../foundation/isa/registers.ts';
-import type { Insn } from '../../../../foundation/isa/types.ts';
+import { decode, isConditional, pcOf, popcount, registerEffect, thumbPoolBase } from '@match-kit/isa/armv4t';
+import type { Insn } from '@match-kit/isa/armv4t';
+
 import { BIOS_COPY_ARGS, biosCopyBytes, isBiosCopy } from '../../../../foundation/rom/bios.ts';
 import { MEMORY_REGIONS, regionOf } from '../../../../foundation/rom/memory-map.ts';
+import { thumbWordAt } from '../../../../foundation/rom/rom.ts';
 import { contains, u16, u32 } from '../../../../foundation/rom/rom.ts';
 import type { Addr, Mode } from '../../../../foundation/rom/span.ts';
 import { insnAligned, insnUnit } from '../../../../foundation/rom/span.ts';

@@ -137,6 +137,15 @@ export function peek16(rom: RomBytes, a: Addr): number {
   return (rom.bytes[k] ?? 0) | ((rom.bytes[k + 1] ?? 0) << 8);
 }
 
+/**
+ * The Thumb decode word at `a` (@match-kit/isa's `decode`): the halfword at `a`, with the one at a + 2 above it when
+ * that is in the ROM (a bl pair decodes as one instruction). A halfword outside the ROM reads as zero.
+ */
+export function thumbWordAt(rom: Rom, a: Addr): number {
+  const hi = a + 4 <= rom.end ? peek16(rom, a + 2) : 0;
+  return (peek16(rom, a) | (hi << 16)) >>> 0;
+}
+
 /** The word at bus address `a` as peek16 reads it (unsigned): foundation/util/bytes.ts le32, a byte outside reading 0. */
 export function peek32(rom: RomBytes, a: Addr): number {
   return le32(rom.bytes, a - rom.base);

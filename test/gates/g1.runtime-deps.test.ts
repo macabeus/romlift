@@ -1,5 +1,5 @@
-// g1.runtime-deps (architecture §13, R2, D38): package.json `dependencies` is exactly smol-toml, zod and
-// @match-kit/decomp-yaml, and no package of the production tree has an install script, a compiled
+// g1.runtime-deps (architecture §13, R2, D38, D121): package.json `dependencies` is exactly smol-toml, zod,
+// @match-kit/decomp-yaml and @match-kit/isa, and no package of the production tree has an install script, a compiled
 // `.node` addon or a `binding.gyp` (which npm would build with node-gyp). The production tree is the
 // lock file's `packages` without `dev: true`, each directory resolved from the repository root and
 // checked against the package names of `npm ls --all --omit=dev --json`; paths npm prints are never
@@ -9,7 +9,7 @@ import path from 'node:path';
 
 import { type ExecResult, byCodeUnit, gate } from './gate.ts';
 
-const EXPECTED = ['@match-kit/decomp-yaml', 'smol-toml', 'zod'] as const;
+const EXPECTED = ['@match-kit/decomp-yaml', '@match-kit/isa', 'smol-toml', 'zod'] as const;
 const INSTALL_SCRIPTS = ['preinstall', 'install', 'postinstall'] as const;
 
 interface LockFile {

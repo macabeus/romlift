@@ -3,6 +3,7 @@
 // the reason otherwise, cross-module-short-branch with W_CROSS_MODULE_SHORT_BRANCH), pool words, table entries,
 // padding, notes on data inside extents, a data module as a few large items split at labels, and a printing
 // cache that changes no answer.
+import { decode, rawReason } from '@match-kit/isa/armv4t';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
@@ -18,8 +19,7 @@ import type { Item, Model } from '../../../src/core/model/types.ts';
 import { ITEM_RAW_REASONS, ItemKind } from '../../../src/core/model/types.ts';
 import { configFromDiscover } from '../../../src/core/workflow/config-from-discover.ts';
 import { discover } from '../../../src/core/workflow/discover.ts';
-import { decode, thumbWordAt } from '../../../src/foundation/isa/decode.ts';
-import { rawReason } from '../../../src/foundation/isa/roundtrip.ts';
+import { thumbWordAt } from '../../../src/foundation/rom/rom.ts';
 import { romFromBytes, u32 } from '../../../src/foundation/rom/rom.ts';
 import type { Rom } from '../../../src/foundation/rom/rom.ts';
 import type { Addr, Span } from '../../../src/foundation/rom/span.ts';

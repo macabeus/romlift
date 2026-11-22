@@ -37,7 +37,7 @@ extent and code-end gates of §8. Requirements R1–R9 of the plan apply unchang
 | # | Requirement | Where this architecture meets it |
 | --- | --- | --- |
 | R1 | One shot, split into functions | `init` (§2.1); gates `g4.e2e-fixtures`, `g4.e2e-real` (every tuning ROM: six since D60, tmc included), `g4.packed-e2e` (the published tarball) |
-| R2 | Node and TypeScript only | Node ≥ 24.7 type stripping, three runtime dependencies (D2, D38); `g1.runtime-deps` |
+| R2 | Node and TypeScript only | Node ≥ 24.7 type stripping, four runtime dependencies (D2, D38, D121); `g1.runtime-deps` |
 | R3 | One TOML; `generate` never writes it | `generate` runs in confirm mode and takes every name, extent and border from the TOML (D8, D9); `g4.no-toml-write` |
 | R4 | Generated `.s` regenerated and gitignored; two runs identical | one emission stream, one write plan, a manifest (§6.3, §6.4); `g3.tree-determinism` with a varied environment (D30); the scaffold's `.gitignore` ignores every generated root and a fresh clone or worktree gets the tree from `setup.sh`'s duty 5 (the owner's answer to phase-4 Q9, D79 b; `g4.worktree`) |
 | R5 | Byte-exact, self-checked, proven by the build | four self-checks before any write, including the text-layout check that re-reads every emitted file (§6.4, D49); the link of `g3.link`; the SHA-1 after `make` |
@@ -70,12 +70,12 @@ artifacts, and a structural `diff` command (D18).
 
 ## 2. Package layout
 
-**One npm package, `romlift`, with four entry points** (D1, D37): `romlift` (the pure library API:
+**One npm package, `romlift`, with three entry points** (D1, D37, D121): `romlift` (the pure library API:
 analysis, model, emission, explain, formats; browser-safe), `romlift/node` (the file-backed API:
-locate and load a project, apply a write plan, run the toolchain), `romlift/isa` (the instruction set,
-importable alone so gba-kit can share it) and `romlift/internal` (analysis tuning, the rule registry,
-`defineRule` and ablation; outside semver, documented as such, imported only by the bench,
-the gate tests and `test/local`). Templates ship inside the package. Neither signature specs nor built signature
+locate and load a project, apply a write plan, run the toolchain) and `romlift/internal` (analysis tuning, the rule
+registry, `defineRule` and ablation; outside semver, documented as such, imported only by the bench,
+the gate tests and `test/local`). The instruction set is not romlift's: it is the package `@match-kit/isa`
+(`@match-kit/isa/armv4t`), which romlift and gba-kit both depend on (D121). Templates ship inside the package. Neither signature specs nor built signature
 files ship: a spec names bench datasets that are not published and so cannot be built from an installed package, and
 built files ship only once the owner decides (D40; final-review clean-clone-2, D106 b). The bench, fixtures and tests are not published.
 
@@ -118,16 +118,13 @@ romlift/
     specs/<library>.json            committed: references, object globs, reviewed names; no bytes
     <library>.json                  built locally by `npm run signatures -- build`; gitignored (D40)
   src/
-    index.ts, node.ts, isa.ts, internal.ts   barrels: only `export * from './api/<component>.ts'` lines
+    index.ts, node.ts, internal.ts           barrels: only `export * from './api/<component>.ts'` lines
     api/                            one barrel per component, created empty by its phase's component 0 (D43)
     foundation/                     no project knowledge (one recorded exception, util/project-files.ts, D76 h);
-                                    imports nothing outside foundation/
+                                    imports nothing outside foundation/ but the instruction set,
+                                    @match-kit/isa/armv4t (D121): the tables, decode, encode, format, parse,
+                                    assemble, the printing rule and the register effects (D59)
       rom/                          span.ts, rom.ts, header.ts, memory-map.ts, bios.ts, codes.ts
-      isa/                          types.ts, thumb-table.ts, arm-table.ts, decode.ts, encode.ts, format.ts,
-                                    parse.ts, assemble.ts, roundtrip.ts, registers.ts (register effects, D59); the
-                                    tables' building blocks: template.ts, row.ts, rows.ts, bits.ts, flow.ts, pc-relative.ts,
-                                    operand-text.ts, and the ARM encodings arm-dp.ts, arm-immediate.ts, arm-mem.ts,
-                                    arm-misc.ts, arm-shift.ts
       corpus/                       corpus.ts, types.ts, cases.ts, layout.ts, compare.ts, parse-summary.ts: the
                                     as round-trip corpus, counts only (D54 c, D55)
       asm/                          dialect.ts (preamble, macros.inc, C-stub texts; their paths are
@@ -235,7 +232,7 @@ romlift/
                                     command-common.ts (what the commands share: exit codes, usage errors, span and
                                     provenance JSON, op counts, batched output; no command imports another's, D78 f)
       reporters/                    text.ts, ndjson.ts
-  bench/                            dev only; imports only romlift, romlift/node, romlift/isa, romlift/internal
+  bench/                            dev only; imports only romlift, romlift/node, romlift/internal, @match-kit/isa
     src/                            cli.ts, run.ts, score.ts, parity.ts, classify.ts, seal.ts,
                                     dataset.ts, dataset-check.ts, vocabulary.ts, gates.ts, provenance.ts,
                                     digest.ts, regression.ts, ablate.ts, speed.ts, readability.ts, objdiff.ts,
@@ -286,7 +283,7 @@ It fails on any edge not allowed here:
 
 | From | May import |
 | --- | --- |
-| `foundation/*` | other `foundation/*` modules only; no npm package, no `node:*` |
+| `foundation/*` | other `foundation/*` modules and `@match-kit/isa` (the instruction set, which has no dependency and no `node:*` import, D121); no other npm package, no `node:*` |
 | `core/provenance` | `foundation` |
 | `core/profile` | `foundation`, `core/provenance` |
 | `core/analysis` (all but rule files) | `foundation`, `core/provenance`, `core/profile` |
@@ -303,9 +300,9 @@ It fails on any edge not allowed here:
 | `core/diagnostic-codes.ts` | the `codes.ts` file of every module, `foundation/rom/codes.ts` and `foundation/diagnostics` |
 | `core/workflow` | every core module above; **nothing in core imports `core/workflow`** but `core/diagnostic-codes.ts`, which takes its `codes.ts` (codes only) like every other module's |
 | `shell/*` | `core`, `foundation`, `node:*`, runtime npm dependencies |
-| `cli/*` | `shell`, `core/workflow`, `core/diagnostic-codes.ts`, `foundation/diagnostics`, and of `src/api/*` the values of `analysis`, `config`, `config-types`, `files`, `formats`, `isa`, `model`, `rom`, `toolchain` and `workflow-one-shot` (reading, formatting, codecs) with types from any |
-| `src/api/*`, `src/{index,node,isa,internal}.ts` | the modules they re-export |
-| `bench/src/*`, `test/gates/*`, `test/local/*` | `romlift`, `romlift/node`, `romlift/isa`, `romlift/internal` (package self-reference), `node:*` |
+| `cli/*` | `shell`, `core/workflow`, `core/diagnostic-codes.ts`, `foundation/diagnostics`, and of `src/api/*` the values of `analysis`, `config`, `config-types`, `files`, `formats`, `model`, `rom`, `toolchain` and `workflow-one-shot` (reading, formatting, codecs) with types from any, and `@match-kit/isa` |
+| `src/api/*`, `src/{index,node,internal}.ts` | the modules they re-export |
+| `bench/src/*`, `test/gates/*`, `test/local/*` | `romlift`, `romlift/node`, `romlift/internal` (package self-reference), `@match-kit/isa`, `node:*` |
 | `test/corpus/*` | the same, plus `bench/src/args.ts` (D55) |
 
 **Globals allowlist** (D5). Under `src/foundation` and `src/core` an identifier that resolves to a
@@ -322,7 +319,7 @@ from `foundation/util/sorted.ts`. In the shell, only `shell/fs.ts` may call `rea
 `listDir` returns names sorted by code unit. No file can switch one of these rules off: `noInlineConfig` ignores every
 `eslint-disable` comment, and the warning it gives for one fails `npm run lint` (`--max-warnings 0`).
 
-**Barrels.** `src/index.ts`, `node.ts`, `isa.ts` and `internal.ts` contain only `export * from
+**Barrels.** `src/index.ts`, `node.ts` and `internal.ts` contain only `export * from
 './api/<component>.ts'` lines, one per component, written by component 0 of the phase that creates
 the component. Each `src/api/<component>.ts` is owned by exactly one component, so parallel work never edits a shared
 barrel (D43).
@@ -476,7 +473,7 @@ reason or an origin is emitted by no rule.
 ### 3.2 Instructions
 
 ```ts
-// foundation/isa/types.ts
+// @match-kit/isa/armv4t (D121; until then foundation/isa/types.ts)
 export type SpecId = `${'thumb' | 'arm'}.${string}`;          // 'thumb.ldr_pc', 'arm.dp_imm'
 export type FieldKind = 'reg' | 'imm' | 'simm' | 'cond' | 'reglist' | 'shift' | 'rot-imm' | 'pc-rel' | 'bl-off';
 export interface Field { readonly name: string; readonly lo: number; readonly width: number;
@@ -1184,7 +1181,7 @@ before tmc was revealed), and the gate prints "tmc: not applicable, no M1 lockst
 
 ## 5. The printer
 
-**One table** (`foundation/isa/thumb-table.ts`, `arm-table.ts`) drives decoding, encoding, text and
+**One table** (`@match-kit/isa/armv4t`, D121: its `thumb-table.ts` and `arm-table.ts`) drives decoding, encoding, text and
 the analysis flow classes. A row:
 
 ```ts
@@ -2495,8 +2492,8 @@ in roadmap.md pass. The gates per phase are those of §1.
    equals discover on every tuning ROM). Nothing else is waived.
 5. Whether `[functions]` moves into an included `romlift.functions.toml` above some size (Emerald is
    about 16,000 lines). Built default: one `romlift.toml`, `[functions]` inline.
-6. Whether `romlift/isa` becomes its own package shared with gba-kit, or stays a subpath export. Built default: a
-   subpath export of `romlift` (D1).
+6. Whether `romlift/isa` becomes its own package shared with gba-kit, or stays a subpath export. Settled (D121): its
+   own package, `@match-kit/isa`, in the match-kit repository; `romlift/isa` is gone.
 7. Windows: the tool only, or the scaffolded build too. Built default: neither; macOS and Linux only (D30), with CI on
    Linux only (D108).
 8. The Transmuter block in `decomp.yaml`. Built default: none is written (D106 e).

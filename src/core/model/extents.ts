@@ -14,13 +14,11 @@
 // jump-table target and code span, and after every instruction that does not fall through; a call or swi clobbers what
 // its row says (r0-r3, r12 and lr for a bl), so a base agbcc keeps in a callee-saved register survives it. ARM code and the code of a runs_at range
 // are not read. No byte changes: `name + offset` links to the same word.
+import { decode, isThumbBlPrefix, isThumbBlSuffix, popcount, registerEffect, rowOf } from '@match-kit/isa/armv4t';
+import type { Insn } from '@match-kit/isa/armv4t';
+
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
-import { popcount } from '../../foundation/isa/bits.ts';
-import { decode, isThumbBlPrefix, isThumbBlSuffix } from '../../foundation/isa/decode.ts';
-import { registerEffect } from '../../foundation/isa/registers.ts';
-import { rowOf } from '../../foundation/isa/rows.ts';
-import type { Insn } from '../../foundation/isa/types.ts';
 import { isRamAddress, regionOf } from '../../foundation/rom/memory-map.ts';
 import { contains, peek16, peek32, u32 } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';

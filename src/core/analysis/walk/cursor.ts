@@ -6,7 +6,8 @@
 // code runs; toLoadInsn maps the target back to the load address that holds it. A target with no load address (RAM
 // outside every range) stays a run address: from code inside a range it is an external reference (externalTarget),
 // never a function candidate, a walk target or an error.
-import type { Flow, Insn } from '../../../foundation/isa/types.ts';
+import type { Flow, Insn } from '@match-kit/isa/armv4t';
+
 import { contains } from '../../../foundation/rom/rom.ts';
 import type { Addr, Mode } from '../../../foundation/rom/span.ts';
 import type { RuleId } from '../../provenance/rule-id.ts';

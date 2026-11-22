@@ -9,7 +9,7 @@ The romlift package: four layers, each allowed to import only the layers below i
 | `shell/` | The only code that touches files, processes, hashing or the environment. It reads inputs, calls one workflow and applies the plan the core returned; it decides nothing. |
 | `cli/` | Argument parsing, the command registry, one file per command, and the text and NDJSON reporters. |
 
-The entry points `index.ts` (`romlift`), `node.ts` (`romlift/node`), `isa.ts` (`romlift/isa`) and
+The entry points `index.ts` (`romlift`), `node.ts` (`romlift/node`) and
 `internal.ts` (`romlift/internal`) contain only `export * from './api/<component>.ts'` lines; each
 `api/<component>.ts` barrel is owned by one component (D43). From phase 2, `romlift` exports the profiles and
 `analyze` (`api/profile.ts`, `api/analysis.ts`); `romlift/internal` exports the tuned analysis, the rule

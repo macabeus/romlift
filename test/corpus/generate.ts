@@ -9,6 +9,7 @@
 // line by line). Exits 0 only when the summary is ok. --reuse prints the cached summary instead when
 // its inputsDigest is still current; the digest is romlift's corpusInputsDigest (D55), the one the
 // bench checks before results.json carries the summary as its printer family.
+import { RAW_REASONS } from '@match-kit/isa/armv4t';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -20,7 +21,6 @@ import {
   runCorpus,
 } from 'romlift/internal';
 import type { CorpusOptions, CorpusSectionSummary, CorpusSummary } from 'romlift/internal';
-import { RAW_REASONS } from 'romlift/isa';
 import { binutilsVersions, findBinutils, listDir } from 'romlift/node';
 
 import { UsageError, parseArgs } from '../../bench/src/args.ts';

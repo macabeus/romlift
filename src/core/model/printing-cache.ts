@@ -8,9 +8,9 @@
 //   label of the default spelling (below). Its equivalence is proven on the fixtures (items.test.ts), not by
 //   construction, so the re-encode check (core/verify/reencode.ts) never uses it: it runs the round trip itself
 //   for every instruction that names an address.
-import { rawReason } from '../../foundation/isa/roundtrip.ts';
-import { specOf } from '../../foundation/isa/rows.ts';
-import type { Flow, Insn, RawReason, SpecId, SymbolResolver } from '../../foundation/isa/types.ts';
+import { rawReason, specOf } from '@match-kit/isa/armv4t';
+import type { Flow, Insn, RawReason, SpecId, SymbolResolver } from '@match-kit/isa/armv4t';
+
 import type { Addr, Mode } from '../../foundation/rom/span.ts';
 import { isDefaultSpelling } from '../../foundation/util/project-files.ts';
 

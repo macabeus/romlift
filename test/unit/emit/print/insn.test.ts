@@ -1,12 +1,12 @@
 // Instruction items (architecture §5, D14, D15): a mnemonic through format with the module's resolver, a
 // PC-relative load naming its word, raw items as `.inst.n`/`.inst.w`/`.inst` with the decoding and the
 // reason, an item the model kept no row for, and the branch and pool-load flags the statistics count.
+import type { SymbolResolver } from '@match-kit/isa/armv4t';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { printInsn, printRawInsn, printUndecodedInsn } from '../../../../src/core/emit/print/insn.ts';
 import type { InsnContext } from '../../../../src/core/emit/print/insn.ts';
-import type { SymbolResolver } from '../../../../src/foundation/isa/types.ts';
 import { armAt } from '../../../helpers/arm.ts';
 import { insnAt, romWith, words } from '../../../helpers/model.ts';
 import { thumbAt } from '../../../helpers/thumb.ts';

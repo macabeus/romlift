@@ -5,8 +5,9 @@
 // in the comment, so a cross-module short branch shows its numeric target and why it is raw. A PC-relative
 // load also names what its pool word prints as (`@ =gFoo`). The result says what the readability family
 // counts: whether it is a branch (b, bcc, bl) or a PC-relative load, and whether it printed symbolically.
-import { format, formatRaw } from '../../../foundation/isa/format.ts';
-import type { Insn, SymbolResolver } from '../../../foundation/isa/types.ts';
+import { format, formatRaw } from '@match-kit/isa/armv4t';
+import type { Insn, SymbolResolver } from '@match-kit/isa/armv4t';
+
 import type { Rom } from '../../../foundation/rom/rom.ts';
 import { u16, u32 } from '../../../foundation/rom/rom.ts';
 import type { Addr, Mode, Span } from '../../../foundation/rom/span.ts';

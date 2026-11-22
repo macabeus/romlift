@@ -2,7 +2,8 @@
 // summary contract (`romlift/corpus-summary@1`). corpus.ts is the entry point; this file holds what
 // every corpus module shares. The corpus holds counts only: whether they meet the phase-1 threshold
 // is decided by foundation/corpus/threshold.ts (corpusOk).
-import type { RawReason, SpecId } from '../isa/types.ts';
+import type { RawReason, SpecId } from '@match-kit/isa/armv4t';
+
 import type { Mode } from '../rom/span.ts';
 
 /** The schema id of the persisted summary. */

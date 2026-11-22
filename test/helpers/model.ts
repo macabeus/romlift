@@ -3,6 +3,9 @@
 // romWith), modules made of chunks made of items, and the labels a test names. Spans are derived from the
 // items: a chunk spans its items, a module its chunks. Nothing here checks the tiling; a test that wants a
 // broken model builds one.
+import { decode } from '@match-kit/isa/armv4t';
+import type { Insn } from '@match-kit/isa/armv4t';
+
 import { itemTableBuilder } from '../../src/core/model/item-table.ts';
 import type { ItemInput } from '../../src/core/model/item-table.ts';
 import type {
@@ -15,8 +18,7 @@ import type {
   ModelSymbol,
   Module,
 } from '../../src/core/model/types.ts';
-import { decode, thumbWordAt } from '../../src/foundation/isa/decode.ts';
-import type { Insn } from '../../src/foundation/isa/types.ts';
+import { thumbWordAt } from '../../src/foundation/rom/rom.ts';
 import { u32 } from '../../src/foundation/rom/rom.ts';
 import type { Rom } from '../../src/foundation/rom/rom.ts';
 import type { Addr, Mode } from '../../src/foundation/rom/span.ts';

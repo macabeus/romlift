@@ -28,11 +28,10 @@
 // names no symbol encodes alike at every address of one word alignment, and a text whose names all read as
 // its own address (the sizing resolver) has one size there. The memo holds no symbol value, so one memo
 // serves layouts with different symbols.
+import { assemble, parse, specOf } from '@match-kit/isa/armv4t';
+import type { Assembled, FlowKind, SymbolResolver } from '@match-kit/isa/armv4t';
+
 import { RomliftInvariantError } from '../diagnostics/diagnostic.ts';
-import { assemble } from '../isa/assemble.ts';
-import { parse } from '../isa/parse.ts';
-import { specOf } from '../isa/rows.ts';
-import type { Assembled, FlowKind, SymbolResolver } from '../isa/types.ts';
 import type { Addr, Mode } from '../rom/span.ts';
 import { insnAligned, insnUnit } from '../rom/span.ts';
 import { hex, hexSize } from '../util/hex.ts';

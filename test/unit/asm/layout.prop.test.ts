@@ -2,15 +2,13 @@
 // pairs and ARM words, each decoded where it sits and printed as the writers print it (the mnemonic when
 // the printing rule allows it, its `.inst` fallback otherwise) with synthetic labels, are parsed back by
 // parseStatements and laid out by layoutStatements into exactly their original bytes.
+import { decode, formatRaw, printing } from '@match-kit/isa/armv4t';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { DIALECT } from '../../../src/foundation/asm/dialect.ts';
 import { layoutStatements } from '../../../src/foundation/asm/layout.ts';
 import { parseStatements } from '../../../src/foundation/asm/statements.ts';
-import { decode } from '../../../src/foundation/isa/decode.ts';
-import { formatRaw } from '../../../src/foundation/isa/format.ts';
-import { printing } from '../../../src/foundation/isa/roundtrip.ts';
 import type { Mode } from '../../../src/foundation/rom/span.ts';
 import { prngSequence } from '../../helpers/prng.ts';
 import { LABELS } from '../isa/resolver.ts';

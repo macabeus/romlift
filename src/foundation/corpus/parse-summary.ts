@@ -1,8 +1,9 @@
 // The structural reader of a persisted corpus summary (`romlift/corpus-summary@1`, written by
 // `npm run corpus` and carried by bench/results.json): every field is checked against the contract,
 // so a reader gets a CorpusSummary or a precise reason, never a cast.
-import { RAW_REASONS } from '../isa/types.ts';
-import type { RawReason } from '../isa/types.ts';
+import { RAW_REASONS } from '@match-kit/isa/armv4t';
+import type { RawReason } from '@match-kit/isa/armv4t';
+
 import { CORPUS_SUMMARY_SCHEMA } from './types.ts';
 import type {
   Alignment,

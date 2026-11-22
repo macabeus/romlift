@@ -82,7 +82,12 @@ const RUNTIME_DEPS = packages(
   '@match-kit/decomp-yaml',
   '@match-kit/decomp-yaml/**',
 );
-const ENTRY_POINTS = packages('romlift', 'romlift/node', 'romlift/isa', 'romlift/internal');
+/**
+ * The instruction set (D121): a package with no dependency and no `node:*` import, so every layer that may import
+ * foundation may import it, and so may the bench and the tests, beside romlift's entry points.
+ */
+const ISA = packages('@match-kit/isa', '@match-kit/isa/**');
+const ENTRY_POINTS = packages('romlift', 'romlift/node', 'romlift/internal', '@match-kit/isa', '@match-kit/isa/**');
 const FOUNDATION = types('foundation');
 const ALL_CORE = files('src/core/**');
 
@@ -96,6 +101,7 @@ const LOOSE_RULE_FILE = `${RULES}/!(index|define-rule).ts`;
 /** What a rule file may import (architecture §2, `core/analysis/rules/<family>/<rule>.ts`). */
 const RULE_FILE_DEPS: readonly Selector[] = [
   FOUNDATION,
+  ISA,
   types('provenance'),
   files(
     'src/core/profile/types.ts',
@@ -121,26 +127,29 @@ const only = (from: readonly string[], to: readonly Selector[]): Policy[] => [
 ];
 
 const ELEMENT_POLICIES: readonly Policy[] = [
-  may('foundation', [FOUNDATION]),
-  may('provenance', [FOUNDATION, types('provenance')]),
-  may('profile', [FOUNDATION, types('provenance', 'profile')]),
+  may('foundation', [FOUNDATION, ISA]),
+  may('provenance', [FOUNDATION, ISA, types('provenance')]),
+  may('profile', [FOUNDATION, ISA, types('provenance', 'profile')]),
   may('rule-family', RULE_FILE_DEPS),
-  may('analysis', [FOUNDATION, types('provenance', 'profile', 'analysis', 'rule-family')]),
-  may('proposals', [FOUNDATION, types('provenance', 'proposals')]),
+  may('analysis', [FOUNDATION, ISA, types('provenance', 'profile', 'analysis', 'rule-family')]),
+  may('proposals', [FOUNDATION, ISA, types('provenance', 'proposals')]),
   may('layout', [
     FOUNDATION,
+    ISA,
     files('src/core/profile/types.ts', 'src/core/analysis/types.ts'),
     types('proposals', 'layout'),
   ]),
   may('signatures', [
     FOUNDATION,
+    ISA,
     types('provenance', 'proposals', 'signatures'),
     files('src/core/analysis/types.ts'),
     packages('zod', 'zod/**'),
   ]),
-  may('config', [FOUNDATION, types('proposals', 'config'), RUNTIME_DEPS]),
+  may('config', [FOUNDATION, ISA, types('proposals', 'config'), RUNTIME_DEPS]),
   may('model', [
     FOUNDATION,
+    ISA,
     types('provenance', 'model'),
     files(
       'src/core/profile/types.ts',
@@ -151,29 +160,31 @@ const ELEMENT_POLICIES: readonly Policy[] = [
   ]),
   // "core/config (types and compilers.ts)": the rest of the config module is reachable for types only.
   mayForTypes('model', [types('config')]),
-  may('reconcile', [FOUNDATION, types('reconcile')]),
-  may('scaffold', [FOUNDATION, types('scaffold')]),
-  may('emit', [FOUNDATION, types('model', 'reconcile', 'emit')]),
+  may('reconcile', [FOUNDATION, ISA, types('reconcile')]),
+  may('scaffold', [FOUNDATION, ISA, types('scaffold')]),
+  may('emit', [FOUNDATION, ISA, types('model', 'reconcile', 'emit')]),
   // core/reconcile and core/config/compilers.ts: the text-layout check reads a C stub's INCLUDE_ASM statements with the
   // one C tokenizer (no regex runs over code, §6.6) and a C unit's compiler (D74).
   may('verify', [
     FOUNDATION,
+    ISA,
     types('model', 'reconcile', 'verify'),
     files('src/core/emit/tree.ts', 'src/core/config/compilers.ts'),
   ]),
-  may('write-plan', [FOUNDATION, types('write-plan'), files('src/core/emit/tree.ts')]),
-  may('workflow', [FOUNDATION, ALL_CORE]),
-  may('shell', [FOUNDATION, ALL_CORE, types('shell'), NODE_BUILTINS, RUNTIME_DEPS]),
+  may('write-plan', [FOUNDATION, ISA, types('write-plan'), files('src/core/emit/tree.ts')]),
+  may('workflow', [FOUNDATION, ISA, ALL_CORE]),
+  may('shell', [FOUNDATION, ISA, ALL_CORE, types('shell'), NODE_BUILTINS, RUNTIME_DEPS]),
   may('cli', [
     types('shell', 'workflow', 'cli'),
+    ISA,
     files('src/core/diagnostic-codes.ts', 'src/foundation/diagnostics/**'),
     // The api files whose values the CLI may use: reading files and ROMs, formatting and codecs. The verify, project
     // and write-plan barrels are composition, which lives in core/workflow and the shell's runners (D36; final-review
     // architecture-1), so the CLI reaches them only for types.
-    files('src/api/{analysis,config,config-types,files,formats,isa,model,rom,toolchain,workflow-one-shot}.ts'),
+    files('src/api/{analysis,config,config-types,files,formats,model,rom,toolchain,workflow-one-shot}.ts'),
   ]),
   mayForTypes('cli', [types('api')]),
-  may('api', [FOUNDATION, ALL_CORE, types('shell')]),
+  may('api', [FOUNDATION, ISA, ALL_CORE, types('shell')]),
   may('bench', [ENTRY_POINTS, NODE_BUILTINS, types('bench')]),
   may('bench-tools', [ENTRY_POINTS, NODE_BUILTINS, types('bench-tools', 'bench')]),
   may('test-gates', [ENTRY_POINTS, NODE_BUILTINS, types('test-gates')]),
@@ -191,7 +202,7 @@ const FILE_POLICIES: readonly Policy[] = [
     [files('src/core/**/codes.ts', 'src/foundation/rom/codes.ts', 'src/foundation/diagnostics/**')],
   ),
   ...only(['src/cli/commands/index.ts'], [files('src/cli/commands/*.ts', 'src/cli/registry.ts')]),
-  ...only(['src/{index,node,isa,internal}.ts'], [files('src/api/*.ts')]),
+  ...only(['src/{index,node,internal}.ts'], [files('src/api/*.ts')]),
   // An api file lives directly in src/api/.
   ...only(['src/api/*/**'], []),
 ];

@@ -14,7 +14,8 @@
 //   return or register jump): m4a's `ldrb_r3_r2`, two bytes before `chk_adr_r2`. The judged reading then gains the
 //   fall-through as a tail exit, as a branch to the next function would be. Anything else (an extent that ends
 //   elsewhere, a gap before the next function, a last instruction that does not flow on) gains nothing.
-import type { Insn } from '../../../foundation/isa/types.ts';
+import type { Insn } from '@match-kit/isa/armv4t';
+
 import type { Addr, Mode } from '../../../foundation/rom/span.ts';
 import { lowerBound } from '../../../foundation/util/arrays.ts';
 import { hexAddr } from '../../../foundation/util/hex.ts';
