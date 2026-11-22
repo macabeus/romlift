@@ -5687,12 +5687,24 @@ and answered "Yes" to changing `g1.runtime-deps`.
   `encode`, `format`, `formatRaw`, `parse`, `assemble`, the printing rule, `registerEffect`, the flow classes), and
   exports the internals romlift reads besides (`ROWS`, `rowOf`, `rowFor`, `fieldsOf`, `specsOf`, `printing`,
   `isConditional`, the Thumb prefilters, `pcOf`, `thumbPoolBase`, `popcount`, `CONDITIONS`). It has no dependency and
-  no `node:*` import, and names no platform: an address is a number, and its `thumbWordAt` takes a reader.
+  no `node:*` import, and names no platform: an address is a number, and its `thumbWordAt` takes a reader. In the
+  package an instruction's operands have a type and a closed set of names of their own (`operandsOf`), the row's
+  flow class is `FlowClass` (`pool-load` and `load-pc`, where romlift said `pc-load` and `pop-pc`), `registerEffect`
+  covers ARM, and `assembleText` says why a text has no encoding.
 - (b) **What stays romlift's**: the assembler dialect (`Dialect` and `DIALECT`, `foundation/asm/dialect.ts`, exported
   by `romlift`), which is about a project's files and not about instructions; `thumbWordAt` over a `Rom`
   (`foundation/rom/rom.ts`); and the round-trip corpus (`foundation/corpus/`, `npm run corpus`, the `g1.*` gates),
   which now checks the package's text against GNU `as`. `foundation/rom/span.ts` re-exports the package's `Addr`,
   `Mode` and `insnUnit`, so there is one definition.
+- (i) **What romlift reads into the instruction set is `src/foundation/isa.ts`**, exported by `romlift`. The package
+  says only what the architecture says, so three readings the analysis was tuned on are romlift's, in one module:
+  half a Thumb `bl` is not code (the package gives each half its own flow and the reason `bl-half`; here its flow
+  is `invalid` and its reason `undefined`, through `decode`, `flowClassOf`, `rawReason`, `printing` and
+  `encodingReason`, so `RAW_REASONS` and the corpus summary keep their five reasons); a call changes r0-r3 and r12
+  and a BIOS call r0-r3 (the package's `bl` writes `lr` alone); and register effects are read for Thumb only, less
+  the writes to pc through `add` and `mov`, as before. Reading ARM's effects, which the package now has, would
+  change the analysis and is left to a measured decision. With the adapter, `init` on the six tuning ROMs writes
+  the trees `main` writes, file for file (615 to 15,968 files each).
 - (c) **`romlift/isa` is removed** (`src/isa.ts`, `src/api/isa.ts` and the `exports` entry): romlift has three entry
   points. The bench, the gates, `test/local` and `test/corpus` import `@match-kit/isa/armv4t` beside them
   (`lint/edges.ts`), and a gate's `needs` are looked up in it as in an entry point.

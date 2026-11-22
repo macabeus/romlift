@@ -2,10 +2,11 @@
 // (the printed mnemonic or its `.inst` fallback), padding, and the `.set` definitions of every label
 // the cases printed. Each case is decoded at the address it occupies, so a PC-relative form prints the
 // label of its own target.
-import { assemble, decode, format, formatRaw, parse, printing, specOf } from '@match-kit/isa/armv4t';
-import type { FlowKind, Insn, SymbolResolver } from '@match-kit/isa/armv4t';
+import { assemble, format, formatRaw, parse, specOf } from '@match-kit/isa/armv4t';
+import type { FlowClass, Insn, SymbolResolver } from '@match-kit/isa/armv4t';
 
 import { DIALECT } from '../asm/dialect.ts';
+import { decode, printing } from '../isa.ts';
 import type { Mode } from '../rom/span.ts';
 import { hex } from '../util/hex.ts';
 import { compareNumbers } from '../util/sorted.ts';
@@ -13,7 +14,7 @@ import { CORPUS_BASE } from './types.ts';
 import type { CaseContext, CorpusCase, CorpusFile, CorpusProbe, CorpusSection, Extreme } from './types.ts';
 
 /** The row flow classes whose text names an address, so their bytes depend on where they sit. */
-const ADDRESS_FLOWS: ReadonlySet<FlowKind> = new Set<FlowKind>(['branch', 'cond-branch', 'bl', 'pc-load', 'adr']);
+const ADDRESS_FLOWS: ReadonlySet<FlowClass> = new Set<FlowClass>(['branch', 'cond-branch', 'bl', 'pool-load', 'adr']);
 
 /** The label the corpus prints for an address. */
 export function corpusLabel(addr: number): string {

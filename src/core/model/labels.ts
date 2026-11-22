@@ -20,9 +20,10 @@
 // resolver.ts wordNameOf, the rule the printer reads: a named entry at the word, else the sized entry holding it (its
 // label, which `name + offset` names), else a label that links to the word; never a local label. A short Thumb
 // branch into another module prints raw (items.ts), so it references nothing.
-import { decode, isThumbBlPrefix, isThumbBlSuffix, thumbMayName } from '@match-kit/isa/armv4t';
+import { isThumbBlPrefix, isThumbBlSuffix, thumbMayName } from '@match-kit/isa/armv4t';
 import type { Insn, SpecId } from '@match-kit/isa/armv4t';
 
+import { decode } from '../../foundation/isa.ts';
 import { contains, peek16, peek32 } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';

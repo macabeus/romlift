@@ -1,8 +1,8 @@
 // The agbcc profile: the proof of concept's numbers (romlift-poc/src/analysis.ts) and its call order of
 // every rule slot (D12, D48). Changing a number or an order here is a reviewed diff with its bench diff.
-import { registerEffect } from '@match-kit/isa/armv4t';
 import type { Insn } from '@match-kit/isa/armv4t';
 
+import { registerEffect } from '../../foundation/isa.ts';
 import { contains, u16, u32 } from '../../foundation/rom/rom.ts';
 import type { Rom, RomBytes } from '../../foundation/rom/rom.ts';
 import type { Addr, Mode } from '../../foundation/rom/span.ts';

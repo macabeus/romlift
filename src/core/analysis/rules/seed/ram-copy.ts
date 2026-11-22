@@ -36,9 +36,10 @@
 // two is accepted. Targets are proposed ascending, and a target inside the code of a lower one is not
 // proposed (the validity a trusted queue skips); a claimed target, an ARM target that does not decode or
 // never returns, and an invalid Thumb target are not proposed either.
-import { decode, isConditional, pcOf, popcount, registerEffect, thumbPoolBase } from '@match-kit/isa/armv4t';
+import { isConditional, pcOf, popcount, thumbPoolBase } from '@match-kit/isa/armv4t';
 import type { Insn } from '@match-kit/isa/armv4t';
 
+import { decode, registerEffect } from '../../../../foundation/isa.ts';
 import { BIOS_COPY_ARGS, biosCopyBytes, isBiosCopy } from '../../../../foundation/rom/bios.ts';
 import { MEMORY_REGIONS, regionOf } from '../../../../foundation/rom/memory-map.ts';
 import { thumbWordAt } from '../../../../foundation/rom/rom.ts';

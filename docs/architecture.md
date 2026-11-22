@@ -124,6 +124,7 @@ romlift/
                                     imports nothing outside foundation/ but the instruction set,
                                     @match-kit/isa/armv4t (D121): the tables, decode, encode, format, parse,
                                     assemble, the printing rule and the register effects (D59)
+      isa.ts                        romlift's reading of it: half a bl is invalid, a call's clobbers (D121 i)
       rom/                          span.ts, rom.ts, header.ts, memory-map.ts, bios.ts, codes.ts
       corpus/                       corpus.ts, types.ts, cases.ts, layout.ts, compare.ts, parse-summary.ts: the
                                     as round-trip corpus, counts only (D54 c, D55)

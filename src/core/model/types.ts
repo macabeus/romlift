@@ -3,9 +3,10 @@
 // itemAt (item-table.ts); every other member is plain, deeply readonly data. Addresses are load addresses
 // unless a member is named `runAt`; a Label holds the run address, which equals the load address outside a
 // runs_at range (D46).
-import type { Insn, RawReason, SpecId } from '@match-kit/isa/armv4t';
+import type { Insn, SpecId } from '@match-kit/isa/armv4t';
 
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
+import type { RawReason } from '../../foundation/isa.ts';
 import type { Addr, Mode, Span } from '../../foundation/rom/span.ts';
 import type { UnlistedFinding } from '../analysis/types.ts';
 import type { BuildCompilerId } from '../config/compilers.ts';

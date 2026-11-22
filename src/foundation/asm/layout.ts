@@ -29,7 +29,7 @@
 // its own address (the sizing resolver) has one size there. The memo holds no symbol value, so one memo
 // serves layouts with different symbols.
 import { assemble, parse, specOf } from '@match-kit/isa/armv4t';
-import type { Assembled, FlowKind, SymbolResolver } from '@match-kit/isa/armv4t';
+import type { Assembled, FlowClass, SymbolResolver } from '@match-kit/isa/armv4t';
 
 import { RomliftInvariantError } from '../diagnostics/diagnostic.ts';
 import type { Addr, Mode } from '../rom/span.ts';
@@ -138,10 +138,10 @@ const UNFILLED_ALIGN =
   "`.align` without a fill byte pads with no-ops of the fragment's state, which the text alone does not fix; write `.align p, 0`";
 
 /** The row flows whose target is a branch destination, so ld drops the Thumb bit of the symbol. */
-const BRANCH_FLOWS: ReadonlySet<FlowKind> = new Set<FlowKind>(['branch', 'cond-branch', 'bl']);
+const BRANCH_FLOWS: ReadonlySet<FlowClass> = new Set<FlowClass>(['branch', 'cond-branch', 'bl']);
 
 /** The row flows that reach their operand PC-relatively with no relocation `as` could emit to another object. */
-const PC_RELATIVE_FLOWS: ReadonlySet<FlowKind> = new Set<FlowKind>(['pc-load', 'adr']);
+const PC_RELATIVE_FLOWS: ReadonlySet<FlowClass> = new Set<FlowClass>(['pool-load', 'adr']);
 
 interface LocalLabel {
   readonly addr: Addr;

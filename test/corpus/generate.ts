@@ -9,10 +9,10 @@
 // line by line). Exits 0 only when the summary is ok. --reuse prints the cached summary instead when
 // its inputsDigest is still current; the digest is romlift's corpusInputsDigest (D55), the one the
 // bench checks before results.json carries the summary as its printer family.
-import { RAW_REASONS } from '@match-kit/isa/armv4t';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { RAW_REASONS } from 'romlift';
 import {
   DEFAULT_CORPUS_OPTIONS,
   corpusInputsDigest,

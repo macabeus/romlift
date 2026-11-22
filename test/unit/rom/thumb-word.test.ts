@@ -1,8 +1,8 @@
 // thumbWordAt (foundation/rom/rom.ts): the word @match-kit/isa's `decode` takes for Thumb, read from a Rom.
-import { decode } from '@match-kit/isa/armv4t';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { decode } from '../../../src/foundation/isa.ts';
 import { romFromBytes, thumbWordAt } from '../../../src/foundation/rom/rom.ts';
 
 test('thumbWordAt pairs a halfword with the next one, and reads zero past the end of the ROM', () => {

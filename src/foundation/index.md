@@ -20,5 +20,6 @@ which re-export some of them (`api/reconcile.ts` `isCSource`, `api/model.ts` `no
 `ROMLIFT_CONFIG_FILE`, `api/config-files.ts` `DECOMP_YAML_NAMES`, `api/internal-emit.ts` `defaultSpellingAddress`).
 
 The instruction set (the Thumb and ARM table, decoder, encoder, GNU `as` formatter and parser) is the package
-`@match-kit/isa/armv4t`, which gba-kit shares (D121); it was `isa/` here. Foundation imports nothing else outside
+`@match-kit/isa/armv4t`, which gba-kit shares (D121); it was `isa/` here. `isa.ts` is what romlift reads into it:
+half a `bl` is invalid, a call's clobbers, and register effects for Thumb alone. Foundation imports nothing else outside
 `foundation/`: no other npm package and no `node:*` module, so it runs in a browser (architecture §2, D3, D44).
