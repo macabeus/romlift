@@ -6,9 +6,8 @@
 //     lone half is evidence of data: its flow is `invalid`, and it prints raw as `undefined`.
 //   - A call changes more than lr. The procedure call standard lets a callee change r0-r3 and r12, and a BIOS
 //     call changes r0-r3, so the register effect of a bl and of a swi adds them.
-//   - Register effects are read for Thumb alone, as the analysis was tuned: an ARM instruction writes nothing
-//     here, and neither does a Thumb write to pc through add or mov. The package covers them; reading them is
-//     a change to the analysis, to be measured on the benchmark.
+//   - A Thumb write to pc through add or mov is a jump, which the flow says; its register effect is nothing
+//     here, as the analysis was tuned.
 import {
   type FlowClass,
   type Insn,
@@ -77,9 +76,9 @@ const NONE: RegisterEffect = { writes: 0, from: [] };
 /** The Thumb rows whose effect the analysis does not read: half a bl, and the writes to pc through add and mov. */
 const UNREAD: ReadonlySet<string> = new Set(['thumb.bl_prefix', 'thumb.bl_suffix', 'thumb.add_pc', 'thumb.mov_pc']);
 
-/** What a Thumb instruction writes, a call's clobbers included; nothing for ARM. */
+/** What an instruction writes, a call's clobbers included. */
 export function registerEffect(insn: Insn): RegisterEffect {
-  if (insn.mode === 'arm' || UNREAD.has(insn.specId)) return NONE;
+  if (UNREAD.has(insn.specId)) return NONE;
   const effect = isaRegisterEffect(insn);
   if (insn.flow.kind === 'bl') return { writes: effect.writes | CALL_CLOBBERS, from: effect.from };
   if (insn.flow.kind === 'swi') return { writes: effect.writes | SWI_CLOBBERS, from: effect.from };
