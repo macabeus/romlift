@@ -11,6 +11,6 @@ test('thumbWordAt pairs a halfword with the next one, and reads zero past the en
   bytes.set([0xc0, 0x46], 0x1fe);
   const rom = romFromBytes(bytes, 'test');
   assert.equal(thumbWordAt(rom, 0x0800_0100), 0xf802_f001);
-  assert.equal(decode('thumb', thumbWordAt(rom, 0x0800_0100), 0x0800_0100).flow.kind, 'bl');
+  assert.equal(decode('thumb', thumbWordAt(rom, 0x0800_0100), 0x0800_0100).flow.kind, 'call');
   assert.equal(thumbWordAt(rom, 0x0800_01fe), 0x46c0, 'the last halfword has nothing above it');
 });

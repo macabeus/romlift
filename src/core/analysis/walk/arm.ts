@@ -99,7 +99,7 @@ export function walkArm(env: WalkEnv, entry: Addr): Reading {
       const conditional = isConditional(insn);
       const flow = insn.flow;
       let ends = false;
-      if (flow.kind === 'bl') {
+      if (flow.kind === 'call') {
         // A bl from a runs_at range to RAM outside every range returns like any call and names no function (§6.7).
         if (!externalTarget(view, pc, flow.target)) rec.calls.push({ site: pc, target: flow.target, mode: 'arm' });
       } else if (flow.kind === 'adr') rec.adrs.push(flow.target);

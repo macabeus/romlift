@@ -323,10 +323,10 @@ export const REFERENCE_WALK: readonly ResolvedPolicy[] = [
     c.phase === 'stop' && insn.size === 2 && u16(c.view.rom, insn.addr) === 0 ? { step: 'padding' } : undefined,
   ),
   policy('walk.noreturn-call-before-noncode', (insn, c) =>
-    c.phase === 'stop' && insn.flow.kind === 'bl' ? { step: 'end-path', exit: 'noreturn-call' } : undefined,
+    c.phase === 'stop' && insn.flow.kind === 'call' ? { step: 'end-path', exit: 'noreturn-call' } : undefined,
   ),
   policy('walk.swi-before-noncode', (insn, c) =>
-    c.phase === 'stop' && insn.flow.kind === 'swi' ? { step: 'end-path', exit: 'swi-end' } : undefined,
+    c.phase === 'stop' && insn.flow.kind === 'interrupt' ? { step: 'end-path', exit: 'swi-end' } : undefined,
   ),
 ];
 

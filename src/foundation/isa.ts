@@ -80,7 +80,7 @@ const UNREAD: ReadonlySet<string> = new Set(['thumb.bl_prefix', 'thumb.bl_suffix
 export function registerEffect(insn: Insn): RegisterEffect {
   if (UNREAD.has(insn.specId)) return NONE;
   const effect = isaRegisterEffect(insn);
-  if (insn.flow.kind === 'bl') return { writes: effect.writes | CALL_CLOBBERS, from: effect.from };
-  if (insn.flow.kind === 'swi') return { writes: effect.writes | SWI_CLOBBERS, from: effect.from };
+  if (insn.flow.kind === 'call') return { writes: effect.writes | CALL_CLOBBERS, from: effect.from };
+  if (insn.flow.kind === 'interrupt') return { writes: effect.writes | SWI_CLOBBERS, from: effect.from };
   return effect;
 }

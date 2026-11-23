@@ -39,7 +39,7 @@ export interface InsnContext {
 }
 
 function isBranch(insn: Insn): boolean {
-  return insn.flow.kind === 'branch' || insn.flow.kind === 'bl';
+  return insn.flow.kind === 'branch' || insn.flow.kind === 'call';
 }
 
 function isPoolLoad(insn: Insn): boolean {

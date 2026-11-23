@@ -119,7 +119,7 @@ export function toLoadInsn(insn: Insn, addresses: AddressMap, load: Addr): Insn 
   const f = insn.flow;
   let flow: Flow = f;
   if (f.kind === 'branch') flow = { ...f, target: back(f.target) };
-  else if (f.kind === 'bl' || f.kind === 'adr' || f.kind === 'mode-switch') flow = { ...f, target: back(f.target) };
+  else if (f.kind === 'call' || f.kind === 'adr' || f.kind === 'mode-switch') flow = { ...f, target: back(f.target) };
   else if (f.kind === 'pool-load') flow = { ...f, pool: back(f.pool) };
   return flow === f && insn.addr === load ? insn : { ...insn, addr: load, flow };
 }

@@ -54,7 +54,7 @@ function flowsOn(insn: Insn, r: Reading): boolean {
   switch (flow.kind) {
     case 'next':
     case 'adr':
-    case 'bl':
+    case 'call':
       return true;
     case 'branch':
       return flow.conditional;

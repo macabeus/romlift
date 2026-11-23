@@ -256,7 +256,7 @@ export function walkThumb(
       }
       const insn = decodeThumbAt(env, pc);
       let ends: boolean;
-      if (insn.flow.kind === 'bl') ends = call(path, insn, sp, insn.flow.target, far, noret);
+      if (insn.flow.kind === 'call') ends = call(path, insn, sp, insn.flow.target, far, noret);
       else if (insn.flow.kind === 'adr') {
         rec.adrs.push(insn.flow.target);
         ends = false;

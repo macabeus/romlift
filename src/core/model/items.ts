@@ -253,7 +253,7 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
     )
       return 'cross-module-short-branch';
     if (
-      (insn.flow.kind === 'branch' || insn.flow.kind === 'bl') &&
+      (insn.flow.kind === 'branch' || insn.flow.kind === 'call') &&
       interworks(insn.addr, insn.mode, insn.flow.target, resolver)
     )
       return 'interworking-branch';

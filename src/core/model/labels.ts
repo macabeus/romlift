@@ -81,7 +81,7 @@ function refOf(insn: Insn, site: Addr): CodeRef | undefined {
   switch (flow.kind) {
     case 'branch':
       return ref(flow.target, insn.mode === 'thumb' && insn.size === 2 ? 'short-branch' : 'branch');
-    case 'bl':
+    case 'call':
       return ref(flow.target, 'bl');
     case 'adr':
       return ref(flow.target, 'adr');

@@ -14,7 +14,7 @@ import { defineRule } from '../define-rule.ts';
 function opensWithBranch(entry: Addr, v: AnalysisView): boolean {
   if (!contains(v.rom, entry, 2)) return false;
   const kind = decode('thumb', thumbWordAt(v.rom, entry), entry).flow.kind;
-  return kind === 'branch' || kind === 'bl';
+  return kind === 'branch' || kind === 'call';
 }
 
 export default defineRule({

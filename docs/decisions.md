@@ -5716,7 +5716,8 @@ and answered "Yes" to changing `g1.runtime-deps`.
   `ldr_literal`, so `_pc` always means the row writes pc. Fields: `reglist` (was `rlist` and `list`, the operand
   too), `imm5`, `imm24`, `imm4h`, `imm4l`, `h1`, `h2`. Functions: `thumbAlignedPc`, `printingOf`, `formatLoose`,
   `thumbMayReference`. romlift's golden files carry the ids and the field names, so 92 are regenerated; each equals
-  its old text with the names mapped. Nothing the analysis decides changes.
+  its old text with the names mapped. A decoded flow says `call` and `interrupt` (were `bl` and `swi`; the row's
+  class keeps the mnemonic). Nothing the analysis decides changes: `bench run --json` prints the same bytes.
 - (c) **`romlift/isa` is removed** (`src/isa.ts`, `src/api/isa.ts` and the `exports` entry): romlift has three entry
   points. The bench, the gates, `test/local` and `test/corpus` import `@match-kit/isa/armv4t` beside them
   (`lint/edges.ts`), and a gate's `needs` are looked up in it as in an entry point.

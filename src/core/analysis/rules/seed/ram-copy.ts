@@ -139,7 +139,7 @@ function straightLineBefore(r: Reading, at: Addr, window: number, v: AnalysisVie
   for (const b of r.blSites) joins.add(b.target);
   for (const site of r.far) {
     const flow = insnAt(r, site, v).flow;
-    if (flow.kind === 'bl') joins.add(flow.target);
+    if (flow.kind === 'call') joins.add(flow.target);
   }
   const run: Addr[] = [];
   for (let cur = at; run.length < window && !joins.has(cur); ) {
@@ -334,7 +334,13 @@ function successors(insn: Insn, r: Reading): Addr[] {
   if (f.kind === 'branch') {
     out.push(f.target);
     if (f.conditional) out.push(next);
-  } else if (f.kind === 'next' || f.kind === 'bl' || f.kind === 'pool-load' || f.kind === 'adr' || f.kind === 'swi')
+  } else if (
+    f.kind === 'next' ||
+    f.kind === 'call' ||
+    f.kind === 'pool-load' ||
+    f.kind === 'adr' ||
+    f.kind === 'interrupt'
+  )
     out.push(next);
   return out.filter((a) => r.insnAt.has(a));
 }
@@ -537,7 +543,7 @@ function jumpsThrough(r: Reading, load: Addr, rd: number, v: AnalysisView): bool
     const x = insnAt(r, a, v);
     const g = x.flow;
     if (g.kind === 'indirect') return (g.via === 'bx' || g.via === 'mov-pc') && (live & (1 << g.reg)) !== 0;
-    if (g.kind === 'bl') {
+    if (g.kind === 'call') {
       const reg = r.mode === 'thumb' ? stubRegister(g.target, v) : undefined;
       return reg !== undefined && (live & (1 << reg)) !== 0;
     }

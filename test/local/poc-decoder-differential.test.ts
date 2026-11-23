@@ -46,10 +46,10 @@ const THUMB_MAP: Readonly<Record<string, readonly FlowClass[]>> = {
 
 /** The PoC's kinds as Flow kinds (the decoded Flow, not the row class). */
 const THUMB_FLOW_MAP: Readonly<Record<string, readonly Flow['kind'][]>> = {
-  bl: ['bl'],
+  bl: ['call'],
   b: ['branch'],
   bcc: ['branch'],
-  swi: ['swi'],
+  swi: ['interrupt'],
   bx: ['return', 'mode-switch', 'indirect'],
   pop_pc: ['return'],
   ldr_pc: ['pool-load'],
@@ -62,9 +62,9 @@ const THUMB_FLOW_MAP: Readonly<Record<string, readonly Flow['kind'][]>> = {
 
 const ARM_FLOW_MAP: Readonly<Record<string, readonly Flow['kind'][]>> = {
   bx: ['return', 'indirect'],
-  bl: ['bl'],
+  bl: ['call'],
   b: ['branch'],
-  swi: ['swi'],
+  swi: ['interrupt'],
   ldr_pc: ['pool-load'],
   adr: ['adr'],
   pc_write: ['indirect', 'return'],
@@ -147,7 +147,7 @@ const INTENDED: readonly IntendedDifference[] = [
 function targetOf(flow: Flow): number | undefined {
   switch (flow.kind) {
     case 'branch':
-    case 'bl':
+    case 'call':
     case 'adr':
       return flow.target;
     case 'pool-load':

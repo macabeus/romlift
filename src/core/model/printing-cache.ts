@@ -35,7 +35,7 @@ function offsetMask(id: SpecId): number {
 export function targetOf(flow: Flow): Addr | undefined {
   switch (flow.kind) {
     case 'branch':
-    case 'bl':
+    case 'call':
     case 'adr':
       return flow.target;
     case 'pool-load':

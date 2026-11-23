@@ -81,7 +81,7 @@ test('every item kind round-trips through the table', () => {
   if (push.kind === 'insn') assert.equal(push.insn.specId, 'thumb.push');
   const bl = itemAt(t, 1, r);
   assert.ok(
-    bl.kind === 'insn' && bl.insn.size === 4 && bl.insn.flow.kind === 'bl' && bl.insn.flow.target === 0x0800_0300,
+    bl.kind === 'insn' && bl.insn.size === 4 && bl.insn.flow.kind === 'call' && bl.insn.flow.target === 0x0800_0300,
   );
   const raw = itemAt(t, 2, r);
   assert.ok(
@@ -206,7 +206,7 @@ test('decodeItemAt: the one decode of an item, the instruction or why there is n
   const bl = decodeItemAt(r, t, 1, 0);
   assert.ok(typeof bl !== 'string');
   assert.equal(bl.specId, 'thumb.bl');
-  assert.equal(bl.flow.kind === 'bl' ? bl.flow.target : undefined, 0x0800_0300);
+  assert.equal(bl.flow.kind === 'call' ? bl.flow.target : undefined, 0x0800_0300);
   assert.equal((decodeItemAt(r, t, 4, 0) as { readonly specId: string }).specId, 'arm.bx');
   assert.equal(
     decodeItemAt(r, t, 2, 0),
