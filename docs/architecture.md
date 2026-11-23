@@ -1868,8 +1868,9 @@ while nothing is decompiled, whatever has been decompiled since (the owner's ans
 a; fix round 1's targets wrote the ROM's bytes over that `.text`, D95 a, which objdiff read as moved branch targets). The
 objects live under `build/`, never under the generated root `expected/`, so `generate` finds no file there it did not
 write (D101 c). The `objdiff` writer emits `objdiff.json` (objdiff-cli 3.7.2), one unit per `c` module with its target
-and base objects (`build/src/<module>.o`, D74 f) and `options.functionRelocDiffs = "none"`, as `objdiff-cli report`
-scores. An untouched project scores every function at 100% (measured on sa1 and klonoa, `test/local/objdiff-json`).
+and base objects (`build/src/<module>.o`, D74 f), its `scratch` (the compiler and flags the module builds with, which
+asmlift's command in `decomp.yaml` takes as `{{cc}}` and `{{flags}}`, D122) and `options.functionRelocDiffs = "none"`,
+as `objdiff-cli report` scores. An untouched project scores every function at 100% (measured on sa1 and klonoa, `test/local/objdiff-json`).
 `expected/` and `objdiff.json` are generated files under the generated roots (§6.4).
 
 `g6.expected-bytes` judges `expected/<module>.s` by the ROM, never by another project's own `expected/` (Klonoa's `make

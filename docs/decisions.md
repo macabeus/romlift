@@ -5748,6 +5748,52 @@ per architecture, `@match-kit/isa-armv4t` (match-kit names packages by job and s
 ships only the entry imported). An interface shared across architectures now (with one architecture it would be a
 guess). Keeping `romlift/isa` as a re-export (the owner's choice).
 
+## D122. asmlift scores with each module's own compiler and flags, read from `objdiff.json`; the kl2dct end-to-end test of 23 November 2026
+
+**Context.** The owner asked for an end-to-end test of the merged tree on kl2dct (a project from `init`, the existing
+project's C imported, functions decompiled with asmlift), then to "mention asmlift on `AGENTS.md`", to "fix
+`setup.sh`" and to investigate asmlift's note `objdiff.json has no unit defining <function>`, which "might be a bug
+that needs to be fixed". Three defects were measured:
+
+- **The flags.** asmlift takes a function's flags from the `objdiff.json` unit whose target object defines it, and
+  only a unit with `scratch.compiler` and `scratch.c_flags` counts. romlift's units had no `scratch`, so asmlift
+  printed the note and read the flags from `tools.asmlift.compiler`, which named `[build] compiler` and its default
+  flags. A module with its own `cflags` or `compiler` (kl2dct's `entity`, `-fprologue-bugfix`) was scored with the
+  wrong flags, silently.
+- **`setup.sh`.** Run before `git init`, it fetched `tools/agbcc` as a plain checkout; run again inside the
+  repository it returned as soon as it saw the build, so the checkout was never registered and `git add` warned of
+  an embedded repository.
+- **`AGENTS.md`** did not name asmlift, although `decomp.yaml` configures it.
+
+**Decision.**
+
+- (a) **Each `objdiff.json` unit carries `scratch`**: `platform` `gba`, `compiler` the module's build compiler id
+  (decomp.me's names, `agbcc` and `old_agbcc`) and `c_flags` the flags `modules.mk` gives the object (the compiler's
+  defaults, then the module's `cflags`).
+- (b) **`tools.asmlift.compiler` takes them** through asmlift's placeholders: `./tools/agbcc/bin/{{cc}} … {{flags}}`.
+  It names no compiler or flag itself, so it cannot disagree with the build. `renderDecompYaml` no longer takes a
+  compiler; `BUILD_COMPILER_DIR` is the directory every registered cc1 lies in.
+- (c) **`setup.sh` registers `tools/agbcc` on every run** in a Git repository: `git submodule add` for a checkout
+  the index does not hold as a gitlink, `git submodule init` for a gitlink the repository's configuration does not
+  know. The scaffold's README says to run it again after a late `git init`.
+- (d) **The scaffold's `AGENTS.md` has a short section on asmlift**: what it is, how to install it, the one command,
+  and that `make` is the verdict. It points to asmlift's README for everything else: the two projects are released
+  apart, and detail copied here would drift.
+
+**Measured** on the kl2dct test project with asmlift 0.11.0: with (a) and (b) the note is gone, a function of
+`main_3` reads `-mthumb-interwork -O2 -fhex-asm (objdiff.json unit main_3)` and one of `entity` reads the same with
+`-fprologue-bugfix`.
+
+**Consequences.** `--score-against` needs `make expected` first: asmlift finds the unit by its built target, and
+refuses a command with `{{flags}}` when nothing gives them. `decomp.yaml` is written once by `init`, so a project
+made before this decision keeps its old command; with the new `objdiff.json` asmlift refuses it and prints the
+command to write instead. No compatibility is kept (there are no users, D108). objdiff offers a decomp.me scratch
+for a unit with `scratch`.
+
+**Rejected.** Leaving the command as it was and documenting `--cflags` (the user would have to copy a module's flags
+by hand, and a forgotten one is a silent wrong score). Writing a per-module command into `decomp.yaml` (the format
+has one `compiler` per tool).
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per

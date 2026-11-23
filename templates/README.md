@@ -16,8 +16,8 @@ You need:
 Then:
 
 1. Put your own copy of the ROM at `@@romFile@@`. It is not in this repository and never will be. If this directory
-   is not a Git repository yet, run `git init` first: `./setup.sh` then registers `tools/agbcc` as a submodule
-   (`git init` afterwards leaves `tools/agbcc` a plain checkout, which `git add` warns about as an embedded repository).
+   is not a Git repository yet, run `git init` first: `./setup.sh` then registers `tools/agbcc` as a submodule.
+   After a `git init` that came later, run `./setup.sh` again before `git add`: it registers the checkout it finds.
 2. Run `./setup.sh`. It checks the toolchain, fetches and builds agbcc into `tools/agbcc/bin`, installs romlift and
    generates the disassembly when `asm/` is absent. In a new `git worktree` it copies `@@romFile@@` from the main one.
 3. Run `make`. It builds `@@builtRom@@` and ends with `@@builtRom@@: OK` when the SHA-1 matches `@@sha1File@@`.

@@ -242,6 +242,11 @@ endif
       "name": "main",
       "target_path": "build/expected/main.o",
       "base_path": "build/src/main.o",
+      "scratch": {
+        "platform": "gba",
+        "compiler": "agbcc",
+        "c_flags": "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm"
+      },
       "metadata": {
         "source_path": "src/main.c"
       }

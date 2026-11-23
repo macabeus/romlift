@@ -7,9 +7,8 @@ import { parseDecompYaml } from '@match-kit/decomp-yaml';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { BUILD_COMPILERS } from '../../../src/core/config/compilers.ts';
+import { BUILD_COMPILERS, BUILD_COMPILER_DIR } from '../../../src/core/config/compilers.ts';
 import { readDecompYaml, regionOf, renderDecompYaml } from '../../../src/core/config/decomp-yaml.ts';
-import { RomliftInvariantError } from '../../../src/foundation/diagnostics/diagnostic.ts';
 import { ROMLIFT_CONFIG_FILE } from '../../../src/foundation/util/project-files.ts';
 
 const VARS = {
@@ -48,16 +47,16 @@ test('the rendered decomp.yaml meets the spec and reads back', () => {
   assert.equal(typeof spec.versions[0]?.sha1, 'string', 'a SHA-1 that looks like a number stays a string');
 });
 
-test('the asmlift block compiles with the build compiler and its default flags', () => {
-  const text = renderDecompYaml({ ...VARS, compiler: 'old_agbcc' });
+test("the asmlift block compiles with the compiler and flags of the function's objdiff.json unit", () => {
+  const text = renderDecompYaml(VARS);
   const compiler = parseDecompYaml(text).tools?.['asmlift'];
   assert.ok(typeof compiler === 'object' && compiler !== null);
   const script = (compiler as Readonly<Record<string, unknown>>)['compiler'];
   assert.equal(
     script,
-    `set -e\ncc -E -x c -nostdinc -undef -I include {{inputPath}} -o {{outputPath}}.i\n./tools/agbcc/bin/old_agbcc {{outputPath}}.i -o {{outputPath}}.s ${BUILD_COMPILERS['old_agbcc']?.flags.join(' ') ?? ''}\narm-none-eabi-as -mcpu=arm7tdmi {{outputPath}}.s -o {{outputPath}}\n`,
+    `set -e\ncc -E -x c -nostdinc -undef -I include {{inputPath}} -o {{outputPath}}.i\n./${BUILD_COMPILER_DIR}/{{cc}} {{outputPath}}.i -o {{outputPath}}.s {{flags}}\narm-none-eabi-as -mcpu=arm7tdmi {{outputPath}}.s -o {{outputPath}}\n`,
   );
-  assert.throws(() => renderDecompYaml({ ...VARS, compiler: 'gcc' }), RomliftInvariantError);
+  for (const c of Object.values(BUILD_COMPILERS)) assert.equal(c.cc1, `${BUILD_COMPILER_DIR}/${c.id}`);
 });
 
 test('the region and the names follow the header; odd values are quoted', () => {

@@ -1,8 +1,8 @@
 {
   "meta": {
-    "commit": "0111ffd91bd49d4e22df2a52e9905d23554a110e",
+    "commit": "7b158b5c11bb7f5074f2b0932a48bb08c287592f",
     "dirty": false,
-    "sourceDigest": "7eb2d95a3c09c064091fd37667332072c4ba177e2a74d3a2cfc2e35dc0501270",
+    "sourceDigest": "2b43544b6c5048283e9378f7d3c9e135ad904c38185495421c3a11722c5605da",
     "nodeMajor": 24,
     "romliftVersion": "0.0.0",
     "inputs": {
@@ -120,7 +120,7 @@
   },
   "printer": {
     "schema": "romlift/corpus-summary@1",
-    "inputsDigest": "9bc52058a0de92b6a94f7baab44faf0919dabcb323d91443f670e71371f78429",
+    "inputsDigest": "90f700241969f2c11f43cfbc7d902855c558ac0d9749f744284182dec1891dd9",
     "as": "GNU assembler (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126",
     "options": {
       "seed": 539365399,
@@ -1904,16 +1904,16 @@
       {
         "command": "init",
         "exitCode": 0,
-        "maxRssMiB": 1069.5,
+        "maxRssMiB": 1132.17,
         "maxOldSpaceSizeMiB": 1024,
-        "treeDigest": "c125ed46dfd51493704a765b5b68c7b7b4d9c4b4dead5e3d383e31e53ae94cd8"
+        "treeDigest": "5838400bfb532d90b6802ff4c817d78053e1a81d3a50fb2c368b806e4cb495ef"
       },
       {
         "command": "generate",
         "exitCode": 0,
-        "maxRssMiB": 1040.2,
+        "maxRssMiB": 1001.86,
         "maxOldSpaceSizeMiB": 1024,
-        "treeDigest": "c125ed46dfd51493704a765b5b68c7b7b4d9c4b4dead5e3d383e31e53ae94cd8"
+        "treeDigest": "5838400bfb532d90b6802ff4c817d78053e1a81d3a50fb2c368b806e4cb495ef"
       }
     ]
   },
@@ -2025,7 +2025,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "median of 9 runs; calibration ratio 0.937; CPU/limit: fe7j 1135/12389 ms, klonoa 231/299 ms, pokeemerald 2335/4118 ms, sa2 680/764 ms, sa3 824/1457 ms, tmc 1444/1741 ms"
+        "detail": "median of 9 runs; calibration ratio 0.934; CPU/limit: fe7j 1158/12339 ms, klonoa 238/298 ms, pokeemerald 2306/4102 ms, sa2 701/761 ms, sa3 863/1451 ms, tmc 1429/1734 ms"
       },
       {
         "id": "g3.link",
@@ -2068,7 +2068,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "calibration ratio 0.944; fe7j analysis 1163/2831 ms, klonoa analysis 240/2831 ms, pokeemerald analysis 2358/2831 ms, pokeemerald generate 8296/9436 ms, pokeemerald init 10672/14154 ms, sa2 analysis 693/2831 ms, sa3 analysis 867/2831 ms, tmc analysis 1431/2831 ms"
+        "detail": "calibration ratio 0.961; fe7j analysis 1198/2882 ms, klonoa analysis 235/2882 ms, pokeemerald analysis 2261/2882 ms, pokeemerald generate 8145/9605 ms, pokeemerald init 10274/14408 ms, sa2 analysis 674/2882 ms, sa3 analysis 831/2882 ms, tmc analysis 1389/2882 ms"
       },
       {
         "id": "g3.text-layout",
@@ -2084,7 +2084,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "adr-function-label tree 782857b8d049de5ad4fc804d0954130d94c37a5a667a0f82ed888c0e81bac87e (17 files); adr-handler-block tree 96bc3ec9487ebce0815fb88f325776e580108feba6d81f51bd62b0caf83a10e2 (14 files); adr-label-and-data tree 5ae15675c4a1f8cea3211f3c0ecd103b40c5d25db6ea02ac7a62a458eefaa739 (23 files); arm-pools-in-front tree 901988085ec29875f6a95ae835bab4bdba248e57ce0591644c6b1eddc39a0d9c (17 files); bx-lr-stub-chain tree 8d44c508f4610d31be7c50b35580e255db356ff0faa663fe2fb973deafec70d3 (17 files); bx-pc-veneer tree f207e238be04609f8ae2229844ecf7901c075c851d0122ed26d0bbabd1a721c5 (20 files); c-data tree cc8266b770efec9bc02949490dc2e6455336f74e695e0eb6c6ea254cdbd9c538 (17 files); code-copied-to-ram tree 5b4eb64607fd7077a027b0fa164706d822fc77d0993ca69f676bb18fa3436504 (16 files); code-end-data-decodes tree 82251436ef3fbb543130a413dffa80e58e744eb44f2553ae5d406ed70fdc93c2 (15 files); code-end-unsized-last tree 8458d31456063280e4ea30756d047dddccd2c4c7f9cca2ed9ff5f8e1f0b01a74 (14 files); composite tree f90f6ae48ed31b2cb3ff80cc6f0d6e6de76aa61c9183d4b9083357ae9e6a2f9f (46 files); computed-jump-callback tree 042ce3230368371666e2167a9b02370e1ef929d7ef8d62b42e5eb3d3f812fc5e (14 files); data-frame-not-function tree 37b958b214dc0018dd90cb025259c6630fcc5e6c7e50df9bd941b190d8294da6 (16 files); data-named-between-data tree a6877a9ae3c822cbb005b3805c90493b54c857f99846f53e073fc79250fc1a2c (18 files); data-table-between-functions tree 174f15c49cfa64df6dc12c1b1cbc1e57080456ad92c884298aa36c0d2ec298fd (20 files); data-thumb-push-pop tree 3266230651faa6a0f4cf75bb348ff6e89fd4329bbc39093f7ac0b1b08a15a7ac (22 files); dead-code-in-extent tree 1a5f86a6cfa6a0f1aec3fba7e559b3c918cacc24cd648bb11bfb20a8cd99b864 (18 files); entry-stub-table tree 422261c1bbd917723de8d63ef7ec7301dcbbe515c342f7d5b4959193bc51b2fa (18 files); false-stub-2byte tree 82358b032dd267d5a23e10feeeac633b675e32734a1976124eb5cbf197f2f590 (15 files); far-jump tree eb3017e52091217e63533115b2d5b04be1eb2dc2509760e9a7a9b1ff4ed5dbd9 (13 files); gap-resume-2mod4 tree 8e1bd229cdbadac504a8d92bdc98c1694b5f668154ee21b3467526e5d92de2e2 (24 files); handwritten-2mod4 tree 1a1e146838cf57c5322c4725b5acaa39e177f51eebd679fe17acc0c35387dcf0 (19 files); inline-arm-switch tree f4b33f3c96dfa01c1aa9f5b38ce7e08c0920f70815c2a6bf3ee0ab6b8fe1fec1 (19 files); large-data-referenced tree 370d6f4d42207ffe0b790c0cdca80a1a90ef184b12c68e019178eeb0d14c05d1 (17 files); leaf-handler-pointer-table tree 76bd72b9dc3d96330c316b215c6d9c552f093a9ff6726da31bd2dbe61973dc42 (16 files); library tree 7ea5edca0f41383b70a633a0448488ff96109929281c85216e244431ff19dc63 (25 files); library-game tree 7717d1891bfc41939f8959475ca3ac3634b623b10c569bac89b7af76efa8a2f9 (32 files); library-ref2 tree 19669e976f460191e6b74b4b582c5aa8e045459725c1e3bb02ae2e8470e2840a (19 files); local-subroutine tree 038a9424a51d4bea92ba6db9bcb7420f08775c2b26c9e3a21fd1645a8ce41838 (14 files); mixer-tiled-hole tree d5ac6a272510f0ca36265de8048d564e63a41ae483e1373724078fdb4a01980f (28 files); mov-lr-pc-bx tree 7e0870ca0b420df2f627d22407c86c6420dd60c0c305c8982a8941555bb3e675 (20 files); multi-compiler tree 20e657582d343cc5d334c417b3533dcdabd4c950f64dc0dcd64b22185c7be435 (18 files); noreturn-call-then-next tree 06295dd96a03b886c53c61c7599ba3eb36c81fbe47ff88d36a456f0dc5d40670 (14 files); pointer-table-before-leaf tree 532c362ee3c0ee62fc54764f94d70839e112780aca648f2273c2da62ceae1715 (22 files); pointer-word-in-gap tree 00f359aeeaf867c345c4ccbda4fa6e0f4305be40aac9f93a66a7424d0fc91b33 (18 files); pool-padded-46c0 tree 1d131ff5d0ea58828e14d895936a33eb2982805687663974966353eb9437b8a9 (19 files); pool-word-push-lr tree d65e569f7f0cad65a218dc2816fec5b2ff415cc44a618a65637db190ed15519f (16 files); pops-unpushed-frame tree bbfe4d0ce556e6a866b529214ffce0c2b4b301acff93eb25c4c941b220eff22e (22 files); prologueless-thumb-over-arm tree 736a1655fa4670365c3d1baad047c7136b47dccc430d7093c70ed54437b1a0b6 (19 files); push-lr-2mod4 tree 1b8ca01f2c581306e13ba367437fc4fe9c8fbccf4ca32a5b566553fec09dd58d (21 files); ram-code-entries tree 370239dc1a156b63ebd2c4c41ad62cdb8b1a0861f9c06117a7224b4962f98812 (22 files); ram-copy-args-straight-line tree 24b2b2c1da0669d26502faaf0cc8a6618925d060c1276ae1296b6b5a7f01f2a0 (15 files); ram-copy-bios tree 44b228a522ad24e3d68361beaea19ace8081e208106c475907c88912d45b9365 (23 files); ram-copy-call-via tree e94a8ff58f67b8f4fdea703e3a2c61467f4d79f9065ed9bd14311a44818e49c2 (21 files); ram-copy-entry-boundaries tree b06d96fa344330c2659d11f37c9ecca591de3f28dae0abc91912e28d966615ad (25 files); ram-copy-memcpy tree a09eab239775c83a620a95fc725ba4418d38079ab28b4da0f9ca89c7f55f72ac (21 files); ram-copy-setup-bound tree f556a4a51616e860fc56eaea916bafc256bcf5bb81c022892625d64135566217 (22 files); recursive-far-call tree 54ff88759ae72d130074f5815137d34d74ec6a23ba68a2d28ac6b031adc303de (14 files); shared-tail tree a84e54a2113985feff247bf2ed7e40f105559668739f9a9670be474afd461d7e (16 files); swi-reset tree d624c1878b32ec977251e9373d0028e9b58ff75075a879b6ff73a6d6b552ec81 (14 files); table-jump-hoisted tree 990586cb222de9700f5e351da4f0f9e03edab25dec461b17359ed57729392d02 (14 files); thumb-pointer-run tree 0ef04c3403ab2f37b8d25672f8f29574470dc56f8502c8e37d8bdd3762eae606 (22 files); unreferenced-leaf tree a30fb0a4832df413eb18384218e3093854d63153208c1efc652a75a457f91c3e (15 files); veneer-array tree fdc1f356f364c66f1f99394f9cc7873a1da389d21c0f848cf710843de4b19a8c (23 files); fe7j tree af7469fda4aea0f8b9a77160ee749a7f13a3e85dea141731a15ae8a472af82e7 (7862 files); klonoa tree 8b9a854f918a33052a5166273b146c35b430cd4034b8113ae6fc6e5ae599d7c6 (611 files); pokeemerald tree 41bc9b15510999cbb9d2f3161493ca884642973160d8d53765df8ef6ebab87ee (15963 files); sa2 tree 456c9430b823ae9063f49d70a0eae9685d4d32e9f65aa2afa984467d5b2bfdde (2952 files); sa3 tree 5d80bce624d866a4b4e13ffc1a6b34f275f36ba237c02362fbf81fea0c705484 (4758 files); tmc tree fafbe71864a7f5c26a6d2c29b71c77de957a532bdc2c7ccecaeb61ef4ef13683 (8724 files); 60 trees identical across cwd, project path, TZ and locale; no file names a project path"
+        "detail": "adr-function-label tree 782857b8d049de5ad4fc804d0954130d94c37a5a667a0f82ed888c0e81bac87e (17 files); adr-handler-block tree 42fb8ad01075cb53a046851deb00381eebe4e205ba3ead13dd74b5c2021337c4 (14 files); adr-label-and-data tree 528cd578ae4e2d5e31b362ddb2297b8d1633025ab86909044f03b542d765502a (23 files); arm-pools-in-front tree 1bfd4710c9d42e8c40a917dcb226a43447530d1df443999294f7480cccc1be8e (17 files); bx-lr-stub-chain tree 98ddd1c2a779d1bffbd1227e906c081a8e0fbbeb2cbe60aabd066da90d23e108 (17 files); bx-pc-veneer tree 198cd46add368408103ddc4feeecae01979aedd4f820655097c7ebbd0f0732f7 (20 files); c-data tree 0c4ec4509fc51950243d9ef6c74d1208271accf7f6907541f06f98cfa145d711 (17 files); code-copied-to-ram tree dcd214411892c86c04d2afeed632476094b2ccbfbc10b9b4d1cd73fdc5b14c16 (16 files); code-end-data-decodes tree 0e1495938e031fa921e14d26a07568c8e790214171c8c0e2a860e34a7e12bcc8 (15 files); code-end-unsized-last tree 9e78fad05a19bbb518ca5982366f9b4abf29802e752d32f9856e4a09a3a633c4 (14 files); composite tree e460f4872090ef31f885d60c4b0ddf36435f304a6ea0271d44ede9e8cb31f61c (46 files); computed-jump-callback tree c028b306e4a4b6bb27fc34454288c9c142aec3c2d185e83223febf76bf604e04 (14 files); data-frame-not-function tree c3a35be8fad6ca8418303d3cd2c763cc7177aa891d6641687419c6543ad4e5c9 (16 files); data-named-between-data tree c2e4cda02453fbbfff009825f3351c0a1e9494f951695bcfbfbd07ea097f5f5e (18 files); data-table-between-functions tree 58de3b97992c40e33ebf4818eeaf4bc94009143a57cf997e3e5624e449160a8e (20 files); data-thumb-push-pop tree 2df158c499fed6449ff9304afe7cd64919696f8b58da06e36a02a21f5e0c22c3 (22 files); dead-code-in-extent tree 5207b14f59d2a487944454157beb073b349daa051745015b1aac9adb2e8ceb7a (18 files); entry-stub-table tree 335e5ec224656630e56ec5be669626c4a6d37ec6533011ff6c558512c7bdcaf2 (18 files); false-stub-2byte tree d3ef43ba6a78d4083503c37b3429067256f65b1414153bc82ca6debbdfea0a64 (15 files); far-jump tree 4dc8a068d98aedf429ae2a062ac2e1c45afaa1b7c936e4337fb6a3549d69c78c (13 files); gap-resume-2mod4 tree 9509e76b24217a0828fded42b46c5ae37540d2dc7e769eeaf06820642df429ab (24 files); handwritten-2mod4 tree de97f23d071f6d7f2b327480fa7f0808af9d3dec7cfbf5c00c78a87a3a7d0317 (19 files); inline-arm-switch tree 9bc8707098f18013ca6a92804bd49d998e008ff248d9026a27b6b9c051049dd3 (19 files); large-data-referenced tree 1097706fe2bc606814b10d068348b4b6b27317aa1d8f2a5f62b73474f7040bd0 (17 files); leaf-handler-pointer-table tree 06fbd678a38f4c420db5c925070001d51fbf267e2688f546b6ddde4645656457 (16 files); library tree c25af5d75441b22e1a34b2814d4126bbb026ec2fa4cd3785706b85e45bfb4c35 (25 files); library-game tree 366943ee12fb3159931ef1971c179acd2009dbb158f89e94274ec96792261e5b (32 files); library-ref2 tree f9d67578d7757c30539bf8b0d90b5635e95529b23b88eec73312295608699f03 (19 files); local-subroutine tree a9755a8e56a4714eb4c0c5a5229fc07e8da964cb285988a7693a26d333875eb9 (14 files); mixer-tiled-hole tree 0fa065f86e9423b881d69d081970039e5f6f91fc9f0763ee8de1135b93e775c5 (28 files); mov-lr-pc-bx tree b4ae214e0e1ad510694895da092fcc7a03f18dff7d8f21ff0f5b90551ddcd6e3 (20 files); multi-compiler tree 32bd026bfa1cb37384bc1707f471c066505eb8d94329c9e11363b2b8c11c9496 (18 files); noreturn-call-then-next tree 693adcf1d9afd6f02642023b3ec3b8a1f915fa1745a1d84495cc0f7c5288dcf1 (14 files); pointer-table-before-leaf tree 0730cb585424b0f4b406a43af50581989bd15b62b52ac3037018f3818d8adef4 (22 files); pointer-word-in-gap tree ad5c4531f7a26ca6e0ad6435ed68feabb1d8ecd0a15a550d7c90a3d49d29ec73 (18 files); pool-padded-46c0 tree beb5fdacf93ffedaf6616d6128d549a86c7b752540c9f8fcc27ddf7781d62cc2 (19 files); pool-word-push-lr tree 64aeef1f4c0a3b93afebb692d5fd6702ec39d36d1990958b80f2e187fce7c958 (16 files); pops-unpushed-frame tree 2bc6dc33d53c3b15c2a2c6cca079b1096f4707c5c4798c2a9d9bb02c6b50ed42 (22 files); prologueless-thumb-over-arm tree a87daadcc3ffd529a771b21c7741063f8fb625504de001504bd46d92d9229951 (19 files); push-lr-2mod4 tree a718b109559e8b2aa83383da75425bdb7c60b3779162f46f85896599401e793d (21 files); ram-code-entries tree 128da21e0e6a2febd89609ffff1f2cd68021bcd29db0c4ce1b404984266cbbf1 (22 files); ram-copy-args-straight-line tree f504723bf4ff664cdee94260d31fafe98d81ac41297d278bc7069fadf1c9f08a (15 files); ram-copy-bios tree 4f42cf6c5f7e04ae1a3c0f1e549c391f1c8d40002696068d5f52928fc0357f97 (23 files); ram-copy-call-via tree 4fdc94d3a2466445399cc79d118702b405f0cc17eb134d844ef299eaf5afea89 (21 files); ram-copy-entry-boundaries tree 5231a5440332a733c18c0bd5c02eb1b6461f66f77d15576d58e6e1d9e4e02e04 (25 files); ram-copy-memcpy tree 2779c9e8997b538bda96ca05c9c61d392e0612f0f2ee60b0e1b0267250834c34 (21 files); ram-copy-setup-bound tree 7cfae73bdacbbbd83bc70dd330511633666b96a6afde349674a64ba46cb05ff0 (22 files); recursive-far-call tree 2755a578fa14b070e3e2cb2b59304e4de74f8c1b6ed89b23b150316bc1af016c (14 files); shared-tail tree cbce22190437dd5fbf6662b8312e85f4ef59334576afc2e8483b8d8b430b415d (16 files); swi-reset tree 9fc6ce450dc22d59f6da9ecf77286ae3d7556f5ef096701da1dc78c70706cbb2 (14 files); table-jump-hoisted tree adec5c840e13b4c05c5b91ab581b89ea934094bd303c7d5d90bd2f04988baaa3 (14 files); thumb-pointer-run tree 860dd0d897ab01c253c5a125111a6f98cf2826865e2770430ce7ecde800e2ed1 (22 files); unreferenced-leaf tree 82f2e2dc1b3b94183183886ac463a8002ee4119f65f10773e8a651f6c2fd4ea1 (15 files); veneer-array tree 2d7fa09937e663fbb5789bedb36fa2ae38cb4aac6a18c74359d127a645a60326 (23 files); fe7j tree dfed973850922e996dbe4b455cc0b1ad85dab8dc96fe265564d56099a9c03605 (7862 files); klonoa tree f54a46ba5596125629a1bc6369fb56e8e6bd2fcbf66c2791c497b7b3a77a406e (611 files); pokeemerald tree 8d3a241b1d10b3539f372a576d36ecbd6167d8896d75368858bb3be58877b43e (15963 files); sa2 tree c4c6c1cc02aebdc809e323b2702a287c12282b0a57ba9dae045af97aad1a81d0 (2952 files); sa3 tree 46065d018b6b2e422aa7bbadeeb11df43bb9696f519c4aac211bf0972f2791c6 (4758 files); tmc tree 616a36382cb12ea4ab7c0c6d4d46ea9c7af47472498153eba3dfd722973ac95e (8724 files); 60 trees identical across cwd, project path, TZ and locale; no file names a project path"
       },
       {
         "id": "g4.e2e-real",
@@ -2535,7 +2535,7 @@
           ]
         }
       },
-      "treeDigest": "af7469fda4aea0f8b9a77160ee749a7f13a3e85dea141731a15ae8a472af82e7",
+      "treeDigest": "dfed973850922e996dbe4b455cc0b1ad85dab8dc96fe265564d56099a9c03605",
       "signatures": {
         "libraries": [
           {
@@ -2785,7 +2785,7 @@
           ]
         }
       },
-      "treeDigest": "8b9a854f918a33052a5166273b146c35b430cd4034b8113ae6fc6e5ae599d7c6",
+      "treeDigest": "f54a46ba5596125629a1bc6369fb56e8e6bd2fcbf66c2791c497b7b3a77a406e",
       "signatures": {
         "libraries": [
           {
@@ -3139,7 +3139,7 @@
           ]
         }
       },
-      "treeDigest": "41bc9b15510999cbb9d2f3161493ca884642973160d8d53765df8ef6ebab87ee",
+      "treeDigest": "8d3a241b1d10b3539f372a576d36ecbd6167d8896d75368858bb3be58877b43e",
       "signatures": {
         "libraries": [
           {
@@ -3442,7 +3442,7 @@
           ]
         }
       },
-      "treeDigest": "456c9430b823ae9063f49d70a0eae9685d4d32e9f65aa2afa984467d5b2bfdde",
+      "treeDigest": "c4c6c1cc02aebdc809e323b2702a287c12282b0a57ba9dae045af97aad1a81d0",
       "signatures": {
         "libraries": [
           {
@@ -3758,7 +3758,7 @@
           ]
         }
       },
-      "treeDigest": "5d80bce624d866a4b4e13ffc1a6b34f275f36ba237c02362fbf81fea0c705484",
+      "treeDigest": "46065d018b6b2e422aa7bbadeeb11df43bb9696f519c4aac211bf0972f2791c6",
       "signatures": {
         "libraries": [
           {
@@ -4424,7 +4424,7 @@
           ]
         }
       },
-      "treeDigest": "fafbe71864a7f5c26a6d2c29b71c77de957a532bdc2c7ccecaeb61ef4ef13683",
+      "treeDigest": "616a36382cb12ea4ab7c0c6d4d46ea9c7af47472498153eba3dfd722973ac95e",
       "signatures": {
         "libraries": [
           {

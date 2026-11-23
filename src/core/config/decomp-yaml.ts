@@ -7,7 +7,7 @@
 // @match-kit/decomp-yaml's pure validators (parseDecompYaml, toolBlock) exactly as loadConfig will; readDecompYaml
 // is that reader, with E_DECOMP_YAML_INVALID for a file that fails the spec or the block. Ported from the PoC's
 // project.ts (decompYamlText, romliftBlock, the region table); the asmlift compiler line follows the C build of
-// D74 f (host preprocessor, the build compiler's flags from compilers.ts, arm-none-eabi-as). Pure: the reader
+// D74 f (host preprocessor, the compiler and flags of the function's objdiff.json unit, arm-none-eabi-as; D122). Pure: the reader
 // returns diagnostics, never throws; the renderer's output always validates, and an output that did not would be
 // a bug in romlift (RomliftInvariantError), since every value it writes is quoted.
 import { DecompYamlError, parseDecompYaml, toolBlock } from '@match-kit/decomp-yaml';
@@ -20,8 +20,7 @@ import { NONMATCHINGS_ROOT } from '../../foundation/util/project-files.ts';
 import { BASEROM_FILE, DECOMP_YAML_FILE, ROMLIFT_CONFIG_FILE } from '../../foundation/util/project-files.ts';
 import { ConfigCodes } from './codes.ts';
 import type { ConfigCode } from './codes.ts';
-import { DEFAULT_BUILD_COMPILER, buildCompilerOf } from './compilers.ts';
-import type { BuildCompilerId } from './compilers.ts';
+import { BUILD_COMPILER_DIR } from './compilers.ts';
 
 /** romlift's key under `tools`. */
 export const ROMLIFT_TOOL = 'romlift';
@@ -42,8 +41,6 @@ export interface DecompYamlVars {
   readonly gameCode: string;
   /** The ROM's SHA-1, forty lower-case hex digits. */
   readonly sha1: string;
-  /** The build compiler asmlift compiles a candidate with; default DEFAULT_BUILD_COMPILER. */
-  readonly compiler?: BuildCompilerId;
 }
 
 /** What romlift reads from a project's decomp.yaml. */
@@ -140,10 +137,6 @@ export function readDecompYaml(text: string, path: string = DECOMP_YAML_FILE): D
 
 /** The text of a project's decomp.yaml, read back through the validators before it is returned. */
 export function renderDecompYaml(vars: DecompYamlVars): string {
-  const compilerId = vars.compiler ?? DEFAULT_BUILD_COMPILER;
-  const compiler = buildCompilerOf(compilerId);
-  if (compiler === undefined)
-    throw new RomliftInvariantError(`renderDecompYaml: ${compilerId} is not a registered build compiler`);
   const region = regionOf(vars.gameCode);
   const text = `# yaml-language-server: $schema=https://cdn.jsdelivr.net/npm/@match-kit/decomp-yaml/schema.json
 # decomp.yaml (the decomp_settings format): the settings this project's tools share.
@@ -172,11 +165,12 @@ tools:
     # The built ELF, asmlift's symbol source (names from .symtab; add DWARF for types).
     elf: ${q(`${vars.name}.elf`)}
     # Compiles a candidate for \`--score-against\` the way the Makefile builds src/<module>.c: the host
-    # preprocessor, then tools/agbcc/bin/${compiler.id} (built by ./setup.sh) with its default flags, then as.
+    # preprocessor, then the module's compiler and flags, then as. {{cc}} and {{flags}} are those of the
+    # function's unit in objdiff.json (\`make expected\` builds the objects asmlift finds the unit by).
     compiler: |
       set -e
       cc -E -x c -nostdinc -undef -I include {{inputPath}} -o {{outputPath}}.i
-      ./${compiler.cc1} {{outputPath}}.i -o {{outputPath}}.s ${compiler.flags.join(' ')}
+      ./${BUILD_COMPILER_DIR}/{{cc}} {{outputPath}}.i -o {{outputPath}}.s {{flags}}
       arm-none-eabi-as -mcpu=arm7tdmi {{outputPath}}.s -o {{outputPath}}
 
   # ${ROMLIFT_TOOL}: the disassembler and scaffolder that wrote this project. \`romlift generate\` finds

@@ -30,7 +30,7 @@ const cli = await load('bench/src/objdiff-cli.ts');
 const family = await load('bench/src/objdiff.ts');
 const classes = await load('bench/src/objdiff-classes.ts');
 const { assembleWithBinutils, findBinutils } = await import('romlift/node');
-const { DIALECT } = await import('romlift/isa');
+const { DIALECT } = await import('romlift');
 const print = (value) => process.stdout.write(JSON.stringify(value) + '\\n');
 const tools = findBinutils(process.env);
 if ('code' in tools) { print({ unavailable: 'binutils (' + tools.message + ')' }); process.exit(0); }

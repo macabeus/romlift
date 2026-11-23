@@ -284,7 +284,8 @@ Each C module is compiled by `tools/agbcc/bin/<compiler>` (`[[modules]] compiler
 every function is `INCLUDE_ASM` (a C module's generated `.s` files, each included as `INCLUDE_ASM` would include it).
 `make expected` assembles it as it is into `build/expected/<module>.o`, the target object: the symbols, relocations and
 bytes `build/src/<module>.o` had before you decompiled anything. `objdiff.json` lists one unit per C module, in ROM order,
-with that target and the object `make` builds from `src/<module>.c`, `build/src/<module>.o`. Open the project in objdiff
+with that target, the object `make` builds from `src/<module>.c`, `build/src/<module>.o`, and the compiler and flags
+the module builds with (`scratch`). Open the project in objdiff
 (or run `objdiff-cli`) after `make expected`: it runs `make build/src/<module>.o` itself before each diff
 (`build_base`), never `make expected` (`build_target` is false), so run `make expected` again after a `romlift
 generate` that changed `expected/`. Decompiling or reverting a function changes only the path `expected/<module>.s`
@@ -292,6 +293,19 @@ includes its file from (`asm/nonmatchings/` or `asm/matchings/`), not the target
 change to `romlift.toml` may. Before you change anything, objdiff scores every function at 100%. Use objdiff
 3.7.2 or later (the version romlift is tested with): older releases cannot load the targets (`Unsupported ARM implicit
 relocation`).
+
+## Drafting a function with asmlift
+
+[asmlift](https://github.com/macabeus/asmlift) (`npm install -g @asmlift/cli`) turns one function's assembly into C
+and scores it against the function's objdiff target. `decomp.yaml` and `objdiff.json` configure it, so it needs no
+flags of its own:
+
+```sh
+make expected
+asmlift asm/nonmatchings/<module>/<Function>.s --score-against build/expected/<module>.o
+```
+
+Its score is evidence, `make` is the verdict. Its README documents the rest.
 
 ## Hand-written assembly
 
@@ -545,8 +559,8 @@ You need:
 Then:
 
 1. Put your own copy of the ROM at `baserom.gba`. It is not in this repository and never will be. If this directory
-   is not a Git repository yet, run `git init` first: `./setup.sh` then registers `tools/agbcc` as a submodule
-   (`git init` afterwards leaves `tools/agbcc` a plain checkout, which `git add` warns about as an embedded repository).
+   is not a Git repository yet, run `git init` first: `./setup.sh` then registers `tools/agbcc` as a submodule.
+   After a `git init` that came later, run `./setup.sh` again before `git add`: it registers the checkout it finds.
 2. Run `./setup.sh`. It checks the toolchain, fetches and builds agbcc into `tools/agbcc/bin`, installs romlift and
    generates the disassembly when `asm/` is absent. In a new `git worktree` it copies `baserom.gba` from the main one.
 3. Run `make`. It builds `klonoa-eod.gba` and ends with `klonoa-eod.gba: OK` when the SHA-1 matches `klonoa-eod.sha1`.
@@ -1038,35 +1052,39 @@ check_toolchain() {
 
 # Duty 2: agbcc and old_agbcc in tools/agbcc/bin, built by agbcc's own build.sh and install.sh. In a git
 # repository tools/agbcc is a submodule (.gitmodules): checked out when it is registered, else fetched at the pinned
-# commit and registered (commit the result). Outside one it is fetched at the pinned commit.
+# commit. Outside one it is fetched at the pinned commit. A checkout the repository does not know as a submodule yet
+# (just fetched, or fetched before `git init`) is registered on every run (commit the result).
 setup_agbcc() {
-  if [ -x "$AGBCC_DIR/bin/agbcc" ]; then
-    return 0
-  fi
-  have git || die "git is needed to fetch agbcc into $AGBCC_DIR"
-  if [ ! -f "$AGBCC_DIR/build.sh" ]; then
-    if in_git && git ls-files --stage -- "$AGBCC_DIR" | grep -q '^160000'; then
-      say "checking out the $AGBCC_DIR submodule"
-      git submodule update --init -- "$AGBCC_DIR"
-    else
-      say "fetching agbcc $AGBCC_COMMIT from $AGBCC_URL"
-      if [ -d "$AGBCC_DIR" ] && [ -n "$(ls -A "$AGBCC_DIR")" ]; then
-        die "$AGBCC_DIR exists but holds no agbcc checkout: move it away and run ./setup.sh again"
-      fi
-      mkdir -p "$AGBCC_DIR"
-      git -C "$AGBCC_DIR" init -q
-      git -C "$AGBCC_DIR" remote add origin "$AGBCC_URL"
-      git -C "$AGBCC_DIR" fetch -q --depth 1 origin "$AGBCC_COMMIT" 2>/dev/null || git -C "$AGBCC_DIR" fetch -q origin
-      git -C "$AGBCC_DIR" checkout -q "$AGBCC_COMMIT"
-      if in_git; then
-        say "registering $AGBCC_DIR as a submodule at $AGBCC_COMMIT (commit .gitmodules and $AGBCC_DIR)"
-        git submodule add -- "$AGBCC_PIN_URL" "$AGBCC_DIR" >/dev/null
+  if [ ! -x "$AGBCC_DIR/bin/agbcc" ]; then
+    have git || die "git is needed to fetch agbcc into $AGBCC_DIR"
+    if [ ! -f "$AGBCC_DIR/build.sh" ]; then
+      if in_git && git ls-files --stage -- "$AGBCC_DIR" | grep -q '^160000'; then
+        say "checking out the $AGBCC_DIR submodule"
+        git submodule update --init -- "$AGBCC_DIR"
+      else
+        say "fetching agbcc $AGBCC_COMMIT from $AGBCC_URL"
+        if [ -d "$AGBCC_DIR" ] && [ -n "$(ls -A "$AGBCC_DIR")" ]; then
+          die "$AGBCC_DIR exists but holds no agbcc checkout: move it away and run ./setup.sh again"
+        fi
+        mkdir -p "$AGBCC_DIR"
+        git -C "$AGBCC_DIR" init -q
+        git -C "$AGBCC_DIR" remote add origin "$AGBCC_URL"
+        git -C "$AGBCC_DIR" fetch -q --depth 1 origin "$AGBCC_COMMIT" 2>/dev/null || git -C "$AGBCC_DIR" fetch -q origin
+        git -C "$AGBCC_DIR" checkout -q "$AGBCC_COMMIT"
       fi
     fi
+    say "building agbcc and old_agbcc (a few minutes)"
+    (cd "$AGBCC_DIR" && ./build.sh && ./install.sh ../..)
+    [ -x "$AGBCC_DIR/bin/agbcc" ] && [ -x "$AGBCC_DIR/bin/old_agbcc" ] || die "agbcc did not build into $AGBCC_DIR/bin"
   fi
-  say "building agbcc and old_agbcc (a few minutes)"
-  (cd "$AGBCC_DIR" && ./build.sh && ./install.sh ../..)
-  [ -x "$AGBCC_DIR/bin/agbcc" ] && [ -x "$AGBCC_DIR/bin/old_agbcc" ] || die "agbcc did not build into $AGBCC_DIR/bin"
+  if in_git && [ -e "$AGBCC_DIR/.git" ]; then
+    if ! git ls-files --stage -- "$AGBCC_DIR" | grep -q '^160000'; then
+      say "registering $AGBCC_DIR as a submodule at $AGBCC_COMMIT (commit .gitmodules and $AGBCC_DIR)"
+      git submodule add -- "$AGBCC_PIN_URL" "$AGBCC_DIR" >/dev/null
+    elif ! git config --get "submodule.$AGBCC_DIR.url" >/dev/null; then
+      git submodule init -q -- "$AGBCC_DIR"
+    fi
+  fi
 }
 
 # Duty 3: the ROM. A new git worktree has none (it is never committed): copy it from the main worktree, the first

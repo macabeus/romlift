@@ -22,13 +22,19 @@ function model(): Model {
   return modelOf(rom, {
     modules: [
       { name: 'rom_header', chunks: [{ kind: 'header', name: 'rom_header', items: [dataItem(0x0800_0000, 0xc0)] }] },
-      { name: 'main', kind: 'c', chunks: [{ name: 'F', items: [dataItem(0x0800_00c0, 0x40)] }] },
+      { name: 'main', kind: 'c', cflags: ['-O2'], chunks: [{ name: 'F', items: [dataItem(0x0800_00c0, 0x40)] }] },
       {
         name: 'm4a',
         library: { name: 'm4a', version: '2001' },
         chunks: [{ name: 'SoundMain', items: [dataItem(0x0800_0100, 0x40)] }],
       },
-      { name: 'other', kind: 'c', chunks: [{ name: 'G', items: [dataItem(0x0800_0140, 0x40)] }] },
+      {
+        name: 'other',
+        kind: 'c',
+        compiler: 'old_agbcc',
+        cflags: ['-O2', '-fprologue-bugfix'],
+        chunks: [{ name: 'G', items: [dataItem(0x0800_0140, 0x40)] }],
+      },
       { name: 'kept', kind: 'c', generated: false, chunks: [{ name: 'H', items: [dataItem(0x0800_0180, 0x80)] }] },
       { name: 'data', kind: 'data', chunks: [{ kind: 'data', name: 'data', items: [dataItem(0x0800_0200, 0x200)] }] },
     ],
@@ -54,6 +60,11 @@ test('one unit per generated C module, in ROM order, and the fixed project keys'
       "name": "main",
       "target_path": "build/expected/main.o",
       "base_path": "build/src/main.o",
+      "scratch": {
+        "platform": "gba",
+        "compiler": "agbcc",
+        "c_flags": "-O2"
+      },
       "metadata": {
         "source_path": "src/main.c"
       }
@@ -62,6 +73,11 @@ test('one unit per generated C module, in ROM order, and the fixed project keys'
       "name": "other",
       "target_path": "build/expected/other.o",
       "base_path": "build/src/other.o",
+      "scratch": {
+        "platform": "gba",
+        "compiler": "old_agbcc",
+        "c_flags": "-O2 -fprologue-bugfix"
+      },
       "metadata": {
         "source_path": "src/other.c"
       }
