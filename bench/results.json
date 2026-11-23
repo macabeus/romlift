@@ -1,8 +1,8 @@
 {
   "meta": {
-    "commit": "67b0119836d92b16e5dba8ce42ebf37c298794af",
-    "dirty": true,
-    "sourceDigest": "950b391a44bb48b7b87487632f1cfccb71c85a3d48c9fcb53d8c837b63cebfe9",
+    "commit": "0111ffd91bd49d4e22df2a52e9905d23554a110e",
+    "dirty": false,
+    "sourceDigest": "7eb2d95a3c09c064091fd37667332072c4ba177e2a74d3a2cfc2e35dc0501270",
     "nodeMajor": 24,
     "romliftVersion": "0.0.0",
     "inputs": {
@@ -120,7 +120,7 @@
   },
   "printer": {
     "schema": "romlift/corpus-summary@1",
-    "inputsDigest": "840e69a8e6ed3b707e7254c2977a9959151c0d1d3d436c169da824d82f5771a5",
+    "inputsDigest": "9bc52058a0de92b6a94f7baab44faf0919dabcb323d91443f670e71371f78429",
     "as": "GNU assembler (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126",
     "options": {
       "seed": 539365399,
@@ -195,7 +195,7 @@
               "imm12"
             ]
           },
-          "arm.adc_ims": {
+          "arm.adc_reg": {
             "exhaustive": [
               "cond",
               "s",
@@ -205,10 +205,10 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
-          "arm.adc_ims_pc": {
+          "arm.adc_reg_pc": {
             "exhaustive": [
               "cond",
               "s",
@@ -218,10 +218,10 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
-          "arm.adc_rs": {
+          "arm.adc_rr": {
             "exhaustive": [
               "cond",
               "s",
@@ -233,7 +233,7 @@
             ],
             "sampled": []
           },
-          "arm.adc_rs_pc": {
+          "arm.adc_rr_pc": {
             "exhaustive": [
               "cond",
               "s",
@@ -267,7 +267,7 @@
               "imm12"
             ]
           },
-          "arm.add_ims": {
+          "arm.add_reg": {
             "exhaustive": [
               "cond",
               "s",
@@ -277,10 +277,10 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
-          "arm.add_ims_pc": {
+          "arm.add_reg_pc": {
             "exhaustive": [
               "cond",
               "s",
@@ -290,10 +290,10 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
-          "arm.add_rs": {
+          "arm.add_rr": {
             "exhaustive": [
               "cond",
               "s",
@@ -305,7 +305,7 @@
             ],
             "sampled": []
           },
-          "arm.add_rs_pc": {
+          "arm.add_rr_pc": {
             "exhaustive": [
               "cond",
               "s",
@@ -357,7 +357,7 @@
               "imm12"
             ]
           },
-          "arm.and_ims": {
+          "arm.and_reg": {
             "exhaustive": [
               "cond",
               "s",
@@ -367,10 +367,10 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
-          "arm.and_ims_pc": {
+          "arm.and_reg_pc": {
             "exhaustive": [
               "cond",
               "s",
@@ -380,10 +380,10 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
-          "arm.and_rs": {
+          "arm.and_rr": {
             "exhaustive": [
               "cond",
               "s",
@@ -395,7 +395,7 @@
             ],
             "sampled": []
           },
-          "arm.and_rs_pc": {
+          "arm.and_rr_pc": {
             "exhaustive": [
               "cond",
               "s",
@@ -412,7 +412,7 @@
               "cond"
             ],
             "sampled": [
-              "off"
+              "imm24"
             ]
           },
           "arm.bic_imm": {
@@ -437,7 +437,7 @@
               "imm12"
             ]
           },
-          "arm.bic_ims": {
+          "arm.bic_reg": {
             "exhaustive": [
               "cond",
               "s",
@@ -447,10 +447,10 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
-          "arm.bic_ims_pc": {
+          "arm.bic_reg_pc": {
             "exhaustive": [
               "cond",
               "s",
@@ -460,10 +460,10 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
-          "arm.bic_rs": {
+          "arm.bic_rr": {
             "exhaustive": [
               "cond",
               "s",
@@ -475,7 +475,7 @@
             ],
             "sampled": []
           },
-          "arm.bic_rs_pc": {
+          "arm.bic_rr_pc": {
             "exhaustive": [
               "cond",
               "s",
@@ -492,7 +492,7 @@
               "cond"
             ],
             "sampled": [
-              "off"
+              "imm24"
             ]
           },
           "arm.bx": {
@@ -519,7 +519,7 @@
               "imm12"
             ]
           },
-          "arm.cmn_ims": {
+          "arm.cmn_reg": {
             "exhaustive": [
               "cond",
               "rn",
@@ -528,10 +528,10 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
-          "arm.cmn_rs": {
+          "arm.cmn_rr": {
             "exhaustive": [
               "cond",
               "rn",
@@ -552,7 +552,7 @@
               "imm12"
             ]
           },
-          "arm.cmp_ims": {
+          "arm.cmp_reg": {
             "exhaustive": [
               "cond",
               "rn",
@@ -561,10 +561,10 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
-          "arm.cmp_rs": {
+          "arm.cmp_rr": {
             "exhaustive": [
               "cond",
               "rn",
@@ -609,7 +609,7 @@
               "imm12"
             ]
           },
-          "arm.eor_ims": {
+          "arm.eor_reg": {
             "exhaustive": [
               "cond",
               "s",
@@ -619,10 +619,10 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
-          "arm.eor_ims_pc": {
+          "arm.eor_reg_pc": {
             "exhaustive": [
               "cond",
               "s",
@@ -632,10 +632,10 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
-          "arm.eor_rs": {
+          "arm.eor_rr": {
             "exhaustive": [
               "cond",
               "s",
@@ -647,7 +647,7 @@
             ],
             "sampled": []
           },
-          "arm.eor_rs_pc": {
+          "arm.eor_rr_pc": {
             "exhaustive": [
               "cond",
               "s",
@@ -669,7 +669,7 @@
               "rn"
             ],
             "sampled": [
-              "list"
+              "reglist"
             ]
           },
           "arm.ldm_pc": {
@@ -682,7 +682,7 @@
               "rn"
             ],
             "sampled": [
-              "list"
+              "reglist"
             ]
           },
           "arm.ldr_imm": {
@@ -711,7 +711,7 @@
               "imm"
             ]
           },
-          "arm.ldr_pc": {
+          "arm.ldr_literal": {
             "exhaustive": [
               "cond",
               "u",
@@ -733,7 +733,7 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
           "arm.ldr_reg_pc": {
@@ -748,7 +748,7 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
           "arm.ldrb_imm": {
@@ -789,7 +789,7 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
           "arm.ldrb_reg_pc": {
@@ -804,7 +804,7 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
           "arm.ldrbt_imm": {
@@ -839,7 +839,7 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
           "arm.ldrbt_reg_pc": {
@@ -852,7 +852,7 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
           "arm.ldrd_strd": {
@@ -869,8 +869,8 @@
               "w",
               "rn",
               "rd",
-              "immh",
-              "imml"
+              "imm4h",
+              "imm4l"
             ],
             "sampled": []
           },
@@ -895,8 +895,8 @@
               "w",
               "rn",
               "rd",
-              "immh",
-              "imml"
+              "imm4h",
+              "imm4l"
             ],
             "sampled": []
           },
@@ -921,8 +921,8 @@
               "w",
               "rn",
               "rd",
-              "immh",
-              "imml"
+              "imm4h",
+              "imm4l"
             ],
             "sampled": []
           },
@@ -971,7 +971,7 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
           "arm.ldrt_reg_pc": {
@@ -984,7 +984,7 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
           "arm.media_undefined": {
@@ -1032,7 +1032,7 @@
               "imm12"
             ]
           },
-          "arm.mov_ims": {
+          "arm.mov_reg": {
             "exhaustive": [
               "cond",
               "s",
@@ -1042,10 +1042,10 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
-          "arm.mov_ims_pc": {
+          "arm.mov_reg_pc": {
             "exhaustive": [
               "cond",
               "s",
@@ -1055,10 +1055,10 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
-          "arm.mov_rs": {
+          "arm.mov_rr": {
             "exhaustive": [
               "cond",
               "s",
@@ -1070,7 +1070,7 @@
             ],
             "sampled": []
           },
-          "arm.mov_rs_pc": {
+          "arm.mov_rr_pc": {
             "exhaustive": [
               "cond",
               "s",
@@ -1172,7 +1172,7 @@
               "imm12"
             ]
           },
-          "arm.mvn_ims": {
+          "arm.mvn_reg": {
             "exhaustive": [
               "cond",
               "s",
@@ -1182,10 +1182,10 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
-          "arm.mvn_ims_pc": {
+          "arm.mvn_reg_pc": {
             "exhaustive": [
               "cond",
               "s",
@@ -1195,10 +1195,10 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
-          "arm.mvn_rs": {
+          "arm.mvn_rr": {
             "exhaustive": [
               "cond",
               "s",
@@ -1210,7 +1210,7 @@
             ],
             "sampled": []
           },
-          "arm.mvn_rs_pc": {
+          "arm.mvn_rr_pc": {
             "exhaustive": [
               "cond",
               "s",
@@ -1248,7 +1248,7 @@
               "imm12"
             ]
           },
-          "arm.orr_ims": {
+          "arm.orr_reg": {
             "exhaustive": [
               "cond",
               "s",
@@ -1258,10 +1258,10 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
-          "arm.orr_ims_pc": {
+          "arm.orr_reg_pc": {
             "exhaustive": [
               "cond",
               "s",
@@ -1271,10 +1271,10 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
-          "arm.orr_rs": {
+          "arm.orr_rr": {
             "exhaustive": [
               "cond",
               "s",
@@ -1286,7 +1286,7 @@
             ],
             "sampled": []
           },
-          "arm.orr_rs_pc": {
+          "arm.orr_rr_pc": {
             "exhaustive": [
               "cond",
               "s",
@@ -1320,7 +1320,7 @@
               "imm12"
             ]
           },
-          "arm.rsb_ims": {
+          "arm.rsb_reg": {
             "exhaustive": [
               "cond",
               "s",
@@ -1330,10 +1330,10 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
-          "arm.rsb_ims_pc": {
+          "arm.rsb_reg_pc": {
             "exhaustive": [
               "cond",
               "s",
@@ -1343,10 +1343,10 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
-          "arm.rsb_rs": {
+          "arm.rsb_rr": {
             "exhaustive": [
               "cond",
               "s",
@@ -1358,7 +1358,7 @@
             ],
             "sampled": []
           },
-          "arm.rsb_rs_pc": {
+          "arm.rsb_rr_pc": {
             "exhaustive": [
               "cond",
               "s",
@@ -1392,7 +1392,7 @@
               "imm12"
             ]
           },
-          "arm.rsc_ims": {
+          "arm.rsc_reg": {
             "exhaustive": [
               "cond",
               "s",
@@ -1402,10 +1402,10 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
-          "arm.rsc_ims_pc": {
+          "arm.rsc_reg_pc": {
             "exhaustive": [
               "cond",
               "s",
@@ -1415,10 +1415,10 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
-          "arm.rsc_rs": {
+          "arm.rsc_rr": {
             "exhaustive": [
               "cond",
               "s",
@@ -1430,7 +1430,7 @@
             ],
             "sampled": []
           },
-          "arm.rsc_rs_pc": {
+          "arm.rsc_rr_pc": {
             "exhaustive": [
               "cond",
               "s",
@@ -1464,7 +1464,7 @@
               "imm12"
             ]
           },
-          "arm.sbc_ims": {
+          "arm.sbc_reg": {
             "exhaustive": [
               "cond",
               "s",
@@ -1474,10 +1474,10 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
-          "arm.sbc_ims_pc": {
+          "arm.sbc_reg_pc": {
             "exhaustive": [
               "cond",
               "s",
@@ -1487,10 +1487,10 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
-          "arm.sbc_rs": {
+          "arm.sbc_rr": {
             "exhaustive": [
               "cond",
               "s",
@@ -1502,7 +1502,7 @@
             ],
             "sampled": []
           },
-          "arm.sbc_rs_pc": {
+          "arm.sbc_rr_pc": {
             "exhaustive": [
               "cond",
               "s",
@@ -1546,7 +1546,7 @@
               "rn"
             ],
             "sampled": [
-              "list"
+              "reglist"
             ]
           },
           "arm.str_imm": {
@@ -1574,7 +1574,7 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
           "arm.strb_imm": {
@@ -1602,7 +1602,7 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
           "arm.strbt_imm": {
@@ -1626,7 +1626,7 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
           "arm.strh_imm": {
@@ -1637,8 +1637,8 @@
               "w",
               "rn",
               "rd",
-              "immh",
-              "imml"
+              "imm4h",
+              "imm4l"
             ],
             "sampled": []
           },
@@ -1676,7 +1676,7 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
           "arm.sub_imm": {
@@ -1701,7 +1701,7 @@
               "imm12"
             ]
           },
-          "arm.sub_ims": {
+          "arm.sub_reg": {
             "exhaustive": [
               "cond",
               "s",
@@ -1711,10 +1711,10 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
-          "arm.sub_ims_pc": {
+          "arm.sub_reg_pc": {
             "exhaustive": [
               "cond",
               "s",
@@ -1724,10 +1724,10 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
-          "arm.sub_rs": {
+          "arm.sub_rr": {
             "exhaustive": [
               "cond",
               "s",
@@ -1739,7 +1739,7 @@
             ],
             "sampled": []
           },
-          "arm.sub_rs_pc": {
+          "arm.sub_rr_pc": {
             "exhaustive": [
               "cond",
               "s",
@@ -1795,7 +1795,7 @@
               "imm12"
             ]
           },
-          "arm.teq_ims": {
+          "arm.teq_reg": {
             "exhaustive": [
               "cond",
               "rn",
@@ -1804,10 +1804,10 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
-          "arm.teq_rs": {
+          "arm.teq_rr": {
             "exhaustive": [
               "cond",
               "rn",
@@ -1828,7 +1828,7 @@
               "imm12"
             ]
           },
-          "arm.tst_ims": {
+          "arm.tst_reg": {
             "exhaustive": [
               "cond",
               "rn",
@@ -1837,10 +1837,10 @@
               "rm"
             ],
             "sampled": [
-              "samt"
+              "imm5"
             ]
           },
-          "arm.tst_rs": {
+          "arm.tst_rr": {
             "exhaustive": [
               "cond",
               "rn",
@@ -1904,14 +1904,14 @@
       {
         "command": "init",
         "exitCode": 0,
-        "maxRssMiB": 1130.94,
+        "maxRssMiB": 1069.5,
         "maxOldSpaceSizeMiB": 1024,
         "treeDigest": "c125ed46dfd51493704a765b5b68c7b7b4d9c4b4dead5e3d383e31e53ae94cd8"
       },
       {
         "command": "generate",
         "exitCode": 0,
-        "maxRssMiB": 1123.67,
+        "maxRssMiB": 1040.2,
         "maxOldSpaceSizeMiB": 1024,
         "treeDigest": "c125ed46dfd51493704a765b5b68c7b7b4d9c4b4dead5e3d383e31e53ae94cd8"
       }
@@ -2025,7 +2025,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "median of 9 runs; calibration ratio 0.937; CPU/limit: fe7j 1137/12381 ms, klonoa 234/299 ms, pokeemerald 2284/4115 ms, sa2 679/764 ms, sa3 815/1456 ms, tmc 1395/1740 ms"
+        "detail": "median of 9 runs; calibration ratio 0.937; CPU/limit: fe7j 1135/12389 ms, klonoa 231/299 ms, pokeemerald 2335/4118 ms, sa2 680/764 ms, sa3 824/1457 ms, tmc 1444/1741 ms"
       },
       {
         "id": "g3.link",
@@ -2068,7 +2068,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "calibration ratio 0.935; fe7j analysis 1145/2806 ms, klonoa analysis 238/2806 ms, pokeemerald analysis 2297/2806 ms, pokeemerald generate 7778/9355 ms, pokeemerald init 9999/14032 ms, sa2 analysis 685/2806 ms, sa3 analysis 818/2806 ms, tmc analysis 1358/2806 ms"
+        "detail": "calibration ratio 0.944; fe7j analysis 1163/2831 ms, klonoa analysis 240/2831 ms, pokeemerald analysis 2358/2831 ms, pokeemerald generate 8296/9436 ms, pokeemerald init 10672/14154 ms, sa2 analysis 693/2831 ms, sa3 analysis 867/2831 ms, tmc analysis 1431/2831 ms"
       },
       {
         "id": "g3.text-layout",
