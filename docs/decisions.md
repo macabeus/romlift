@@ -5738,8 +5738,8 @@ and answered "Yes" to changing `g1.runtime-deps`.
 - (h) **An `IsaInvariantError`** (an unknown row id, a broken table) is the package's own class; the CLI reports it
   as `invariant violated`, like `RomliftInvariantError`, with the same exit code.
 
-**Consequences.** romlift cannot be installed until `@match-kit/isa` is on npm, which needs the maintainer's
-two-factor code; until then the branch installs a packed tarball of the package. gba-kit's
+**Consequences.** romlift depends on `@match-kit/isa` 0.1.0, published on 23 November 2026; the bench and the gates
+of both tiers were recorded against the registry's package. gba-kit's
 `@gba-kit/arm-emulator/disassembler` becomes an adapter over the same tables, which fixes the four kinds above and
 changes its text to GNU `as` unified syntax. No compatibility is kept for `romlift/isa` (there are no users; D108).
 
