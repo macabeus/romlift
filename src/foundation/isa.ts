@@ -18,7 +18,7 @@ import {
   type RegisterEffect,
   type SymbolResolver,
   decode as isaDecode,
-  printing as isaPrinting,
+  printingOf as isaPrinting,
   rawReason as isaRawReason,
   registerEffect as isaRegisterEffect,
   specOf,

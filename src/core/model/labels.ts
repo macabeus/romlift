@@ -20,7 +20,7 @@
 // resolver.ts wordNameOf, the rule the printer reads: a named entry at the word, else the sized entry holding it (its
 // label, which `name + offset` names), else a label that links to the word; never a local label. A short Thumb
 // branch into another module prints raw (items.ts), so it references nothing.
-import { isThumbBlPrefix, isThumbBlSuffix, thumbMayName } from '@match-kit/isa/armv4t';
+import { isThumbBlPrefix, isThumbBlSuffix, thumbMayReference } from '@match-kit/isa/armv4t';
 import type { Insn, SpecId } from '@match-kit/isa/armv4t';
 
 import { decode } from '../../foundation/isa.ts';
@@ -117,7 +117,7 @@ export function codeRefs(rom: Rom, segments: Segments, relocated: readonly Modul
         a += 4;
         continue;
       }
-      if (thumbMayName(hw)) {
+      if (thumbMayReference(hw)) {
         const ref = refOf(decode('thumb', hw, a + offset), a);
         if (ref !== undefined) out.push(ref);
       }

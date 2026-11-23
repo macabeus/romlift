@@ -5685,8 +5685,8 @@ and answered "Yes" to changing `g1.runtime-deps`.
 - (a) **The package is `@match-kit/isa`**, in the match-kit repository, with one entry point per architecture and no
   root entry: `@match-kit/isa/armv4t` holds what `src/foundation/isa/` held (the Thumb and ARM tables, `decode`,
   `encode`, `format`, `formatRaw`, `parse`, `assemble`, the printing rule, `registerEffect`, the flow classes), and
-  exports the internals romlift reads besides (`ROWS`, `rowOf`, `rowFor`, `fieldsOf`, `specsOf`, `printing`,
-  `isConditional`, the Thumb prefilters, `pcOf`, `thumbPoolBase`, `popcount`, `CONDITIONS`). It has no dependency and
+  exports the internals romlift reads besides (`ROWS`, `rowOf`, `rowFor`, `fieldsOf`, `specsOf`, `printingOf`,
+  `isConditional`, the Thumb prefilters, `pcOf`, `thumbAlignedPc`, `popcount`, `CONDITIONS`). It has no dependency and
   no `node:*` import, and names no platform: an address is a number, and its `thumbWordAt` takes a reader. In the
   package an instruction's operands have a type and a closed set of names of their own (`operandsOf`), the row's
   flow class is `FlowClass` (`pool-load` and `load-pc`, where romlift said `pc-load` and `pop-pc`), `registerEffect`
@@ -5711,6 +5711,12 @@ and answered "Yes" to changing `g1.runtime-deps`.
   run, 7,206 of them with a write. The readers that see ARM code (`seed.ram-copy`'s search for a jump through a
   loaded IWRAM pointer) decide the same on these ROMs; on another ROM a register overwritten between the load and
   the jump now ends the search.
+- (k) **The package's names follow Arm's and the tools'** (a naming review the owner agreed to). Row ids: ARM
+  data-processing forms are `_imm`, `_reg` and `_rr` (were `_imm`, `_ims`, `_rs`), and the PC-relative load is
+  `ldr_literal`, so `_pc` always means the row writes pc. Fields: `reglist` (was `rlist` and `list`, the operand
+  too), `imm5`, `imm24`, `imm4h`, `imm4l`, `h1`, `h2`. Functions: `thumbAlignedPc`, `printingOf`, `formatLoose`,
+  `thumbMayReference`. romlift's golden files carry the ids and the field names, so 92 are regenerated; each equals
+  its old text with the names mapped. Nothing the analysis decides changes.
 - (c) **`romlift/isa` is removed** (`src/isa.ts`, `src/api/isa.ts` and the `exports` entry): romlift has three entry
   points. The bench, the gates, `test/local` and `test/corpus` import `@match-kit/isa/armv4t` beside them
   (`lint/edges.ts`), and a gate's `needs` are looked up in it as in an entry point.

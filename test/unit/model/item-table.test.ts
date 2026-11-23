@@ -39,7 +39,7 @@ test('every item kind round-trips through the table', () => {
     kind: 'raw-insn',
     start: CODE + 6,
     length: 2,
-    specId: 'thumb.ldr_pc',
+    specId: 'thumb.ldr_literal',
     reason: 'cross-module-short-branch',
   });
   b.append({ kind: 'raw-insn', start: CODE + 8, length: 2, specId: null, reason: 'undefined' });
@@ -85,7 +85,7 @@ test('every item kind round-trips through the table', () => {
   );
   const raw = itemAt(t, 2, r);
   assert.ok(
-    raw.kind === 'raw-insn' && raw.reason === 'cross-module-short-branch' && raw.insn?.specId === 'thumb.ldr_pc',
+    raw.kind === 'raw-insn' && raw.reason === 'cross-module-short-branch' && raw.insn?.specId === 'thumb.ldr_literal',
   );
   assert.deepEqual(itemAt(t, 3, r), {
     kind: 'raw-insn',
@@ -210,7 +210,7 @@ test('decodeItemAt: the one decode of an item, the instruction or why there is n
   assert.equal((decodeItemAt(r, t, 4, 0) as { readonly specId: string }).specId, 'arm.bx');
   assert.equal(
     decodeItemAt(r, t, 2, 0),
-    'it records thumb.push (2 bytes) but its bytes decode as thumb.ldr_pc (2 bytes)',
+    'it records thumb.push (2 bytes) but its bytes decode as thumb.ldr_literal (2 bytes)',
   );
   assert.equal(decodeItemAt(r, t, 3, 0), 'it records no isa row');
   assert.throws(() => itemAt(t, 2, r), /the item at 0x08000206: it records thumb\.push/);

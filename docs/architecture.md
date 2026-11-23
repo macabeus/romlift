@@ -475,7 +475,7 @@ reason or an origin is emitted by no rule.
 
 ```ts
 // @match-kit/isa/armv4t (D121; until then foundation/isa/types.ts)
-export type SpecId = `${'thumb' | 'arm'}.${string}`;          // 'thumb.ldr_pc', 'arm.dp_imm'
+export type SpecId = `${'thumb' | 'arm'}.${string}`;          // 'thumb.ldr_literal', 'arm.add_imm'
 export type FieldKind = 'reg' | 'imm' | 'simm' | 'cond' | 'reglist' | 'shift' | 'rot-imm' | 'pc-rel' | 'bl-off';
 export interface Field { readonly name: string; readonly lo: number; readonly width: number;
   readonly kind: FieldKind; readonly scale?: number }
@@ -1186,7 +1186,7 @@ before tmc was revealed), and the gate prints "tmc: not applicable, no M1 lockst
 the analysis flow classes. A row:
 
 ```ts
-row('thumb.ldr_pc', { mask: 0xF800, match: 0x4800, size: 2,
+row('thumb.ldr_literal', { mask: 0xF800, match: 0x4800, size: 2,
   fields: [reg('rd', 8), imm('imm8', 0, 8, 4)],
   syntax: 'ldr {rd}, {pool}', flow: 'pc-load', asPriority: 0 })
 ```

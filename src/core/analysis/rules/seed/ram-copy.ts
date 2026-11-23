@@ -36,7 +36,7 @@
 // two is accepted. Targets are proposed ascending, and a target inside the code of a lower one is not
 // proposed (the validity a trusted queue skips); a claimed target, an ARM target that does not decode or
 // never returns, and an invalid Thumb target are not proposed either.
-import { isConditional, pcOf, popcount, thumbPoolBase } from '@match-kit/isa/armv4t';
+import { isConditional, pcOf, popcount, thumbAlignedPc } from '@match-kit/isa/armv4t';
 import type { Insn } from '@match-kit/isa/armv4t';
 
 import { decode, registerEffect } from '../../../../foundation/isa.ts';
@@ -161,7 +161,7 @@ function following(r: Reading, a: Addr): Addr | undefined {
 function pcLoadLiteral(a: Addr, mode: Mode, v: AnalysisView): Addr | undefined {
   if (mode === 'thumb') {
     const h = u16(v.rom, a);
-    return matches(h, THUMB_LDR_PC) ? thumbPoolBase(a) + (h & 0xff) * 4 : undefined;
+    return matches(h, THUMB_LDR_PC) ? thumbAlignedPc(a) + (h & 0xff) * 4 : undefined;
   }
   const w = u32(v.rom, a);
   if (!matches(w, ARM_LDR_PC)) return undefined;
@@ -316,7 +316,7 @@ function transfer(insn: Insn, s: Tags): (number | null)[] {
   const stepped =
     (insn.specId === 'thumb.ldmia' || insn.specId === 'thumb.stmia') &&
     base !== undefined &&
-    ((f['rlist'] ?? 0) & (1 << base)) === 0
+    ((f['reglist'] ?? 0) & (1 << base)) === 0
       ? base
       : undefined;
   const writes = registerEffect(insn).writes;
@@ -404,7 +404,7 @@ function loopCall(callee: Reading, v: AnalysisView): CopyCall | undefined {
     const tagOf = (name: string): number | null => tags[f[name] ?? 16] ?? null;
     const base = tagOf('rn');
     if (LOADS.has(insn.specId) && base !== null) loads.add(base);
-    const width = insn.specId === 'thumb.stmia' ? 4 * popcount(f['rlist'] ?? 0) : STORE_WIDTH.get(insn.specId);
+    const width = insn.specId === 'thumb.stmia' ? 4 * popcount(f['reglist'] ?? 0) : STORE_WIDTH.get(insn.specId);
     if (width !== undefined && base !== null) stores.set(base, Math.max(width, stores.get(base) ?? 0));
     const counted = insn.specId === 'thumb.sub_imm8' ? tagOf('rd') : insn.specId === 'thumb.sub_imm3' ? base : null;
     if (counted !== null) step(counted, f['imm'] ?? 0);

@@ -87,7 +87,7 @@ function written(
   const r = (name: string): Value | undefined => regs[ops[name] ?? -1];
   const k = (name: string): number => ops[name] ?? 0;
   switch (insn.specId) {
-    case 'thumb.ldr_pc': {
+    case 'thumb.ldr_literal': {
       if (insn.flow.kind !== 'pool-load' || !contains(rom, insn.flow.pool, 4)) return undefined;
       const word = u32(rom, insn.flow.pool);
       return candidates.has(word) ? { sym: word, n: 0 } : { n: word };
@@ -129,7 +129,7 @@ function accessOf(
   let width: number;
   if (insn.specId === 'thumb.ldmia' || insn.specId === 'thumb.stmia') {
     at = r('rn');
-    width = 4 * popcount((ops['list'] ?? 0) & 0xff);
+    width = 4 * popcount((ops['reglist'] ?? 0) & 0xff);
   } else {
     const w = WIDTH[insn.specId];
     if (w === undefined) return undefined;
