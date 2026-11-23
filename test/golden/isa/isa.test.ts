@@ -2,21 +2,19 @@
 // match bits when they decode to it, and three seeded encodings that decode to it; PC-relative rows of Thumb also at a
 // 2-mod-4 address), the row, the printed text or its raw fallback. UPDATE_GOLDEN=1 rewrites the
 // files; the diff is the review.
+import { format, formatRaw, specsOf } from '@match-kit/isa/armv4t';
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { decode } from '../../../src/foundation/isa/decode.ts';
-import { format, formatRaw } from '../../../src/foundation/isa/format.ts';
-import { rawReason } from '../../../src/foundation/isa/roundtrip.ts';
-import { specsOf } from '../../../src/foundation/isa/rows.ts';
+import { decode, rawReason } from '../../../src/foundation/isa.ts';
 import type { Mode } from '../../../src/foundation/rom/span.ts';
 import { hex } from '../../../src/foundation/util/hex.ts';
 import { prngSequence } from '../../helpers/prng.ts';
 import { LABELS } from '../../unit/isa/resolver.ts';
 
 const VARIANTS = 3;
-const ADDRESS_FLOWS = new Set(['branch', 'cond-branch', 'bl', 'pc-load', 'adr']);
+const ADDRESS_FLOWS = new Set(['branch', 'cond-branch', 'bl', 'pool-load', 'adr']);
 
 function golden(mode: Mode): string {
   const random = prngSequence(mode === 'thumb' ? 0x7407 : 0xa404, 1 << 16);

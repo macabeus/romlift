@@ -5,7 +5,9 @@
 // within fillSlack, and overlaps no claimed code. It is taken at the cursor, when a pool word or a pool
 // value refers back into the words it skipped, or one word ahead when it has armMinInsnsForSkip
 // instructions.
-import { decode, isConditional } from '../../../../foundation/isa/decode.ts';
+import { isConditional } from '@match-kit/isa/armv4t';
+
+import { decode } from '../../../../foundation/isa.ts';
 import { contains, u32 } from '../../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../../foundation/rom/span.ts';
 import { insnAligned } from '../../../../foundation/rom/span.ts';

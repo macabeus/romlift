@@ -17,7 +17,7 @@ export default defineRule({
   },
   kind: 'walk',
   onInsn(insn, cursor) {
-    if (cursor.mode !== 'thumb' || cursor.phase !== 'stop' || insn.flow.kind !== 'bl') return undefined;
+    if (cursor.mode !== 'thumb' || cursor.phase !== 'stop' || insn.flow.kind !== 'call') return undefined;
     return { step: 'end-path', exit: 'noreturn-call' };
   },
 });

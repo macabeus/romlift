@@ -1,15 +1,11 @@
-// Addresses, instruction modes and half-open spans: the vocabulary every layer shares (architecture §3).
+// Addresses, instruction modes and half-open spans: the vocabulary every layer shares (architecture §3). The
+// instruction set's own words (D121) are @match-kit/isa's: `Addr` (here a GBA bus address; the cartridge ROM starts at
+// 0x0800_0000), `Mode` (the two instruction sets of the ARM7TDMI) and `insnUnit` (the size of one instruction of a
+// mode, a Thumb `bl` pair being two, and the alignment every instruction of it keeps).
+import type { Addr, Mode } from '@match-kit/isa/armv4t';
 
-/** A GBA bus address; the cartridge ROM starts at 0x0800_0000. */
-export type Addr = number;
-
-/** The two instruction sets of the ARM7TDMI. */
-export type Mode = 'thumb' | 'arm';
-
-/** The size of one instruction of `mode` (a Thumb `bl` pair is two), and the alignment every instruction of it keeps. */
-export function insnUnit(mode: Mode): 2 | 4 {
-  return mode === 'arm' ? 4 : 2;
-}
+export { insnUnit } from '@match-kit/isa/armv4t';
+export type { Addr, Mode } from '@match-kit/isa/armv4t';
 
 /**
  * Whether `addr` is an instruction address of `mode`: halfword-aligned for Thumb, word-aligned for ARM (fix round 6,

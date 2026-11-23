@@ -1,19 +1,20 @@
 // The decoder differential (roadmap 1.A): the flow class of every Thumb halfword (at both alignments),
 // of bl pairs and of a seeded sample of 2^16 ARM words equals the proof of concept's control-flow
-// classification wherever both define one, through the explicit mappings below: the row's FlowKind
+// classification wherever both define one, through the explicit mappings below: the row's FlowClass
 // and the decoded Flow (what phase 2 consumes) must both agree; branch, call, pool and adr targets
 // agree too. Every intended difference is listed with its reason, the rows it may cover and its exact
 // count; anything else fails. The PoC's
 // decoders run under the PoC's own tsx (test/local/poc/decoder-driver.ts). Without the PoC checkout
 // the test is skipped as `unavailable: poc`, or fails when ROMLIFT_REQUIRE_LOCAL=1.
+import { specOf } from '@match-kit/isa/armv4t';
+import type { Flow, FlowClass, Insn } from '@match-kit/isa/armv4t';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { decode, specOf } from 'romlift/isa';
-import type { Flow, FlowKind, Insn } from 'romlift/isa';
+import { decode } from 'romlift';
 
 // The roots resolve as in test/gates/gate.ts: relative to the repository, the bench root defaulting
 // to the repository's parent directory.
@@ -27,15 +28,15 @@ const REQUIRE = process.env['ROMLIFT_REQUIRE_LOCAL'] === '1';
 const BASE = 0x0800_0000;
 const ARM_SAMPLE = 1 << 16;
 
-/** The PoC's kinds as FlowKinds. `other` covers everything the PoC does not classify. */
-const THUMB_MAP: Readonly<Record<string, readonly FlowKind[]>> = {
+/** The PoC's kinds as FlowClasss. `other` covers everything the PoC does not classify. */
+const THUMB_MAP: Readonly<Record<string, readonly FlowClass[]>> = {
   bl: ['bl'],
   b: ['branch'],
   bcc: ['cond-branch'],
   swi: ['swi'],
   bx: ['bx'],
-  pop_pc: ['pop-pc'],
-  ldr_pc: ['pc-load'],
+  pop_pc: ['load-pc'],
+  ldr_pc: ['pool-load'],
   mov_pc: ['mov-pc', 'add-pc'],
   push: ['next'],
   pop: ['next'],
@@ -45,10 +46,10 @@ const THUMB_MAP: Readonly<Record<string, readonly FlowKind[]>> = {
 
 /** The PoC's kinds as Flow kinds (the decoded Flow, not the row class). */
 const THUMB_FLOW_MAP: Readonly<Record<string, readonly Flow['kind'][]>> = {
-  bl: ['bl'],
+  bl: ['call'],
   b: ['branch'],
   bcc: ['branch'],
-  swi: ['swi'],
+  swi: ['interrupt'],
   bx: ['return', 'mode-switch', 'indirect'],
   pop_pc: ['return'],
   ldr_pc: ['pool-load'],
@@ -61,9 +62,9 @@ const THUMB_FLOW_MAP: Readonly<Record<string, readonly Flow['kind'][]>> = {
 
 const ARM_FLOW_MAP: Readonly<Record<string, readonly Flow['kind'][]>> = {
   bx: ['return', 'indirect'],
-  bl: ['bl'],
+  bl: ['call'],
   b: ['branch'],
-  swi: ['swi'],
+  swi: ['interrupt'],
   ldr_pc: ['pool-load'],
   adr: ['adr'],
   pc_write: ['indirect', 'return'],
@@ -71,14 +72,14 @@ const ARM_FLOW_MAP: Readonly<Record<string, readonly Flow['kind'][]>> = {
   invalid: ['invalid'],
 };
 
-const ARM_MAP: Readonly<Record<string, readonly FlowKind[]>> = {
+const ARM_MAP: Readonly<Record<string, readonly FlowClass[]>> = {
   bx: ['bx'],
   bl: ['bl'],
   b: ['branch'],
   swi: ['swi'],
-  ldr_pc: ['pc-load'],
+  ldr_pc: ['pool-load'],
   adr: ['adr'],
-  pc_write: ['mov-pc', 'add-pc', 'pop-pc'],
+  pc_write: ['mov-pc', 'add-pc', 'load-pc'],
   other: ['next'],
   invalid: ['invalid'],
 };
@@ -146,7 +147,7 @@ const INTENDED: readonly IntendedDifference[] = [
 function targetOf(flow: Flow): number | undefined {
   switch (flow.kind) {
     case 'branch':
-    case 'bl':
+    case 'call':
     case 'adr':
       return flow.target;
     case 'pool-load':
@@ -214,7 +215,7 @@ test(
     const check = (
       insn: Insn,
       poc: readonly [string, number] | undefined,
-      map: Readonly<Record<string, readonly FlowKind[]>>,
+      map: Readonly<Record<string, readonly FlowClass[]>>,
       flowMap: Readonly<Record<string, readonly Flow['kind'][]>>,
     ): void => {
       const [kind, arg] = poc ?? ['missing', 0];

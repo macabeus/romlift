@@ -6,7 +6,8 @@
 // code runs; toLoadInsn maps the target back to the load address that holds it. A target with no load address (RAM
 // outside every range) stays a run address: from code inside a range it is an external reference (externalTarget),
 // never a function candidate, a walk target or an error.
-import type { Flow, Insn } from '../../../foundation/isa/types.ts';
+import type { Flow, Insn } from '@match-kit/isa/armv4t';
+
 import { contains } from '../../../foundation/rom/rom.ts';
 import type { Addr, Mode } from '../../../foundation/rom/span.ts';
 import type { RuleId } from '../../provenance/rule-id.ts';
@@ -118,7 +119,7 @@ export function toLoadInsn(insn: Insn, addresses: AddressMap, load: Addr): Insn 
   const f = insn.flow;
   let flow: Flow = f;
   if (f.kind === 'branch') flow = { ...f, target: back(f.target) };
-  else if (f.kind === 'bl' || f.kind === 'adr' || f.kind === 'mode-switch') flow = { ...f, target: back(f.target) };
+  else if (f.kind === 'call' || f.kind === 'adr' || f.kind === 'mode-switch') flow = { ...f, target: back(f.target) };
   else if (f.kind === 'pool-load') flow = { ...f, pool: back(f.pool) };
   return flow === f && insn.addr === load ? insn : { ...insn, addr: load, flow };
 }

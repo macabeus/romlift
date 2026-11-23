@@ -20,8 +20,10 @@
 // resolver.ts wordNameOf, the rule the printer reads: a named entry at the word, else the sized entry holding it (its
 // label, which `name + offset` names), else a label that links to the word; never a local label. A short Thumb
 // branch into another module prints raw (items.ts), so it references nothing.
-import { decode, isThumbBlPrefix, isThumbBlSuffix, thumbMayName } from '../../foundation/isa/decode.ts';
-import type { Insn, SpecId } from '../../foundation/isa/types.ts';
+import { isThumbBlPrefix, isThumbBlSuffix, thumbMayReference } from '@match-kit/isa/armv4t';
+import type { Insn, SpecId } from '@match-kit/isa/armv4t';
+
+import { decode } from '../../foundation/isa.ts';
 import { contains, peek16, peek32 } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
@@ -79,7 +81,7 @@ function refOf(insn: Insn, site: Addr): CodeRef | undefined {
   switch (flow.kind) {
     case 'branch':
       return ref(flow.target, insn.mode === 'thumb' && insn.size === 2 ? 'short-branch' : 'branch');
-    case 'bl':
+    case 'call':
       return ref(flow.target, 'bl');
     case 'adr':
       return ref(flow.target, 'adr');
@@ -115,7 +117,7 @@ export function codeRefs(rom: Rom, segments: Segments, relocated: readonly Modul
         a += 4;
         continue;
       }
-      if (thumbMayName(hw)) {
+      if (thumbMayReference(hw)) {
         const ref = refOf(decode('thumb', hw, a + offset), a);
         if (ref !== undefined) out.push(ref);
       }

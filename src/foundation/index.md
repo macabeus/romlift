@@ -1,8 +1,7 @@
 # src/foundation
 
 Building blocks with no knowledge of romlift projects: `rom/` (spans, the ROM value, the cartridge
-header, the memory map), `isa/` (the Thumb and ARM table, decoder, encoder, GNU `as` formatter and
-parser), `corpus/` (the `as` round-trip corpus: its cases, file layout and comparison, counts only, and the
+header, the memory map), `corpus/` (the `as` round-trip corpus: its cases, file layout and comparison, counts only, and the
 threshold a run must meet, D55), `asm/` (the shared assembler dialect, statement layout and R_ARM_ABS32 rule, `relocation.ts`), `formats/` (pure parsers of ELF,
 GNU map, canonical JSON and the legacy files), `diagnostics/` (the mechanism, never the codes) and
 `util/`.
@@ -20,5 +19,7 @@ which re-export some of them (`api/reconcile.ts` `isCSource`, `api/model.ts` `no
 `BASEROM_FILE`, `INCLUDE_ASM_HEADER_PATH` and `NONMATCHINGS_ROOT`, `api/config.ts` `DECOMP_YAML_FILE` and
 `ROMLIFT_CONFIG_FILE`, `api/config-files.ts` `DECOMP_YAML_NAMES`, `api/internal-emit.ts` `defaultSpellingAddress`).
 
-Imports nothing outside `foundation/`: no npm package and no `node:*` module, so `romlift/isa` can be
-shared with other tools and runs in a browser (architecture §2, D3, D44).
+The instruction set (the Thumb and ARM table, decoder, encoder, GNU `as` formatter and parser) is the package
+`@match-kit/isa/armv4t`, which gba-kit shares (D121); it was `isa/` here. `isa.ts` is what romlift reads into it:
+half a `bl` is invalid, and a call's clobbers are part of its register effect. Foundation imports nothing else outside
+`foundation/`: no other npm package and no `node:*` module, so it runs in a browser (architecture §2, D3, D44).

@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import { AGBCC, AGBCC_PIPELINE } from '../../../src/core/profile/agbcc.ts';
 import { PROFILES, profileById } from '../../../src/core/profile/registry.ts';
-import { decode } from '../../../src/foundation/isa/decode.ts';
+import { decode } from '../../../src/foundation/isa.ts';
 import { pipelineIds, romWith, words } from '../../helpers/analysis.ts';
 import { thumbAt } from '../../helpers/thumb.ts';
 

@@ -13,10 +13,11 @@
 // with --rom, from the placements of the built signature files ($ROMLIFT_SIGNATURES or the package's signatures/,
 // or the directory --signatures names), with the placement rule; the text prints it only when there is one. Exit
 // codes: 0 ok, 1 an error diagnostic, 2 usage.
+import { formatRaw } from '@match-kit/isa/armv4t';
+import type { Insn } from '@match-kit/isa/armv4t';
+
 import { claimName } from '../../api/analysis.ts';
 import { readRom } from '../../api/files.ts';
-import { formatRaw } from '../../api/isa.ts';
-import type { Insn } from '../../api/isa.ts';
 import type { Item } from '../../api/model.ts';
 import type { RuleMeta, TrailEvent, TrailKind } from '../../api/profile.ts';
 import { hexAddr, parseHexAddr } from '../../api/rom.ts';

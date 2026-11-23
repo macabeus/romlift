@@ -1,5 +1,6 @@
 // The corpus core without a toolchain: what it generates, where it puts labels, and how the
 // comparator judges assembled bytes (hand-made here; test/corpus/generate.ts feeds it real `as`).
+import { specOf, specsOf } from '@match-kit/isa/armv4t';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
@@ -16,8 +17,7 @@ import {
 } from '../../../src/foundation/corpus/corpus.ts';
 import type { CorpusFile, CorpusOptions } from '../../../src/foundation/corpus/corpus.ts';
 import { corpusOk } from '../../../src/foundation/corpus/threshold.ts';
-import { decode } from '../../../src/foundation/isa/decode.ts';
-import { specOf, specsOf } from '../../../src/foundation/isa/rows.ts';
+import { decode } from '../../../src/foundation/isa.ts';
 import { perfectAs } from './simulate.ts';
 
 // The bl threshold (65,536 cases) needs the full bl sample; the ARM sample is cut down for speed.
@@ -30,7 +30,7 @@ const byName = (name: string): CorpusFile => {
 };
 const HEAD = { inputsDigest: 'test', as: 'GNU assembler (test)', options: OPTIONS };
 
-const ADDRESS_FLOWS = new Set(['branch', 'cond-branch', 'bl', 'pc-load', 'adr']);
+const ADDRESS_FLOWS = new Set(['branch', 'cond-branch', 'bl', 'pool-load', 'adr']);
 
 test('every Thumb halfword is a case, address-dependent ones once per alignment', () => {
   const thumb = FILES.filter((f) => /^thumb-\d{3}\.s$/.test(f.name));

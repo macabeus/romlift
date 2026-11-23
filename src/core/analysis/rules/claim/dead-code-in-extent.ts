@@ -7,7 +7,8 @@
 // gap scan (gap.tiled-hole). One exception (D60 d): when the reading opens with an entry stub
 // `movs rX, #k; b T`, an unreached copy of that stub (the same rX and T) inside the extent is another
 // entry of the same table of stubs, not dead code, and its four bytes stay free.
-import { decode, thumbWordAt } from '../../../../foundation/isa/decode.ts';
+import { decode } from '../../../../foundation/isa.ts';
+import { thumbWordAt } from '../../../../foundation/rom/rom.ts';
 import { contains } from '../../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../../foundation/rom/span.ts';
 import type { AnalysisView, ClaimEdit, Reading } from '../../types.ts';

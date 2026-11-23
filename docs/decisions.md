@@ -5668,6 +5668,86 @@ as a user's project does.
 may not have. Reading the pin from the submodule at run time (the package has no submodule). Staying at pret's
 `da598c1` (the owner's choice, measured above).
 
+## D121. The instruction set is the package `@match-kit/isa`; `romlift/isa` is gone; the owner's words of 22 November 2026
+
+**Context.** The instruction set lived in `src/foundation/isa/` and was exported as `romlift/isa`, "importable alone so
+gba-kit can share it" (architecture §2, D1), with open question 6 asking whether it should be a package of its own.
+gba-kit never imported it: romlift is not published, and gba-kit kept a disassembler of its own (726 lines, display
+only). Compared over every Thumb halfword and 300,000 ARM words, that disassembler printed four kinds of instruction
+wrongly (Thumb `ldmia` with the base in its list, `lsr` and `asr` by 0, the undefined `0xDExx` space as a branch, ARM
+`ldrt`/`strt`/`ldrbt`/`strbt` without the `t`). The owner decided: "Let's create a new package under `@match-kit/*` to
+share the ISA. Note that `@match-kit/*` aims to create generic packages for decompilation, not only for GBA". On the
+plan's questions they took the recommended name; said of `romlift/isa`, "Remove it, and make it use `@match-kit/isa`";
+and answered "Yes" to changing `g1.runtime-deps`.
+
+**Decision.**
+
+- (a) **The package is `@match-kit/isa`**, in the match-kit repository, with one entry point per architecture and no
+  root entry: `@match-kit/isa/armv4t` holds what `src/foundation/isa/` held (the Thumb and ARM tables, `decode`,
+  `encode`, `format`, `formatRaw`, `parse`, `assemble`, the printing rule, `registerEffect`, the flow classes), and
+  exports the internals romlift reads besides (`ROWS`, `rowOf`, `rowFor`, `fieldsOf`, `specsOf`, `printingOf`,
+  `isConditional`, the Thumb prefilters, `pcOf`, `thumbAlignedPc`, `popcount`, `CONDITIONS`). It has no dependency and
+  no `node:*` import, and names no platform: an address is a number, and its `thumbWordAt` takes a reader. In the
+  package an instruction's operands have a type and a closed set of names of their own (`operandsOf`), the row's
+  flow class is `FlowClass` (`pool-load` and `load-pc`, where romlift said `pc-load` and `pop-pc`), `registerEffect`
+  covers ARM, and `assembleText` says why a text has no encoding.
+- (b) **What stays romlift's**: the assembler dialect (`Dialect` and `DIALECT`, `foundation/asm/dialect.ts`, exported
+  by `romlift`), which is about a project's files and not about instructions; `thumbWordAt` over a `Rom`
+  (`foundation/rom/rom.ts`); and the round-trip corpus (`foundation/corpus/`, `npm run corpus`, the `g1.*` gates),
+  which now checks the package's text against GNU `as`. `foundation/rom/span.ts` re-exports the package's `Addr`,
+  `Mode` and `insnUnit`, so there is one definition.
+- (i) **What romlift reads into the instruction set is `src/foundation/isa.ts`**, exported by `romlift`. The package
+  says only what the architecture says, so the readings the analysis was tuned on are romlift's, in one module:
+  half a Thumb `bl` is not code (the package gives each half its own flow and the reason `bl-half`; here its flow
+  is `invalid` and its reason `undefined`, through `decode`, `flowClassOf`, `rawReason`, `printing` and
+  `encodingReason`, so `RAW_REASONS` and the corpus summary keep their five reasons); a call changes r0-r3 and r12
+  and a BIOS call r0-r3 (the package's `bl` writes `lr` alone); and a Thumb write to pc through `add` or `mov` has
+  no register effect, as before. With the adapter, `init` on the six tuning ROMs writes the trees `main` writes,
+  file for file (615 to 15,968 files each).
+- (j) **ARM register effects are read** (the owner's words: "Use them and run a new benchmark run"). They were
+  nothing before the package had them; `registerEffect` now gives an ARM instruction's own, with a call's clobbers
+  as for Thumb. Measured with `bench run --json` on the six tuning ROMs before and after: the output is the same
+  byte for byte (every row, `analysisDigest` and `treeDigest`), while the analysis reads 9,012 ARM effects in that
+  run, 7,206 of them with a write. The readers that see ARM code (`seed.ram-copy`'s search for a jump through a
+  loaded IWRAM pointer) decide the same on these ROMs; on another ROM a register overwritten between the load and
+  the jump now ends the search.
+- (k) **The package's names follow Arm's and the tools'** (a naming review the owner agreed to). Row ids: ARM
+  data-processing forms are `_imm`, `_reg` and `_rr` (were `_imm`, `_ims`, `_rs`), and the PC-relative load is
+  `ldr_literal`, so `_pc` always means the row writes pc. Fields: `reglist` (was `rlist` and `list`, the operand
+  too), `imm5`, `imm24`, `imm4h`, `imm4l`, `h1`, `h2`. Functions: `thumbAlignedPc`, `printingOf`, `formatLoose`,
+  `thumbMayReference`. romlift's golden files carry the ids and the field names, so 92 are regenerated; each equals
+  its old text with the names mapped. A decoded flow says `call` and `interrupt` (were `bl` and `swi`; the row's
+  class keeps the mnemonic). Nothing the analysis decides changes: `bench run --json` prints the same bytes.
+- (c) **`romlift/isa` is removed** (`src/isa.ts`, `src/api/isa.ts` and the `exports` entry): romlift has three entry
+  points. The bench, the gates, `test/local` and `test/corpus` import `@match-kit/isa/armv4t` beside them
+  (`lint/edges.ts`), and a gate's `needs` are looked up in it as in an entry point.
+- (d) **The import rule**: every layer that may import `foundation` may import `@match-kit/isa`, and so may the CLI
+  (`lint/edges.ts`, `ISA`). Foundation still imports no other package and no `node:*` module.
+- (e) **Four runtime dependencies**: `g1.runtime-deps` expects `@match-kit/decomp-yaml`, `@match-kit/isa`,
+  `smol-toml` and `zod` (the owner's "Yes"), and still checks that the production tree has no install script and no
+  native code. The version is pinned exactly, since a change to the tables can change printed text.
+- (f) **The corpus inputs digest covers the package's code as installed**: `corpusInputsDigest` followed relative
+  imports only, which no longer reach the tables, so it also hashes every `.js` module under
+  `node_modules/@match-kit/isa/dist` (`CORPUS_INPUT_PACKAGES`). A new version of the package makes the recorded
+  corpus summary stale, as an edit to the tables did.
+- (g) **Its unit tests moved with it** (`test/unit/isa/{arm,thumb,text,decode,registers,isa.prop}`), ported to
+  vitest, where they run on Node, Bun and Chromium. romlift keeps `test/golden/isa`, the dialect and helper tests,
+  the corpus and the `g1.*` gates. The package also pins sha256 digests of the printed text, row and control flow of
+  every Thumb halfword at both alignments, 16,384 `bl` pairs and 262,144 ARM words; they were computed from romlift's
+  sources at `1d4ba37` first and equal the package's, so the move changed no output.
+- (h) **An `IsaInvariantError`** (an unknown row id, a broken table) is the package's own class; the CLI reports it
+  as `invariant violated`, like `RomliftInvariantError`, with the same exit code.
+
+**Consequences.** romlift depends on `@match-kit/isa` 0.1.0, published on 23 November 2026; the bench and the gates
+of both tiers were recorded against the registry's package. gba-kit's
+`@gba-kit/arm-emulator/disassembler` becomes an adapter over the same tables, which fixes the four kinds above and
+changes its text to GNU `as` unified syntax. No compatibility is kept for `romlift/isa` (there are no users; D108).
+
+**Rejected.** A dependency of gba-kit on `romlift` (unpublished, and it would bring `zod` and `smol-toml`). A package
+per architecture, `@match-kit/isa-armv4t` (match-kit names packages by job and splits them by entry point; a bundler
+ships only the entry imported). An interface shared across architectures now (with one architecture it would be a
+guess). Keeping `romlift/isa` as a re-export (the owner's choice).
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per

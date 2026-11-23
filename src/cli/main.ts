@@ -5,6 +5,8 @@
 // `romlift` bin's launcher (dist/cli/main.js keeps it): Node runs every command with V8's old space capped at 1,024 MiB,
 // the cap g3.large-rom measures under (D68 b, D69, D72: the owner's answer to Q7, which replaces Q6's 384;
 // bench/src/large-rom.ts LARGE_ROM_MAX_OLD_SPACE_MIB).
+import { IsaInvariantError } from '@match-kit/isa/armv4t';
+
 import { RomliftInvariantError } from '../api/rom.ts';
 import { packageVersion } from '../shell/project/read-inputs.ts';
 import { parseArgs } from './args.ts';
@@ -22,9 +24,13 @@ function isVersionToken(token: string | undefined): boolean {
   return token === '--version' || token === '-V';
 }
 
-/** One stderr line for an error nothing caught: a bug in romlift, reported without a stack. */
+/**
+ * One stderr line for an error nothing caught: a bug in romlift, reported without a stack. A broken invariant of the
+ * instruction set (@match-kit/isa's IsaInvariantError, D121) is named as one, like romlift's own.
+ */
 function internalErrorLine(error: unknown): string {
-  const kind = error instanceof RomliftInvariantError ? 'invariant violated' : 'internal error';
+  const invariant = error instanceof RomliftInvariantError || error instanceof IsaInvariantError;
+  const kind = invariant ? 'invariant violated' : 'internal error';
   const detail = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
   return `${PROGRAM}: ${kind}: ${detail.replace(/\s*\n\s*/g, ' ')}\n`;
 }

@@ -3,8 +3,11 @@
 // walk rule names goes through the walk slot (first answer wins); without an answer the decoder's Flow
 // decides (types.ts, WalkStep). The bl verdicts come from the settle loop: `far` sites are walked as
 // jumps, `noret` sites end their path.
-import { decode, fieldsOf, rowFor, thumbWordAt } from '../../../foundation/isa/decode.ts';
-import type { Insn } from '../../../foundation/isa/types.ts';
+import { fieldsOf, rowFor } from '@match-kit/isa/armv4t';
+import type { Insn } from '@match-kit/isa/armv4t';
+
+import { decode, flowClassOf } from '../../../foundation/isa.ts';
+import { thumbWordAt } from '../../../foundation/rom/rom.ts';
 import { contains, u32 } from '../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../foundation/rom/span.ts';
 import { insnAligned } from '../../../foundation/rom/span.ts';
@@ -229,7 +232,8 @@ export function walkThumb(
       const word = thumbWordAt(rom, pc);
       const row = rowFor('thumb', word);
       const spec = row.spec;
-      if (pool || spec.flow === 'invalid') {
+      const flowClass = flowClassOf(spec);
+      if (pool || flowClass === 'invalid') {
         stopAt(path, pc, sp, pool ? 'pool' : 'invalid');
         break;
       }
@@ -245,14 +249,14 @@ export function walkThumb(
       }
       path.run.push(pc);
       if (spec.stack !== undefined) sp += spec.stack(fieldsOf(row, spec.size === 2 ? word & 0xffff : word));
-      if (spec.flow === 'next') {
+      if (flowClass === 'next') {
         // The decoder's Flow is next: no rule is asked, nothing but the stack is recorded.
         pc += spec.size;
         continue;
       }
       const insn = decodeThumbAt(env, pc);
       let ends: boolean;
-      if (insn.flow.kind === 'bl') ends = call(path, insn, sp, insn.flow.target, far, noret);
+      if (insn.flow.kind === 'call') ends = call(path, insn, sp, insn.flow.target, far, noret);
       else if (insn.flow.kind === 'adr') {
         rec.adrs.push(insn.flow.target);
         ends = false;

@@ -54,7 +54,7 @@ test('a branch re-encodes to a label of its own module, and a pool load without 
   assert.equal(result.ok, false);
   assert.equal(result.diagnostics[0]?.code, 'E_SELF_CHECK_REENCODE');
   assert.equal(result.diagnostics[0]?.addr, 0x0800_0000);
-  assert.match(result.diagnostics[0]?.message ?? '', /thumb\.ldr_pc prints raw \(no-roundtrip\)/);
+  assert.match(result.diagnostics[0]?.message ?? '', /thumb\.ldr_literal prints raw \(no-roundtrip\)/);
 });
 
 test('a raw-insn item is not checked; an insn item whose row is not its bytes fails', () => {

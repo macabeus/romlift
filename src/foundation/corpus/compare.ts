@@ -4,8 +4,8 @@
 // bytes at its offset are its original word; a mnemonic also checks that `assemble` gave the same
 // word in process (encoder agreement); a probe agrees when `as` rejected its file and `assemble`
 // refused its text.
-import { RAW_REASONS } from '../isa/types.ts';
-import type { RawReason } from '../isa/types.ts';
+import { RAW_REASONS } from '../isa.ts';
+import type { RawReason } from '../isa.ts';
 import { hex } from '../util/hex.ts';
 import { compareCodeUnits } from '../util/sorted.ts';
 import { zeroRawCounts } from './types.ts';

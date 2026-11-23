@@ -4,9 +4,9 @@
 // instruction; `_XXXXXXXX` (eight hex digits) names that absolute address. The code starts at
 // 0x08000000 unless `thumbAt(addr)` / `armAt(addr)` says otherwise. A line that does not assemble
 // throws, naming it.
-import { assemble } from '../../src/foundation/isa/assemble.ts';
-import { parse } from '../../src/foundation/isa/parse.ts';
-import type { SymbolResolver } from '../../src/foundation/isa/types.ts';
+import { assemble, parse } from '@match-kit/isa/armv4t';
+import type { SymbolResolver } from '@match-kit/isa/armv4t';
+
 import type { Mode } from '../../src/foundation/rom/span.ts';
 
 export type ByteBuilder = (strings: TemplateStringsArray, ...values: readonly unknown[]) => Uint8Array;

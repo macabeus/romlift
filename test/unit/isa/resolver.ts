@@ -1,5 +1,6 @@
 // A resolver for isa tests: every address is named `_XXXXXXXX`, and that name maps back.
-import type { SymbolResolver } from '../../../src/foundation/isa/types.ts';
+import type { SymbolResolver } from '@match-kit/isa/armv4t';
+
 import { hex } from '../../../src/foundation/util/hex.ts';
 
 export const LABELS: SymbolResolver = {

@@ -49,7 +49,7 @@ import {
   printChunk,
   regionOf,
 } from 'romlift';
-import { DIALECT } from 'romlift/isa';
+import { DIALECT } from 'romlift';
 import { type Binutils, assembleWithBinutils, findBinutils } from 'romlift/node';
 
 import {

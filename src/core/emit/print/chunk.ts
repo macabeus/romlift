@@ -359,7 +359,7 @@ function rawItems(
       const insn = item.kind === 'insn' || item.kind === 'raw-insn' ? item.insn : undefined;
       const flow = insn?.flow.kind;
       const reason = item.kind === 'raw-insn' ? item.reason : RAW_PRINTER_REASON;
-      count(stats, { rawReason: reason, branch: flow === 'branch' || flow === 'bl', poolLoad: flow === 'pool-load' });
+      count(stats, { rawReason: reason, branch: flow === 'branch' || flow === 'call', poolLoad: flow === 'pool-load' });
     }
   }
   const inner = new Set(chunk.innerLabels.map((l) => `${String(l.addr)}:${l.name}`));

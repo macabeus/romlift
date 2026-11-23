@@ -4,7 +4,8 @@
 //   historical   a PoC-parity gate once phase.json.landed >= historicalAfter whose `run` still returns:
 //                a frozen gate keeps running its own check (gateStep), and its failure makes the verdict
 //                `fail`
-//   pending      a name in `needs` is exported by none of romlift, romlift/node, romlift/isa, romlift/internal
+//   pending      a name in `needs` is exported by none of romlift, romlift/node, romlift/internal and the
+//                instruction set, @match-kit/isa/armv4t (D121)
 //   unavailable  a declared local input (`inputs`, plus `realInputs` on the real tier) is missing or its
 //                digest differs from the recorded one
 //   pass / fail  otherwise, whether `run` returned or threw
@@ -139,12 +140,13 @@ export interface GateRecord {
 }
 
 /** The entry points whose exports satisfy `needs`, in lookup order, with their source files. */
-export const ENTRY_POINTS = ['romlift', 'romlift/node', 'romlift/isa', 'romlift/internal'] as const;
+export const ENTRY_POINTS = ['romlift', 'romlift/node', '@match-kit/isa/armv4t', 'romlift/internal'] as const;
 export type EntryPoint = (typeof ENTRY_POINTS)[number];
 const ENTRY_SOURCES: Readonly<Record<EntryPoint, string>> = {
   romlift: 'src/index.ts',
   'romlift/node': 'src/node.ts',
-  'romlift/isa': 'src/isa.ts',
+  // The package is a dependency: its presence is package.json's, which every checkout has.
+  '@match-kit/isa/armv4t': 'package.json',
   'romlift/internal': 'src/internal.ts',
 };
 
@@ -860,8 +862,8 @@ async function importEntry(name: EntryPoint): Promise<Record<string, unknown>> {
       return { ...(await import('romlift')) };
     case 'romlift/node':
       return { ...(await import('romlift/node')) };
-    case 'romlift/isa':
-      return { ...(await import('romlift/isa')) };
+    case '@match-kit/isa/armv4t':
+      return { ...(await import('@match-kit/isa/armv4t')) };
     case 'romlift/internal':
       return { ...(await import('romlift/internal')) };
   }

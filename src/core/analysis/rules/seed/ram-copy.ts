@@ -36,13 +36,13 @@
 // two is accepted. Targets are proposed ascending, and a target inside the code of a lower one is not
 // proposed (the validity a trusted queue skips); a claimed target, an ARM target that does not decode or
 // never returns, and an invalid Thumb target are not proposed either.
-import { popcount } from '../../../../foundation/isa/bits.ts';
-import { decode, isConditional, thumbWordAt } from '../../../../foundation/isa/decode.ts';
-import { pcOf, thumbPoolBase } from '../../../../foundation/isa/pc-relative.ts';
-import { registerEffect } from '../../../../foundation/isa/registers.ts';
-import type { Insn } from '../../../../foundation/isa/types.ts';
+import { isConditional, pcOf, popcount, thumbAlignedPc } from '@match-kit/isa/armv4t';
+import type { Insn } from '@match-kit/isa/armv4t';
+
+import { decode, registerEffect } from '../../../../foundation/isa.ts';
 import { BIOS_COPY_ARGS, biosCopyBytes, isBiosCopy } from '../../../../foundation/rom/bios.ts';
 import { MEMORY_REGIONS, regionOf } from '../../../../foundation/rom/memory-map.ts';
+import { thumbWordAt } from '../../../../foundation/rom/rom.ts';
 import { contains, u16, u32 } from '../../../../foundation/rom/rom.ts';
 import type { Addr, Mode } from '../../../../foundation/rom/span.ts';
 import { insnAligned, insnUnit } from '../../../../foundation/rom/span.ts';
@@ -139,7 +139,7 @@ function straightLineBefore(r: Reading, at: Addr, window: number, v: AnalysisVie
   for (const b of r.blSites) joins.add(b.target);
   for (const site of r.far) {
     const flow = insnAt(r, site, v).flow;
-    if (flow.kind === 'bl') joins.add(flow.target);
+    if (flow.kind === 'call') joins.add(flow.target);
   }
   const run: Addr[] = [];
   for (let cur = at; run.length < window && !joins.has(cur); ) {
@@ -161,7 +161,7 @@ function following(r: Reading, a: Addr): Addr | undefined {
 function pcLoadLiteral(a: Addr, mode: Mode, v: AnalysisView): Addr | undefined {
   if (mode === 'thumb') {
     const h = u16(v.rom, a);
-    return matches(h, THUMB_LDR_PC) ? thumbPoolBase(a) + (h & 0xff) * 4 : undefined;
+    return matches(h, THUMB_LDR_PC) ? thumbAlignedPc(a) + (h & 0xff) * 4 : undefined;
   }
   const w = u32(v.rom, a);
   if (!matches(w, ARM_LDR_PC)) return undefined;
@@ -316,7 +316,7 @@ function transfer(insn: Insn, s: Tags): (number | null)[] {
   const stepped =
     (insn.specId === 'thumb.ldmia' || insn.specId === 'thumb.stmia') &&
     base !== undefined &&
-    ((f['rlist'] ?? 0) & (1 << base)) === 0
+    ((f['reglist'] ?? 0) & (1 << base)) === 0
       ? base
       : undefined;
   const writes = registerEffect(insn).writes;
@@ -334,7 +334,13 @@ function successors(insn: Insn, r: Reading): Addr[] {
   if (f.kind === 'branch') {
     out.push(f.target);
     if (f.conditional) out.push(next);
-  } else if (f.kind === 'next' || f.kind === 'bl' || f.kind === 'pool-load' || f.kind === 'adr' || f.kind === 'swi')
+  } else if (
+    f.kind === 'next' ||
+    f.kind === 'call' ||
+    f.kind === 'pool-load' ||
+    f.kind === 'adr' ||
+    f.kind === 'interrupt'
+  )
     out.push(next);
   return out.filter((a) => r.insnAt.has(a));
 }
@@ -404,7 +410,7 @@ function loopCall(callee: Reading, v: AnalysisView): CopyCall | undefined {
     const tagOf = (name: string): number | null => tags[f[name] ?? 16] ?? null;
     const base = tagOf('rn');
     if (LOADS.has(insn.specId) && base !== null) loads.add(base);
-    const width = insn.specId === 'thumb.stmia' ? 4 * popcount(f['rlist'] ?? 0) : STORE_WIDTH.get(insn.specId);
+    const width = insn.specId === 'thumb.stmia' ? 4 * popcount(f['reglist'] ?? 0) : STORE_WIDTH.get(insn.specId);
     if (width !== undefined && base !== null) stores.set(base, Math.max(width, stores.get(base) ?? 0));
     const counted = insn.specId === 'thumb.sub_imm8' ? tagOf('rd') : insn.specId === 'thumb.sub_imm3' ? base : null;
     if (counted !== null) step(counted, f['imm'] ?? 0);
@@ -537,7 +543,7 @@ function jumpsThrough(r: Reading, load: Addr, rd: number, v: AnalysisView): bool
     const x = insnAt(r, a, v);
     const g = x.flow;
     if (g.kind === 'indirect') return (g.via === 'bx' || g.via === 'mov-pc') && (live & (1 << g.reg)) !== 0;
-    if (g.kind === 'bl') {
+    if (g.kind === 'call') {
       const reg = r.mode === 'thumb' ? stubRegister(g.target, v) : undefined;
       return reg !== undefined && (live & (1 << reg)) !== 0;
     }

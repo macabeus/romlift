@@ -70,9 +70,9 @@ const MAP_SET_TYPES: ReadonlySet<string> = new Set(['Map', 'Set', 'ReadonlyMap',
 const ITERATING_MEMBERS: ReadonlySet<string> = new Set(['forEach', 'keys', 'values', 'entries']);
 const SORTED_HELPERS: ReadonlySet<string> = new Set(['sortedKeys', 'sortedEntries']);
 const SORTED_MODULE = 'src/foundation/util/sorted.ts';
-const ENTRY_BARRELS: readonly string[] = ['src/index.ts', 'src/node.ts', 'src/isa.ts', 'src/internal.ts'];
+const ENTRY_BARRELS: readonly string[] = ['src/index.ts', 'src/node.ts', 'src/internal.ts'];
 /** Entry points that must stay browser-safe: their api files never reach the shell or `node:*`. */
-const PURE_BARRELS: ReadonlySet<string> = new Set(['src/index.ts', 'src/isa.ts']);
+const PURE_BARRELS: ReadonlySet<string> = new Set(['src/index.ts']);
 
 /** The repository-relative path of a file, with `/` separators. */
 function relative(cwd: string, file: string): string {

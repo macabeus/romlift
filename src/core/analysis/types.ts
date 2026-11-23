@@ -3,8 +3,9 @@
 // one walk, the view a rule reads, and one contract per rule kind. Every contract is called by the driver
 // at the proof of concept's call site (D48); the per-rule assignments that keep the wave-1 rule
 // components from drifting are written next to each contract (D56).
+import type { Insn } from '@match-kit/isa/armv4t';
+
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
-import type { Insn } from '../../foundation/isa/types.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Mode, Span } from '../../foundation/rom/span.ts';
 import { lowerBound } from '../../foundation/util/arrays.ts';

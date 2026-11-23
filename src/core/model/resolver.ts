@@ -20,8 +20,9 @@
 // never print as one of those labels, which would link to the run address. No label lies at a load address of a
 // runs_at module, so such a word finds none and prints as its value; loadWordOperand names it through the ldscript's
 // `__load_<module>` symbol (LOADADDR of the module's section) instead, which links to the same bytes.
+import type { SymbolResolver } from '@match-kit/isa/armv4t';
+
 import { type SymbolValue, abs32Word } from '../../foundation/asm/relocation.ts';
-import type { SymbolResolver } from '../../foundation/isa/types.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { lowerBound } from '../../foundation/util/arrays.ts';
 import { compareCodeUnits, compareNumbers } from '../../foundation/util/sorted.ts';

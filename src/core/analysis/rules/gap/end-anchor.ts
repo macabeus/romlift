@@ -7,7 +7,8 @@
 // despite minInsns, and its pool (after the array) does not have to fill the hole (D60 b). Where the
 // profile lets Thumb functions sit on 2 mod 4, the halfword between two words is a candidate too when it
 // opens with `push {.., lr}`, ranked as a prologue with the word candidates by the same rule (D60 c).
-import { decode, thumbWordAt } from '../../../../foundation/isa/decode.ts';
+import { decode } from '../../../../foundation/isa.ts';
+import { thumbWordAt } from '../../../../foundation/rom/rom.ts';
 import { contains, u32 } from '../../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../../foundation/rom/span.ts';
 import type { AnalysisView, Reading } from '../../types.ts';

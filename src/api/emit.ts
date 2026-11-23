@@ -11,4 +11,6 @@ export type {
 } from '../core/emit/tree.ts';
 export { addPrintStats, DEFAULT_PRINTER, emptyPrintStats, WRITER_IDS } from '../core/emit/tree.ts';
 export { emitTree } from '../core/emit/emit-tree.ts';
+export { DIALECT } from '../foundation/asm/dialect.ts';
+export type { Dialect } from '../foundation/asm/dialect.ts';
 export { printChunk } from '../core/emit/print/chunk.ts';

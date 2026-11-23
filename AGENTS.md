@@ -81,8 +81,8 @@ quotes, semicolons, and `.editorconfig` for whitespace.
   for content); `shell` is the only code that touches files, processes, hashing or the environment and
   decides nothing; `cli` calls the shell and the workflows. The edge table in architecture §2 is
   authoritative.
-- **Bench and gates** import romlift only as `romlift`, `romlift/node`, `romlift/isa` and
-  `romlift/internal` (D37).
+- **Bench and gates** import romlift only as `romlift`, `romlift/node` and `romlift/internal` (D37), and the
+  instruction set as `@match-kit/isa/armv4t` (D121).
 - **Erasable TypeScript only**: no `enum`, `namespace` or constructor parameter properties; closed sets
   are `as const` objects or string-literal unions; relative imports carry the `.ts` extension; type-only
   imports use `import type` (D2).

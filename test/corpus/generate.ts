@@ -12,6 +12,7 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { RAW_REASONS } from 'romlift';
 import {
   DEFAULT_CORPUS_OPTIONS,
   corpusInputsDigest,
@@ -20,7 +21,6 @@ import {
   runCorpus,
 } from 'romlift/internal';
 import type { CorpusOptions, CorpusSectionSummary, CorpusSummary } from 'romlift/internal';
-import { RAW_REASONS } from 'romlift/isa';
 import { binutilsVersions, findBinutils, listDir } from 'romlift/node';
 
 import { UsageError, parseArgs } from '../../bench/src/args.ts';

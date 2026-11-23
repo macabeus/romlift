@@ -21,13 +21,9 @@ const PURE = ['src/foundation/**/*.ts', 'src/core/**/*.ts'];
 const MAP_ITERATION = ['analysis', 'model', 'emit', 'layout', 'signatures'].map((dir) => `src/core/${dir}/**/*.ts`);
 /**
  * Where `.toString(16)` may format a number (architecture §4.4, final-review architecture-4): the hex helpers, and the
- * instruction formatter and corpus, whose operand spelling (lower case, `#0x12`) is the printer's own.
+ * corpus, whose operand spelling (lower case, `#0x12`) is the printer's own.
  */
-const HEX_FORMATTERS = [
-  'src/foundation/util/hex.ts',
-  'src/foundation/isa/operand-text.ts',
-  'src/foundation/corpus/layout.ts',
-];
+const HEX_FORMATTERS = ['src/foundation/util/hex.ts', 'src/foundation/corpus/layout.ts'];
 
 // no-restricted-syntax takes one list per file, so each block below repeats the selectors of the blocks before it.
 const HEX = {

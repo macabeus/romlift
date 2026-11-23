@@ -3,10 +3,10 @@
 // forms (the ends of each range, and one step past them in files `as` must reject), every bl prefix
 // with boundary suffixes plus a seeded bl sample, every ARM row swept field by field with all 16
 // conditions, and a seeded ARM sample.
-import { decode } from '../isa/decode.ts';
-import { CONDITIONS } from '../isa/operand-text.ts';
-import { specsOf } from '../isa/rows.ts';
-import type { Field, InsnSpec } from '../isa/types.ts';
+import { CONDITIONS, specsOf } from '@match-kit/isa/armv4t';
+import type { Field, InsnSpec } from '@match-kit/isa/armv4t';
+
+import { decode } from '../isa.ts';
 import type { Mode } from '../rom/span.ts';
 import { prngSequence, xorshift32 } from '../util/prng.ts';
 import { fileBuilder, probeFile } from './layout.ts';

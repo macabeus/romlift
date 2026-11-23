@@ -2,7 +2,7 @@
 // code; that word and its target are the first two functions, both ARM. A ROM that does not start with
 // a `b` proposes nothing, and a target whose first ARM word is not wholly in the ROM (a truncated image)
 // is not proposed: it would be a function with an empty extent.
-import { decode } from '../../../../foundation/isa/decode.ts';
+import { decode } from '../../../../foundation/isa.ts';
 import { contains, u32 } from '../../../../foundation/rom/rom.ts';
 import { defineRule } from '../define-rule.ts';
 

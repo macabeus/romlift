@@ -4,6 +4,7 @@
 // cross-module short branch printed raw, inner labels, the statistics, the raw printer, and the unit-level
 // round trip: every mnemonic line re-parses and re-assembles to its bytes at its address. A function chunk that
 // folded the pad before its entry (core/model/chunks.ts) prints no `.align` of its own: its start macro emits it.
+import { assemble, parse } from '@match-kit/isa/armv4t';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
@@ -16,8 +17,6 @@ import { resolverFor } from '../../../../src/core/model/resolver.ts';
 import type { Model } from '../../../../src/core/model/types.ts';
 import { checkEntries } from '../../../../src/core/verify/text-layout.ts';
 import { verifyModel } from '../../../../src/core/verify/tiling.ts';
-import { assemble } from '../../../../src/foundation/isa/assemble.ts';
-import { parse } from '../../../../src/foundation/isa/parse.ts';
 import type { Rom } from '../../../../src/foundation/rom/rom.ts';
 import { codeItems, dataItem, label, modelOf, romWith } from '../../../helpers/model.ts';
 import { thumbAt } from '../../../helpers/thumb.ts';

@@ -2,11 +2,21 @@
 // file starts with, of `include/macros.inc`, and of the arguments `as` runs with. The corpus, the
 // writers, the macros.inc template and the text-layout check all take it from here, so the corpus
 // tests the dialect the writers emit. The macro names are the proof of concept's (src/emit.ts).
-import type { Dialect } from '../isa/types.ts';
 import { ROM_BASE } from '../rom/rom.ts';
 import type { Mode } from '../rom/span.ts';
 import { hexSize } from '../util/hex.ts';
 import { BASEROM_FILE, INCLUDE_ASM_HEADER_NAME, nonmatchingDir } from '../util/project-files.ts';
+
+/** The text every generated `.s` file starts with and the `include/macros.inc` it includes (D49). */
+export interface Dialect {
+  preamble(mode: Mode): string;
+  /** The project path of the macro file every generated `.s` includes (core/model/paths.ts MACROS_PATH). */
+  readonly macrosPath: string;
+  /** The preamble's `.include` of that file. */
+  readonly macrosInclude: string;
+  readonly macrosInc: string;
+  readonly asArgs: readonly string[];
+}
 
 /** A function-start macro: word alignment (unless the entry is at 2 mod 4), visibility, mode and type. */
 function startMacro(name: string, mode: Mode, aligned: boolean, global: boolean): string {

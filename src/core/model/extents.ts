@@ -14,13 +14,12 @@
 // jump-table target and code span, and after every instruction that does not fall through; a call or swi clobbers what
 // its row says (r0-r3, r12 and lr for a bl), so a base agbcc keeps in a callee-saved register survives it. ARM code and the code of a runs_at range
 // are not read. No byte changes: `name + offset` links to the same word.
+import { isThumbBlPrefix, isThumbBlSuffix, operandsOf, popcount } from '@match-kit/isa/armv4t';
+import type { Insn } from '@match-kit/isa/armv4t';
+
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
-import { popcount } from '../../foundation/isa/bits.ts';
-import { decode, isThumbBlPrefix, isThumbBlSuffix } from '../../foundation/isa/decode.ts';
-import { registerEffect } from '../../foundation/isa/registers.ts';
-import { rowOf } from '../../foundation/isa/rows.ts';
-import type { Insn } from '../../foundation/isa/types.ts';
+import { decode, registerEffect } from '../../foundation/isa.ts';
 import { isRamAddress, regionOf } from '../../foundation/rom/memory-map.ts';
 import { contains, peek16, peek32, u32 } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
@@ -88,7 +87,7 @@ function written(
   const r = (name: string): Value | undefined => regs[ops[name] ?? -1];
   const k = (name: string): number => ops[name] ?? 0;
   switch (insn.specId) {
-    case 'thumb.ldr_pc': {
+    case 'thumb.ldr_literal': {
       if (insn.flow.kind !== 'pool-load' || !contains(rom, insn.flow.pool, 4)) return undefined;
       const word = u32(rom, insn.flow.pool);
       return candidates.has(word) ? { sym: word, n: 0 } : { n: word };
@@ -130,7 +129,7 @@ function accessOf(
   let width: number;
   if (insn.specId === 'thumb.ldmia' || insn.specId === 'thumb.stmia') {
     at = r('rn');
-    width = 4 * popcount((ops['list'] ?? 0) & 0xff);
+    width = 4 * popcount((ops['reglist'] ?? 0) & 0xff);
   } else {
     const w = WIDTH[insn.specId];
     if (w === undefined) return undefined;
@@ -158,7 +157,7 @@ function readFunction(rom: Rom, f: ExtentFact, candidates: ReadonlySet<Addr>, re
     for (let a = span.start; a + 2 <= span.end; ) {
       if (restarts.has(a)) regs = [];
       const insn = thumbAt(rom, a, span.end);
-      const ops = rowOf(insn.specId).toOps(insn.fields, insn.addr);
+      const ops = operandsOf(insn);
       const access = accessOf(insn, ops, regs);
       if (access !== undefined) reach.set(access.sym, Math.max(reach.get(access.sym) ?? 0, access.end));
       const value = written(insn, ops, regs, rom, candidates);

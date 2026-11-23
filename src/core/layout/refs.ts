@@ -1,8 +1,10 @@
 // The references that bound the legal module borders (architecture §6.2, D15, D63): every short Thumb branch
 // (b, bcc), which cannot reach across objects on every binutils version, and every PC-relative load and adr, for
 // which GNU as has no relocation into another object. One scan of the analysis' function spans.
-import { decode, thumbMayName } from '../../foundation/isa/decode.ts';
-import type { Flow } from '../../foundation/isa/types.ts';
+import { thumbMayReference } from '@match-kit/isa/armv4t';
+import type { Flow } from '@match-kit/isa/armv4t';
+
+import { decode } from '../../foundation/isa.ts';
 import { peek16, peek32 } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
@@ -28,7 +30,7 @@ export interface BorderRefs {
  * ones are the references codeRefs (core/model/labels.ts) names (test/unit/layout/refs-agree.test.ts checks it on
  * every committed fixture), so a border none of them crosses never leaves
  * the model a PC-relative instruction whose label lies in another object, which `as` cannot assemble (D63). A
- * bl half never looks like any of the Thumb forms (foundation/isa thumbMayName), so every halfword of a Thumb
+ * bl half never looks like any of the Thumb forms (foundation/isa thumbMayReference), so every halfword of a Thumb
  * span is a candidate; an ARM span is decoded word by word.
  */
 export function borderRefs(rom: Rom, analysis: Pick<AnalysisResult, 'functions'>): BorderRefs {
@@ -48,7 +50,7 @@ export function borderRefs(rom: Rom, analysis: Pick<AnalysisResult, 'functions'>
       }
       for (let a = Math.max(span.start, rom.base); a + 2 <= end; a += 2) {
         const hw = peek16(rom, a);
-        if (!thumbMayName(hw)) continue;
+        if (!thumbMayReference(hw)) continue;
         const flow = decode('thumb', hw, a).flow;
         if (flow.kind === 'branch') shortBranches.push({ site: a, target: flow.target });
         else pcRef(a, flow);

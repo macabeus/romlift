@@ -1,7 +1,8 @@
 // The compiler profile (architecture §4.3, D12): every constant the analysis rules read, the order of
 // every rule slot, and the compiler idioms as functions. It lives below the analysis so the model and
 // the layout can read alignment from it. Rules read the profile only through the view (`v.profile`).
-import type { Insn } from '../../foundation/isa/types.ts';
+import type { Insn } from '@match-kit/isa/armv4t';
+
 import type { Rom, RomBytes } from '../../foundation/rom/rom.ts';
 import type { Addr, Mode } from '../../foundation/rom/span.ts';
 import type { RuleId } from '../provenance/rule-id.ts';

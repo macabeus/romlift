@@ -1,9 +1,11 @@
+import { rowOf } from '@match-kit/isa/armv4t';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { ExitCode } from '../../../src/cli/exit-codes.ts';
 import { main } from '../../../src/cli/main.ts';
 import { commandHelp, usageText } from '../../../src/cli/registry.ts';
+import type { CommandSpec } from '../../../src/cli/registry.ts';
 import { FAKE_COMMANDS, capturingIo, scanFake } from './fake.ts';
 
 test('no arguments, --help and -h print usage to stdout and exit 0', async () => {
@@ -61,6 +63,26 @@ test('a thrown RomliftInvariantError prints one stderr line and exits 70', async
   assert.deepEqual(io.out, []);
   assert.deepEqual(io.err, [
     'romlift: invariant violated: RomliftInvariantError: the tiling has a hole at 0x08000000\n',
+  ]);
+});
+
+test("a broken invariant of the instruction set (IsaInvariantError, D121) is reported as romlift's own are", async () => {
+  const io = capturingIo();
+  const command: CommandSpec = {
+    name: 'isa-invariant',
+    summary: "Throws the instruction set's IsaInvariantError",
+    usage: 'isa-invariant',
+    positionals: [],
+    options: [],
+    run: async () => {
+      rowOf('thumb.no_such_row');
+      return ExitCode.ok;
+    },
+  };
+  assert.equal(await main(['isa-invariant'], io, [command]), ExitCode.internal);
+  assert.deepEqual(io.out, []);
+  assert.deepEqual(io.err, [
+    "romlift: invariant violated: IsaInvariantError: unknown instruction spec 'thumb.no_such_row'\n",
   ]);
 });
 
