@@ -60,7 +60,7 @@ interface CorpusSummary {
   readonly sections: { readonly arm: CorpusSection & { readonly coverage: Readonly<Record<string, ArmCoverage>> } };
 }
 
-/** The slice of `romlift/isa` this gate calls. */
+/** The slice of `@match-kit/isa/armv4t` this gate calls. */
 type Decode = (
   mode: 'thumb' | 'arm',
   word: number,

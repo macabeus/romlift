@@ -186,7 +186,8 @@ Each C module is compiled by `tools/agbcc/bin/<compiler>` (`[[modules]] compiler
 every function is `INCLUDE_ASM` (a C module's generated `.s` files, each included as `INCLUDE_ASM` would include it).
 `make expected` assembles it as it is into `build/expected/<module>.o`, the target object: the symbols, relocations and
 bytes `build/src/<module>.o` had before you decompiled anything. `objdiff.json` lists one unit per C module, in ROM order,
-with that target and the object `make` builds from `src/<module>.c`, `build/src/<module>.o`. Open the project in objdiff
+with that target, the object `make` builds from `src/<module>.c`, `build/src/<module>.o`, and the compiler and flags
+the module builds with (`scratch`). Open the project in objdiff
 (or run `objdiff-cli`) after `make expected`: it runs `make build/src/<module>.o` itself before each diff
 (`build_base`), never `make expected` (`build_target` is false), so run `make expected` again after a `romlift
 generate` that changed `expected/`. Decompiling or reverting a function changes only the path `expected/<module>.s`
@@ -194,6 +195,19 @@ includes its file from (`asm/nonmatchings/` or `asm/matchings/`), not the target
 change to `romlift.toml` may. Before you change anything, objdiff scores every function at 100%. Use objdiff
 3.7.2 or later (the version romlift is tested with): older releases cannot load the targets (`Unsupported ARM implicit
 relocation`).
+
+## Drafting a function with asmlift
+
+[asmlift](https://github.com/macabeus/asmlift) (`npm install -g @asmlift/cli`) turns one function's assembly into C
+and scores it against the function's objdiff target. `decomp.yaml` and `objdiff.json` configure it, so it needs no
+flags of its own:
+
+```sh
+make expected
+asmlift asm/nonmatchings/<module>/<Function>.s --score-against build/expected/<module>.o
+```
+
+Its score is evidence, `make` is the verdict. Its README documents the rest.
 
 ## Hand-written assembly
 

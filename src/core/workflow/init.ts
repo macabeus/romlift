@@ -72,7 +72,6 @@ export function init(inputs: InitInputs, hash?: (text: string) => string): InitP
     title: rom.header.title,
     gameCode: rom.header.gameCode,
     sha1: rom.sha1,
-    compiler: config.build.compiler,
   });
   const vars = scaffoldVars({
     name: config.build.name,

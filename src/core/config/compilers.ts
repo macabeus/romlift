@@ -26,8 +26,11 @@ const AGBCC_FLAGS: readonly string[] = ['-mthumb-interwork', '-Wimplicit', '-Wpa
 /** The banner agbcc and old_agbcc both print (measured, p4-c-modules). */
 const AGBCC_BANNER = 'gcc 2.9-arm-000512';
 
+/** The directory every registered compiler's cc1 lies in, relative to the project root: `<it>/<id>`. */
+export const BUILD_COMPILER_DIR = 'tools/agbcc/bin';
+
 function compiler(id: BuildCompilerId): BuildCompiler {
-  return { id, cc1: `tools/agbcc/bin/${id}`, flags: AGBCC_FLAGS, banner: AGBCC_BANNER };
+  return { id, cc1: `${BUILD_COMPILER_DIR}/${id}`, flags: AGBCC_FLAGS, banner: AGBCC_BANNER };
 }
 
 export const BUILD_COMPILERS: Readonly<Record<BuildCompilerId, BuildCompiler>> = {
