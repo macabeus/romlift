@@ -1,8 +1,8 @@
 {
   "meta": {
-    "commit": "7b158b5c11bb7f5074f2b0932a48bb08c287592f",
+    "commit": "be2c5678decc3d5f19d8bc67a54ea291935e6341",
     "dirty": false,
-    "sourceDigest": "2b43544b6c5048283e9378f7d3c9e135ad904c38185495421c3a11722c5605da",
+    "sourceDigest": "3fb784df491a2962f8a43d86a5c57f933a6076ca04108ad62d4c10b72aea0439",
     "nodeMajor": 24,
     "romliftVersion": "0.0.0",
     "inputs": {
@@ -45,7 +45,7 @@
         "elfSha256": "51cfc8cf2654880e0cd6e20f3801e8c816624dc202c67d0cce8cdc6915128dde"
       },
       "pocSourceDigest": "86776e78148c08a547aa55990f5f0f2f5b06f5dc4e807f06d760b73d20c79345",
-      "signaturesDigest": "5f91a2d2cdd1834906fe9191ba00b01e70b3a66880f08604b048703824d9d042"
+      "signaturesDigest": "93b76035b1271745b8cd6aa411325bc85992512889180f5258fd06b9690f3b6b"
     },
     "toolchain": {
       "as": "GNU assembler (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126",
@@ -120,7 +120,7 @@
   },
   "printer": {
     "schema": "romlift/corpus-summary@1",
-    "inputsDigest": "90f700241969f2c11f43cfbc7d902855c558ac0d9749f744284182dec1891dd9",
+    "inputsDigest": "182cd41b59119fbb7dc2968634adb9cc3d0840c32762d23e0443983197bcac0e",
     "as": "GNU assembler (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126",
     "options": {
       "seed": 539365399,
@@ -1904,14 +1904,14 @@
       {
         "command": "init",
         "exitCode": 0,
-        "maxRssMiB": 1132.17,
+        "maxRssMiB": 1096.11,
         "maxOldSpaceSizeMiB": 1024,
         "treeDigest": "5838400bfb532d90b6802ff4c817d78053e1a81d3a50fb2c368b806e4cb495ef"
       },
       {
         "command": "generate",
         "exitCode": 0,
-        "maxRssMiB": 1001.86,
+        "maxRssMiB": 1038.23,
         "maxOldSpaceSizeMiB": 1024,
         "treeDigest": "5838400bfb532d90b6802ff4c817d78053e1a81d3a50fb2c368b806e4cb495ef"
       }
@@ -2025,7 +2025,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "median of 9 runs; calibration ratio 0.934; CPU/limit: fe7j 1158/12339 ms, klonoa 238/298 ms, pokeemerald 2306/4102 ms, sa2 701/761 ms, sa3 863/1451 ms, tmc 1429/1734 ms"
+        "detail": "median of 9 runs; calibration ratio 0.966; CPU/limit: fe7j 1151/12762 ms, klonoa 244/308 ms, pokeemerald 2363/4242 ms, sa2 693/787 ms, sa3 839/1501 ms, tmc 1454/1794 ms"
       },
       {
         "id": "g3.link",
@@ -2068,7 +2068,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "calibration ratio 0.961; fe7j analysis 1198/2882 ms, klonoa analysis 235/2882 ms, pokeemerald analysis 2261/2882 ms, pokeemerald generate 8145/9605 ms, pokeemerald init 10274/14408 ms, sa2 analysis 674/2882 ms, sa3 analysis 831/2882 ms, tmc analysis 1389/2882 ms"
+        "detail": "calibration ratio 0.958; fe7j analysis 1233/2875 ms, klonoa analysis 238/2875 ms, pokeemerald analysis 2310/2875 ms, pokeemerald generate 7981/9584 ms, pokeemerald init 10445/14377 ms, sa2 analysis 679/2875 ms, sa3 analysis 820/2875 ms, tmc analysis 1416/2875 ms"
       },
       {
         "id": "g3.text-layout",
@@ -2101,7 +2101,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "adr-function-label: 37 files, 17 ops all keep; adr-handler-block: 34 files, 14 ops all keep; adr-label-and-data: 43 files, 23 ops all keep; arm-pools-in-front: 37 files, 17 ops all keep; bx-lr-stub-chain: 37 files, 17 ops all keep; bx-pc-veneer: 40 files, 20 ops all keep; c-data: 37 files, 17 ops all keep; code-copied-to-ram: 36 files, 16 ops all keep; code-end-data-decodes: 35 files, 15 ops all keep; code-end-unsized-last: 34 files, 14 ops all keep; composite: 66 files, 46 ops all keep; computed-jump-callback: 34 files, 14 ops all keep; data-frame-not-function: 36 files, 16 ops all keep; data-named-between-data: 38 files, 18 ops all keep; data-table-between-functions: 40 files, 20 ops all keep; data-thumb-push-pop: 42 files, 22 ops all keep; dead-code-in-extent: 38 files, 18 ops all keep; entry-stub-table: 38 files, 18 ops all keep; false-stub-2byte: 35 files, 15 ops all keep; far-jump: 33 files, 13 ops all keep; gap-resume-2mod4: 44 files, 24 ops all keep; handwritten-2mod4: 39 files, 19 ops all keep; inline-arm-switch: 39 files, 19 ops all keep; large-data-referenced: 37 files, 17 ops all keep; leaf-handler-pointer-table: 36 files, 16 ops all keep; library: 45 files, 25 ops all keep; library-game: 52 files, 32 ops all keep; library-ref2: 39 files, 19 ops all keep; local-subroutine: 34 files, 14 ops all keep; mixer-tiled-hole: 48 files, 28 ops all keep; mov-lr-pc-bx: 40 files, 20 ops all keep; multi-compiler: 38 files, 18 ops all keep; noreturn-call-then-next: 34 files, 14 ops all keep; pointer-table-before-leaf: 42 files, 22 ops all keep; pointer-word-in-gap: 38 files, 18 ops all keep; pool-padded-46c0: 39 files, 19 ops all keep; pool-word-push-lr: 36 files, 16 ops all keep; pops-unpushed-frame: 42 files, 22 ops all keep; prologueless-thumb-over-arm: 39 files, 19 ops all keep; push-lr-2mod4: 41 files, 21 ops all keep; ram-code-entries: 42 files, 22 ops all keep; ram-copy-args-straight-line: 35 files, 15 ops all keep; ram-copy-bios: 43 files, 23 ops all keep; ram-copy-call-via: 41 files, 21 ops all keep; ram-copy-entry-boundaries: 45 files, 25 ops all keep; ram-copy-memcpy: 41 files, 21 ops all keep; ram-copy-setup-bound: 42 files, 22 ops all keep; recursive-far-call: 34 files, 14 ops all keep; shared-tail: 36 files, 16 ops all keep; swi-reset: 34 files, 14 ops all keep; table-jump-hoisted: 34 files, 14 ops all keep; thumb-pointer-run: 42 files, 22 ops all keep; unreferenced-leaf: 35 files, 15 ops all keep; veneer-array: 43 files, 23 ops all keep; fe7j: 7865 files, 7845 ops all keep; klonoa: 615 files, 595 ops all keep; pokeemerald: 15968 files, 15948 ops all keep; sa2: 2961 files, 2941 ops all keep; sa3: 4771 files, 4751 ops all keep; tmc: 8771 files, 8751 ops all keep; generate after init changes no file on 60 ROMs"
+        "detail": "adr-function-label: 37 files, 17 ops all keep; adr-handler-block: 34 files, 14 ops all keep; adr-label-and-data: 43 files, 23 ops all keep; arm-pools-in-front: 37 files, 17 ops all keep; bx-lr-stub-chain: 37 files, 17 ops all keep; bx-pc-veneer: 40 files, 20 ops all keep; c-data: 37 files, 17 ops all keep; code-copied-to-ram: 36 files, 16 ops all keep; code-end-data-decodes: 35 files, 15 ops all keep; code-end-unsized-last: 34 files, 14 ops all keep; composite: 66 files, 46 ops all keep; computed-jump-callback: 34 files, 14 ops all keep; data-frame-not-function: 36 files, 16 ops all keep; data-named-between-data: 38 files, 18 ops all keep; data-table-between-functions: 40 files, 20 ops all keep; data-thumb-push-pop: 42 files, 22 ops all keep; dead-code-in-extent: 38 files, 18 ops all keep; entry-stub-table: 38 files, 18 ops all keep; false-stub-2byte: 35 files, 15 ops all keep; far-jump: 33 files, 13 ops all keep; gap-resume-2mod4: 44 files, 24 ops all keep; handwritten-2mod4: 39 files, 19 ops all keep; inline-arm-switch: 39 files, 19 ops all keep; large-data-referenced: 37 files, 17 ops all keep; leaf-handler-pointer-table: 36 files, 16 ops all keep; library: 45 files, 25 ops all keep; library-game: 52 files, 32 ops all keep; library-ref2: 39 files, 19 ops all keep; local-subroutine: 34 files, 14 ops all keep; mixer-tiled-hole: 48 files, 28 ops all keep; mov-lr-pc-bx: 40 files, 20 ops all keep; multi-compiler: 38 files, 18 ops all keep; noreturn-call-then-next: 34 files, 14 ops all keep; pointer-table-before-leaf: 42 files, 22 ops all keep; pointer-word-in-gap: 38 files, 18 ops all keep; pool-padded-46c0: 39 files, 19 ops all keep; pool-word-push-lr: 36 files, 16 ops all keep; pops-unpushed-frame: 42 files, 22 ops all keep; prologueless-thumb-over-arm: 39 files, 19 ops all keep; push-lr-2mod4: 41 files, 21 ops all keep; ram-code-entries: 42 files, 22 ops all keep; ram-copy-args-straight-line: 35 files, 15 ops all keep; ram-copy-bios: 43 files, 23 ops all keep; ram-copy-call-via: 41 files, 21 ops all keep; ram-copy-entry-boundaries: 45 files, 25 ops all keep; ram-copy-memcpy: 41 files, 21 ops all keep; ram-copy-setup-bound: 42 files, 22 ops all keep; recursive-far-call: 34 files, 14 ops all keep; shared-tail: 36 files, 16 ops all keep; swi-reset: 34 files, 14 ops all keep; table-jump-hoisted: 34 files, 14 ops all keep; thumb-pointer-run: 42 files, 22 ops all keep; unreferenced-leaf: 35 files, 15 ops all keep; veneer-array: 43 files, 23 ops all keep; fe7j: 7864 files, 7844 ops all keep; klonoa: 614 files, 594 ops all keep; pokeemerald: 15967 files, 15947 ops all keep; sa2: 2960 files, 2940 ops all keep; sa3: 4771 files, 4751 ops all keep; tmc: 8776 files, 8756 ops all keep; generate after init changes no file on 60 ROMs"
       },
       {
         "id": "g4.toml-mutations",
@@ -2128,7 +2128,7 @@
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a",
           "toolchain": "a9a391d29cd98ee582fea0120159be1cf8cda7a9efe200b69bdb243d462bc9cf"
         },
-        "detail": "432 expected modules on 61 targets (1 runs_at), each linked at its module's address, equal their ROM ranges byte for byte with every symbol where the model places it"
+        "detail": "434 expected modules on 61 targets (1 runs_at), each linked at its module's address, equal their ROM ranges byte for byte with every symbol where the model places it"
       },
       {
         "id": "g6.objdiff",
@@ -2157,7 +2157,7 @@
           "elfs": "f890828eb18586cab6742cf36fab4e6fb2e7cca40e63eeb52eba886f5da01d8b",
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "pokefirered pass: placements 353 (ELF FUNC 353, untyped 0, wrong 0), tables 18 (OBJECT 18, label 0, wrong 0); pokeruby pass: placements 226 (ELF FUNC 226, untyped 0, wrong 0), tables 15 (OBJECT 15, label 0, wrong 0); signatures on all 2 sealed ROMs land on ELF FUNCs, untyped classes, OBJECTs or labels"
+        "detail": "pokefirered pass: placements 450 (ELF FUNC 450, untyped 0, wrong 0), tables 18 (OBJECT 18, label 0, wrong 0); pokeruby pass: placements 229 (ELF FUNC 229, untyped 0, wrong 0), tables 15 (OBJECT 15, label 0, wrong 0); signatures on all 2 sealed ROMs land on ELF FUNCs, untyped classes, OBJECTs or labels"
       },
       {
         "id": "g6.signatures-judged",
@@ -2166,7 +2166,7 @@
           "elfs": "f890828eb18586cab6742cf36fab4e6fb2e7cca40e63eeb52eba886f5da01d8b",
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "fe7j: libagbsyscall 18/0, libgcc 22/0, m4a 94/10; 134 placements, 20 sizes (15 equal, 5 unjudged), 40 reference symbols, 0 reviewed names (reported); klonoa: libagbsyscall 6/0, libgcc 20/0, m4a 94/10; 120 placements, 17 sizes (15 equal, 2 unjudged), 6 reference symbols, 0 reviewed names (reported); pokeemerald: agb_flash 22/4, libagbsyscall 15/0, libgcc 67/0, librfu 148/5, m4a 109/10, siirtc 16/1; 377 placements, 17 sizes (15 equal, 2 unjudged), 397 reference symbols, 1 reviewed names (reported); sa2: agb_flash 17/1, libagbsyscall 12/0, libgcc 24/0, m4a 94/10; 147 placements, 17 sizes (15 equal, 2 unjudged), 140 reference symbols, 0 reviewed names (reported); sa3: agb_flash 17/1, libagbsyscall 13/0, libgcc 65/0, m4a 94/10; 189 placements, 19 sizes (17 equal, 2 unjudged), 1 reviewed names (reported); tmc: libagbsyscall 13/0, m4a 55/10; 68 placements, 5 sizes (0 equal, 5 unjudged), 0 reviewed names (reported)"
+        "detail": "fe7j: libagbsyscall 18/0, libc 4/0, libgcc 22/0, m4a 94/10; 138 placements, 20 sizes (15 equal, 5 unjudged), 44 reference symbols, 0 reviewed names (reported); klonoa: libagbsyscall 6/0, libc 1/0, libgcc 20/0, m4a 94/10; 121 placements, 17 sizes (15 equal, 2 unjudged), 7 reference symbols, 0 reviewed names (reported); pokeemerald: agb_flash 22/4, libagbsyscall 15/0, libc 4/0, libgcc 67/0, librfu 148/5, m4a 109/10, siirtc 16/1; 381 placements, 17 sizes (15 equal, 2 unjudged), 401 reference symbols, 1 reviewed names (reported); sa2: agb_flash 17/1, libagbsyscall 12/0, libc 2/0, libgcc 24/0, m4a 94/10; 149 placements, 17 sizes (15 equal, 2 unjudged), 142 reference symbols, 0 reviewed names (reported); sa3: agb_flash 17/1, libagbsyscall 13/0, libc 107/0, libgcc 65/0, m4a 94/10; 296 placements, 19 sizes (17 equal, 2 unjudged), 107 reference symbols, 1 reviewed names (reported); tmc: libagbsyscall 13/0, libc 1/0, m4a 55/10; 69 placements, 5 sizes (0 equal, 5 unjudged), 1 reference symbols, 0 reviewed names (reported)"
       },
       {
         "id": "g6.signatures-loo",
@@ -2175,7 +2175,7 @@
           "elfs": "f890828eb18586cab6742cf36fab4e6fb2e7cca40e63eeb52eba886f5da01d8b",
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "7 leave-one-out runs add, move and lose no placement"
+        "detail": "13 leave-one-out runs add, move and lose no placement"
       },
       {
         "id": "g6.signatures-rebuild",
@@ -2185,7 +2185,7 @@
           "poc": "86776e78148c08a547aa55990f5f0f2f5b06f5dc4e807f06d760b73d20c79345",
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "the library fixture's signatures build deterministically and equal the golden; agb_flash: no PoC file to compare with; built twice identically; librfu: no PoC file to compare with; built twice identically; siirtc: no PoC file to compare with; built twice identically; 6 specs build deterministically; libagbsyscall, libgcc, m4a equal the PoC's converted files"
+        "detail": "the library fixture's signatures build deterministically and equal the golden; agb_flash: no PoC file to compare with; built twice identically; libc: no PoC file to compare with; built twice identically; librfu: no PoC file to compare with; built twice identically; siirtc: no PoC file to compare with; built twice identically; 7 specs build deterministically; libagbsyscall, libgcc, m4a equal the PoC's converted files"
       }
     ]
   },
@@ -2545,6 +2545,12 @@
             "objects": 0
           },
           {
+            "library": "libc",
+            "version": "agbcc",
+            "functions": 4,
+            "objects": 0
+          },
+          {
             "library": "libgcc",
             "version": "agbcc",
             "functions": 22,
@@ -2558,8 +2564,8 @@
           }
         ],
         "placements": {
-          "total": 134,
-          "atElfFunc": 131,
+          "total": 138,
+          "atElfFunc": 135,
           "atUntyped": 3,
           "wrong": 0
         },
@@ -2577,8 +2583,8 @@
         },
         "names": {
           "reference": true,
-          "total": 40,
-          "equal": 40,
+          "total": 44,
+          "equal": 44,
           "differ": 0,
           "reviewed": 0
         }
@@ -2795,6 +2801,12 @@
             "objects": 0
           },
           {
+            "library": "libc",
+            "version": "agbcc",
+            "functions": 1,
+            "objects": 0
+          },
+          {
             "library": "libgcc",
             "version": "agbcc",
             "functions": 20,
@@ -2808,8 +2820,8 @@
           }
         ],
         "placements": {
-          "total": 120,
-          "atElfFunc": 119,
+          "total": 121,
+          "atElfFunc": 120,
           "atUntyped": 1,
           "wrong": 0
         },
@@ -2827,8 +2839,8 @@
         },
         "names": {
           "reference": true,
-          "total": 6,
-          "equal": 6,
+          "total": 7,
+          "equal": 7,
           "differ": 0,
           "reviewed": 0
         }
@@ -3155,6 +3167,12 @@
             "objects": 0
           },
           {
+            "library": "libc",
+            "version": "agbcc",
+            "functions": 4,
+            "objects": 0
+          },
+          {
             "library": "libgcc",
             "version": "agbcc",
             "functions": 67,
@@ -3180,8 +3198,8 @@
           }
         ],
         "placements": {
-          "total": 377,
-          "atElfFunc": 377,
+          "total": 381,
+          "atElfFunc": 381,
           "atUntyped": 0,
           "wrong": 0
         },
@@ -3199,8 +3217,8 @@
         },
         "names": {
           "reference": true,
-          "total": 397,
-          "equal": 397,
+          "total": 401,
+          "equal": 401,
           "differ": 0,
           "reviewed": 1
         }
@@ -3458,6 +3476,12 @@
             "objects": 0
           },
           {
+            "library": "libc",
+            "version": "agbcc",
+            "functions": 2,
+            "objects": 0
+          },
+          {
             "library": "libgcc",
             "version": "agbcc",
             "functions": 24,
@@ -3471,8 +3495,8 @@
           }
         ],
         "placements": {
-          "total": 147,
-          "atElfFunc": 147,
+          "total": 149,
+          "atElfFunc": 149,
           "atUntyped": 0,
           "wrong": 0
         },
@@ -3490,8 +3514,8 @@
         },
         "names": {
           "reference": true,
-          "total": 140,
-          "equal": 140,
+          "total": 142,
+          "equal": 142,
           "differ": 0,
           "reviewed": 0
         }
@@ -3774,6 +3798,12 @@
             "objects": 0
           },
           {
+            "library": "libc",
+            "version": "agbcc",
+            "functions": 107,
+            "objects": 0
+          },
+          {
             "library": "libgcc",
             "version": "agbcc",
             "functions": 65,
@@ -3787,8 +3817,8 @@
           }
         ],
         "placements": {
-          "total": 189,
-          "atElfFunc": 189,
+          "total": 296,
+          "atElfFunc": 296,
           "atUntyped": 0,
           "wrong": 0
         },
@@ -3805,9 +3835,9 @@
           "unjudged": 2
         },
         "names": {
-          "reference": false,
-          "total": 0,
-          "equal": 0,
+          "reference": true,
+          "total": 107,
+          "equal": 107,
           "differ": 0,
           "reviewed": 1
         }
@@ -4434,6 +4464,12 @@
             "objects": 0
           },
           {
+            "library": "libc",
+            "version": "agbcc",
+            "functions": 1,
+            "objects": 0
+          },
+          {
             "library": "m4a",
             "version": "2001",
             "functions": 55,
@@ -4441,8 +4477,8 @@
           }
         ],
         "placements": {
-          "total": 68,
-          "atElfFunc": 67,
+          "total": 69,
+          "atElfFunc": 68,
           "atUntyped": 1,
           "wrong": 0
         },
@@ -4459,9 +4495,9 @@
           "unjudged": 5
         },
         "names": {
-          "reference": false,
-          "total": 0,
-          "equal": 0,
+          "reference": true,
+          "total": 1,
+          "equal": 1,
           "differ": 0,
           "reviewed": 0
         }
