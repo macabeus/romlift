@@ -48,6 +48,7 @@ import { checkRom } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
+import { sortedEntries } from '../../foundation/util/sorted.ts';
 import type { AnalysisCode } from '../analysis/codes.ts';
 import { analyze } from '../analysis/driver/run.ts';
 import type { AnalysisResult } from '../analysis/types.ts';
@@ -122,18 +123,22 @@ function discovered(
   config: RomliftConfig,
   profile: CompilerProfile,
   files: readonly SignatureFile[],
+  otherFiles: readonly SignatureFile[],
   ram: readonly ModuleProposal[],
 ): Discovered {
   const result = analyze(rom, profile, { ...discoverOptions(), overrides: overrideFactsOf(config) });
   const unlisted = unlistedProposals(result, config);
   const layer = signatureLayer(rom, result, files, config);
+  const others = unlistedLibraryNotes(
+    updateProposals(config, result, signatureLayer(rom, result, otherFiles, config).proposals),
+  );
   if (layer.placements.length === 0)
     return {
       proposals: unlisted,
       modules: [],
       replaces: [],
       diagnostics: result.diagnostics,
-      notes: layer.diagnostics,
+      notes: [...layer.diagnostics, ...others],
     };
   const libraries = libraryModuleProposals(rom, result, config, layer.regions, ram);
   return {
@@ -141,8 +146,28 @@ function discovered(
     modules: libraries.proposals,
     replaces: libraries.replaces,
     diagnostics: result.diagnostics,
-    notes: [...layer.diagnostics, ...libraries.notes],
+    notes: [...layer.diagnostics, ...libraries.notes, ...others],
   };
+}
+
+/**
+ * One W_SIGNATURE_LIBRARY_UNLISTED per library whose signatures place something the config would take, among the
+ * signature files `[signatures] libraries` leaves out (`proposals` are those files' kept proposals): a project
+ * written before a library had signatures never learns of them otherwise, since its list is the one `init` wrote.
+ */
+export function unlistedLibraryNotes(proposals: readonly Proposal[]): readonly Diagnostic[] {
+  const counts = new Map<string, number>();
+  for (const p of proposals) {
+    if (p.source.kind !== 'signature') continue;
+    counts.set(p.source.library, (counts.get(p.source.library) ?? 0) + 1);
+  }
+  return sortedEntries(counts).map(([library, count]) =>
+    diagnostic(
+      WorkflowCodes,
+      'W_SIGNATURE_LIBRARY_UNLISTED',
+      `the signatures of ${library} place ${count} ${count === 1 ? 'entry' : 'entries'} in this ROM, but [signatures] libraries does not name ${library}: add "${library}" to the list and run update again to name them`,
+    ),
+  );
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -299,8 +324,9 @@ export function updateProject(inputs: UpdateInputs): UpdatePlan {
   const profile = profileOrDefault(inputs.profile);
   const ram = runsAtBorders(rom, config);
   const files = filesFor(config.signatures, inputs.signatureFiles ?? []);
+  const otherFiles = config.signatures.enabled ? (inputs.signatureFiles ?? []).filter((f) => !files.includes(f)) : [];
   const notes = signatureNotes(config.signatures.enabled, inputs.signatureNotes);
-  const found = discovered(rom, config, profile, files, ram.proposals);
+  const found = discovered(rom, config, profile, files, otherFiles, ram.proposals);
   if (found.diagnostics.some((d) => d.severity === 'error')) return { ok: false, diagnostics: found.diagnostics };
   // A runs_at range that cannot be its own module refuses the plan, as before the signatures existed.
   if (ram.refusals.length > 0) return { ok: false, diagnostics: ram.refusals };

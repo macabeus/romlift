@@ -48,6 +48,12 @@ gate({
   needs: ['buildSignatures', 'matchSignatures', 'resolvePlacements'],
   async run(cx) {
     const specDir = path.join(cx.repoRoot, 'signatures', 'specs');
+    // A toolchain reference (D123) is never the one left out: it is no game, so nothing is judged on its image.
+    const toolchain = new Set(
+      (await readdir(path.join(cx.repoRoot, 'bench', 'dataset', 'toolchain'), { withFileTypes: true }).catch(() => []))
+        .filter((e) => e.isDirectory())
+        .map((e) => e.name),
+    );
     const expected = new Set<string>();
     for (const name of (await readdir(specDir))
       .filter((n) => n.endsWith('.json'))
@@ -55,7 +61,8 @@ gate({
       const spec = JSON.parse(await readFile(path.join(specDir, name), 'utf8')) as Spec;
       for (const version of spec.versions) {
         if (version.references.length < 2) continue;
-        for (const ref of version.references) expected.add(key(spec.library, version.id, ref.dataset));
+        for (const ref of version.references)
+          if (!toolchain.has(ref.dataset)) expected.add(key(spec.library, version.id, ref.dataset));
       }
     }
     if (expected.size === 0)

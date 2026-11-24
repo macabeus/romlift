@@ -1,8 +1,9 @@
 // g6.no-heldout-references (architecture §7.1, §13, D25, D32): no signature spec names a sealed dataset as a
 // reference, so a held-out ROM never becomes signature data. Every reference of every version of every
 // signatures/specs/*.json must name a dataset under bench/dataset/real/ that is tuning data (not held out,
-// or revealed); a reference to a sealed or an unknown dataset fails. The sealed names are read from the
-// dataset files at run time; no held-out name is written here.
+// or revealed), or a toolchain reference, a recipe under bench/dataset/toolchain/ that links a compiler's own
+// library archive and so holds no ROM (D123); a reference to a sealed or an unknown dataset fails. The sealed names
+// are read from the dataset files at run time; no held-out name is written here.
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -28,6 +29,14 @@ gate({
       .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
     if (names.length === 0) throw new Error('signatures/specs holds no spec');
     const tuning = new Set(cx.datasets.map((d) => d.name));
+    // A toolchain reference (D123) is a recipe of this repository that links a compiler's own archive: no ROM at all.
+    const toolchainDir = path.join(cx.repoRoot, 'bench', 'dataset', 'toolchain');
+    const toolchain = new Set(
+      (await readdir(toolchainDir, { withFileTypes: true }).catch(() => []))
+        .filter((e) => e.isDirectory())
+        .map((e) => e.name),
+    );
+    let toolchainReferences = 0;
     const sealed = new Set(cx.sealed.map((d) => d.name));
     const problems: string[] = [];
     let references = 0;
@@ -41,16 +50,17 @@ gate({
           const dataset = ref.dataset ?? '';
           if (sealed.has(dataset))
             problems.push(`${name} ${version.id ?? '?'}: names a sealed held-out dataset as a reference`);
+          else if (toolchain.has(dataset)) toolchainReferences++;
           else if (!tuning.has(dataset))
             problems.push(
-              `${name} ${version.id ?? '?'}: names '${dataset}', which is no dataset under bench/dataset/real`,
+              `${name} ${version.id ?? '?'}: names '${dataset}', which is no dataset under bench/dataset/real and no toolchain reference`,
             );
         }
       }
     }
     if (problems.length > 0) throw new Error(`signature references: ${problems.join('; ')}`);
     cx.note(
-      `${names.length} specs, ${references} references, all to tuning datasets (${cx.sealed.length} sealed datasets excluded)`,
+      `${names.length} specs, ${references} references: ${references - toolchainReferences} to tuning datasets, ${toolchainReferences} to toolchain references (${cx.sealed.length} sealed datasets excluded)`,
     );
   },
 });

@@ -24,7 +24,13 @@ export const ShellCodes = defineCodes({
   },
   E_SIGNATURE_DATASET_UNKNOWN: {
     severity: 'error',
-    meaning: 'a spec reference names neither a dataset under bench/dataset/real nor a synthetic fixture',
+    meaning:
+      'a spec reference names neither a dataset under bench/dataset/real, nor a synthetic fixture, nor a toolchain reference',
+  },
+  E_SIGNATURE_TOOLCHAIN_UNBUILT: {
+    severity: 'error',
+    meaning:
+      'a spec reference names a toolchain reference whose image is not built; `npm run toolchain -- build` builds it (D123)',
   },
   E_SIGNATURE_DATASET_SEALED: {
     severity: 'error',

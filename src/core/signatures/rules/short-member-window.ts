@@ -1,6 +1,7 @@
 // sig.short-member-window (the PoC's step 3b, romlift-poc/src/signatures/apply.ts): a member that another reference
 // contributed has no placed neighbours of its own chain; it is still placed at the only candidate within
-// policy.window bytes of any placed member of the same version that overlaps none of them.
+// policy.window bytes of any placed member of the same version that overlaps none of them. Never a twin (state.ts,
+// Member.twin): its bytes fit wherever its twin lies.
 import { placeMember, pointersAgree } from './state.ts';
 import type { Member, MemberRule, VersionState } from './state.ts';
 
@@ -15,7 +16,7 @@ const shortMemberWindow: MemberRule = {
   },
   sweep: 'listed',
   place(state: VersionState, member: Member): boolean {
-    if (member.candidates.length === 0) return false;
+    if (member.twin || member.candidates.length === 0) return false;
     const window = state.policy.window;
     const placed = state.members.flatMap((m) => {
       const p = state.placed.get(m.index);

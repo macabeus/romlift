@@ -241,6 +241,40 @@ test('sig.short-member-window: a member another reference contributed, at its on
   assert.deepEqual(placed(run(rom, [file], without('sig.short-member-window'))), ['First sig.unique-fit 0x8001000', 'Second sig.unique-fit 0x8001020']);
 });
 
+// Twins (D123): two members no byte tells apart, as libc's sprintf and siprintf, which differ only in a masked call.
+const twins = (seed: number, size = 32): [FunctionSpec, FunctionSpec] => [
+  { name: 'Sprintf', bytes: distinct(seed, size) },
+  { name: 'Siprintf', bytes: distinct(seed, size) },
+];
+
+test('a twin is never placed by its bytes alone: sig.unique-fit leaves the one place both fit', () => {
+  const [a, b] = twins(40);
+  const lone = big('Lone', 41);
+  const rom = romWith([at(0x0800_1000, a.bytes), at(0x0800_2000, lone.bytes)]);
+  assert.deepEqual(placed(run(rom, [signatureFile('lib', { id: '1', members: [a, b, lone] })])), ['Lone sig.unique-fit 0x8002000']);
+  // Without its twin the same member is placed there.
+  assert.deepEqual(placed(run(rom, [signatureFile('lib', { id: '1', members: [a, lone] })])), ['Sprintf sig.unique-fit 0x8001000', 'Lone sig.unique-fit 0x8002000']);
+});
+
+test("a twin is placed by a reference's link order, under the name that reference linked", () => {
+  const [a, b] = twins(42);
+  const first = big('First', 43);
+  const rom = romWith([at(0x0800_1000, new Uint8Array([...first.bytes, ...b.bytes]))]);
+  // The reference linked Siprintf after First; Sprintf is a member no link order holds (an archive's).
+  const file = signatureFile('lib', { id: '1', members: [first, a, b], linkOrder: [contiguous('one', [first, b])] });
+  assert.deepEqual(placed(run(rom, [file])), ['First sig.unique-fit 0x8001000', 'Siprintf sig.link-order-run 0x8001020']);
+});
+
+test('sig.short-member-window: never a twin, whose bytes fit wherever its twin lies', () => {
+  const f1 = big('First', 44);
+  const [a, b] = twins(45, 8);
+  const rom = romWith([at(0x0800_1000, f1.bytes), at(0x0800_1030, a.bytes)]);
+  const file = signatureFile('lib', { id: '1', members: [f1, a, b], linkOrder: [contiguous('one', [f1])] });
+  assert.deepEqual(placed(run(rom, [file])), ['First sig.unique-fit 0x8001000']);
+  const single = signatureFile('lib', { id: '1', members: [f1, a], linkOrder: [contiguous('one', [f1])] });
+  assert.deepEqual(placed(run(rom, [single])), ['First sig.unique-fit 0x8001000', 'Sprintf sig.short-member-window 0x8001030']);
+});
+
 test('sig.short-member-window: two fits within the window settle nothing', () => {
   const f1 = big('First', 20);
   const s = stub(9);

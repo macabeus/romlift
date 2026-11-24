@@ -54,6 +54,11 @@ export const WorkflowCodes = defineCodes({
     meaning:
       'a library region the signatures placed in the code could take no module of its own: no legal border inside it, or a module of the config starts inside it; its functions keep their names, and no library module is proposed for it (signature-layer.ts)',
   },
+  W_SIGNATURE_LIBRARY_UNLISTED: {
+    severity: 'warning',
+    meaning:
+      "update found a library's code in the ROM, but `[signatures] libraries` of romlift.toml does not name that library, so its functions keep their names; add the library to the list to let update name them (update.ts)",
+  },
   E_RENAME_SKIPPED_FILE: {
     severity: 'error',
     meaning:

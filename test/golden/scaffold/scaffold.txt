@@ -204,14 +204,15 @@ except the BIOS's top of IWRAM, 0x03007F00 to 0x03007FFF (its stacks, and `INTR_
 word inside a sized symbol prints as `name + offset` instead, and a symbol without `size` is sized by the furthest
 access the code makes through its address. Any other default name (`unk_<ADDR>`, a chunk's) needs its entry first.
 
-**Entries named by library signatures.** romlift recognises library code (m4a, libgcc, the BIOS call stubs, …) by its
+**Entries named by library signatures.** romlift recognises library code (m4a, libgcc, libc, the BIOS call stubs, …) by its
 bytes and names it: such an entry of `[functions]` or `[symbols]` carries `from = "sig:<library>@<version>"`, and the
 library gets an `asm` module of its own (`[[modules]]` with `library` and `version`). Every `romlift generate` checks an
 entry with `from` against the code it finds (a warning, `W_LISTED_INVALID`, when they disagree); the TOML still
 decides. Rename such an entry like any other: the rename drops its `from`. `npx romlift update --write`
 renames only entries that still carry a default name, so a name you gave is never replaced. `[signatures] libraries`
 lists the libraries whose signature files `update` uses (`init` writes the ones it placed); remove the key, or
-add a library, to let it use another.
+add a library, to let it use another. `update` warns (`W_SIGNATURE_LIBRARY_UNLISTED`) when a library the list leaves
+out has code in the ROM.
 
 Signature files are not shipped with romlift: `init` names no library (`W_SIGNATURES_ABSENT`) unless they were built
 (`npm run signatures -- build`, in a romlift source checkout with the reference decomp checkouts) or `ROMLIFT_SIGNATURES`

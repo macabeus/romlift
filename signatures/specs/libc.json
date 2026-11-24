@@ -1,0 +1,28 @@
+{
+  "library": "libc",
+  "versions": [
+    {
+      "id": "agbcc",
+      "idNote": "agbcc's libc.a: newlib, compiled by old_agbcc -O2 -fno-builtin from agbcc's libc/ sources; the id names the compiler, since each compiler builds its own. libc-agbcc is the whole archive of the pinned agbcc, so members no game links (memcmp, which agbcc calls for a block compare) have a signature; the games add the members only another agbcc fork builds (sa3's math functions) and show that real ROMs hold the same bytes",
+      "references": [
+        { "dataset": "libc-agbcc", "objects": ["libc.a(*)"] },
+        { "dataset": "pokeemerald", "objects": ["libc.a(*)"] },
+        { "dataset": "sa2", "objects": ["libc.a(*)"] },
+        { "dataset": "sa3", "objects": ["libc.a(*)"] },
+        { "dataset": "fe7j", "objects": ["libc.a(*)"] },
+        { "dataset": "klonoa", "objects": ["libc.a(*)"] },
+        { "dataset": "tmc", "objects": ["libc.a(*)"] }
+      ]
+    }
+  ],
+  "reviewedNames": {
+    "__sbprintf@vfiprintf.o": {
+      "name": "__sbprintf_i",
+      "reason": "vfprintf.o and vfiprintf.o (the same source without floating point) each define a static __sbprintf; every label of a version must be unique, so the integer-only one takes the _i suffix, after the i of vfiprintf"
+    },
+    "__sprint@vfiprintf.o": {
+      "name": "__sprint_i",
+      "reason": "vfprintf.o and vfiprintf.o (the same source without floating point) each define a static __sprint; every label of a version must be unique, so the integer-only one takes the _i suffix, after the i of vfiprintf"
+    }
+  }
+}

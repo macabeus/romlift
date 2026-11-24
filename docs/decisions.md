@@ -751,6 +751,8 @@ phase 6; no held-out ROM is ever a reference.
 
 **Revision (17 October 2026, findings plan-fidelity-11, plan-fidelity-14).** It replaces the first version, whose shape the context above describes.
 
+**Revision (24 November 2026, D123).** `libc` joins the libraries, and a reference may be a toolchain reference (an image linking a compiler's own archive) beside a tuning dataset.
+
 **Rejected.** Pulling signatures into phase 2 by default. Building from held-out references.
 
 ## D33. Closed diagnostic codes with symbolic names; four exit codes
@@ -5793,6 +5795,83 @@ for a unit with `scratch`.
 **Rejected.** Leaving the command as it was and documenting `--cflags` (the user would have to copy a module's flags
 by hand, and a forgotten one is a silent wrong score). Writing a per-module command into `decomp.yaml` (the format
 has one `compiler` per tool).
+
+## D123. `libc` is a signature library, built from the compiler's own archive and the tuning games; twins are never placed by bytes alone; the owner's words of 24 November 2026
+
+**Context.** In kl2dct the function at 0x08051950 is agbcc's libc `memcpy` (96 bytes, identical to `memcpy.o` of
+`libc.a`, no relocations), and romlift left it `sub_08051950`: D32 lists the signature libraries, and libc is not
+one. Nine functions call it; asmlift declines each, since a call that passes a frame address to an unnamed callee
+may be a copy into a local or a struct returned through a hidden pointer. The owner asked for the library to be
+"safer and more generic, and not specific for a game", for agbcc's source to be studied first, and then: "Make it.
+But write the code planning that we might support other compilers later".
+
+**Measured before the decision.**
+
+- **The archives.** `libc.a` of seven agbcc installations (pokeemerald, sa2, sa3, kleod, FireEmblem7J,
+  klonoa-empire-of-dreams and the pinned submodule): `memcpy`, `memset`, `strlen`, `strcpy`, `strcmp`, `memmove` and
+  `memchr` are byte-identical in all. SAT-R's fork (sa2, sa3) builds 146 more members, a full math library; of the
+  247 members it shares with the pin, 245 are identical (the hand-written `setjmp` and `trap` differ).
+- **agbcc's source.** `libc/Makefile` compiles every C file under `libc/` with `old_agbcc -O2 -fno-builtin`: one
+  recipe, no option a game sets. The compiler itself writes calls to `memcpy` (a block copy that is not word-aligned,
+  not of a constant size, or over 48 bytes: `movstrqi` fails, `expr.c`), `memset` (a clear, likewise), `memcmp` (a
+  block compare, `optabs.c`) and `abort`. No tuning game links `memcmp`.
+- **Where libc lies.** In the five tuning ROMs with a map, libc is one block with libgcc at the end of the code.
+- **Twins.** 122 of the 381 members have a twin: another member with the same size, mask and unmasked bytes (the
+  `_x_r` wrappers, `sprintf` and `siprintf`, `malloc` and `free`'s wrappers), which differ only in a masked call.
+  With the whole archive as a reference and the matcher as it was, three members took their twin's name on sa3
+  (`siprintf` for `sprintf`, `_link_r` for `_fstat_r`, `_open_r` for `_read_r`), and leaving sa3 out moved one
+  member and lost seven.
+
+**Decision.**
+
+- (a) **`libc` is a signature library** (this revises D32's list), with one version, `agbcc`: a C library is its
+  compiler's, so the version id names the compiler, and another compiler's libc is another version.
+- (b) **Its references are the pinned compiler's own archive and the six tuning games.** The archive gives every
+  member, including `memcmp`; the games give the members only another fork builds (sa3's math functions) and show
+  that real ROMs hold the same bytes. The file has 381 functions.
+- (c) **A toolchain reference** is the new kind of reference that reads an archive: an image linking the whole
+  archive, built locally from a recipe (`bench/dataset/toolchain/<name>/build.mk`) by `npm run toolchain -- build`
+  into `bench/.local/toolchain/<name>/`, with a record of the toolchain, its commit, the image's SHA-1 and the
+  recipe's digest. Nothing built is committed. The builder reads it as any reference (ELF, map and image), so the
+  signature format and the extractor are unchanged. `libc-agbcc` is the first.
+- (d) **No rule or tool names a compiler.** `rules.mk` takes `LIBDIR`; a recipe's `TOOLCHAIN` names an entry of
+  `TOOLCHAINS` (`bench/src/toolchain-refs.ts`), the one place that knows an installation's library directory and
+  commit. Another compiler is an entry there, a recipe, and a version of the library.
+- (e) **A toolchain reference gives no link order**: its members lie in the archive's order, which no program has.
+- (f) **A twin is never placed by its bytes alone.** `sig.unique-fit` and `sig.short-member-window` refuse a member
+  with a twin in its version; the rules that read a reference's link order still place it, under the name that
+  reference linked. This holds for every library.
+- (g) **`update` reports an unlisted library** (`W_SIGNATURE_LIBRARY_UNLISTED`): a project's
+  `[signatures] libraries` is the list `init` wrote, so without the warning a project written before a library
+  existed never learns that its ROM holds it. The list still decides: nothing is named until the user adds it.
+- (h) **`g6.no-heldout-references`** and the specs unit test accept a toolchain reference beside a tuning dataset.
+  The gate's purpose is unchanged, no held-out ROM as a reference; a toolchain reference holds no ROM.
+- (i) **Leave-one-out never leaves a toolchain reference out**: nothing is judged on its image. Since it gives no
+  link order, the members a game "shares" are still those another game links.
+
+**Measured after it.**
+
+- Every tuning ROM: zero wrong placements; names on a reference ROM all equal (sa3 107 of 107). The existing
+  libraries place exactly what they placed before (f).
+- Leave-one-out: 13 runs (six of libc, seven of the other libraries), each 0 added, 0 moved, 0 missing.
+- sa3 with no reference of its own: the archive names 78 of its libc functions, none wrong (the games alone, 5).
+- Sealed ROMs, counts only: 353 to 450 and 226 to 229 placements, each at an ELF function.
+- kl2dct: `init` names `memcpy` and gives it a `libc` module in place of the one-function C module; a project made
+  before, with `"libc"` added to its list, gets the one rename from `update`; both build to the SHA-1, the second
+  with `<string.h>` included. asmlift then lifts a caller with its `memcpy` calls.
+
+**Consequences.** A twin that only the archive holds stays unnamed on a ROM no reference links like; that is the
+safe outcome, and the call it makes would tell the twins apart (a signature would record each masked call's callee,
+as a table records the members its words name). The two hand-written members whose labels have no type (`setjmp`,
+`longjmp`) give no signature. libgcc keeps its game references; a `libgcc-agbcc` recipe would add the members no
+game links. Built signature files stay local (D40), so the image's SHA-1 need not be the same on every machine.
+
+**Rejected.** Game references alone (no `memcmp`, and members only as far as the tuning games happen to link
+them). The archive alone (it lacks the members another fork builds). A reader of `ar` archives in the builder, with
+masks from relocations (a second extraction path beside the one every reference shares). Committing the built
+image (the repository commits no ELF or map but the self-authored fixtures'). Making the image a synthetic fixture
+(the fixtures are run by some twenty gates that expect exact analysis results, and this one is a compiler's output,
+not a case written for a rule). Leaving libc out of sa3's references.
 
 ## Review findings index
 
