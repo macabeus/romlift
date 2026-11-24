@@ -90,7 +90,7 @@ function membersOf(version: LibraryVersion, policy: SignaturePolicy): Scanned[] 
     let unmasked = 0;
     for (const m of mask) if (m === 0xff) unmasked++;
     const anchor = anchorOf(mask);
-    out.push({ index: out.length, id, name, kind, size, bytes: bytesOfHex(hexBytes), mask, align, unmasked, anchor, free: anchor >= 0 && unmasked >= policy.minUnmaskedBytes, candidates: [], ...extra });
+    out.push({ index: out.length, id, name, kind, size, bytes: bytesOfHex(hexBytes), mask, align, unmasked, anchor, free: anchor >= 0 && unmasked >= policy.minUnmaskedBytes, twin: false, candidates: [], ...extra });
   };
   for (const f of version.functions) decode(f.id, f.name, 'function', f.size, f.bytes, f.mask, insnUnit(f.mode), { mode: f.mode });
   for (const t of version.tables) {
@@ -99,7 +99,11 @@ function membersOf(version: LibraryVersion, policy: SignaturePolicy): Scanned[] 
     const align = at.length > 0 && at.every((a) => a % 4 === 0) ? 4 : 2;
     decode(t.id, t.name, 'table', t.size, t.bytes, t.mask, align, t.names === undefined ? {} : { names: t.names });
   }
-  return out;
+  // Twins: members no byte tells apart (Member.twin).
+  const images = new Map<string, number>();
+  const imageOf = (m: Scanned): string => `${m.kind}:${m.mode ?? ''}:${m.size}:${m.mask.join(',')}:${m.bytes.map((b, i) => b & (m.mask[i] ?? 0)).join(',')}`;
+  for (const m of out) images.set(imageOf(m), (images.get(imageOf(m)) ?? 0) + 1);
+  return out.map((m) => ((images.get(imageOf(m)) ?? 0) > 1 ? { ...m, twin: true } : m));
 }
 
 /** The version's chains: per kind (functions first), per link order in file order, members by reference address. */

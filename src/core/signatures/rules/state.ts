@@ -31,6 +31,12 @@ export interface Member {
   readonly anchor: number;
   /** An anchor exists and unmasked >= policy.minUnmaskedBytes: the member may be searched for alone. */
   readonly free: boolean;
+  /**
+   * Another member of the version has the same kind, mode, size, mask and unmasked bytes (two wrappers that differ
+   * only in the call the link fixes, as libc's sprintf and siprintf): the bytes at a place cannot say which of them
+   * it holds, so only a rule that reads a reference's link order may place it (D123).
+   */
+  readonly twin: boolean;
   /** Tables: per whole aligned word, the member a pointer names, or null. */
   readonly names?: readonly (MemberId | null)[];
   /** Where it fits on the ROM, ascending, at most policy.candidateCap; filled once by the scan. */

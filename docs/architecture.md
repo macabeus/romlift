@@ -1969,6 +1969,18 @@ own ELF; no golden ever contains bytes from a real ROM.
   `core/signatures/extract.ts` (mask `bl` targets, branches leaving the function, and every aligned word
   outside instructions that looks like a RAM or ROM address; merge references by member id; apply the
   reviewed names).
+- **Toolchain references** (D123): a reference may also be an image that links a whole library archive of a
+  compiler's own installation, so every member of the library has a signature, including those no benchmark game
+  links. Its recipe is `bench/dataset/toolchain/<name>/build.mk` (the shared `rules.mk` names no compiler; the
+  recipe's `TOOLCHAIN` names an installation of `bench/src/toolchain-refs.ts`, which gives its library directory and
+  commit). `npm run toolchain -- build` builds the image into `bench/.local/toolchain/<name>/` with a record
+  (toolchain, commit, SHA-1, recipe digest); nothing built is committed, and `npm run signatures -- build` builds the
+  references its spec names first. Such a reference gives a version its members but no link order: an archive's
+  member order is no program's link order.
+- **Twins**: two members of a version with the same kind, mode, size, mask and unmasked bytes (wrappers that differ
+  only in a masked call, as libc's `sprintf` and `siprintf`) cannot be told apart by bytes. `sig.unique-fit` and
+  `sig.short-member-window` never place one; only the rules that read a reference's link order do, under the name
+  that reference linked (D123).
 - **Matcher**: `core/signatures/match.ts` takes the `Rom` and a discover-mode `AnalysisResult` and returns
   `SignaturePlacement[]`, each with its `sig.*` rule id from the signature registry
   (`core/signatures/rules/`, one file per placement rule with its `RuleMeta`, in `SIGNATURE_RULES`; exported from
@@ -2027,6 +2039,10 @@ reach `generate` only through the TOML.
 **Signature sets built in phase 6**: `m4a` (2001, 2004), `libagbsyscall` (the BIOS call stubs),
 `libgcc`, and the serial libraries the tuning references link (`agb_flash`, `siirtc`, `librfu` from
 Emerald). Each version names its references; a library with a single reference has one version from it.
+**Added by D123**: `libc`, version `agbcc` (a C library is its compiler's, so the version id names the compiler),
+from the toolchain reference `libc-agbcc` and the six tuning games. A project lists the libraries it uses in
+`[signatures] libraries`; `update` reports a library whose signatures place code in the ROM while the list leaves it
+out (`W_SIGNATURE_LIBRARY_UNLISTED`), so a project written before a library existed learns of it.
 
 ## 8. Benchmark and CI
 
@@ -2285,11 +2301,11 @@ architecture-2). The codes:
 | `W_C_ORDER`, `E_C_STUB_UNPLACED`, `E_C_STALE_DEFINITION`, `E_C_CONDITIONAL_STUB`, `E_C_FRAGMENT_STUB`, `E_C_MODULE_INCLUDED`, `E_C_UNSCANNABLE`, `W_C_UNSCANNABLE` | `core/reconcile` (`W_C_UNSCANNABLE` also through `unscannableWarning`, which `core/workflow/c-stubs.ts` calls for a C file of no module, D81 a; `E_C_FRAGMENT_STUB` since fix round 7, D83 a) |
 | `E_DIR_NOT_EMPTY`, `E_STALE_CONFIG`, `E_C_DEFINITION_MOVED`, `W_C_FILE_UNUSED` | `core/workflow` (`init`'s verdict on its directory, D75 j, checked under the project lock, D77 j; `update --write` over a changed config, D75 m; the reconciliation of a project's C files, D77 a) |
 | `E_RENAME_UNKNOWN`, `E_RENAME_EXISTS`, `E_RENAME_INVALID`, `E_RENAME_SKIPPED_FILE`, `W_RENAME_SKIPPED`, `E_RENAME_INTERRUPTED` | `core/workflow` (`rename`, phase 6, D92, D95 c, D96 c) |
-| `W_EVIDENCE_CONFLICT`, `W_LIBRARY_MODULE_DROPPED` | `core/workflow` (the proposal screen, `checkProposals`, §7.4, and a library region `update` gives no module; `core/evidence` and the legacy codes were dropped with their importers, D91, D92) |
+| `W_EVIDENCE_CONFLICT`, `W_LIBRARY_MODULE_DROPPED`, `W_SIGNATURE_LIBRARY_UNLISTED` | `core/workflow` (the proposal screen, `checkProposals`, §7.4, a library region `update` gives no module, and a library the ROM holds that `[signatures] libraries` leaves out, D123; `core/evidence` and the legacy codes were dropped with their importers, D91, D92) |
 | `E_SIGNATURE_REFERENCES_MISMATCH`, `E_SIGNATURE_OBJECTS_UNMATCHED`, `E_SIGNATURE_MEMBER_ID_INVALID`, `E_SIGNATURE_MEMBER_DUPLICATE`, `E_SIGNATURE_MEMBER_OUTSIDE_ROM`, `E_SIGNATURE_TABLE_UNPLACED`, `E_SIGNATURE_NAME_DUPLICATE`, `W_SIGNATURE_TABLE_MISSING`, `W_SIGNATURE_TABLE_UNSIZED`, `W_SIGNATURE_MEMBER_DIFFERS`, `W_SIGNATURE_REVIEWED_UNUSED` | `core/signatures` (the builder, `extract.ts`, §7.2) |
 | `W_SIGNATURE_CONSTANT`, `W_SIGNATURE_POINTERS`, `W_SIGNATURE_AMBIGUOUS`, `W_SIGNATURE_DROPPED` | `core/signatures` (the matcher and its resolver, §7.2; `W_SIGNATURE_AMBIGUOUS` is one line per version, and a version wholly superseded by another version of its library is not reported, final-review clean-clone-6) |
 | `E_IO_READ`, `E_IO_WRITE`, `E_TOOLCHAIN_MISSING`, `E_TOOLCHAIN_FAILED`, `E_PROJECT_NOT_FOUND`, `E_PROJECT_LOCKED`, `W_STALE_LOCK`, `W_LOCKFILE_DEFERRED`, `W_PROJECT_CONFIG_IGNORED`, `W_PROJECT_ROM_ABSENT` | `shell` (its own `codes.ts`, outside the core union; the last two since the final review, end-to-end-user-5 and -6) |
-| `E_SIGNATURE_SPEC_INVALID`, `E_SIGNATURE_DATASET_UNKNOWN`, `E_SIGNATURE_DATASET_SEALED`, `E_SIGNATURE_DATASET_INVALID`, `E_SIGNATURE_REFERENCE_SHA1`, `E_SIGNATURE_REFERENCE_INVALID`, `E_SIGNATURE_FILE_INVALID`, `W_SIGNATURE_FILE_SKIPPED`, `W_SIGNATURES_ABSENT` | `shell` (`signatures/`: reading specs, references and built files, D95 b) |
+| `E_SIGNATURE_SPEC_INVALID`, `E_SIGNATURE_DATASET_UNKNOWN`, `E_SIGNATURE_TOOLCHAIN_UNBUILT`, `E_SIGNATURE_DATASET_SEALED`, `E_SIGNATURE_DATASET_INVALID`, `E_SIGNATURE_REFERENCE_SHA1`, `E_SIGNATURE_REFERENCE_INVALID`, `E_SIGNATURE_FILE_INVALID`, `W_SIGNATURE_FILE_SKIPPED`, `W_SIGNATURES_ABSENT` | `shell` (`signatures/`: reading specs, references and built files, D95 b) |
 
 Core never throws for content: it returns diagnostics, and a config error returns all errors at once.
 It throws only `RomliftInvariantError` on a broken internal invariant (exit 70). The shell wraps I/O

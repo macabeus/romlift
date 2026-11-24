@@ -71,6 +71,7 @@ import type { BenchContext } from './context.ts';
 import { type Dataset, isSealed, loadDatasets, rowAddr } from './dataset.ts';
 import { BenchError, isDirectory, listFiles, readFileBytes } from './files.ts';
 import { assertCountsOnly } from './seal.ts';
+import { toolchainReferenceNames } from './toolchain-refs.ts';
 
 export const BENCH_SIGNATURES_SCHEMA = 'romlift/bench-signatures@1';
 export const BENCH_SIGNATURES_LOO_SCHEMA = 'romlift/bench-signatures-loo@1';
@@ -646,6 +647,9 @@ export async function benchSignaturesLoo(
   const files = await readBuiltSignatures(cx);
   const { datasets, problems } = await loadDatasets(cx);
   if (problems.length > 0) throw new BenchError(`malformed datasets: ${problems.map((p) => p.detail).join('; ')}`);
+  // A toolchain reference is no game: nothing is judged on its image, so it is never the reference left out. It stays
+  // in every other run's rebuild, as the full file has it (D123).
+  const toolchainReferences = new Set(await toolchainReferenceNames(cx));
   const runs: LooRun[] = [];
   const onRom = new Map<
     string,
@@ -659,6 +663,7 @@ export async function benchSignaturesLoo(
       );
     for (const { version, reference } of looPairs(spec)) {
       if (options.only !== undefined && options.only !== reference) continue;
+      if (toolchainReferences.has(reference)) continue;
       const d = datasets.find((x) => x.name === reference);
       if (d === undefined)
         throw new BenchError(`${spec.library}@${version}: the reference ${reference} is no bench dataset`);

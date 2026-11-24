@@ -3,7 +3,7 @@
 // datasets only (never a sealed one), and a reason for every reviewed name. The PoC's three keep its references, in
 // its order, and its idNotes.
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -14,6 +14,7 @@ import type { SignatureSpec } from '../../../../src/core/signatures/spec.ts';
 const REPO = fileURLToPath(new URL('../../../../', import.meta.url));
 const SPECS = join(REPO, 'signatures', 'specs');
 const DATASETS = join(REPO, 'bench', 'dataset', 'real');
+const TOOLCHAIN = join(REPO, 'bench', 'dataset', 'toolchain');
 const M4A_TABLES = ['gMPlayJumpTableTemplate', 'gScaleTable', 'gFreqTable', 'gPcmSamplesPerVBlankTable', 'gCgbScaleTable', 'gCgbFreqTable', 'gNoiseTable', 'gCgb3Vol', 'gClockTable', 'gXcmdTable'];
 
 const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
@@ -29,15 +30,17 @@ function specs(): ReadonlyMap<string, SignatureSpec> {
   return out;
 }
 
-test('the six libraries of phase 6 have a spec each', () => {
-  assert.deepEqual([...specs().keys()], ['agb_flash', 'libagbsyscall', 'libgcc', 'librfu', 'm4a', 'siirtc']);
+test('the six libraries of phase 6 and libc (D123) have a spec each', () => {
+  assert.deepEqual([...specs().keys()], ['agb_flash', 'libagbsyscall', 'libc', 'libgcc', 'librfu', 'm4a', 'siirtc']);
 });
 
-test('every reference names a tuning dataset, never a sealed one (D32), and every reviewed name gives a reason', () => {
+test('every reference names a tuning dataset, never a sealed one (D32), or a toolchain reference (D123), and every reviewed name gives a reason', () => {
   for (const [library, spec] of specs()) {
     for (const version of spec.versions) {
       assert.ok(version.idNote.length > 0, `${library} ${version.id}: an idNote`);
       for (const ref of version.references) {
+        // A toolchain reference is a recipe of this repository: an archive of a compiler, never a ROM.
+        if (existsSync(join(TOOLCHAIN, ref.dataset, 'build.mk'))) continue;
         const dataset = JSON.parse(readFileSync(join(DATASETS, `${ref.dataset}.json`), 'utf8')) as { readonly heldout: boolean; readonly revealed: readonly unknown[] };
         assert.ok(!dataset.heldout || dataset.revealed.length > 0, `${library} ${version.id}: ${ref.dataset} is sealed`);
       }

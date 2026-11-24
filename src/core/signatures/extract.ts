@@ -69,6 +69,11 @@ export interface ReferenceInput {
   readonly textPlacements: readonly MapPlacement[];
   /** Every other input placement of the map (the tables' objects: `.rodata`, `.data`, ...). */
   readonly dataPlacements: readonly MapPlacement[];
+  /**
+   * True for an image that links a whole library archive (a toolchain reference, D123): its members lie in the
+   * archive's order, which is no program's link order, so the version takes its members but no link order from it.
+   */
+  readonly archive?: boolean;
 }
 
 export type SignatureDiagnostic = Diagnostic<SignatureCode>;
@@ -446,7 +451,7 @@ function buildVersion(spec: SignatureSpec, version: SignatureSpecVersion, inputs
       if (table !== undefined) link(table, tableNames(input.rom, table, functionsHere));
     }
     here.sort((a, b) => compareNumbers(a.addr, b.addr) || compareCodeUnits(a.id, b.id));
-    linkOrder.push({ reference: input.dataset, members: here });
+    if (input.archive !== true) linkOrder.push({ reference: input.dataset, members: here });
   });
 
   const nameOf = (m: Member): string => spec.reviewedNames[m.id]?.name ?? m.symbol;

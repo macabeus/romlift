@@ -1,5 +1,5 @@
 // shell/signatures/build-from-references.ts (architecture §7.1, §7.2, D32, D40, roadmap 6.A): a spec on disk or in
-// memory built from its reference datasets (a bench dataset, else a synthetic fixture), the refusals of a sealed, an
+// memory built from its reference datasets (a bench dataset, else a synthetic fixture, else a toolchain reference), the refusals of a sealed, an
 // unknown or a malformed dataset, a ROM of another SHA-1 and a malformed spec, the repository a spec belongs to, and
 // the written file.
 import assert from 'node:assert/strict';
@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { signatureFileText } from '../../../../src/core/signatures/extract.ts';
 import { parseSignatureFile } from '../../../../src/core/signatures/schema.ts';
 import type { SignatureSpec } from '../../../../src/core/signatures/spec.ts';
-import { buildSignatures, readSignatureSpec, signaturesRepoOf, SYNTHETIC_COMMIT, writeSignatureFile } from '../../../../src/shell/signatures/build-from-references.ts';
+import { buildSignatures, readSignatureSpec, signaturesRepoOf, SYNTHETIC_COMMIT, TOOLCHAIN_REFERENCE_SCHEMA, toolchainReferencePaths, writeSignatureFile } from '../../../../src/shell/signatures/build-from-references.ts';
 import { sha1Of } from '../../../../src/shell/hash.ts';
 import { packageRoot } from '../../../../src/shell/project/read-inputs.ts';
 
@@ -99,6 +99,37 @@ test('refusals: an unknown dataset, a dataset without its map, a malformed or mi
   const spec: SignatureSpec = { library: '../escape', versions: [{ id: '1', idNote: '', references: [{ dataset: 'library', objects: ['fix_*.o'] }] }], reviewedNames: {} };
   const built = await buildSignatures({ spec, specPath: SPEC_PATH });
   assert.deepEqual(built.ok ? [] : built.diagnostics.map((d) => d.code), ['E_SIGNATURE_SPEC_INVALID']);
+});
+
+test('a toolchain reference resolves to its built image and record, and gives members but no link order (D123)', async () => {
+  const specPath = repoWith('toolchain', {}, ['fixlib']);
+  const repo = join(TMP, 'toolchain');
+  const paths = toolchainReferencePaths(repo, 'fixlib');
+  mkdirSync(paths.recipe, { recursive: true });
+  const unbuilt = await buildSignatures({ specPath }, { builtWith: 'test' });
+  assert.ok(!unbuilt.ok);
+  assert.equal(unbuilt.diagnostic.code, 'E_SIGNATURE_TOOLCHAIN_UNBUILT');
+  assert.match(unbuilt.diagnostic.message, /npm run toolchain -- build/);
+
+  mkdirSync(paths.build, { recursive: true });
+  for (const [ext, to] of [['gba', paths.rom], ['elf', paths.elf], ['map', paths.map]] as const) writeFileSync(to, readFileSync(fixtureFile(ext)));
+  const record = { schema: TOOLCHAIN_REFERENCE_SCHEMA, name: 'fixlib', toolchain: 'agbcc', commit: 'abc1234', sha1: sha1Of(readFileSync(fixtureFile('gba'))), recipe: 'r' };
+  writeFileSync(paths.record, JSON.stringify(record));
+  const built = await buildSignatures({ specPath }, { builtWith: 'test' });
+  assert.ok(built.ok, JSON.stringify(built.ok ? [] : built.diagnostics));
+  const version = built.value.versions[0];
+  assert.deepEqual(version?.references, [{ dataset: 'fixlib', commit: 'abc1234', romSha1: record.sha1 }]);
+  assert.ok((version?.functions.length ?? 0) > 0);
+  assert.deepEqual(version?.linkOrder, []);
+
+  writeFileSync(paths.record, JSON.stringify({ ...record, sha1: '0'.repeat(40) }));
+  const other = await buildSignatures({ specPath }, { builtWith: 'test' });
+  assert.ok(!other.ok);
+  assert.equal(other.diagnostic.code, 'E_SIGNATURE_REFERENCE_SHA1');
+  writeFileSync(paths.record, JSON.stringify({ ...record, schema: 'other' }));
+  const malformed = await buildSignatures({ specPath }, { builtWith: 'test' });
+  assert.ok(!malformed.ok);
+  assert.equal(malformed.diagnostic.code, 'E_SIGNATURE_DATASET_INVALID');
 });
 
 test("a spec's repository: the nearest ancestor holding bench/dataset, else the package root", async () => {

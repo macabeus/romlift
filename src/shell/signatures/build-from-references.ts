@@ -9,7 +9,11 @@
 //   is the reference's commit; a sealed one (`heldout` true and `revealed` empty) is refused before any of its files is
 //   read (E_SIGNATURE_DATASET_SEALED, D32);
 // - a synthetic fixture, `<repo>/bench/dataset/synthetic/<dataset>/build/<dataset>.{gba,elf,map}`, whose commit is
-//   `synthetic` (a fixture has no checkout of its own; its bytes are committed).
+//   `synthetic` (a fixture has no checkout of its own; its bytes are committed);
+// - a toolchain reference, `<repo>/bench/dataset/toolchain/<dataset>/` (its recipe, D123): an image linking a whole
+//   library archive of a compiler's installation, built locally into `<repo>/bench/.local/toolchain/<dataset>/` by
+//   `npm run toolchain -- build`, with a record (`<dataset>.json`) naming the toolchain, its commit and the image's
+//   SHA-1. One not built yet is refused with that command (E_SIGNATURE_TOOLCHAIN_UNBUILT).
 // The repository is the nearest ancestor of the spec's directory that holds `bench/dataset` (two levels above
 // `signatures/specs/<library>.json`), else the package root.
 import { mkdir } from 'node:fs/promises';
@@ -56,10 +60,47 @@ interface ResolvedReference {
   readonly commit: string;
   /** The SHA-1 the dataset records; a fixture records none. */
   readonly sha1?: string;
+  /** A toolchain reference: an image linking a whole archive (ReferenceInput.archive). */
+  readonly archive?: true;
 }
 
 /** The commit a synthetic fixture reference records. */
 export const SYNTHETIC_COMMIT = 'synthetic';
+
+/** The `schema` of a built toolchain reference's record. */
+export const TOOLCHAIN_REFERENCE_SCHEMA = 'romlift/toolchain-reference@1';
+
+/** What `npm run toolchain -- build` records beside a toolchain reference's image. */
+export interface ToolchainReferenceRecord {
+  readonly schema: typeof TOOLCHAIN_REFERENCE_SCHEMA;
+  readonly name: string;
+  /** The compiler installation the archive comes from (the recipe's TOOLCHAIN). */
+  readonly toolchain: string;
+  /** That installation's commit: the reference's commit. */
+  readonly commit: string;
+  /** The image's SHA-1. */
+  readonly sha1: string;
+  /** A digest of the recipe's files, so an edited recipe is built again. */
+  readonly recipe: string;
+}
+
+/** Where a toolchain reference's recipe lies and where its image, ELF, map and record are built. */
+export function toolchainReferencePaths(repo: string, name: string): { readonly recipe: string; readonly build: string; readonly rom: string; readonly elf: string; readonly map: string; readonly record: string } {
+  const build = join(repo, 'bench', '.local', 'toolchain', name);
+  const at = (ext: string): string => join(build, `${name}.${ext}`);
+  return { recipe: join(repo, 'bench', 'dataset', 'toolchain', name), build, rom: at('gba'), elf: at('elf'), map: at('map'), record: at('json') };
+}
+
+/** A toolchain reference's record, validated. */
+export function parseToolchainReferenceRecord(json: unknown): { readonly ok: true; readonly value: ToolchainReferenceRecord } | { readonly ok: false; readonly error: string } {
+  const fields = datasetFields(json);
+  if (!fields.ok) return { ok: false, error: 'is not a toolchain reference record' };
+  const [name, toolchain, commit, sha1, recipe] = ['name', 'toolchain', 'commit', 'sha1', 'recipe'].map((key) => stringField(fields.value, key));
+  if (fields.value['schema'] !== TOOLCHAIN_REFERENCE_SCHEMA || name === undefined || toolchain === undefined || commit === undefined || sha1 === undefined || recipe === undefined) {
+    return { ok: false, error: `is not a ${TOOLCHAIN_REFERENCE_SCHEMA} record with name, toolchain, commit, sha1 and recipe` };
+  }
+  return { ok: true, value: { schema: TOOLCHAIN_REFERENCE_SCHEMA, name, toolchain, commit, sha1, recipe } };
+}
 
 const DATASET_NAME = /^[a-z0-9][a-z0-9._-]*$/;
 
@@ -103,13 +144,26 @@ async function resolveReference(repo: string, benchRoot: string, dataset: string
     const fixture = join(repo, 'bench', 'dataset', 'synthetic', dataset, 'build');
     const isFixture = await isDirectory(fixture);
     if (!isFixture.ok) return isFixture;
+    const toolchain = toolchainReferencePaths(repo, dataset);
+    const isToolchain = isFixture.value ? isFixture : await isDirectory(toolchain.recipe);
+    if (!isToolchain.ok) return isToolchain;
+    if (!isFixture.value && isToolchain.value) {
+      const built = await isRegularFile(toolchain.record);
+      if (!built.ok) return built;
+      if (!built.value) {
+        return { ok: false, diagnostic: diagnostic(ShellCodes, 'E_SIGNATURE_TOOLCHAIN_UNBUILT', `${dataset}: the toolchain reference is not built (no ${toolchain.record}); build it with \`npm run toolchain -- build\``, { path: toolchain.record }) };
+      }
+      const record = await readJson(toolchain.record, parseToolchainReferenceRecord, 'E_SIGNATURE_DATASET_INVALID');
+      if (!record.ok) return record;
+      return { ok: true, value: { dataset, rom: toolchain.rom, elf: toolchain.elf, map: toolchain.map, commit: record.value.commit, sha1: record.value.sha1, archive: true } };
+    }
     if (!isFixture.value) {
       return {
         ok: false,
         diagnostic: diagnostic(
           ShellCodes,
           'E_SIGNATURE_DATASET_UNKNOWN',
-          `${dataset}: no ${file} and no synthetic fixture build ${fixture}; a spec is built in a romlift source checkout, whose bench/dataset/ names its references (the installed package ships none)`,
+          `${dataset}: no ${file}, no synthetic fixture build ${fixture} and no toolchain reference ${toolchain.recipe}; a spec is built in a romlift source checkout, whose bench/dataset/ names its references (the installed package ships none)`,
         ),
       };
     }
@@ -171,6 +225,7 @@ async function loadReference(ref: ResolvedReference, benchRoot: string): Promise
       symbols: elf.value.symbols,
       textPlacements: placements.text,
       dataPlacements: placements.data,
+      ...(ref.archive === true ? { archive: true } : {}),
     },
   };
 }

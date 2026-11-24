@@ -1,6 +1,7 @@
 // `npm run signatures -- build <spec> [--out <dir>] [--json]` (architecture §7.1, §7.2, D40, D108): builds
 // `<out>/<library>.json` (default `<repo>/signatures/`, gitignored) from a spec in signatures/specs/ and its reference
-// datasets under ROMLIFT_BENCH_ROOT (romlift/node's buildSignatures). A maintainer's tool of a romlift source checkout:
+// datasets under ROMLIFT_BENCH_ROOT (romlift/node's buildSignatures), after building the toolchain references it names
+// (bench/src/toolchain-refs.ts, D123). A maintainer's tool of a romlift source checkout:
 // it needs the reference decomp checkouts, so it is not a command of the `romlift` CLI.
 //
 // Text: one line per version, the diagnostics on stderr, the file written. --json: one
@@ -10,9 +11,13 @@
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Diagnostic, SignatureFile } from 'romlift';
-import { buildSignatures, signaturesRepoOf, writeSignatureFile } from 'romlift/node';
+import { buildSignatures, readSignatureSpec, signaturesRepoOf, writeSignatureFile } from 'romlift/node';
 
 import { UsageError, parseArgs } from '../src/args.ts';
+import { contextFromEnv } from '../src/context.ts';
+import { BenchError } from '../src/files.ts';
+import { runProcess } from '../src/process.ts';
+import { buildToolchainReference, toolchainReferenceNames } from '../src/toolchain-refs.ts';
 
 const USAGE = 'usage: npm run signatures -- build <spec> [--out <dir>] [--json]';
 
@@ -33,6 +38,35 @@ function versionLine(file: SignatureFile, v: SignatureFile['versions'][number]):
   };
 }
 
+/**
+ * Builds the toolchain references the spec names (D123), those not current; the failure's message, or undefined. A
+ * spec that cannot be read is left to buildSignatures, which reports it.
+ */
+async function buildToolchainReferences(
+  specPath: string,
+  env: Readonly<Record<string, string | undefined>>,
+): Promise<string | undefined> {
+  const spec = await readSignatureSpec(specPath);
+  if (!spec.ok) return undefined;
+  const cx = contextFromEnv(env, await signaturesRepoOf(specPath));
+  const known = await toolchainReferenceNames(cx);
+  const named = new Set(spec.value.versions.flatMap((v) => v.references.map((r) => r.dataset)));
+  try {
+    for (const name of known)
+      if (named.has(name))
+        await buildToolchainReference(
+          cx,
+          name,
+          { run: runProcess, log: (line) => process.stderr.write(`${line}\n`) },
+          env,
+        );
+  } catch (error) {
+    if (error instanceof BenchError) return error.message;
+    throw error;
+  }
+  return undefined;
+}
+
 /** Builds and writes one spec's signature file; returns the exit code. */
 export async function buildOne(
   specArg: string,
@@ -42,6 +76,11 @@ export async function buildOne(
 ): Promise<number> {
   const specPath = resolve(specArg);
   const benchRoot = env['ROMLIFT_BENCH_ROOT'];
+  const unbuilt = await buildToolchainReferences(specPath, env);
+  if (unbuilt !== undefined) {
+    process.stderr.write(`${unbuilt}\n`);
+    return 1;
+  }
   const built = await buildSignatures(
     { specPath },
     benchRoot === undefined || benchRoot === '' ? {} : { benchRoot: resolve(benchRoot) },

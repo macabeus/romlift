@@ -5,13 +5,17 @@ export {
   buildSignatures,
   readSignatureSpec,
   signaturesRepoOf,
+  parseToolchainReferenceRecord,
   SYNTHETIC_COMMIT,
+  TOOLCHAIN_REFERENCE_SCHEMA,
+  toolchainReferencePaths,
   writeSignatureFile,
 } from '../shell/signatures/build-from-references.ts';
 export type {
   BuildSignaturesInput,
   BuildSignaturesOptions,
   BuildSignaturesResult,
+  ToolchainReferenceRecord,
 } from '../shell/signatures/build-from-references.ts';
 export { locateSignatures, readSignatureFile, SIGNATURES_ENV } from '../shell/signatures/locate.ts';
 export type { LocatedSignatures, LocateSignaturesOptions } from '../shell/signatures/locate.ts';

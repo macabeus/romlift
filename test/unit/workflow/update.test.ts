@@ -554,11 +554,27 @@ test('signatures: [signatures] libraries limits the files a run uses to the libr
   assert.ok(other.ok);
   assert.deepEqual(other.proposals, [], 'libfix is not listed, so its file is not used');
   assert.equal(other.changed, false);
+  const unlisted = other.diagnostics.filter((d) => d.code === 'W_SIGNATURE_LIBRARY_UNLISTED');
+  assert.equal(unlisted.length, 1, 'the library the ROM holds but the list leaves out is named once (D123)');
+  assert.match(
+    unlisted[0]?.message ?? '',
+    /the signatures of libfix place \d+ entries in this ROM, .*add "libfix" to the list/,
+  );
   const listed = update(rom, only('["libfix"]'));
   assert.ok(listed.ok);
   assert.ok(
     listed.proposals.some((p) => p.kind === 'function' && p.name === 'FixMulShift'),
     'the listed library proposes as without the key',
+  );
+  assert.ok(!listed.diagnostics.some((d) => d.code === 'W_SIGNATURE_LIBRARY_UNLISTED'));
+  const off = update(
+    rom,
+    text.replace('[signatures]\nenabled = true', '[signatures]\nenabled = false\nlibraries = ["m4a"]'),
+  );
+  assert.ok(off.ok);
+  assert.ok(
+    !off.diagnostics.some((d) => d.code === 'W_SIGNATURE_LIBRARY_UNLISTED'),
+    'signatures switched off say nothing',
   );
 });
 

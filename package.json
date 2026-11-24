@@ -47,6 +47,7 @@
     "agbcc": "node --conditions=source bench/tools/agbcc.ts",
     "fixtures": "node --conditions=source bench/tools/fixtures.ts",
     "signatures": "node --conditions=source bench/tools/signatures.ts",
+    "toolchain": "node --conditions=source bench/tools/toolchain.ts",
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
