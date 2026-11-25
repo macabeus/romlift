@@ -13,10 +13,11 @@ was created by [romlift](https://github.com/macabeus/romlift) @@romliftVersion@@
 | `make rom` | builds `@@builtRom@@` without the comparison |
 | `npx romlift generate` | rewrites the generated files from `romlift.toml` and the ROM |
 | `make expected` | builds each module's objdiff target, `build/expected/<module>.o` (no compiler; `objdiff.json` lists the C modules') |
+| `make debug` | builds `build/debug/@@name@@.elf`: the ROM's ELF with DWARF debug information for the C modules (each compiled again with `-g`), and checks that its bytes are `@@builtRom@@`'s |
 | `npx romlift rename <old> <new>` | renames a function or symbol of `romlift.toml`, or a default data name `gUnk_<ADDR>`, in it and in the C of `src/` and `include/` together |
 | `npx romlift update [--write]` | proposes what the analysis finds that `romlift.toml` lacks, as a patch that keeps its comments; `--write` saves it |
 | `npx romlift explain <addr>` | explains what romlift decided about one address: which function owns it, why (the rules), its chunk and item |
-| `make clean` | removes `build/` (the objdiff targets with it) and the built ROM |
+| `make clean` | removes `build/` (the objdiff targets and the debug ELF with it) and the built ROM |
 
 `@@romFile@@` is the original ROM. It is never committed (`.gitignore`); bring your own copy.
 
@@ -209,6 +210,77 @@ asmlift asm/nonmatchings/<module>/<Function>.s --score-against build/expected/<m
 ```
 
 Its score is evidence, `make` is the verdict. Its README documents the rest.
+
+## Checking what code does at runtime with gba-kit
+
+Reading assembly says what a function computes; running it says when it runs, who calls it and what it changes. Use
+that before you name a function, a global or a struct field, and when two readings of the same code are both
+plausible. [gba-kit](https://github.com/macabeus/gba-kit) runs the ROM without a window, from a Node.js script, and
+reads names, source lines and types from the build's ELF.
+
+`make debug` builds that ELF, `build/debug/@@name@@.elf`: every C module compiled again with `-g`, linked as the ROM
+is. Debug information is not loaded, so its bytes are the ROM's (the recipe fails otherwise) and every address in it is
+an address of `@@builtRom@@`. `@@name@@.elf`, which `make` links, has the symbols but no debug information: names
+resolve in it, source lines and types do not. Functions still in `INCLUDE_ASM` have a symbol and nothing else in both.
+
+Keep the scripts in a directory with a `package.json` of its own, `runtime/`, so that installing gba-kit does not
+depend on this project's `package.json`:
+
+```sh
+mkdir -p runtime && cd runtime
+npm init -y
+npm install @gba-kit/gba-node @gba-kit/debug-info
+```
+
+`runtime/who-calls.mjs`, which counts the calls of one function in the ten seconds after power-on and names the callers:
+
+```js
+import { HeadlessRuntime } from '@gba-kit/gba-node';
+
+const name = process.argv[2];
+const runtime = await HeadlessRuntime.create({
+  romPath: '../@@builtRom@@',
+  elfPath: '../build/debug/@@name@@.elf',
+  outputDir: 'out',
+  logFn: () => {},
+});
+const { engine } = runtime;
+if (engine.symbolToAddress(name) === null) throw new Error(`${name} is not a symbol of the ELF`);
+
+const calls = engine.watchExecution(name, { maxHits: 8 });
+await engine.wait({ frames: 600 });
+calls.stop();
+
+console.log(`${name}: ${calls.count} calls in 600 frames`);
+for (const hit of calls.hits) {
+  console.log('  called from', JSON.stringify(hit.callerLocation ?? engine.addressToSymbol(hit.lr)));
+}
+```
+
+```sh
+make && make debug
+cd runtime && node who-calls.mjs AgbMain
+```
+
+The same `engine` presses buttons (`press`), waits for a frame count, a memory value or an address to execute
+(`wait`), records every write to a global with the instruction that made it (`watchSymbol`, `watchMemory`), reads and
+writes memory and C variables (`read16`, `write16`, `readVariable`, `writeVariable`), and saves screenshots and
+savestates into `out/` (`takeScreenshot`, `saveState`; `loadState` resumes from one).
+gba-kit's [scripting guide](https://github.com/macabeus/gba-kit/blob/main/docs/scripting.md) documents all of it.
+
+What keeps a runtime result worth citing:
+
+- **Take every address from the ELF**, by name (`symbolToAddress`, `readVariable`, a struct member's layout), never
+  typed by hand: a script then fails when a name changes, instead of reading the wrong bytes.
+- **Change one thing between two runs** that are otherwise the same (one write, one button), and report what moved.
+  A value that merely correlates with something on screen is not yet evidence.
+- **A name claims what the script observed, no more.** "Never called in the first ten seconds" is not "dead code":
+  most of a game is out of reach of power-on, so start from a savestate at the place the code belongs to.
+- **Run `make debug` again after changing the C**: the ELF is the tree as it was when you built it.
+- **It is evidence for names and comments, never for matching.** `make` stays the only verdict on the bytes.
+
+Commit the scripts a name or a comment rests on, and say in the comment which script shows it. `runtime/out/` and
+`node_modules/` are in `.gitignore`: a savestate holds the game's memory, so it is not committed either.
 
 ## Hand-written assembly
 

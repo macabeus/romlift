@@ -64,3 +64,7 @@ entries with `from = "sig:…"` were named by library signatures; code that runs
 `[[overrides]]` entry with `runs_at`. To compare a function with the original in objdiff, run `make expected` and open
 the project:
 `objdiff.json` lists the C modules (objdiff 3.7.2 or later). `AGENTS.md` has the details.
+
+To see what code does when it runs (who calls a function, what writes a global), `make debug` builds
+`build/debug/@@name@@.elf`, the ROM's ELF with debug information for the C modules, which
+[gba-kit](https://github.com/macabeus/gba-kit) reads beside the ROM. `AGENTS.md` has a script to start from.

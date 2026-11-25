@@ -117,6 +117,21 @@ ROMLIFT_RESTORED := $(strip $(foreach f,$(shell sed -n 's|^[[:space:]]*INCLUDE_A
 ifneq ($(ROMLIFT_RESTORED),)
 $(warning INCLUDE_ASM names $(ROMLIFT_RESTORED), which generate moved to asm/matchings/ when the C defined the function: run $(or $(ROMLIFT_RUN),npx romlift) generate to write it back)
 endif
+# make debug: the ELF with DWARF debug information for the C modules, its bytes checked against the ROM (D124).
+DEBUG_OBJS := $(patsubst build/src/%.o,build/debug/src/%.o,$(OBJS))
+.PHONY: debug
+debug: build/debug/$(NAME).elf
+build/debug/$(NAME).elf: $(ROM) build/debug/src/main.o FORCE
+	@mkdir -p $(@D)
+	sed 's|build/src/|build/debug/src/|g' ldscript.txt > build/debug/ldscript.txt
+	$(LD) -T build/debug/ldscript.txt -o $@ $(DEBUG_OBJS)
+	$(OBJCOPY) -O binary $@ build/debug/$(NAME).gba
+	@cmp build/debug/$(NAME).gba $(ROM) || { echo "$@: its bytes are not $(ROM)'s, so its addresses are not the ROM's (-g changed the code a compiler wrote)" >&2; rm -f $@; exit 1; }
+build/debug/src/main.o: CC1 := tools/agbcc/bin/agbcc
+build/debug/src/main.o: CFLAGS := -mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -g
+build/debug/src/main.o: src/main.c FORCE
+	@mkdir -p $(@D)
+	$(C_RECIPE_$(notdir $(CC1)))
 ==> objdiff.json (generated, objdiff) <==
 {
   "$schema": "https://raw.githubusercontent.com/encounter/objdiff/main/config.schema.json",

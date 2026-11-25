@@ -1418,7 +1418,7 @@ module by module in ROM order, so no whole tree is ever held in memory (§9.4).
 | `data` | `data/<module>.s` (labels, `.incbin` slices, pointer tables as `.4byte Name`) | generated | 3 |
 | `ldscript` | `ldscript.txt` | generated | 3 |
 | `symbols` | `symbols.ld` (RAM and absolute symbols) | generated | 3 |
-| `modules-mk` | `modules.mk` (per-module compiler, `cc1` path and flags as target-specific variables) | generated | 4 |
+| `modules-mk` | `modules.mk` (per-module compiler, `cc1` path and flags as target-specific variables; the `make debug` rules, D124) | generated | 4 |
 | `c-stub` | `src/<module>.c` (the reconciler's stub planner run on an empty file plus the template header) | scaffold at `init`, reconciled after | 4, 6 |
 | `scaffold` | `Makefile`, `setup.sh`, `include/**`, `AGENTS.md`, `.github/workflows/build.yml`, `.gitignore`, `README.md`, `<name>.sha1`, `package.json`, `.gitmodules` | scaffold | 4 |
 | `expected` | `expected/<module>.s` (the module as its unit assembles it), §6.8 | generated | 6 (D92, D95 a, D101 a) |
@@ -1471,7 +1471,9 @@ only `update --write` and `rename` patch the TOML.
   and the rule that assembles `build/<m>.o` from it, with `asm/<m>.s: ;` for the generated source an older build's
   dependency list still names; with C units, a `$(warning)` for each `INCLUDE_ASM` line naming an `asm/nonmatchings/`
   file that is gone while its `asm/matchings/` twin exists, a stub put back by hand over a decompiled function, with the
-  command that writes the file back (D111). A generated `src/<m>.c` is `#include "include_asm.h"` and one
+  command that writes the file back (D111); and the `debug` target (D124): each C unit compiled again with `-g` into
+  `build/debug/src/<m>.o` and linked, with the build's other objects, into `build/debug/$(NAME).elf`, whose bytes the
+  recipe compares with the ROM's. A generated `src/<m>.c` is `#include "include_asm.h"` and one
   `INCLUDE_ASM("asm/nonmatchings/<m>", <Name>);` per chunk file in ROM order (`foundation/asm/dialect.ts`); the macro
   wraps each include in `.pushsection .text` and `.popsection`, so a stub after a `const` definition, where agbcc is
   still in `.rodata`, assembles into `.text` (D112).
@@ -2592,7 +2594,7 @@ one is missing.
 | `g4.worktree` | ci and real | in a fresh `git worktree` of an initialised project, `./setup.sh` copies the ROM from the main checkout and `make` ends at the SHA-1 |
 | `g4.toml-canonical` | ci | `serialize∘parse` is the identity on canonical files; patches keep comments and re-parse |
 | `g4.c-data-fails-loud` | ci | §6.6 |
-| `g4.multi-compiler` | ci | the multi-compiler fixture builds with two compilers from `modules.mk` |
+| `g4.multi-compiler` | ci | the multi-compiler fixture builds with two compilers from `modules.mk`; `make debug` then builds the ELF with debug information, whose bytes are the ROM's (D124) |
 | `g4.cli-contract` | ci | every command runs with stdin closed; `--json` output parses line by line; exit codes follow §2.1 |
 | `g4.checks-fail` | ci | mutation tests of the lock, the journal (failure after the k-th op) and the patch planner |
 | `g6.signatures-judged` | real | the signatures family of §8.4, with the PoC's table as floor on its five ROMs (Klonoa 94/6/20/10 and so on, `bench/baseline/poc-2026-10-16.json`); tmc by the ELF checks with no floor |

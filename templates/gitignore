@@ -17,6 +17,9 @@ build/
 
 node_modules/
 
+# What a runtime script writes (AGENTS.md): screenshots, memory snapshots and savestates, which hold the game's memory.
+/runtime/out/
+
 # tools/agbcc is a submodule (.gitmodules); its build products live inside it and never in this repository.
 tools/agbcc/bin/
 tools/agbcc/lib/

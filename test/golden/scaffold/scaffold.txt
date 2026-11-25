@@ -73,6 +73,9 @@ build/
 
 node_modules/
 
+# What a runtime script writes (AGENTS.md): screenshots, memory snapshots and savestates, which hold the game's memory.
+/runtime/out/
+
 # tools/agbcc is a submodule (.gitmodules); its build products live inside it and never in this repository.
 tools/agbcc/bin/
 tools/agbcc/lib/
@@ -111,10 +114,11 @@ was created by [romlift](https://github.com/macabeus/romlift) 0.4.0 (`package.js
 | `make rom` | builds `klonoa-eod.gba` without the comparison |
 | `npx romlift generate` | rewrites the generated files from `romlift.toml` and the ROM |
 | `make expected` | builds each module's objdiff target, `build/expected/<module>.o` (no compiler; `objdiff.json` lists the C modules') |
+| `make debug` | builds `build/debug/klonoa-eod.elf`: the ROM's ELF with DWARF debug information for the C modules (each compiled again with `-g`), and checks that its bytes are `klonoa-eod.gba`'s |
 | `npx romlift rename <old> <new>` | renames a function or symbol of `romlift.toml`, or a default data name `gUnk_<ADDR>`, in it and in the C of `src/` and `include/` together |
 | `npx romlift update [--write]` | proposes what the analysis finds that `romlift.toml` lacks, as a patch that keeps its comments; `--write` saves it |
 | `npx romlift explain <addr>` | explains what romlift decided about one address: which function owns it, why (the rules), its chunk and item |
-| `make clean` | removes `build/` (the objdiff targets with it) and the built ROM |
+| `make clean` | removes `build/` (the objdiff targets and the debug ELF with it) and the built ROM |
 
 `baserom.gba` is the original ROM. It is never committed (`.gitignore`); bring your own copy.
 
@@ -308,6 +312,77 @@ asmlift asm/nonmatchings/<module>/<Function>.s --score-against build/expected/<m
 
 Its score is evidence, `make` is the verdict. Its README documents the rest.
 
+## Checking what code does at runtime with gba-kit
+
+Reading assembly says what a function computes; running it says when it runs, who calls it and what it changes. Use
+that before you name a function, a global or a struct field, and when two readings of the same code are both
+plausible. [gba-kit](https://github.com/macabeus/gba-kit) runs the ROM without a window, from a Node.js script, and
+reads names, source lines and types from the build's ELF.
+
+`make debug` builds that ELF, `build/debug/klonoa-eod.elf`: every C module compiled again with `-g`, linked as the ROM
+is. Debug information is not loaded, so its bytes are the ROM's (the recipe fails otherwise) and every address in it is
+an address of `klonoa-eod.gba`. `klonoa-eod.elf`, which `make` links, has the symbols but no debug information: names
+resolve in it, source lines and types do not. Functions still in `INCLUDE_ASM` have a symbol and nothing else in both.
+
+Keep the scripts in a directory with a `package.json` of its own, `runtime/`, so that installing gba-kit does not
+depend on this project's `package.json`:
+
+```sh
+mkdir -p runtime && cd runtime
+npm init -y
+npm install @gba-kit/gba-node @gba-kit/debug-info
+```
+
+`runtime/who-calls.mjs`, which counts the calls of one function in the ten seconds after power-on and names the callers:
+
+```js
+import { HeadlessRuntime } from '@gba-kit/gba-node';
+
+const name = process.argv[2];
+const runtime = await HeadlessRuntime.create({
+  romPath: '../klonoa-eod.gba',
+  elfPath: '../build/debug/klonoa-eod.elf',
+  outputDir: 'out',
+  logFn: () => {},
+});
+const { engine } = runtime;
+if (engine.symbolToAddress(name) === null) throw new Error(`${name} is not a symbol of the ELF`);
+
+const calls = engine.watchExecution(name, { maxHits: 8 });
+await engine.wait({ frames: 600 });
+calls.stop();
+
+console.log(`${name}: ${calls.count} calls in 600 frames`);
+for (const hit of calls.hits) {
+  console.log('  called from', JSON.stringify(hit.callerLocation ?? engine.addressToSymbol(hit.lr)));
+}
+```
+
+```sh
+make && make debug
+cd runtime && node who-calls.mjs AgbMain
+```
+
+The same `engine` presses buttons (`press`), waits for a frame count, a memory value or an address to execute
+(`wait`), records every write to a global with the instruction that made it (`watchSymbol`, `watchMemory`), reads and
+writes memory and C variables (`read16`, `write16`, `readVariable`, `writeVariable`), and saves screenshots and
+savestates into `out/` (`takeScreenshot`, `saveState`; `loadState` resumes from one).
+gba-kit's [scripting guide](https://github.com/macabeus/gba-kit/blob/main/docs/scripting.md) documents all of it.
+
+What keeps a runtime result worth citing:
+
+- **Take every address from the ELF**, by name (`symbolToAddress`, `readVariable`, a struct member's layout), never
+  typed by hand: a script then fails when a name changes, instead of reading the wrong bytes.
+- **Change one thing between two runs** that are otherwise the same (one write, one button), and report what moved.
+  A value that merely correlates with something on screen is not yet evidence.
+- **A name claims what the script observed, no more.** "Never called in the first ten seconds" is not "dead code":
+  most of a game is out of reach of power-on, so start from a savestate at the place the code belongs to.
+- **Run `make debug` again after changing the C**: the ELF is the tree as it was when you built it.
+- **It is evidence for names and comments, never for matching.** `make` stays the only verdict on the bytes.
+
+Commit the scripts a name or a comment rests on, and say in the comment which script shows it. `runtime/out/` and
+`node_modules/` are in `.gitignore`: a savestate holds the game's memory, so it is not committed either.
+
 ## Hand-written assembly
 
 Code the original developers wrote in assembly (ARM handlers, interrupt code, `crt0`-like stubs) has no C to find.
@@ -403,6 +478,7 @@ fails the link with the first message: keep it in assembly and refer to it by it
 #   make            build klonoa-eod.gba and compare its SHA-1 with klonoa-eod.sha1 (exit 0 only on a match)
 #   make rom        build klonoa-eod.gba without the comparison
 #   make expected   build each module's objdiff target, build/expected/<module>.o (objdiff.json lists the C modules')
+#   make debug      build build/debug/klonoa-eod.elf: the ROM's ELF with debug information for the C modules (modules.mk)
 #   make clean      remove everything the build wrote
 #
 # romlift init wrote this file once and never overwrites it. What it builds is generated by `romlift generate`:
@@ -608,6 +684,10 @@ entries with `from = "sig:…"` were named by library signatures; code that runs
 `[[overrides]]` entry with `runs_at`. To compare a function with the original in objdiff, run `make expected` and open
 the project:
 `objdiff.json` lists the C modules (objdiff 3.7.2 or later). `AGENTS.md` has the details.
+
+To see what code does when it runs (who calls a function, what writes a global), `make debug` builds
+`build/debug/klonoa-eod.elf`, the ROM's ELF with debug information for the C modules, which
+[gba-kit](https://github.com/macabeus/gba-kit) reads beside the ROM. `AGENTS.md` has a script to start from.
 ==> include/gba/io_reg.h (scaffold, scaffold) <==
 /* include/gba/io_reg.h: the GBA's memory map and I/O registers (written once by romlift init; yours to edit).
  * REG_<NAME> is the register as an lvalue of its width; REG_ADDR_<NAME> its address. */
