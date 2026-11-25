@@ -4,7 +4,8 @@
 // fixture's decompiled C over the project, and runs `generate`, `./setup.sh` and `make`, which must reach
 // the SHA-1; modules.mk must give each named module its compiler and flags and leave at least one other C
 // module on agbcc. As a control, the same C built with agbcc alone must not reach the SHA-1, so the fixture
-// really needs both compilers.
+// really needs both compilers. From D124 `make debug` then builds the ELF with debug information from both compilers'
+// units, and its bytes must be the ROM's.
 //
 // Interfaces, frozen by D74 (as in g4.e2e-fixtures, plus):
 //   bench/dataset/synthetic/multi-compiler/expect.json   {"init"?: {"args": [string]},
@@ -146,6 +147,25 @@ gate({
     const both = await built(dir);
     if (both.built !== both.recorded)
       throw new Error(`with two compilers make built ${both.built}, expected ${both.recorded}`);
+
+    // `make debug` (D124): each compiler's units again with -g, linked into an ELF that carries DWARF sections and
+    // whose bytes are the ROM's (the recipe compares them and fails otherwise).
+    await step(cx, 'make debug', 'make', ['debug'], dir, env);
+    const debugDir = path.join(dir, 'build', 'debug');
+    const debugFiles = await readdir(debugDir);
+    const debugElf = debugFiles.find((name) => name.endsWith('.elf'));
+    const debugRom = debugFiles.find((name) => name.endsWith('.gba'));
+    if (debugElf === undefined || debugRom === undefined)
+      throw new Error(`make debug left no ELF and ROM in build/debug: ${debugFiles.join(', ')}`);
+    const debugBytes = sha1(await readFile(path.join(debugDir, debugRom)));
+    if (debugBytes !== both.recorded)
+      throw new Error(`the debug ELF's bytes are ${debugBytes}, expected the ROM's ${both.recorded}`);
+    const elfText = (await readFile(path.join(debugDir, debugElf))).toString('latin1');
+    for (const section of ['.debug_info', '.debug_line'])
+      if (!elfText.includes(section)) throw new Error(`build/debug/${debugElf} has no ${section} section`);
+    for (const module of [...named, ...others])
+      if (!elfText.includes(`src/${module}.c`))
+        throw new Error(`build/debug/${debugElf} has no debug information naming src/${module}.c`);
 
     const mk = (await readFile(path.join(dir, 'modules.mk'), 'utf8')).split('\n');
     const problems: string[] = [];

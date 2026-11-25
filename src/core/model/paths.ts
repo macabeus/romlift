@@ -83,6 +83,17 @@ export function expectedObjectPath(module: string): string {
   return `build/expected/${module}.o`;
 }
 
+/** The directory `make debug` builds in (D124): the C objects compiled with `-g`, the ldscript that names them and the ELF. */
+export const DEBUG_BUILD_DIR = 'build/debug';
+
+/**
+ * The object `make debug` builds for C module `module` (D124): cObjectPath(module) under DEBUG_BUILD_DIR, so the
+ * ldscript's `*src/<module>.o` patterns match it as they match the build's own object.
+ */
+export function debugCObjectPath(module: string): string {
+  return `${DEBUG_BUILD_DIR}/src/${module}.o`;
+}
+
 /** The assembly agbcc writes for C module `module`, which `as` assembles to cObjectPath(module). */
 export function cAssemblyPath(module: string): string {
   return `build/src/${module}.s`;

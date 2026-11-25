@@ -5873,6 +5873,58 @@ image (the repository commits no ELF or map but the self-authored fixtures'). Ma
 (the fixtures are run by some twenty gates that expect exact analysis results, and this one is a compiler's output,
 not a case written for a rule). Leaving libc out of sa3's references.
 
+## D124. The scaffold points at gba-kit for runtime analysis, and `make debug` builds the ELF it reads; the owner's words of 25 November 2026
+
+**Context.** The owner: "I think we need to have any mention for gba-kit on the generated `AGENTS.md`, so it can be
+used to improve the code quality with runtime analysis", then, on the plan: "Follow your recommendations, but include
+on this same phase the recipe on makefile to build a rom that includes the debug symbols". The scaffold named asmlift
+and objdiff and no way to run the code. Its ELF has the symbol table and no debug sections, so a tool that reads the
+ELF resolves names in it and neither source lines nor types.
+
+**Measured before the decision.** On kl2dct at `b79b9f4` (nine C modules, all `agbcc`):
+
+- `-g` after each module's flags gives five debug sections in the linked ELF (`.debug_line`, `.debug_abbrev`,
+  `.debug_info`, `.debug_pubnames`, `.debug_aranges`) and `objcopy -O binary` of it is the built ROM, byte for byte.
+- `old_agbcc -g` on one preprocessed unit: the same `.text` bytes as without it, and debug sections in the object.
+- `@gba-kit/debug-info` 0.9.0 on that ELF maps `sub_0800141C + 4` to `src/main.c:351` and gives the function's
+  signature; on the ELF `make` links both are `null`. `@gba-kit/gba-node` 0.9.0 runs the ROM with no BIOS file:
+  600 frames in about a second, `AgbMain` entered once from `Init`, `InputHandler_Normal` 556 times from `AgbMain`.
+- `npm install` in the project fails with a 404 while romlift is not on the registry (its `package.json` pins it).
+
+**Decision.**
+
+- **a. `make debug`.** `modules.mk` gains the target: each C unit compiled again by its compiler's recipe with `-g`
+  after its own flags, into `build/debug/src/<module>.o`; linked with every other object of the build through
+  `build/debug/ldscript.txt` (`ldscript.txt` with `build/src/` rewritten) into `build/debug/$(NAME).elf`. The recipe
+  writes the ELF's bytes beside it and fails, removing the ELF, unless they are the built ROM's: debug information is
+  only worth reading when its addresses are the ROM's. The C units are rebuilt on every run (FORCE), as `make
+  expected` rebuilds its targets. Everything lies under `build/`, so `make clean` and `.gitignore` already cover it.
+- **b. In `modules.mk`, not the `Makefile`.** As the rule of a hand-written source (D109) and the restored-stub
+  warning (D111): a project whose `Makefile` init wrote earlier has the target at its next `generate`. The template
+  `Makefile` only names it in its header.
+- **c. `AGENTS.md`.** A section after asmlift's: when to run the code, what the debug ELF is and how it differs from
+  the one `make` links, the install in a directory with its own `package.json` (`runtime/`, since the project's
+  cannot install yet), one script that was run as printed, what else the engine does, and the rules that keep a
+  result worth citing (addresses from the ELF, one change between two runs, a name claims what was observed, evidence
+  for names and never for matching). `README.md` gets one paragraph, `.gitignore` `/runtime/out/`.
+- **d. No dependency and no generated script.** The scaffold's `package.json` does not name gba-kit and romlift
+  writes no file under `runtime/`: a project that never runs the game carries nothing, and romlift has no script to
+  keep working against another package's interface. asmlift is named the same way.
+
+**Measured after it.** `npm test`: 2,819 pass. `g4.multi-compiler` now runs `make debug` after reaching the SHA-1 and
+requires the two debug sections, each C module's source name in the ELF and the ROM's SHA-1 for its bytes; it
+passes with `agbcc` and `old_agbcc` units. On kl2dct, `generate` rewrites `modules.mk` alone and `make debug` works
+with the `Makefile` of `a9b337d`.
+
+**Consequences.** Every `generate` after this one changes `modules.mk`, so each object is rebuilt once (the stale
+check hashes that file). A function still in `INCLUDE_ASM` has a symbol and no debug information in either ELF. A
+module whose own `cflags` hold `-g` gets it twice in the debug build, which the compilers accept.
+
+**Rejected.** Adding `-g` to the build itself (measured as neutral, but the ROM's build would then rest on a
+property the SHA-1 check does not explain when it fails). Assembling the asm units with `--gdwarf-2` for line
+information of the disassembly (not measured, and the listing already carries each address). A `debug` target in the
+`Makefile` template (it would reach no existing project). A starter script written by `init` (d).
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per

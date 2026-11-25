@@ -12,6 +12,8 @@
 //   build/<module>.o: <its source>                                           stale check reads, the generated source an old
 //   	<the asm unit's recipe>                                               dependency list may name, and an explicit rule
 //                                                                            that wins over the asm/%.s and data/%.s patterns
+//   debug: build/debug/$(NAME).elf                                           `make debug` (D124): each C unit compiled again
+//   build/debug/src/<module>.o: …                                            with -g, linked into an ELF whose bytes are the ROM's
 //
 // The compiler is the module's (`[[modules]] compiler`, default `[build] compiler`, resolved on the Model) and its cc1
 // comes from core/config/compilers.ts BUILD_COMPILERS (core/model/c-unit.ts moduleCompile); the flags are the Model's
@@ -21,7 +23,15 @@
 import type { Rom } from '../../../foundation/rom/rom.ts';
 import { isCSource } from '../../../foundation/util/project-files.ts';
 import { moduleCompile } from '../../model/c-unit.ts';
-import { MODULES_MK_PATH, buildUnits, expectedObjectPath, hasExpectedTarget } from '../../model/paths.ts';
+import {
+  DEBUG_BUILD_DIR,
+  MODULES_MK_PATH,
+  buildUnits,
+  cObjectPath,
+  debugCObjectPath,
+  expectedObjectPath,
+  hasExpectedTarget,
+} from '../../model/paths.ts';
 import type { Model } from '../../model/types.ts';
 import type { EmitContext, FileEntry, Writer } from '../tree.ts';
 
@@ -76,6 +86,55 @@ function restoredStubWarning(sources: readonly string[]): string {
   );
 }
 
+/** One C unit of `make debug`: its module, its source and what its compiler is run with. */
+interface DebugUnit {
+  readonly module: string;
+  readonly source: string;
+  readonly cc1: string;
+  readonly flags: readonly string[];
+}
+
+/**
+ * `make debug` (D124): build/debug/$(NAME).elf, the ROM's ELF with DWARF debug information for the C modules, which a
+ * debugger or an emulator reads beside the ROM (source lines, types, struct layouts, variables). Each C unit is
+ * compiled again with `-g` after its own flags, by its compiler's recipe (mk/<id>.mk), into build/debug/src/; every
+ * other object is the build's own, and the link uses ldscript.txt with the C objects' paths rewritten. The debug
+ * sections are not loaded, so the ELF's bytes are the ROM's, and the recipe fails unless they are: a compiler whose
+ * `-g` changed the code would otherwise give addresses that are not the ROM's. The C units are few and compile in
+ * seconds, so every `make debug` builds them again (FORCE), whatever the modification times say. The rule lives here,
+ * not in the Makefile, so a project whose Makefile init wrote before the target existed has it at its next `generate`.
+ */
+function debugRules(units: readonly DebugUnit[]): string {
+  const elf = `${DEBUG_BUILD_DIR}/$(NAME).elf`;
+  const rom = `${DEBUG_BUILD_DIR}/$(NAME).gba`;
+  const ldscript = `${DEBUG_BUILD_DIR}/ldscript.txt`;
+  const objects = units.map((u) => debugCObjectPath(u.module));
+  return (
+    [
+      '# make debug: the ELF with DWARF debug information for the C modules, its bytes checked against the ROM (D124).',
+      `DEBUG_OBJS := $(patsubst ${cObjectPath('%')},${debugCObjectPath('%')},$(OBJS))`,
+      '.PHONY: debug',
+      `debug: ${elf}`,
+      `${elf}: $(ROM)${objects.map((o) => ` ${o}`).join('')} FORCE`,
+      '\t@mkdir -p $(@D)',
+      `\tsed 's|build/src/|${DEBUG_BUILD_DIR}/src/|g' ldscript.txt > ${ldscript}`,
+      `\t$(LD) -T ${ldscript} -o $@ $(DEBUG_OBJS)`,
+      `\t$(OBJCOPY) -O binary $@ ${rom}`,
+      `\t@cmp ${rom} $(ROM) || { echo "$@: its bytes are not $(ROM)'s, so its addresses are not the ROM's (-g changed the code a compiler wrote)" >&2; rm -f $@; exit 1; }`,
+      ...units.flatMap((u) => {
+        const object = debugCObjectPath(u.module);
+        return [
+          `${object}: CC1 := ${u.cc1}`,
+          `${object}: CFLAGS :=${[...u.flags, '-g'].map((f) => ` ${f}`).join('')}`,
+          `${object}: ${u.source} FORCE`,
+          '\t@mkdir -p $(@D)',
+          '\t$(C_RECIPE_$(notdir $(CC1)))',
+        ];
+      }),
+    ].join('\n') + '\n'
+  );
+}
+
 /**
  * The text of modules.mk; `configSha1`, in a project, the SHA-1 of the romlift.toml it is generated from, which the
  * scaffold's Makefile compares with the file's (fix round 6, correctness-b1-1: a pull that changed the TOML leaves
@@ -112,6 +171,9 @@ export function modulesMkText(model: Pick<Model, 'modules' | 'chunks'>, configSh
       return m.source === undefined || unit === undefined ? [] : [handWrittenRule(m.name, unit.object, m.source)];
     }),
     restoredStubWarning(cUnits.map((c) => c.unit.source)),
+    debugRules(
+      cUnits.map(({ unit, module }) => ({ module: module.name, source: unit.source, ...moduleCompile(module) })),
+    ),
   ];
   return parts.join('');
 }
